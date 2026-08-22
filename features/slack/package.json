@@ -1,0 +1,18 @@
+{
+  "name": "@ori-monorepo/slack",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@slack/bolt": "4.6.0",
+    "@slack/types": "2.22.0",
+    "@slack/web-api": "7.15.0",
+    "effect": "4.0.0-beta.90",
+    "slackify-markdown": "5.0.0"
+  }
+}

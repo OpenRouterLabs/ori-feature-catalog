@@ -1,0 +1,96 @@
+/**
+ * post-chart.ts — the loopback call behind the `slack-chart` skill.
+ *
+ * Split from the CLI entry so it can be exercised without a daemon, and so the
+ * entry stays a thin shell that maps outcomes to exit codes.
+ */
+
+const DEFAULT_PORT = "3141";
+
+/** A daemon that is not there is reported, not thrown. */
+const unreachable = (): undefined => undefined;
+
+/** The route's own explanation, when it left one that can be parsed. */
+const readErrorDetail = async (
+  response: Response
+): Promise<string | undefined> => {
+  const body: unknown = await response.json().catch(unreachable);
+  if (typeof body !== "object" || body === null) {
+    return undefined;
+  }
+  const { error } = body as { readonly error?: unknown };
+  return typeof error === "string" && error !== "" ? error : undefined;
+};
+
+export type PostChartOutcome =
+  | { readonly kind: "posted" }
+  | { readonly kind: "error"; readonly message: string };
+
+export type PostChartEnv = Readonly<Record<string, string | undefined>>;
+
+export const postChart = async (input: {
+  readonly env: PostChartEnv;
+  readonly fetch: typeof globalThis.fetch;
+  readonly spec: string;
+}): Promise<PostChartOutcome> => {
+  const channel = input.env.SLACK_CHANNEL_ID ?? "";
+  const threadTs = input.env.SLACK_THREAD_TS ?? "";
+  if (channel === "" || threadTs === "") {
+    return {
+      kind: "error",
+      message:
+        "no Slack thread in scope (SLACK_CHANNEL_ID / SLACK_THREAD_TS unset)",
+    };
+  }
+
+  let spec: unknown;
+  try {
+    spec = JSON.parse(input.spec);
+  } catch {
+    return {
+      kind: "error",
+      message: "the spec must be JSON",
+    };
+  }
+  if (typeof spec !== "object" || spec === null) {
+    return {
+      kind: "error",
+      message: "the spec must be a JSON object",
+    };
+  }
+
+  const port = input.env.ORI_RUNTIME_PORT ?? DEFAULT_PORT;
+  const response = await input
+    .fetch(`http://127.0.0.1:${port}/slack/thread/chart`, {
+      body: JSON.stringify({
+        ...spec,
+        channel,
+        team: input.env.SLACK_TEAM_ID,
+        thread_ts: threadTs,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    })
+    .catch(unreachable);
+
+  if (response === undefined) {
+    return {
+      kind: "error",
+      message: "could not reach the ori daemon",
+    };
+  }
+  if (response.ok) {
+    return { kind: "posted" };
+  }
+
+  // A bare status code sends the caller to the logs to find out what broke.
+  // The route already says why in its body, so that is what gets reported.
+  const detail = await readErrorDetail(response);
+  return {
+    kind: "error",
+    message:
+      detail === undefined
+        ? String(response.status)
+        : `${response.status} — ${detail}`,
+  };
+};

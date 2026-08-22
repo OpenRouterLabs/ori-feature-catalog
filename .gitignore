@@ -1,0 +1,8 @@
+node_modules/
+bun.lock
+.cache/
+coverage/
+.env
+.env.*
+!.env.example
+.ori/
