@@ -213,7 +213,7 @@ const MINUTE_MS = 60_000;
 /** How long without a word before the surface says so rather than implying progress. */
 const QUIET_MINUTES = 5;
 
-const minutesSince = (from: number, now: number): number =>
+export const minutesSince = (from: number, now: number): number =>
   Math.max(0, Math.floor((now - from) / MINUTE_MS));
 
 /**
