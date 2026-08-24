@@ -2,8 +2,6 @@
 
 Rules that cost us something to learn. Read before adding to this feature.
 
-A rebuild is being scoped in [`docs/slack-surface-rebuild.md`](../../docs/slack-surface-rebuild.md): the reader's contract, what Slack actually does, the four structural seams, and the decisions a rewrite has to make. Read that first for a large change.
-
 ## Anything with a lifecycle is a Service
 
 State that lives across a turn goes behind a `Context.Service` and is provided from `SlackDefaultLayers` — never a module-level `Map`.

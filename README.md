@@ -1,32 +1,47 @@
 # ori-feature-catalog
 
-A public catalog of [ori](https://github.com/OpenRouterIncubator/ori) features that any
-intern can load remotely. Each directory under `features/` is one self-contained feature.
+A public catalog of [ori](https://openrouter.ai/ori) features that any intern can load
+remotely. Each directory under `features/` is one self-contained feature.
 
 This is a catalog, not a feature set: it is the list you pick *from*. The features an
 individual intern actually runs — its own `features/` directory — are that intern's
 feature set.
 
-## Use a feature
+## Use the catalog
 
-Add the catalog to your intern's `ori.md`, or pass it on the command line:
+Point `--features` at the **repo root**, not at an individual feature:
 
 ```sh
-ori dev --features github.com/OpenRouterLabs/ori-feature-catalog/features/slack
+ori dev --features github.com/OpenRouterLabs/ori-feature-catalog
 ```
 
-The grammar is `<host>/<owner>/<repo>[/<path>][@<ref>]`. Omit `@<ref>` to track the
-default branch; pin a tag or commit SHA for a fixed version:
+`--features` takes a *features root*, and a bare repo root resolves to its nested
+`features/`. Normalization descends one level only, so pointing at
+`.../ori-feature-catalog/features/slack` would treat that directory as the root and
+enumerate `src` and `skills` as features — not `slack`.
+
+Pin a tag or commit SHA with `@<ref>`; omit it to track the default branch:
 
 ```sh
-ori dev --features github.com/OpenRouterLabs/ori-feature-catalog/features/slack@v1.0.0
+ori dev --features github.com/OpenRouterLabs/ori-feature-catalog@v1.0.0
 ```
 
 Ori fetches the tree over HTTPS, caches it under `.ori/remote-features/`, and runs
 `bun install` in the cache entry so each feature's own dependencies resolve.
 
-A local `features/<id>` in your workspace shadows a remote feature with the same id, so
-you can fork anything here by simply creating a directory of the same name.
+Because the root resolves to `features/`, this loads **every** feature in the catalog.
+There is no per-feature selection today.
+
+## Keep your own features too
+
+A single `--features <remote>` **replaces** the workspace's local features root rather
+than composing with it, so your own `features/` will not load.
+
+To run the catalog alongside your own features, declare it in `ori.md` instead. Declared
+sources compose in the order `[declared…, local, …--features flags]`, and a later source
+wins on a duplicate feature id. Your workspace's own root is appended after the declared
+ones, so a local `features/<id>` shadows a catalog feature of the same id — which is how
+you fork anything here: create a directory with the same name.
 
 ## Features
 
@@ -34,6 +49,17 @@ you can fork anything here by simply creating a directory of the same name.
   replies, a typing indicator driven by tool calls, and seven skills (`slack-api`,
   `slack-ask`, `slack-chart`, `slack-image`, `slack-questions`, `slack-status`,
   `spawn-thread`). Requires `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET`.
+
+## Develop
+
+```sh
+bun install
+bun test
+```
+
+`bun run typecheck` needs the ori SDK present. `ori` is an optional `file:.ori/sdk`
+dependency and `.ori/` is git-ignored, so run `ori init .` first — without it tsc reports
+`Cannot find module 'ori'` plus a cascade of implicit-any errors from the same cause.
 
 ## Add a feature
 
