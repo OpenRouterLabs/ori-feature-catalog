@@ -11,7 +11,9 @@
  * ./spawn-thread.ts.
  */
 
-import { Option, Result, Schema } from "effect";
+import { Option, Result } from "effect";
+
+import type { KnownBlock } from "@slack/types";
 
 import type { FetchLike } from "./spawn-thread.ts";
 
@@ -23,19 +25,6 @@ import { dispatchToRunloop } from "./spawn-thread.ts";
 import { updateMessage } from "./update-message.ts";
 
 const ANCHOR_PLACEHOLDER_TEXT = ":link: _spawning a new thread…_";
-
-// Slack chat.postMessage / chat.update return many fields; the spawn-thread
-// workflow reads only `ts` (the new message/thread id). `ts` is typed `string`
-// (never `string | null`) in @slack/web-api's ChatPostMessageResponse, and the
-// pre-existing contract treats an empty/absent ts as "no thread id" — so decode
-// to a required NonEmptyString and let a None mean "absent". Excess fields are
-// stripped (Struct defaults to onExcessProperty: "ignore").
-const PostMessageResultSchema = Schema.Struct({
-  ts: Schema.NonEmptyString,
-});
-const decodePostMessageResult = Schema.decodeUnknownOption(
-  PostMessageResultSchema
-);
 
 export interface RunNewOpts {
   channel: string;
@@ -69,7 +58,7 @@ const postAnchorPlaceholder = async (
     return undefined;
   }
   return Option.getOrUndefined(
-    Option.map(decodePostMessageResult(anchorResult.success), ({ ts }) => ts)
+    Option.map(anchorResult.success, ({ ts }) => ts)
   );
 };
 
@@ -83,8 +72,8 @@ export const buildOpenerBlocks = ({
   originChannel: string | undefined;
   originTs: string | undefined;
   anchorTs?: string | undefined;
-}): unknown[] => {
-  const sectionBlock = {
+}): KnownBlock[] => {
+  const sectionBlock: KnownBlock = {
     type: "section",
     text: {
       type: "mrkdwn",
@@ -106,7 +95,7 @@ export const buildOpenerBlocks = ({
     threadTs: originTs,
     messageTs: isPresentEnvValue(anchorTs) ? anchorTs : undefined,
   });
-  const actionsBlock = {
+  const actionsBlock: KnownBlock = {
     type: "actions",
     elements: [
       {
@@ -149,7 +138,7 @@ interface PostOpenerArgs {
   readonly postFn: typeof postMessage;
   readonly channel: string;
   readonly opener: string;
-  readonly blocks: unknown[];
+  readonly blocks: readonly KnownBlock[];
 }
 
 /**
@@ -173,7 +162,7 @@ const postOpener = async (
   }
 
   return Result.fromOption(
-    Option.map(decodePostMessageResult(postResult.success), ({ ts }) => ts),
+    Option.map(postResult.success, ({ ts }) => ts),
     () => new Error("opener post returned no thread_ts — cannot dispatch")
   );
 };

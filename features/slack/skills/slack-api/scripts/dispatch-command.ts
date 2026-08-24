@@ -8,7 +8,7 @@
  * has its own handler to keep routing functions small.
  */
 
-import { Result } from "effect";
+import { Option, Result } from "effect";
 
 import { fetchChannelHistory } from "./get-history.ts";
 import { getThreadReplies } from "./get-replies.ts";
@@ -44,10 +44,9 @@ const parseIntFlag = (
   raw: string | undefined,
   name: string,
   allowZero = false
-): Result.Result<number | undefined, Error> => {
+): Result.Result<Option.Option<number>, Error> => {
   if (raw === undefined) {
-    // oxlint-disable-next-line unicorn/no-useless-undefined -- Result.succeed needs an explicit arg to infer Result<number | undefined, Error>
-    return Result.succeed(undefined);
+    return Result.succeed(Option.none());
   }
   const n = Number(raw);
   if (
@@ -61,7 +60,7 @@ const parseIntFlag = (
       )
     );
   }
-  return Result.succeed(n);
+  return Result.succeed(Option.some(n));
 };
 
 const handleConversations = async (
@@ -84,7 +83,7 @@ const handleConversations = async (
     return await getThreadReplies({
       channel: channelResult.success,
       ts: flags.ts,
-      limit: limitResult.success,
+      limit: Option.getOrUndefined(limitResult.success),
     });
   }
   const limitResult = parseIntFlag(flags.limit, "limit", true);
@@ -95,7 +94,7 @@ const handleConversations = async (
     channel: channelResult.success,
     oldest: flags.oldest,
     latest: flags.latest,
-    limit: limitResult.success,
+    limit: Option.getOrUndefined(limitResult.success),
   });
 };
 

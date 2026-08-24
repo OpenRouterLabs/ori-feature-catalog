@@ -10,9 +10,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { Result } from "effect";
+import { Option, Result } from "effect";
 
-import { postMessage } from "./post-message.ts";
+import { decodePostMessageResponse, postMessage } from "./post-message.ts";
 import { updateMessage } from "./update-message.ts";
 
 const IN_THREAD = {
@@ -72,5 +72,30 @@ describe("updateMessage", () => {
 
     expect(Result.isFailure(result)).toBe(true);
     expect(failureMessage(result)).toContain("SLACK_BOT_TOKEN");
+  });
+});
+
+describe("decodePostMessageResponse", () => {
+  test("reads the ts off a normal chat.postMessage response", () => {
+    const decoded = decodePostMessageResponse({
+      ok: true,
+      channel: "C1",
+      ts: "1700.1",
+    });
+    expect(Option.getOrUndefined(decoded)?.ts).toBe("1700.1");
+  });
+
+  test("is None when Slack acknowledged without a ts", () => {
+    expect(Option.isNone(decodePostMessageResponse({ ok: true }))).toBe(true);
+  });
+
+  // The pre-existing contract treats an empty ts as absent rather than as a
+  // usable thread id, which is why the schema requires a NonEmptyString.
+  test("is None for an empty ts rather than returning it", () => {
+    expect(Option.isNone(decodePostMessageResponse({ ts: "" }))).toBe(true);
+  });
+
+  test("is None for a non-object response", () => {
+    expect(Option.isNone(decodePostMessageResponse("nope"))).toBe(true);
   });
 });

@@ -22,6 +22,8 @@
 
 import { Result } from "effect";
 
+import type { KnownBlock } from "@slack/types";
+
 import {
   makeClient,
   markdownToSlack,
@@ -32,7 +34,7 @@ export interface UpdateMessageOpts {
   channel: string;
   ts: string;
   text: string;
-  blocks?: unknown[] | undefined;
+  blocks?: readonly KnownBlock[] | undefined;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
 }

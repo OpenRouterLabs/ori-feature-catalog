@@ -26,7 +26,9 @@
  * markdown-block formatting and the one-answer-per-turn rule are not optional.
  */
 
-import { Result } from "effect";
+import { Option, Result, Schema } from "effect";
+
+import type { KnownBlock } from "@slack/types";
 
 import {
   makeClient,
@@ -38,7 +40,7 @@ import { tryCatchAsync } from "./guards.ts";
 export interface PostMessageOpts {
   channel: string;
   text?: string | undefined;
-  blocks?: unknown[] | undefined;
+  blocks?: readonly KnownBlock[] | undefined;
   threadTs?: string | undefined;
   /** Set true to post a top-level (unthreaded) message; also bypasses the cross-channel guard. */
   noThread?: boolean | undefined;
@@ -46,10 +48,25 @@ export interface PostMessageOpts {
   env?: Record<string, string | undefined> | undefined;
 }
 
-/** Post a Slack message. Returns the full Slack API response object. */
+// chat.postMessage answers with far more than this, but `ts` is the only field
+// spawn-thread reads and the decode is what keeps that contract honest at the
+// boundary rather than at each call site. Slack can answer ok:true with no ts,
+// which the pre-existing contract treats as "no thread id" — hence the Option
+// rather than a decode failure. Excess fields are stripped by default.
+export const PostMessageResponse = Schema.Struct({
+  ts: Schema.NonEmptyString,
+});
+
+export type PostMessageResponse = typeof PostMessageResponse.Type;
+
+/** Exported so a caller can decode a response it obtained some other way. */
+export const decodePostMessageResponse =
+  Schema.decodeUnknownOption(PostMessageResponse);
+
+/** Post a Slack message. `None` means Slack returned no usable `ts`. */
 export const postMessage = async (
   opts: PostMessageOpts
-): Promise<Result.Result<unknown, Error>> => {
+): Promise<Result.Result<Option.Option<PostMessageResponse>, Error>> => {
   const clientResult = makeClient(opts.env);
   if (Result.isFailure(clientResult)) {
     return Result.fail(clientResult.failure);
@@ -65,7 +82,7 @@ export const postMessage = async (
   }
   const effectiveThreadTs = threadTsResult.success;
   const postText = opts.text ? markdownToSlack(opts.text) : "";
-  return await tryCatchAsync(() =>
+  const sent = await tryCatchAsync(() =>
     clientResult.success.chat.postMessage({
       channel: opts.channel,
       text: postText,
@@ -81,4 +98,5 @@ export const postMessage = async (
         : {}),
     })
   );
+  return Result.map(sent, decodePostMessageResponse);
 };
