@@ -1,12 +1,18 @@
 #!/usr/bin/env bun
-/* oxlint-disable import/no-relative-parent-imports -- the skill and the daemon's beat share one definition of where the live line is kept; two copies of that path is how they drift */
 
-/** index.ts — the `slack-status` CLI entry. */
+/**
+ * index.ts — the `slack-status` CLI entry.
+ *
+ * The skill and the daemon's beat share one definition of where the live line
+ * is kept; two copies of that path is how they drift. The `#src/*` subpath
+ * comes from this feature's own package.json `imports` map, so the reach into
+ * `src/` reads as one absolute name rather than a count of `../` hops.
+ */
 
 import { retryPolicies, WebClient } from "@slack/web-api";
 import { slackifyMarkdown } from "slackify-markdown";
 
-import { recordLiveLine } from "../../../src/turn/live-line.ts";
+import { recordLiveLine } from "#src/turn/live-line.ts";
 import { postStatus } from "./post-status.ts";
 
 /** Long enough for a slow Slack, short enough that a turn notices. */

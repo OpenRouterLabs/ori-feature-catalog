@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  # The floor sits just under the coverage measured when it was introduced
+  # (85.52% functions / 86.31% lines) so the build is green on day one and can
+  # only be ratcheted upward.
+  COVERAGE_FLOOR_FUNCS: "84.0"
+  COVERAGE_FLOOR_LINES: "85.0"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,4 +19,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install
-      - run: bun test
+      - name: Test with coverage
+        shell: bash
+        run: bun test --coverage 2>&1 | tee coverage.txt
+      - name: Enforce the coverage floor
+        shell: bash
+        run: |
+          # Bun 1.3.14 accepts bunfig's `coverageThreshold = { line, function }`
+          # and silently ignores it; the scalar form it honours is applied per
+          # file and exits 1 with no message. So the repo-wide floor is checked
+          # here, against the summary row the text reporter prints.
+          sed $'s/\x1b\\[[0-9;]*m//g' coverage.txt > coverage.plain.txt
+          awk -F'|' -v floor_funcs="$COVERAGE_FLOOR_FUNCS" \
+                    -v floor_lines="$COVERAGE_FLOOR_LINES" '
+            $1 ~ /^All files/ {
+              funcs = $2 + 0
+              lines = $3 + 0
+              found = 1
+              printf "coverage: %.2f%% functions (floor %.2f), %.2f%% lines (floor %.2f)\n", \
+                funcs, floor_funcs, lines, floor_lines
+              if (funcs < floor_funcs + 0 || lines < floor_lines + 0) {
+                print "::error::coverage fell below the floor"
+                exit 1
+              }
+            }
+            END {
+              if (!found) {
+                print "::error::no coverage summary in the test output"
+                exit 1
+              }
+            }
+          ' coverage.plain.txt

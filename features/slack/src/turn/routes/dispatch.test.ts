@@ -1,7 +1,8 @@
-/* oxlint-disable import/no-relative-parent-imports -- the parity check must read the skill's constant, which lives outside src/ */
 import { describe, expect, test } from "bun:test";
 
-import { MAX_SPAWN_DEPTH as SKILL_MAX_SPAWN_DEPTH } from "../../../skills/spawn-thread/scripts/spawn-thread.ts";
+// The parity check must read the skill's own constant, which lives outside
+// `src/`; `#skills/*` is this feature's package.json `imports` map.
+import { MAX_SPAWN_DEPTH as SKILL_MAX_SPAWN_DEPTH } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 import { MAX_SPAWN_DEPTH, isLoopback, parseDispatchBody } from "./dispatch.ts";
 
 const body = (over: Record<string, unknown> = {}): Record<string, unknown> => ({

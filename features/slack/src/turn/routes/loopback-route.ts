@@ -52,13 +52,11 @@ export interface Addressed {
  */
 const alreadyGone = (): undefined => undefined;
 
-const jsonOrNull = (raw: string): unknown => {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
-};
+const decodeJson = Schema.decodeUnknownResult(Schema.UnknownFromJsonString);
+
+/** A body that is not JSON reads as `null`, which every `parse` refuses. */
+const jsonOrNull = (raw: string): unknown =>
+  Result.getOrElse(decodeJson(raw), () => null);
 
 /**
  * Read the body under a ceiling that actually holds.

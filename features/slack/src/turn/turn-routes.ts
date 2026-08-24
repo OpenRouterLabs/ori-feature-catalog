@@ -136,28 +136,29 @@ const makeRunTurn =
       threadKey,
       queuedNotice(steered, () => deps.postQueuedNotice(turn.ref)),
       async (live) => {
-        try {
-          await deps.runWith(
-            handleTurn({
-              bridge: deps.bridge,
-              live,
-              turn: redirected,
-            }).pipe(
-              Effect.catchCause((cause) =>
-                Effect.sync(() => {
-                  deps.logger.error("[slack] turn failed", cause);
-                })
-              )
+        // `ensuring` rather than a `finally` around the run: nothing may
+        // outlive the turn that owns it, and a turn that ended abnormally
+        // leaves the agent run behind it still blocked on an answer that is
+        // never coming, with no one left to render it. On a turn that finished
+        // normally the stream is already exhausted and this is a no-op.
+        await deps.runWith(
+          handleTurn({
+            bridge: deps.bridge,
+            live,
+            turn: redirected,
+          }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.sync(() => {
+                deps.logger.error("[slack] turn failed", cause);
+              })
+            ),
+            Effect.ensuring(
+              Effect.sync(() => {
+                live.abort();
+              })
             )
-          );
-        } finally {
-          // Nothing may outlive the turn that owns it. A turn that ended
-          // abnormally leaves the agent run behind it still blocked on an
-          // answer that is never coming, with no one left to render it. On a
-          // turn that finished normally the stream is already exhausted and
-          // this is a no-op.
-          live.abort();
-        }
+          )
+        );
       }
     );
   };

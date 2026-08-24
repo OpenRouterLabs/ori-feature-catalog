@@ -1,4 +1,4 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/explicit-function-return-type eslint/max-lines-per-function -- the daemon under test lives up the tree, and cases read better whole than split */
+/* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- cases read better whole than split */
 /**
  * end-to-end.test.ts — the real CLI, as a real process, against a real route.
  *
@@ -16,8 +16,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import { Effect } from "effect";
 
-import { QuestionnairesMemory } from "../../../src/interactions/questionnaires.ts";
-import { makeQuestionsRoute } from "../../../src/turn/routes/questions-route.ts";
+import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
+import { makeQuestionsRoute } from "#src/turn/routes/questions-route.ts";
 
 const SCRIPT = `${import.meta.dir}/index.ts`;
 

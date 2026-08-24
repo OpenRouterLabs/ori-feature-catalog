@@ -49,6 +49,11 @@ const StoredListen = Schema.Struct({
   suppressed: Schema.Boolean,
 });
 
+/** A row that is not JSON, or not this shape, decodes as `None` either way. */
+const decodeListen = Schema.decodeUnknownOption(
+  Schema.fromJsonString(StoredListen)
+);
+
 const SessionRow = Schema.Struct({
   session_id: Schema.String,
   started_at: Schema.Number,
@@ -58,15 +63,7 @@ const SessionRow = Schema.Struct({
 const NO_SESSION: ThreadSession | undefined = undefined;
 
 const listenFrom = (raw: string): ThreadListen => {
-  const decoded = Schema.decodeUnknownOption(StoredListen)(
-    ((): unknown => {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    })()
-  );
+  const decoded = decodeListen(raw);
   return decoded._tag === "Some"
     ? {
         engaged: decoded.value.engaged,
