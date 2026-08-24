@@ -6,11 +6,11 @@ on:
   pull_request:
 
 env:
-  # The floor sits just under the coverage measured when it was introduced
-  # (85.52% functions / 86.31% lines) so the build is green on day one and can
-  # only be ratcheted upward.
-  COVERAGE_FLOOR_FUNCS: "84.0"
-  COVERAGE_FLOOR_LINES: "85.0"
+  # The floor sits just under the coverage measured when it was last raised
+  # (88.12% functions / 90.01% lines). Ratchet it upward when coverage rises;
+  # never lower it to make a red build green.
+  COVERAGE_FLOOR_FUNCS: "86.5"
+  COVERAGE_FLOOR_LINES: "88.5"
 
 jobs:
   test:

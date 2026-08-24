@@ -18,13 +18,16 @@ export interface ResolveMentionOpts {
   name: string;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
+  /** Injected user lookup; defaults to the real `listUsers`. */
+  listUsersImpl?: typeof listUsers | undefined;
 }
 
 /** Resolve a Slack user name to a `<@USERID>` mention string. */
 export const resolveUserMention = async (
   opts: ResolveMentionOpts
 ): Promise<Result.Result<string, Error>> => {
-  const result = await listUsers({
+  const lookupUsers = opts.listUsersImpl ?? listUsers;
+  const result = await lookupUsers({
     search: opts.name,
     env: opts.env,
   });

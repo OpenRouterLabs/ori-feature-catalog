@@ -27,6 +27,8 @@ export interface ListUsersOpts {
   search?: string;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
+  /** Injected Slack client; defaults to one built from `env`. */
+  client?: WebClient | undefined;
 }
 
 export interface SlackMember {
@@ -64,7 +66,8 @@ const collectHumanMembers = async (
   return members;
 };
 
-const filterMembersBySearch = (
+/** Case-insensitive substring match against display_name / real_name. */
+export const filterMembersBySearch = (
   members: SlackMember[],
   rawSearch: string | undefined
 ): SlackMember[] => {
@@ -83,7 +86,9 @@ const filterMembersBySearch = (
 export const listUsers = async (
   opts: ListUsersOpts = {}
 ): Promise<Result.Result<SlackMember[], Error>> => {
-  const clientResult = makeClient(opts.env);
+  const clientResult = opts.client
+    ? Result.succeed(opts.client)
+    : makeClient(opts.env);
   if (Result.isFailure(clientResult)) {
     return Result.fail(clientResult.failure);
   }

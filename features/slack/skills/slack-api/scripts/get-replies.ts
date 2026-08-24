@@ -13,6 +13,8 @@
  * 1 req/min, so large threads can require several sequential requests.
  */
 
+import type { WebClient } from "@slack/web-api";
+
 import { Result } from "effect";
 
 import { makeClient } from "./helpers.ts";
@@ -27,13 +29,17 @@ export interface GetRepliesOpts {
   limit?: number | undefined;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
+  /** Injected Slack client; defaults to one built from `env`. */
+  client?: WebClient | undefined;
 }
 
 /** Fetch thread replies up to `opts.limit` total messages. */
 export const getThreadReplies = async (
   opts: GetRepliesOpts
 ): Promise<Result.Result<unknown, Error>> => {
-  const clientResult = makeClient(opts.env);
+  const clientResult: Result.Result<WebClient, Error> = opts.client
+    ? Result.succeed(opts.client)
+    : makeClient(opts.env);
   if (Result.isFailure(clientResult)) {
     return Result.fail(clientResult.failure);
   }

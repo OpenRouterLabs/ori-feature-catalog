@@ -37,6 +37,8 @@ export interface GetHistoryOpts {
   limit?: number | undefined;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
+  /** Injected Slack client; defaults to one built from `env`. */
+  client?: WebClient | undefined;
 }
 
 const tsOf = (msg: unknown): string | undefined => {
@@ -52,7 +54,7 @@ const tsOf = (msg: unknown): string | undefined => {
 // The oldest/latest window is re-sent on every page (Slack cursors do not
 // encode it); the conditional spreads exist because the SDK's optional fields
 // reject explicit undefined under exactOptionalPropertyTypes.
-const historyPageArgs = (input: {
+export const historyPageArgs = (input: {
   readonly opts: GetHistoryOpts;
   readonly cursor: string | undefined;
   readonly collected: number;
@@ -88,7 +90,7 @@ const historyPageArgs = (input: {
 });
 
 /** Append a page's messages, deduped by `ts`, into the running list. */
-const appendDedupedMessages = (
+export const appendDedupedMessages = (
   seen: Set<string>,
   messages: unknown[],
   page: readonly unknown[]
@@ -107,7 +109,7 @@ const appendDedupedMessages = (
  * is satisfied, `capped` when unlimited mode (limit 0) hits its safety cap so
  * the caller reports hasMore, `continue` otherwise.
  */
-const capStateAfterPage = (
+export const capStateAfterPage = (
   maxTotal: number,
   collected: number
 ): "capped" | "continue" | "done" => {
@@ -124,7 +126,9 @@ const capStateAfterPage = (
 export const fetchChannelHistory = async (
   opts: GetHistoryOpts
 ): Promise<Result.Result<unknown, Error>> => {
-  const clientResult = makeClient(opts.env);
+  const clientResult: Result.Result<WebClient, Error> = opts.client
+    ? Result.succeed(opts.client)
+    : makeClient(opts.env);
   if (Result.isFailure(clientResult)) {
     return Result.fail(clientResult.failure);
   }

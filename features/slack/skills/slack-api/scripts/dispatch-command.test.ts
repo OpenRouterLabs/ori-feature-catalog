@@ -134,3 +134,31 @@ describe("limits that are not limits", () => {
     ).toContain("non-negative integer");
   });
 });
+
+// The env argument exists so a command is not pinned to the real `Bun.env`.
+// Both cases below are distinguishable only by which env was consulted: the
+// channel resolves from the injected map, or it does not resolve at all.
+describe("the env threaded into a command", () => {
+  const noToken = { SLACK_CHANNEL_ID: "C-FROM-ENV" };
+
+  test("supplies the channel when --channel is omitted", async () => {
+    const result = await dispatchCommand(
+      "conversations.history",
+      {},
+      noToken
+    );
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      // Past the channel check, so the channel came from the injected env.
+      expect(result.failure.message).toContain("SLACK_BOT_TOKEN");
+    }
+  });
+
+  test("is used instead of Bun.env, so an empty map has no channel", async () => {
+    const result = await dispatchCommand("conversations.history", {}, {});
+    expect(Result.isFailure(result)).toBe(true);
+    if (Result.isFailure(result)) {
+      expect(result.failure.message).toContain("No channel");
+    }
+  });
+});

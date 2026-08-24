@@ -37,6 +37,8 @@ export const usageText = (): string => {
 };
 
 type Flags = Record<string, string>;
+/** Threaded from the entrypoint so a command is not pinned to the real `Bun.env`. */
+type Env = Record<string, string | undefined>;
 type CommandResult = Promise<Result.Result<unknown, Error>>;
 
 /** Parse a positive-integer flag, or fail if present but invalid. */
@@ -65,9 +67,10 @@ const parseIntFlag = (
 
 const handleConversations = async (
   command: "conversations.replies" | "conversations.history",
-  flags: Flags
+  flags: Flags,
+  env: Env
 ): CommandResult => {
-  const channelResult = resolveChannel(flags.channel);
+  const channelResult = resolveChannel(flags.channel, env);
   if (Result.isFailure(channelResult)) {
     return Result.fail(channelResult.failure);
   }
@@ -84,6 +87,7 @@ const handleConversations = async (
       channel: channelResult.success,
       ts: flags.ts,
       limit: Option.getOrUndefined(limitResult.success),
+      env,
     });
   }
   const limitResult = parseIntFlag(flags.limit, "limit", true);
@@ -95,16 +99,19 @@ const handleConversations = async (
     oldest: flags.oldest,
     latest: flags.latest,
     limit: Option.getOrUndefined(limitResult.success),
+    env,
   });
 };
 
 const handleUsers = async (
   command: "users.list" | "users.mention",
-  flags: Flags
+  flags: Flags,
+  env: Env
 ): CommandResult => {
   if (command === "users.list") {
     return await listUsers({
       search: flags.search,
+      env,
     });
   }
   const flagsResult = requireFlags(flags, command, "name");
@@ -113,35 +120,38 @@ const handleUsers = async (
   }
   return await resolveUserMention({
     name: flags.name,
+    env,
   });
 };
 
-const handleOpenDm = async (flags: Flags): CommandResult => {
+const handleOpenDm = async (flags: Flags, env: Env): CommandResult => {
   const flagsResult = requireFlags(flags, "conversations.open", "users");
   if (Result.isFailure(flagsResult)) {
     return flagsResult;
   }
   return await openDm({
     users: flags.users,
+    env,
   });
 };
 
 /** Route a validated command plus parsed flags to its handler. */
 export const dispatchCommand = (
   command: Command,
-  flags: Flags
+  flags: Flags,
+  env: Env = Bun.env
 ): CommandResult => {
   switch (command) {
     case "conversations.replies":
     case "conversations.history": {
-      return handleConversations(command, flags);
+      return handleConversations(command, flags, env);
     }
     case "conversations.open": {
-      return handleOpenDm(flags);
+      return handleOpenDm(flags, env);
     }
     case "users.list":
     case "users.mention": {
-      return handleUsers(command, flags);
+      return handleUsers(command, flags, env);
     }
     default: {
       const exhaustive: never = command;
