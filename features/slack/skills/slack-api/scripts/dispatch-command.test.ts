@@ -8,7 +8,7 @@
  * The credential guard itself is covered end to end in ./end-to-end.test.ts.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
 import {

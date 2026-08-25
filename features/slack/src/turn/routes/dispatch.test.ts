@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 // The parity check must read the skill's own constant, which lives outside
 // `src/`; `#skills/*` is this feature's package.json `imports` map.
