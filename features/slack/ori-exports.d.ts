@@ -17,8 +17,14 @@
 
 import type { WebClient } from "@slack/web-api";
 
+import type { SlackButtonHandler } from "./src/interactions/custom.ts";
+
 declare module "ori" {
   interface SlackFeatureApiExports {
+    readonly onButton: (
+      actionId: string,
+      handler: SlackButtonHandler
+    ) => Promise<void>;
     readonly webClient: () => Promise<WebClient | undefined>;
   }
 }

@@ -43,6 +43,7 @@ import { readSlackConfig } from "./config.ts";
 import { applyExtensions } from "./extend.ts";
 import { forkWith } from "./fork.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
+import { registerCustomButtons } from "./interactions/custom.ts";
 import { Blockers } from "./interactions/blocker.ts";
 import { Interactions } from "./interactions/interactions.ts";
 import {
@@ -69,6 +70,15 @@ export {
 export { SlackClient, type SlackClientShape } from "./client/client.ts";
 export { extendSlack, type SlackExtension } from "./extend.ts";
 export { Interactions } from "./interactions/interactions.ts";
+export {
+  onButton,
+  RESERVED_ACTION_PREFIX,
+  registeredButtonIds,
+} from "./interactions/custom.ts";
+export type {
+  SlackButtonClick,
+  SlackButtonHandler,
+} from "./interactions/custom.ts";
 export { SlackDefaultLayers, type SlackServices } from "./layers.ts";
 export { makeMessageReply } from "./message-reply/reply-live.ts";
 export { type MessageReplyShape } from "./message-reply/reply.ts";
@@ -220,6 +230,14 @@ const registerInteractionHandlers = (input: {
   });
 
   registerCancelHandler(input.interactions, cancelTurn);
+
+  // Anything a sibling feature registered with `onButton`. Named in the log
+  // because a button that silently failed to wire looks, from Slack, exactly
+  // like a button whose handler did nothing.
+  const custom = registerCustomButtons(input.interactions);
+  if (custom.length > 0) {
+    input.logger.info(`[slack] custom buttons wired: ${custom.join(", ")}`);
+  }
 };
 
 /**

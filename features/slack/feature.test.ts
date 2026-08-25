@@ -175,6 +175,7 @@ describe('the use("slack") surface', () => {
     // site — it resolves to undefined at run time. This is the only place
     // that notices.
     expect(Object.keys(api.exports).toSorted()).toEqual([
+      "onButton",
       "postMessage",
       "webClient",
     ]);

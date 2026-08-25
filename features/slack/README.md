@@ -12,10 +12,62 @@ Project-owned Slack chat surface for this intern. Forked from ori's `@ori-builti
   - `POST /slack/thread/questions` (loopback slack-questions)
   - `POST /slack/thread/chart` (loopback slack-chart)
   - `POST /slack/thread/image` (loopback slack-image)
-- `api.exports.postMessage` — `use("slack")`
+- `api.exports.postMessage`, `api.exports.webClient`, `api.exports.onButton` — `use("slack")`
 - skills: `slack-api`, `slack-ask`, `slack-chart`, `slack-image`, `slack-questions`, `slack-status`, `spawn-thread` (paths under `features/slack/...`)
 - the typing indicator is the surface's own: `src/turn/status-beat.ts` renders it from tool calls, so it never depends on the agent remembering to speak
 - mcp: none — the surface serves no MCP server
+
+## Custom buttons
+
+A sibling feature can post its own button and answer the click, without
+forking this surface or taking a dependency on `effect` or `@slack/web-api`.
+
+```ts
+import { use } from "ori";
+
+const slack = use("slack");
+
+// Register once, at module scope — before the surface boots.
+await slack.onButton("redeploy", async (click) => {
+  // click: { actionId, channelId, threadTs, userId, value }
+  await redeploy(click.value);
+});
+
+await slack.postMessage({
+  channel: "C123",
+  text: "Ready to redeploy",          // the notification fallback
+  blocks: [
+    { type: "section", text: { type: "mrkdwn", text: "*Ready to redeploy*" } },
+    {
+      type: "actions",
+      elements: [
+        { type: "button", action_id: "redeploy", value: "v42",
+          text: { type: "plain_text", text: "Redeploy" } },
+      ],
+    },
+  ],
+});
+```
+
+`actions` and `button` builders are exported too, if you would rather not
+hand-write the Block Kit — they apply Slack's label and value ceilings so an
+over-long label is truncated instead of rejecting the whole message.
+
+Rules worth knowing:
+
+- **`ori_` is reserved.** Every built-in action id uses that prefix and the
+  router is last-registration-wins, so claiming one would silently take over a
+  surface button. Registration throws.
+- **Anyone who can see the thread can click.** The payload names the clicker
+  in `userId` — check it if the action is privileged.
+- **The click carries no `trigger_id`.** So a custom button cannot open a
+  modal: that needs a trigger spent within three seconds, which only the
+  surface can do. Buttons that answer a question (`slack-ask`,
+  `slack-questions`) are the supported path for collecting input.
+- **A handler that throws is logged, not swallowed** — and the click still
+  acks, so Slack does not show the reader an error.
+- Registering after boot works and wires immediately, rather than being
+  silently dropped.
 
 ## Cut over from the ori builtin
 
