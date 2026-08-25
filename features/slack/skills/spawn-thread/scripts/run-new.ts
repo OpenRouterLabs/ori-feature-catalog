@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- skill scripts live beside siblings under features/slack/skills and cross-import intentionally */
 /**
  * run-new.ts — the `new` subcommand workflow for the spawn-thread skill:
  * open a fresh top-level thread and dispatch into it atomically.
@@ -18,10 +17,8 @@ import type { KnownBlock } from "@slack/types";
 import type { FetchLike } from "./spawn-thread.ts";
 
 import { buildSlackThreadUrl, isString } from "./guards.ts";
-// oxlint-disable-next-line import/no-relative-parent-imports -- skills are materialized side by side in the agent workspace; the sibling skill's script is the real runtime path
 import { postMessage } from "./post-message.ts";
 import { dispatchToRunloop } from "./spawn-thread.ts";
-// oxlint-disable-next-line import/no-relative-parent-imports -- skills are materialized side by side in the agent workspace; the sibling skill's script is the real runtime path
 import { updateMessage } from "./update-message.ts";
 
 const ANCHOR_PLACEHOLDER_TEXT = ":link: _spawning a new thread…_";

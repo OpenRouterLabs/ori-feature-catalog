@@ -11,8 +11,20 @@
 
 import { Effect, Option, Schema } from "effect";
 
-/** Any image-capable model on OpenRouter; overridable per workspace. */
-const DEFAULT_MODEL = "google/gemini-2.5-flash-image-preview";
+/**
+ * Any image-capable model on OpenRouter; overridable per workspace with
+ * `SLACK_IMAGE_MODEL`.
+ *
+ * This was `google/gemini-2.5-flash-image-preview`, which OpenRouter no longer
+ * lists — the preview was folded into `google/gemini-2.5-flash-image` and the
+ * old id stopped resolving, so every generation failed the same way a bad
+ * prompt would. Pinning a `-preview` id is what made that a silent break.
+ *
+ * The alternatives, if this needs revisiting: `google/gemini-3-pro-image`
+ * (Nano Banana Pro) is the quality option at 4x the per-image price, and
+ * `google/gemini-3.1-flash-image` (Nano Banana 2) sits between the two.
+ */
+const DEFAULT_MODEL = "openai/gpt-5.4-image-2";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 

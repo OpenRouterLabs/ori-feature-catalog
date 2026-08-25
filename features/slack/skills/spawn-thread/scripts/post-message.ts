@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- skill scripts cross-import siblings under features/slack/skills intentionally */
 /**
  * post-message.ts — chat.postMessage
  *
@@ -34,7 +33,7 @@ import {
   makeClient,
   markdownToSlack,
   resolveThreadTs,
-} from "../../slack-api/scripts/helpers.ts";
+} from "#skills/slack-api/scripts/helpers.ts";
 import { tryCatchAsync } from "./guards.ts";
 
 export interface PostMessageOpts {

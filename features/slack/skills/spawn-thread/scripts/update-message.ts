@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- skill scripts cross-import siblings under features/slack/skills intentionally */
 /**
  * update-message.ts — chat.update
  *
@@ -27,7 +26,7 @@ import type { KnownBlock } from "@slack/types";
 import {
   makeClient,
   markdownToSlack,
-} from "../../slack-api/scripts/helpers.ts";
+} from "#skills/slack-api/scripts/helpers.ts";
 import { tryCatchAsync } from "./guards.ts";
 
 export interface UpdateMessageOpts {
