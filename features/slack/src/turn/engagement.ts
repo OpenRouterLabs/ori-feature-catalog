@@ -7,7 +7,14 @@
  * so asking them first would mean a second app could fill a thread without ever
  * being noticed — and another app arriving is exactly the crowd to step back
  * from.
+ *
+ * None of the I/O here is this file's own — the note, the two store reads and
+ * the writes all arrive as `EngagementDeps`. They are Effects, so the decision
+ * is one too: it runs in the fiber that asked for it, inside that fiber's
+ * spans, rather than being run from a promise boundary of its own.
  */
+
+import { Effect } from "effect";
 
 import type { ThreadRef } from "../thread/thread.ts";
 import type { GateContext, IncomingMessage } from "./gates.ts";
@@ -61,14 +68,15 @@ export const claimStart = (): ((ts: string | undefined) => boolean) => {
 export interface EngagementDeps {
   readonly gates: GateContext;
   /** Best-effort thread note; a failed post must not fault the decision. */
-  readonly note: (ref: ThreadRef, text: string) => Promise<void>;
-  readonly readListen: (key: string) => Promise<ThreadListen>;
-  /** Interrupt whatever is running in this thread. */
+  readonly note: (ref: ThreadRef, text: string) => Effect.Effect<void>;
+  readonly readListen: (key: string) => Effect.Effect<ThreadListen>;
+  /** Interrupt whatever is running in this thread. Synchronous: the registry
+   * holds the `AbortSignal` in memory, so there is nothing to wait for. */
   readonly stop: (key: string) => void;
   readonly updateListen: (
     key: string,
     change: (state: ThreadListen) => ThreadListen
-  ) => Promise<ThreadListen>;
+  ) => Effect.Effect<ThreadListen>;
 }
 
 export interface EngagementInput {
@@ -92,19 +100,19 @@ export interface EngagementInput {
  * how anyone who wants it back gets it. `unmute` still confirms, because that
  * one answers a direct request.
  */
-const observe = async (
+const observe = Effect.fn("Slack.engagement.observe")(function* (
   deps: EngagementDeps,
   input: EngagementInput
-): Promise<ThreadListen> => {
+): Effect.fn.Return<ThreadListen> {
   const participant = participantOf(input.message, deps.gates);
-  const state = await deps.updateListen(input.key, (current) =>
+  const state = yield* deps.updateListen(input.key, (current) =>
     withParticipant(current, participant)
   );
   if (!isCrowded(state) || state.muted) {
     return state;
   }
-  return await deps.updateListen(input.key, mute);
-};
+  return yield* deps.updateListen(input.key, mute);
+});
 
 /**
  * Whether this message starts a turn, updating what the thread remembers.
@@ -112,47 +120,49 @@ const observe = async (
  * An unanswered thread is not tracked at all, or every message in every channel
  * the bot can see would allocate state.
  */
-export const considerTurn = async (
-  deps: EngagementDeps,
-  input: EngagementInput
-): Promise<TurnVerdict> => {
-  const known = await deps.readListen(input.key);
-  if (!(input.addressed || known.engaged)) {
-    return "drop";
-  }
+export const considerTurn = Effect.fn("Slack.engagement.considerTurn")(
+  function* (
+    deps: EngagementDeps,
+    input: EngagementInput
+  ): Effect.fn.Return<TurnVerdict> {
+    const known = yield* deps.readListen(input.key);
+    if (!(input.addressed || known.engaged)) {
+      return "drop";
+    }
 
-  const state = await observe(deps, input);
-  const admitted = admitMessage(input.message, deps.gates).admit;
+    const state = yield* observe(deps, input);
+    const admitted = admitMessage(input.message, deps.gates).admit;
 
-  if (admitted && isUnmuteRequest(input.message.text)) {
-    await deps.updateListen(input.key, unmute);
-    await deps.note(input.ref, UNMUTED_NOTE);
-    return "drop";
-  }
+    if (admitted && isUnmuteRequest(input.message.text)) {
+      yield* deps.updateListen(input.key, unmute);
+      yield* deps.note(input.ref, UNMUTED_NOTE);
+      return "drop";
+    }
 
-  if (admitted && isStopRequest(input.message.text)) {
-    deps.stop(input.key);
-    return "drop";
-  }
+    if (admitted && isStopRequest(input.message.text)) {
+      deps.stop(input.key);
+      return "drop";
+    }
 
-  // Checked before the listen decision and only when nobody named us: a
-  // mention of someone else means the thread has moved on, so hand it over
-  // rather than answering into a conversation that is not ours.
-  if (
-    !input.addressed &&
-    addressesSomeoneElse(input.message.text, deps.gates.botUserId)
-  ) {
-    await deps.updateListen(input.key, standDown);
-    return "drop";
-  }
+    // Checked before the listen decision and only when nobody named us: a
+    // mention of someone else means the thread has moved on, so hand it over
+    // rather than answering into a conversation that is not ours.
+    if (
+      !input.addressed &&
+      addressesSomeoneElse(input.message.text, deps.gates.botUserId)
+    ) {
+      yield* deps.updateListen(input.key, standDown);
+      return "drop";
+    }
 
-  if (!(input.addressed || answersUnaddressed(state))) {
-    return "drop";
-  }
-  if (!admitted) {
-    return "drop";
-  }
+    if (!(input.addressed || answersUnaddressed(state))) {
+      return "drop";
+    }
+    if (!admitted) {
+      return "drop";
+    }
 
-  await deps.updateListen(input.key, engage);
-  return "run";
-};
+    yield* deps.updateListen(input.key, engage);
+    return "run";
+  }
+);

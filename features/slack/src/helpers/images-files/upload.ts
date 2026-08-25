@@ -78,15 +78,18 @@ const reserveUpload = (
       }),
   }).pipe(
     Effect.flatMap((raw) => decodeUploadUrl(raw)),
-    Effect.mapError((cause) => apiError("files.getUploadURLExternal", cause))
+    Effect.mapError((cause) => apiError("files.getUploadURLExternal", cause)),
+    Effect.withSpan("Slack.imagesFiles.reserveUpload")
   );
 
-export const uploadFile = Effect.fn("slack.uploadFile")(function* (input: {
-  readonly channel: string;
-  readonly file: FileUpload;
-  readonly initialComment?: string | undefined;
-  readonly threadTs?: string | undefined;
-}) {
+export const uploadFile = Effect.fn("Slack.imagesFiles.upload")(function* (
+  input: {
+    readonly channel: string;
+    readonly file: FileUpload;
+    readonly initialComment?: string | undefined;
+    readonly threadTs?: string | undefined;
+  }
+) {
   const slack = yield* SlackClient;
   // Slack reserves by byte length up front, so the content is materialised
   // here — the external upload API has no streaming path.
@@ -115,7 +118,8 @@ export const uploadFile = Effect.fn("slack.uploadFile")(function* (input: {
               new Error(`upload responded ${response.status}`)
             )
           )
-    )
+    ),
+    Effect.withSpan("Slack.imagesFiles.postBytes")
   );
 
   const completed = yield* Effect.tryPromise({
@@ -136,7 +140,8 @@ export const uploadFile = Effect.fn("slack.uploadFile")(function* (input: {
       }),
   }).pipe(
     Effect.flatMap((raw) => decodeComplete(raw)),
-    Effect.mapError((cause) => apiError("files.completeUploadExternal", cause))
+    Effect.mapError((cause) => apiError("files.completeUploadExternal", cause)),
+    Effect.withSpan("Slack.imagesFiles.completeUpload")
   );
 
   const first = completed.files.at(0);

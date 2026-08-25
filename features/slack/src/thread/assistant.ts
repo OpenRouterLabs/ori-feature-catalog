@@ -195,13 +195,14 @@ const gatedBy =
     op: string,
     run: () => Effect.Effect<void, unknown>
   ): Effect.Effect<void> =>
-    panes.has(threadKey)
+    (panes.has(threadKey)
       ? Effect.suspend(run).pipe(
           Effect.catchCause((cause) =>
             Effect.logWarning(`[slack] assistant ${op} failed`, cause)
           )
         )
-      : Effect.void;
+      : Effect.void
+    ).pipe(Effect.withSpan("Slack.thread.gated", { attributes: { op } }));
 
 /** Decoration around a turn that runs regardless: never raise, always log. */
 const bestEffort = (
@@ -211,7 +212,8 @@ const bestEffort = (
   Effect.suspend(run).pipe(
     Effect.catchCause((cause) =>
       Effect.logWarning(`[slack] assistant ${op} failed`, cause)
-    )
+    ),
+    Effect.withSpan("Slack.thread.bestEffort", { attributes: { op } })
   );
 
 /** Named so the autofixer cannot strip a bare `undefined` argument. */
@@ -230,12 +232,12 @@ const NO_LIST: readonly string[] | undefined = undefined;
  *
  * So: attempt both, and on rejection retry with the line alone.
  */
-const setStatusCall = (input: {
+const setStatusCall = Effect.fn("Slack.thread.sendStatus")(function* (input: {
   readonly loading: readonly string[] | undefined;
   readonly pane: { readonly channelId: string; readonly threadTs: string };
   readonly slack: SlackClientShape;
   readonly status: string;
-}): Effect.Effect<void> => {
+}): Effect.fn.Return<void> {
   const { loading, slack, status } = input;
   const pane = {
     channel_id: input.pane.channelId,
@@ -251,9 +253,9 @@ const setStatusCall = (input: {
     });
 
   if (loading === undefined || loading.length === 0) {
-    return bestEffort("setStatus", () => send(NO_LIST));
+    return yield* bestEffort("setStatus", () => send(NO_LIST));
   }
-  return send(loading).pipe(
+  return yield* send(loading).pipe(
     Effect.catchCause((refused) =>
       Effect.logWarning(
         "[slack] the status loading list was refused; keeping the line",
@@ -261,7 +263,7 @@ const setStatusCall = (input: {
       ).pipe(Effect.andThen(bestEffort("setStatus", () => send(NO_LIST))))
     )
   );
-};
+});
 
 /**
  * The default: an in-process set of known panes.
@@ -282,14 +284,20 @@ export const AssistantThreadsLive = (): Effect.Effect<
     const inPane = gatedBy(panes);
 
     return AssistantThreads.of({
-      contextFor: (threadKey) => Effect.sync(() => panes.contextFor(threadKey)),
+      contextFor: (threadKey) =>
+        Effect.sync(() => panes.contextFor(threadKey)).pipe(
+          Effect.withSpan("Slack.thread.contextFor")
+        ),
 
-      isPane: (threadKey) => Effect.sync(() => panes.has(threadKey)),
+      isPane: (threadKey) =>
+        Effect.sync(() => panes.has(threadKey)).pipe(
+          Effect.withSpan("Slack.thread.isPane")
+        ),
 
       remember: (threadKey, paneContext) =>
         Effect.sync(() => {
           panes.remember(threadKey, paneContext);
-        }),
+        }).pipe(Effect.withSpan("Slack.thread.remember")),
 
       setStatus: (input, status, loading) =>
         setStatusCall({
@@ -297,7 +305,7 @@ export const AssistantThreadsLive = (): Effect.Effect<
           pane: input,
           slack,
           status,
-        }),
+        }).pipe(Effect.withSpan("Slack.thread.setStatus")),
 
       setTitle: (input, title) =>
         inPane(keyOf(input), "setTitle", () =>
@@ -306,6 +314,6 @@ export const AssistantThreadsLive = (): Effect.Effect<
             thread_ts: input.threadTs,
             title: title.slice(0, MAX_TITLE_CHARS),
           })
-        ),
+        ).pipe(Effect.withSpan("Slack.thread.setTitle")),
     });
-  });
+  }).pipe(Effect.withSpan("Slack.thread.assistantThreadsLive"));

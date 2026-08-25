@@ -38,5 +38,6 @@ export const retireTurn = (input: {
   input.assistant
     .setStatus(paneOf(input.ref), "")
     .pipe(
-      Effect.andThen(input.blockers.abandonThread(input.instanceId, RUN_ENDED))
+      Effect.andThen(input.blockers.abandonThread(input.instanceId, RUN_ENDED)),
+      Effect.withSpan("Slack.turn.retire")
     );

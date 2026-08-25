@@ -14,7 +14,10 @@
 import { Effect } from "effect";
 
 import type { BlockersShape } from "./blocker.ts";
-import type { InteractionsShape } from "./interactions.ts";
+import type {
+  InteractionPayload,
+  InteractionsShape,
+} from "./interactions.ts";
 
 import {
   BLOCKER_ACTION_ID,
@@ -26,8 +29,11 @@ export const registerBlockerHandlers = (input: {
   readonly blockers: BlockersShape;
   readonly interactions: InteractionsShape;
 }): void => {
-  input.interactions.on(BLOCKER_ACTION_ID, (payload) =>
-    Effect.gen(function* () {
+  input.interactions.on(
+    BLOCKER_ACTION_ID,
+    Effect.fn("Slack.interactions.answerBlocker")(function* (
+      payload: InteractionPayload
+    ) {
       const decoded = decodeChoice(payload.actions.at(0)?.value);
       if (decoded === undefined) {
         return;

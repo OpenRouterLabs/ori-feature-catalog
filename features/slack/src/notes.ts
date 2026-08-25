@@ -98,11 +98,12 @@ export const postQueuedNotice = Effect.fn("Slack.notes.postQueuedNotice")(
  * `botUserId` prefers the resolved identity: an unset `SLACK_BOT_USER_ID` would
  * silently degrade the crowd tally to counting no bots at all.
  *
- * The three Promise-returning members are the ONE edge left in this file, and
- * they are not ours: `EngagementDeps` is declared in Promise terms and
- * `considerTurn` is an async function, so something has to run the effect for
- * it. One `runPromiseWith` bound to the graph serves all three — when
- * `engagement.ts` moves into Effect these become plain `yield*`s.
+ * There is no edge left here. `EngagementDeps` is declared in Effect terms, so
+ * the three I/O members hand back effects the decision yields: the store's two
+ * need nothing further, and `postNote` gets the graph it asks for from the
+ * context this was built with. That is one `runPromiseWith` gone — it existed
+ * only because each `runPromise` started a fresh fiber with no context, which
+ * cost the caller's spans and its interruption both.
  */
 export const engagementDeps = (input: {
   readonly botUserId: string | undefined;
@@ -110,17 +111,17 @@ export const engagementDeps = (input: {
   readonly context: Context.Context<SlackServices>;
 }): EngagementDeps => {
   const store = Context.get(input.context, StateStore);
-  const run = Effect.runPromiseWith(input.context);
   return {
     gates: {
       ...gateContextOf(input.config),
       botUserId: input.botUserId ?? input.config.botUserId,
     },
-    note: (ref, text) => run(postNote(ref, text)),
+    note: (ref, text) =>
+      postNote(ref, text).pipe(Effect.provide(input.context)),
     stop: (key) => {
       cancelThread(key);
     },
-    readListen: (key) => run(store.getListen(key)),
-    updateListen: (key, change) => run(store.updateListen(key, change)),
+    readListen: (key) => store.getListen(key),
+    updateListen: (key, change) => store.updateListen(key, change),
   };
 };

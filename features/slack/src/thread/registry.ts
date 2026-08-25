@@ -418,7 +418,7 @@ const deadline = (timeoutMs: number): Effect.Effect<boolean> =>
       Effect.sync(() => {
         clearTimeout(armed.timer);
       })
-  ).pipe(Effect.as(false));
+  ).pipe(Effect.as(false), Effect.withSpan("Slack.registry.deadline"));
 
 /**
  * Wait for in-flight turns to finish, up to `timeoutMs`.

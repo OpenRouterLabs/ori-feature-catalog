@@ -14,9 +14,7 @@
  * and returns.
  */
 
-import type { Effect } from "effect";
-
-import { Context } from "effect";
+import { Context, Effect } from "effect";
 
 import type { SlackServices } from "../layers.ts";
 import type { PaneContext } from "../thread/assistant.ts";
@@ -78,7 +76,11 @@ export const makeSurfaceEventHandlers = (input: {
         // Re-remembering IS the update: the reader navigated, so the pane now
         // stands in front of a different conversation. Ignoring this leaves the
         // agent answering about the channel they left.
-        input.runWith(assistant.remember(pane.key, pane.paneContext));
+        input.runWith(
+          assistant
+            .remember(pane.key, pane.paneContext)
+            .pipe(Effect.withSpan("Slack.client.changeAssistantContext"))
+        );
       }
     },
 
@@ -88,7 +90,11 @@ export const makeSurfaceEventHandlers = (input: {
         // Order matters: nothing may be offered before the pane is known to BE
         // a pane, because every pane-only call is a no-op until `remember`
         // lands.
-        input.runWith(assistant.remember(pane.key, pane.paneContext));
+        input.runWith(
+          assistant
+            .remember(pane.key, pane.paneContext)
+            .pipe(Effect.withSpan("Slack.client.openAssistantThread"))
+        );
       }
     },
   };

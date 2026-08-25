@@ -170,7 +170,7 @@ const retireQuestion = (input: {
       ),
       input.request.question
     )
-    .pipe(Effect.ignore);
+    .pipe(Effect.ignore, Effect.withSpan("Slack.routes.retireQuestion"));
 
 /**
  * Post the question and wait for the answer.
@@ -179,14 +179,14 @@ const retireQuestion = (input: {
  * codes. Returns undefined when nothing could be posted, which the caller
  * reports as a bad gateway rather than a timeout — the reader never saw it.
  */
-const askAndWait = (input: {
-  readonly blockers: BlockersShape;
-  readonly reply: MessageReplyShape;
-  readonly request: AskRequest;
-  readonly threadKey: string;
-  readonly timeoutMs: number;
-}): Effect.Effect<AskOutcome | undefined> =>
-  Effect.gen(function* () {
+const askAndWait = Effect.fn("Slack.routes.askAndWait")(
+  function* (input: {
+    readonly blockers: BlockersShape;
+    readonly reply: MessageReplyShape;
+    readonly request: AskRequest;
+    readonly threadKey: string;
+    readonly timeoutMs: number;
+  }): Effect.fn.Return<AskOutcome | undefined> {
     const { askId, answered } = yield* input.blockers.open(input.threadKey);
 
     const blocks: readonly SlackBlock[] = blockerBlocks({
@@ -236,7 +236,8 @@ const askAndWait = (input: {
       timedOut: answer === undefined,
       value: answer ?? "",
     };
-  });
+  }
+);
 
 export const makeBlockerRoute = (deps: {
   readonly blockers: BlockersShape;

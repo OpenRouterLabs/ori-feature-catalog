@@ -110,14 +110,20 @@ const buildContext = (input: {
         context,
         scope,
       };
-    })
+    }).pipe(Effect.withSpan("Slack.runtime.buildContext"))
   );
 
 /** Run an Effect against the graph built at start. */
 const runWith = <A>(
   context: Context.Context<SlackServices>,
   effect: Effect.Effect<A, never, SlackServices>
-): Promise<A> => Effect.runPromise(effect.pipe(Effect.provideContext(context)));
+): Promise<A> =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provideContext(context),
+      Effect.withSpan("Slack.runtime.runWith")
+    )
+  );
 
 const messageOf = (event: RawSlackMessage): IncomingMessage => ({
   botId: event.bot_id,
@@ -169,7 +175,10 @@ const resolveIdentity = (
           teamId: identity.team_id ?? "",
         };
       },
-    }).pipe(Effect.catchCause(() => Effect.succeed(UNKNOWN_IDENTITY)))
+    }).pipe(
+      Effect.catchCause(() => Effect.succeed(UNKNOWN_IDENTITY)),
+      Effect.withSpan("Slack.runtime.resolveIdentity")
+    )
   );
 
 /**

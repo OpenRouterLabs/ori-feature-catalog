@@ -182,25 +182,30 @@ const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
  * was then overwritten by the next event folded onto a copy that had never
  * seen it — the status appeared and then vanished.
  */
-const makeApply = (
+const makeApply = Effect.fn("Slack.turn.makeApply")(function* (
   advance: (next: RunState) => Effect.Effect<void>
-): Effect.Effect<{
+): Effect.fn.Return<{
   readonly apply: (
     change: (state: RunState) => RunState
   ) => Effect.Effect<void>;
   readonly peek: Effect.Effect<RunState>;
-}> =>
-  Effect.gen(function* () {
-    const stateRef = yield* Ref.make<RunState>({
-      ...initialRunState(),
-      phase: RunPhase.Running,
-    });
-    return {
-      apply: (change: (state: RunState) => RunState): Effect.Effect<void> =>
-        Ref.updateAndGet(stateRef, change).pipe(Effect.flatMap(advance)),
-      peek: Ref.get(stateRef),
-    };
+}> {
+  const stateRef = yield* Ref.make<RunState>({
+    ...initialRunState(),
+    phase: RunPhase.Running,
   });
+  return {
+    // The ONE state write, so naming it here is what puts every writer in the
+    // trace: the event fold, the ending from a rejected stream, and the
+    // ending an aborted signal decides all pass through this.
+    apply: (change: (state: RunState) => RunState): Effect.Effect<void> =>
+      Ref.updateAndGet(stateRef, change).pipe(
+        Effect.flatMap(advance),
+        Effect.withSpan("Slack.turn.applyState")
+      ),
+    peek: Ref.get(stateRef),
+  };
+});
 
 /**
  * What a turn has to hand its replacement: the prose it wrote, and the account

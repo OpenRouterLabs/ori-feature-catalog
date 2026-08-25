@@ -260,19 +260,14 @@ const makeStartTurn = (deps: {
       teamId: event.team ?? deps.workspaceTeamId,
       threadTs,
     };
-    // These two are the surface's own promises, handed in by the composition
-    // root. A rejection from either belongs to the launcher below, not to the
-    // recovery around the turn: nothing has been said in the thread yet, so
-    // there is nothing to correct.
-    const verdict = yield* Effect.tryPromise({
-      try: () =>
-        considerTurn(deps.engagement, {
-          addressed,
-          key: threadInstanceId(ref),
-          message: deps.messageOf(event),
-          ref,
-        }),
-      catch: (error: unknown) => error,
+    // The decision is an effect, so it runs here rather than beside this
+    // fiber: its store reads and its note are inside this turn's spans, and an
+    // interrupt reaches it.
+    const verdict = yield* considerTurn(deps.engagement, {
+      addressed,
+      key: threadInstanceId(ref),
+      message: deps.messageOf(event),
+      ref,
     });
     if (verdict === "drop") {
       return;
@@ -284,6 +279,11 @@ const makeStartTurn = (deps: {
     // Before the chatter, which is itself a model call: the indicator is the
     // only thing a reader has until something is posted, and it should not
     // wait on anything to appear.
+    //
+    // The surface's own promise, handed in by the composition root. A
+    // rejection belongs to the launcher below, not to the recovery around the
+    // turn: nothing has been said in the thread yet, so there is nothing to
+    // correct.
     yield* Effect.tryPromise({
       try: () => deps.startStatus(ref),
       catch: (error: unknown) => error,

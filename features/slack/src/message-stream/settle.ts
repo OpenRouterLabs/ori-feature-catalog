@@ -64,15 +64,15 @@ const answerBlocks = (state: RunState): readonly SlackBlock[] => {
   return [markdown(answerOf(state)), ...(small === "" ? [] : [context(small)])];
 };
 
-export const settle = (input: {
+export const settle = Effect.fn("Slack.stream.settle")(function* (input: {
   readonly reply: MessageReplyShape;
   readonly state: RunState;
   /** True when another turn is queued to answer in this one's place. */
   readonly superseded: boolean;
-}): Effect.Effect<void> => {
+}): Effect.fn.Return<void> {
   const { reply, state } = input;
   if (SUPERSEDED.has(state.phase) && input.superseded) {
-    return Effect.void;
+    return;
   }
   // Posted, never edited into an earlier message. Every shape that reused one
   // message needed a timestamp to survive the whole run, a fallback for when
@@ -82,10 +82,10 @@ export const settle = (input: {
   // Blocks, so the answer can be a `markdown` block — the only place Slack
   // renders tables and lists — while `replyBlocks` still carries plain
   // fallback text for the notification.
-  return reply.replyBlocks(answerBlocks(state), answerOf(state)).pipe(
+  yield* reply.replyBlocks(answerBlocks(state), answerOf(state)).pipe(
     Effect.catchCause((cause) =>
       Effect.logError("[slack] could not post the answer", cause)
     ),
     Effect.asVoid
   );
-};
+});

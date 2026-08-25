@@ -81,7 +81,8 @@ const discoverFontsOnce = discoverChartFonts({
   readFont,
 }).pipe(
   Effect.catchCause(() => Effect.succeed(NO_FONTS)),
-  Effect.uninterruptible
+  Effect.uninterruptible,
+  Effect.withSpan("Slack.charts.discoverFontsOnce")
 );
 
 /**

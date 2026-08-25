@@ -92,12 +92,18 @@ const warn =
   (cause: unknown): Effect.Effect<void> =>
     Effect.logWarning(`[slack] state ${op} failed`, cause);
 
-/** A write. Nothing to hand back, so nothing to fall back to. */
+/**
+ * A write. Nothing to hand back, so nothing to fall back to.
+ *
+ * Spanned at the SQLite edge rather than per caller: every method already
+ * carries its own span, so this one separates the time in the database from
+ * the time spent decoding what came back.
+ */
 const write = (op: string, run: () => Promise<void>): Effect.Effect<void> =>
   Effect.tryPromise({
     catch: (cause) => new Error(String(cause)),
     try: run,
-  }).pipe(Effect.catchCause(warn(op)));
+  }).pipe(Effect.catchCause(warn(op)), Effect.withSpan("Slack.state.write"));
 
 /** A read. An unreachable store costs a cold start, never the turn. */
 const read = <Row>(
@@ -107,7 +113,10 @@ const read = <Row>(
   Effect.tryPromise({
     catch: (cause) => new Error(String(cause)),
     try: run,
-  }).pipe(Effect.catchCause((cause) => warn(op)(cause).pipe(Effect.as([]))));
+  }).pipe(
+    Effect.catchCause((cause) => warn(op)(cause).pipe(Effect.as([]))),
+    Effect.withSpan("Slack.state.read")
+  );
 
 /** The session half: which agent conversation answers a thread. */
 const sessions = (
@@ -118,7 +127,7 @@ const sessions = (
       store.exec("DELETE FROM slack_sessions WHERE instance_id = ?", [
         instanceId,
       ])
-    ),
+    ).pipe(Effect.withSpan("Slack.state.clearSession")),
 
   getSession: (instanceId: string): Effect.Effect<ThreadSession | undefined> =>
     read("getSession", () =>
@@ -135,7 +144,8 @@ const sessions = (
               startedAt: decoded.value.started_at,
             }
           : NO_SESSION;
-      })
+      }),
+      Effect.withSpan("Slack.state.getSession")
     ),
 
   putSession: (
@@ -151,7 +161,7 @@ const sessions = (
            started_at = excluded.started_at`,
         [instanceId, session.sessionId, session.startedAt]
       )
-    ),
+    ).pipe(Effect.withSpan("Slack.state.putSession")),
 });
 
 /** The listen half: whether the bot is following a thread, and who is in it. */
@@ -168,7 +178,8 @@ const listens = (
       Effect.map((rows) => {
         const raw = rows[0]?.state;
         return raw === undefined ? UNSEEN_THREAD : listenFrom(raw);
-      })
+      }),
+      Effect.withSpan("Slack.state.getListen")
     );
 
   return {
@@ -188,15 +199,14 @@ const listens = (
               [instanceId, listenTo(next)]
             )
           )
-        )
+        ),
+        Effect.withSpan("Slack.state.updateListen")
       ),
   };
 };
 
-export const StateStoreDurable = (
-  store: OriStateStore
-): Effect.Effect<StateStoreShape> =>
-  Effect.gen(function* () {
+export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
+  function* (store: OriStateStore): Effect.fn.Return<StateStoreShape> {
     for (const statement of SCHEMA) {
       yield* write("migrate", () => store.exec(statement));
     }
@@ -205,6 +215,7 @@ export const StateStoreDurable = (
       ...sessions(store),
       ...listens(store),
     });
-  });
+  }
+);
 
 export type { ThreadSession };

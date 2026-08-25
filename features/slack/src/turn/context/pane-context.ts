@@ -46,7 +46,7 @@ export const paneContextBlock = (
  * three exist because the pane frame is otherwise blank while a run is live and
  * unnamed in the reader's history forever after.
  */
-export const openPane = Effect.fn("slack.openPane")(function* (input: {
+export const openPane = Effect.fn("Slack.turn.openPane")(function* (input: {
   readonly assistant: AssistantThreadsShape;
   readonly firstTurn: boolean;
   readonly ref: ThreadRef;

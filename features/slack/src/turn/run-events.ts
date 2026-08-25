@@ -198,7 +198,7 @@ export type PendingApprovals = Map<string, { operation: string; ts: string }>;
 const unroutableApproval = (kind: string): Effect.Effect<void> =>
   Effect.logError(
     `[slack] ${kind} requested with no session id; the run cannot be unblocked`
-  );
+  ).pipe(Effect.withSpan("Slack.runEvents.unroutableApproval"));
 
 /**
  * Post an approval request and remember it, so it can be retired once answered.
