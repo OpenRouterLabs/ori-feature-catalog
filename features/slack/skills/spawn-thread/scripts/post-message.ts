@@ -34,7 +34,7 @@ import {
   markdownToSlack,
   resolveThreadTs,
 } from "#skills/slack-api/scripts/helpers.ts";
-import { tryCatchAsync } from "./guards.ts";
+import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
 export interface PostMessageOpts {
   channel: string;

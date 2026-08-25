@@ -176,9 +176,15 @@ export const generateImage = (input: {
       } as const;
     }
 
-    const payload: unknown = yield* Effect.promise(() =>
-      response.json().catch((): unknown => null)
-    );
+    /**
+     * A body that is not JSON reads the same as a body with no image in it:
+     * the model owed us a picture and there is none. Recovering here keeps
+     * that an outcome the caller can print, rather than a failed turn.
+     */
+    const payload: unknown = yield* Effect.tryPromise({
+      catch: (cause) => new Error(String(cause)),
+      try: (): Promise<unknown> => response.json(),
+    }).pipe(Effect.catchCause(() => Effect.succeed(null)));
     const image = firstImage(payload);
     return image === undefined
       ? ({

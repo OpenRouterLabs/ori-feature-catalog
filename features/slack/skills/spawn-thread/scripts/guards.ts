@@ -1,9 +1,3 @@
-// The generic pieces (ThrownError, tryCatchAsync, isString) live in the
-// slack-api skill's guards and are re-exported here so spawn-thread scripts
-// keep importing from their local guards module.
-
-export { isString, tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
-
 /**
  * Build a Slack permalink for a thread root message (vendored from Perry's
  * buildSlackThreadUrl in the ori-monorepo egg package).

@@ -5,8 +5,7 @@
  * entry stays a thin shell that maps outcomes to exit codes.
  */
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 
@@ -54,7 +53,7 @@ export const postImage = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {

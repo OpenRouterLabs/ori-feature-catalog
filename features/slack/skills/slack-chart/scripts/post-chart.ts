@@ -7,16 +7,15 @@
 
 import { Effect, Option } from "effect";
 
-const DEFAULT_PORT = "3141";
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+const DEFAULT_PORT = "3141";
 
 /** The route's own explanation, when it left one that can be parsed. */
 const readErrorDetail = async (
   response: Response
 ): Promise<string | undefined> => {
-  const body: unknown = await response.json().catch(unreachable);
+  const body: unknown = await response.json().catch(unreadable);
   if (typeof body !== "object" || body === null) {
     return undefined;
   }
@@ -79,7 +78,7 @@ export const postChart = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {

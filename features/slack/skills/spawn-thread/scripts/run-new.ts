@@ -4,10 +4,9 @@
  *
  * Adapted for the ori Slack chat surface: no ori-monorepo egg /
  * skill-slack-render packages. Results use Effect's native `Result`;
- * buildSlackThreadUrl and the isString/tryCatchAsync re-exports are vendored in
- * ./guards.ts; the anchor + opener posts reuse its own postMessage/updateMessage
- * (moved here when slack-api became read-only). The loopback dispatch itself lives in
- * ./spawn-thread.ts.
+ * buildSlackThreadUrl is vendored in ./guards.ts; the anchor + opener posts
+ * reuse its own postMessage/updateMessage (moved here when slack-api became
+ * read-only). The loopback dispatch itself lives in ./spawn-thread.ts.
  */
 
 import { Option, Result } from "effect";
@@ -16,7 +15,8 @@ import type { KnownBlock } from "@slack/types";
 
 import type { FetchLike } from "./spawn-thread.ts";
 
-import { buildSlackThreadUrl, isString } from "./guards.ts";
+import { isString } from "#skills/slack-api/scripts/result.ts";
+import { buildSlackThreadUrl } from "./guards.ts";
 import { postMessage } from "./post-message.ts";
 import { dispatchToRunloop } from "./spawn-thread.ts";
 import { updateMessage } from "./update-message.ts";

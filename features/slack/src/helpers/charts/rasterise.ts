@@ -23,6 +23,8 @@
 // dependency check, which cannot see through the runtime import below.
 import type { Resvg } from "@resvg/resvg-js";
 
+import { Effect } from "effect";
+
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -34,15 +36,22 @@ import { discoverChartFonts, FONT_DIR_CANDIDATES } from "./fonts.ts";
 const RENDER_WIDTH = 1440;
 
 /** A directory with no fonts — or no directory — is a skip, not a failure. */
-const listFontFiles = async (dir: string): Promise<readonly string[]> => {
-  const entries = await readdir(dir, {
-    recursive: true,
-    withFileTypes: true,
-  }).catch(() => []);
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name));
-};
+const listFontFiles = async (dir: string): Promise<readonly string[]> =>
+  await Effect.runPromise(
+    // The walk and the mapping both sit inside the `tryPromise`. A throw out
+    // of an `Effect.map` would be a defect, which `orElseSucceed` does not
+    // recover — and an unreadable directory has to stay a skip.
+    Effect.tryPromise(async () =>
+      (
+        await readdir(dir, {
+          recursive: true,
+          withFileTypes: true,
+        })
+      )
+        .filter((entry) => entry.isFile())
+        .map((entry) => join(entry.parentPath, entry.name))
+    ).pipe(Effect.orElseSucceed((): readonly string[] => []))
+  );
 
 const readFont = async (path: string): Promise<Uint8Array> =>
   new Uint8Array(await Bun.file(path).arrayBuffer());
@@ -56,15 +65,22 @@ const readFont = async (path: string): Promise<Uint8Array> =>
  */
 let fontsPromise: Promise<ChartFontOptions | undefined> | undefined;
 
-/** The `catch` matters as much as the memo: a cached rejection never expires. */
 /** Named so the autofixer cannot strip a bare `undefined` and widen this. */
 const NO_FONTS: ChartFontOptions | undefined = undefined;
 
 const chartFonts = async (): Promise<ChartFontOptions | undefined> => {
-  fontsPromise ??= discoverChartFonts({
-    listFontFiles,
-    readFont,
-  }).catch(() => NO_FONTS);
+  fontsPromise ??= Effect.runPromise(
+    // The recovery matters as much as the memo: a cached rejection never
+    // expires, so a walk that failed once would fail every chart until a
+    // restart. Recovered to the same `undefined` a fontless box produces —
+    // the caller cannot draw either way, and says so.
+    Effect.tryPromise(async () =>
+      discoverChartFonts({
+        listFontFiles,
+        readFont,
+      })
+    ).pipe(Effect.orElseSucceed(() => NO_FONTS))
+  );
   return await fontsPromise;
 };
 
@@ -147,6 +163,16 @@ const loadResvg = async (): Promise<ResvgConstructor> => {
   return constructor;
 };
 
+/**
+ * SVG in, PNG out — or a rejection naming what stopped it.
+ *
+ * Its two refusals — no font on the box, and a binding that exported no
+ * constructor — stay throws rather than typed failures because the only
+ * caller already treats them as one outcome: `chart-route.ts` renders through
+ * a two-argument `.then`, turning any rejection into the 422 sentence the
+ * skill reads back. A typed channel here would be spelled out only to be
+ * flattened into `describeError` there.
+ */
 export const svgToPng = async (svg: string): Promise<Blob> => {
   const fonts = await chartFonts();
   if (fonts === undefined) {

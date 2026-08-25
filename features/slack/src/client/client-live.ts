@@ -228,11 +228,3 @@ export const readSlackBotToken = (
         )
       : Effect.succeed(token);
   });
-
-/** Env-backed default. Composed once at the feature root — see `index.ts`. */
-export const SlackClientDefault: Layer.Layer<SlackClient, SlackConfigError> =
-  Layer.unwrap(
-    readSlackBotToken().pipe(
-      Effect.map((token) => SlackClientLive(makeConfiguredWebClient(token)))
-    )
-  );

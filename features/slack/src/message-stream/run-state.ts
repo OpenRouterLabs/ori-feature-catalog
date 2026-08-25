@@ -254,15 +254,6 @@ export const renderStatusLine = (
 };
 
 /**
- * Tools the run has touched, collapsed to counts.
- *
- * Kept for surfaces that want the summary rather than the tail; the Slack
- * progress message renders {@link renderWorkLog} instead.
- */
-export const renderToolLine = (state: RunState): string =>
-  toolSummary(state.tools);
-
-/**
  * A safety cap, not a style. Slack wraps a long line perfectly well, and
  * cutting one mid-word ("before designi…") reads as damage rather than as
  * brevity — so this only exists to stop a pasted wall of text taking the

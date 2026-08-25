@@ -24,7 +24,7 @@
 
 import { Result } from "effect";
 
-import { tryCatchAsync } from "./guards.ts";
+import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
 // The daemon's default port (framework/runloop daemon-http-defaults.ts, 3141):
 // /slack/thread/dispatch is served by the daemon via the slack feature's api routes

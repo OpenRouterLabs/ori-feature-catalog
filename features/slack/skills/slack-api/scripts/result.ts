@@ -58,6 +58,13 @@ export const tryCatchAsync = <T>(
     )
   );
 
+/**
+ * `catch` handler for the loopback calls: a rejection becomes `undefined`, which
+ * the caller reports as an outcome instead of throwing. A daemon that is down
+ * and a body that will not parse are both ordinary paths, not broken invariants.
+ */
+export const unreadable = (): undefined => undefined;
+
 export const isString = (val: unknown): val is string =>
   typeof val === "string";
 

@@ -10,8 +10,7 @@
 
 import { Option, Schema } from "effect";
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 const HTTP_TIMEOUT = 408;
@@ -115,7 +114,7 @@ export const postAsk = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {
