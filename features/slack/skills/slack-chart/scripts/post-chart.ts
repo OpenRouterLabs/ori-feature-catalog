@@ -5,6 +5,8 @@
  * entry stays a thin shell that maps outcomes to exit codes.
  */
 
+import { Effect, Option } from "effect";
+
 const DEFAULT_PORT = "3141";
 
 /** A daemon that is not there is reported, not thrown. */
@@ -43,15 +45,21 @@ export const postChart = async (input: {
     };
   }
 
-  let spec: unknown;
-  try {
-    spec = JSON.parse(input.spec);
-  } catch {
+  const parsed = Effect.runSync(
+    Effect.try((): unknown => JSON.parse(input.spec)).pipe(
+      Effect.map((value) => Option.some(value)),
+      // `None` is "not JSON at all"; the object check below is a separate
+      // answer, so the two failures keep their own messages.
+      Effect.orElseSucceed(() => Option.none<unknown>())
+    )
+  );
+  if (Option.isNone(parsed)) {
     return {
       kind: "error",
       message: "the spec must be JSON",
     };
   }
+  const spec: unknown = parsed.value;
   if (typeof spec !== "object" || spec === null) {
     return {
       kind: "error",

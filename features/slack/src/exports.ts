@@ -18,6 +18,8 @@
  * runtime handle.
  */
 
+import { Effect } from "effect";
+
 import type { Block, KnownBlock } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 
@@ -109,35 +111,43 @@ export const webClient = (): WebClient | undefined => resolveClient()?.raw;
  */
 export const makePostMessage =
   (slack: SlackClientShape) =>
-  async (input: SlackPostMessageInput): Promise<SlackPostMessageResult> => {
-    try {
+  (input: SlackPostMessageInput): Promise<SlackPostMessageResult> =>
+    Effect.runPromise(
       // Through `raw` rather than the typed method: this surface needs the
       // unfurl flags and Block Kit passthrough the port does not model.
       // Capped for the same reason the chat surface caps: Slack rejects an
       // over-long or over-long-block message outright, so an uncapped caller
       // gets a hard failure where a trimmed post would have done the job.
-      const response = await slack.raw.chat.postMessage({
-        channel: input.channel,
-        text: withinSlackLimit(input.text),
-        unfurl_links: input.unfurlLinks ?? false,
-        unfurl_media: input.unfurlMedia ?? false,
-        ...(input.blocks === undefined
-          ? {}
-          : { blocks: [...capBlocks(input.blocks)] }),
-        ...(input.threadTs === undefined ? {} : { thread_ts: input.threadTs }),
-      });
-      return {
-        channel: response.channel ?? input.channel,
-        ok: true,
-        ...(response.ts === undefined ? {} : { ts: response.ts }),
-      };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : String(error),
-        ok: false,
-      };
-    }
-  };
+      Effect.tryPromise(() =>
+        slack.raw.chat.postMessage({
+          channel: input.channel,
+          text: withinSlackLimit(input.text),
+          unfurl_links: input.unfurlLinks ?? false,
+          unfurl_media: input.unfurlMedia ?? false,
+          ...(input.blocks === undefined
+            ? {}
+            : { blocks: [...capBlocks(input.blocks)] }),
+          ...(input.threadTs === undefined ? {} : { thread_ts: input.threadTs }),
+        })
+      ).pipe(
+        Effect.match({
+          // The result union is the contract: a courtesy post must not fail
+          // the caller's own work because Slack was rate limited.
+          onFailure: (error): SlackPostMessageResult => ({
+            error:
+              error.cause instanceof Error
+                ? error.cause.message
+                : String(error.cause),
+            ok: false,
+          }),
+          onSuccess: (response): SlackPostMessageResult => ({
+            channel: response.channel ?? input.channel,
+            ok: true,
+            ...(response.ts === undefined ? {} : { ts: response.ts }),
+          }),
+        })
+      )
+    );
 
 /**
  * The `use("slack")` entry point. Resolves the env-backed client on first

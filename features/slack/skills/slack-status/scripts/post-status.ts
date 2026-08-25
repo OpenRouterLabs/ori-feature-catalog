@@ -17,6 +17,8 @@
  * the point — "call it often, it is free" is what produced the noise.
  */
 
+import { Effect } from "effect";
+
 /** The indicator is one line Slack never folds. */
 const MAX_LINE_CHARS = 120;
 /** A message carries detail, and detail is still one short paragraph. */
@@ -112,30 +114,36 @@ export const postStatus = async (input: {
     };
   }
 
-  try {
-    // The message goes FIRST: Slack clears the indicator whenever the app
-    // posts to the thread, so setting the line first would set it and then
-    // immediately wipe it.
-    if (input.notify) {
-      await input.postMessage({
+  return await Effect.runPromise(
+    Effect.tryPromise(async () => {
+      // The message goes FIRST: Slack clears the indicator whenever the app
+      // posts to the thread, so setting the line first would set it and then
+      // immediately wipe it.
+      if (input.notify) {
+        await input.postMessage({
+          pane: thread,
+          text,
+        });
+      }
+      await input.setLine({
         pane: thread,
         text,
       });
-    }
-    await input.setLine({
-      pane: thread,
-      text,
-    });
-  } catch (error) {
-    return {
-      kind: "error",
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  return {
-    kind: "posted",
-    notified: input.notify,
-    text,
-  };
+    }).pipe(
+      Effect.match({
+        onFailure: (error): PostStatusOutcome => ({
+          kind: "error",
+          message:
+            error.cause instanceof Error
+              ? error.cause.message
+              : String(error.cause),
+        }),
+        onSuccess: (): PostStatusOutcome => ({
+          kind: "posted",
+          notified: input.notify,
+          text,
+        }),
+      })
+    )
+  );
 };

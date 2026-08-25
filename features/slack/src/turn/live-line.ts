@@ -17,6 +17,8 @@
  * words back on a live thread.
  */
 
+import { Effect } from "effect";
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,33 +32,38 @@ const DIR = join(tmpdir(), "ori-slack", "live");
 const fileFor = (threadKey: string): string =>
   join(DIR, `${threadKey.replaceAll(/[^\w.-]/gu, "_")}.txt`);
 
-export const recordLiveLine = async (
+export const recordLiveLine = (
   threadKey: string,
   line: string,
   now: number = Date.now()
-): Promise<void> => {
-  try {
-    await mkdir(DIR, { recursive: true });
-    await writeFile(fileFor(threadKey), `${now}\n${line}`, "utf-8");
-  } catch {
-    // The beat falls back to its own line. An unwritable temp dir must not
-    // cost the agent the update it was making.
-  }
-};
+): Promise<void> =>
+  Effect.runPromise(
+    Effect.tryPromise(async () => {
+      await mkdir(DIR, { recursive: true });
+      await writeFile(fileFor(threadKey), `${now}\n${line}`, "utf-8");
+    }).pipe(
+      // The beat falls back to its own line. An unwritable temp dir must not
+      // cost the agent the update it was making.
+      Effect.ignore
+    )
+  );
 
 /** What the agent last said in this thread, if it was recent enough to mean it. */
-export const readLiveLine = async (
+export const readLiveLine = (
   threadKey: string,
   now: number = Date.now()
-): Promise<string | undefined> => {
-  try {
-    const raw = await readFile(fileFor(threadKey), "utf-8");
-    const at = Number(raw.slice(0, raw.indexOf("\n")));
-    const line = raw.slice(raw.indexOf("\n") + 1).trim();
-    return Number.isFinite(at) && now - at < STALE_MS && line !== ""
-      ? line
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
+): Promise<string | undefined> =>
+  Effect.runPromise(
+    Effect.tryPromise(() => readFile(fileFor(threadKey), "utf-8")).pipe(
+      Effect.map((raw) => {
+        const at = Number(raw.slice(0, raw.indexOf("\n")));
+        const line = raw.slice(raw.indexOf("\n") + 1).trim();
+        return Number.isFinite(at) && now - at < STALE_MS && line !== ""
+          ? line
+          : undefined;
+      }),
+      // No file, or an unreadable one, means nothing was said recently —
+      // which is the same answer as a line too stale to mean it.
+      Effect.orElseSucceed(() => undefined)
+    )
+  );
