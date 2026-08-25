@@ -15,8 +15,9 @@
 
 import type { AgentFailure, AgentRuntimeEvent } from "ori";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import type { SlackApiError } from "../client/client.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type { MessageReplyShape } from "../message-reply/reply.ts";
 import type { RunState } from "../message-stream/run-state.ts";
@@ -34,6 +35,21 @@ import {
   startedTool,
   workingTool,
 } from "../message-stream/tool-liveness.ts";
+
+/**
+ * The agent's event stream stopped before the run reached a terminal event.
+ *
+ * Typed rather than a bare `Error` so the turn loop that catches it can tell a
+ * dead stream from a Slack call that failed inside an event handler.
+ */
+export class AgentStreamEnded extends Schema.TaggedErrorClass<AgentStreamEnded>()(
+  "AgentStreamEnded",
+  { cause: Schema.Defect() }
+) {
+  override get message(): string {
+    return `the agent event stream ended: ${String(this.cause)}`;
+  }
+}
 
 /**
  * Ceiling on accumulated prose.
@@ -191,49 +207,51 @@ const unroutableApproval = (kind: string): Effect.Effect<void> =>
  * update pacing does not fight with it and the buttons survive the run's own
  * updates.
  */
-const postApproval = async (input: {
-  readonly blocks: readonly SlackBlock[];
-  readonly correlationId: string;
-  readonly fallback: string;
-  readonly operation: string;
-  readonly pending: PendingApprovals;
-  readonly reply: MessageReplyShape;
-}): Promise<void> => {
-  const posted = await Effect.runPromise(
-    input.reply.replyBlocks(input.blocks, input.fallback).pipe(Effect.orDie)
-  );
-  input.pending.set(input.correlationId, {
-    operation: input.operation,
-    ts: posted.ts,
-  });
-};
+const postApproval = Effect.fn("Slack.runEvents.postApproval")(
+  function* (input: {
+    readonly blocks: readonly SlackBlock[];
+    readonly correlationId: string;
+    readonly fallback: string;
+    readonly operation: string;
+    readonly pending: PendingApprovals;
+    readonly reply: MessageReplyShape;
+  }): Effect.fn.Return<void, SlackApiError> {
+    const posted = yield* input.reply.replyBlocks(input.blocks, input.fallback);
+    input.pending.set(input.correlationId, {
+      operation: input.operation,
+      ts: posted.ts,
+    });
+  }
+);
 
 /**
  * Retire an answered approval. Leaving the buttons clickable invites a second
  * answer to a request that is already closed.
  */
-const retireApproval = async (input: {
-  readonly correlationId: string;
-  readonly outcome: string;
-  readonly pending: PendingApprovals;
-  readonly reply: MessageReplyShape;
-}): Promise<void> => {
-  const { correlationId, outcome, pending, reply } = input;
-  const entry = pending.get(correlationId);
-  if (entry === undefined) {
-    return;
-  }
-  await Effect.runPromise(
-    reply
+const retireApproval = Effect.fn("Slack.runEvents.retireApproval")(
+  function* (input: {
+    readonly correlationId: string;
+    readonly outcome: string;
+    readonly pending: PendingApprovals;
+    readonly reply: MessageReplyShape;
+  }): Effect.fn.Return<void> {
+    const { correlationId, outcome, pending, reply } = input;
+    const entry = pending.get(correlationId);
+    if (entry === undefined) {
+      return;
+    }
+    // Ignored, not propagated: the buttons are already answered, so a failed
+    // rewrite costs some tidiness and must not end the run.
+    yield* reply
       .updateBlocks(
         entry.ts,
         permissionResolvedBlocks({ operation: entry.operation }, outcome),
         entry.operation
       )
-      .pipe(Effect.ignore)
-  );
-  pending.delete(correlationId);
-};
+      .pipe(Effect.ignore);
+    pending.delete(correlationId);
+  }
+);
 
 /**
  * The session id, which `session.started` supplies part-way through a run.
@@ -245,69 +263,73 @@ export interface SessionSlot {
 }
 
 /** Ask for approval of a gated operation, and remember the ask. */
-const requestPermission = async (input: {
-  readonly event: Extract<
-    AgentRuntimeEvent,
-    { type: typeof Tag.PermissionRequested }
-  >;
-  readonly pending: PendingApprovals;
-  readonly reply: MessageReplyShape;
-  readonly session: SessionSlot;
-  readonly turn: IncomingTurn;
-}): Promise<void> => {
-  const { correlationId, operation, options } = input.event.payload;
-  const sessionId = input.event.payload.sessionId ?? input.session.current;
-  if (sessionId === undefined) {
-    await Effect.runPromise(unroutableApproval("permission"));
-    return;
-  }
-  await postApproval({
-    blocks: permissionBlocks({
-      askedBy: input.turn.userId,
+const requestPermission = Effect.fn("Slack.runEvents.requestPermission")(
+  function* (input: {
+    readonly event: Extract<
+      AgentRuntimeEvent,
+      { type: typeof Tag.PermissionRequested }
+    >;
+    readonly pending: PendingApprovals;
+    readonly reply: MessageReplyShape;
+    readonly session: SessionSlot;
+    readonly turn: IncomingTurn;
+  }): Effect.fn.Return<void, SlackApiError> {
+    const { correlationId, operation, options } = input.event.payload;
+    const sessionId = input.event.payload.sessionId ?? input.session.current;
+    if (sessionId === undefined) {
+      yield* unroutableApproval("permission");
+      return;
+    }
+    yield* postApproval({
+      blocks: permissionBlocks({
+        askedBy: input.turn.userId,
+        correlationId,
+        operation,
+        options,
+        sessionId,
+      }),
       correlationId,
+      fallback: `Permission needed: ${operation}`,
       operation,
-      options,
-      sessionId,
-    }),
-    correlationId,
-    fallback: `Permission needed: ${operation}`,
-    operation,
-    pending: input.pending,
-    reply: input.reply,
-  });
-};
+      pending: input.pending,
+      reply: input.reply,
+    });
+  }
+);
 
 /** Ask for structured input, and remember the ask. */
-const requestElicitation = async (input: {
-  readonly event: Extract<
-    AgentRuntimeEvent,
-    { type: typeof Tag.ElicitationRequested }
-  >;
-  readonly pending: PendingApprovals;
-  readonly reply: MessageReplyShape;
-  readonly session: SessionSlot;
-  readonly turn: IncomingTurn;
-}): Promise<void> => {
-  const { correlationId, message } = input.event.payload;
-  const sessionId = input.event.payload.sessionId ?? input.session.current;
-  if (sessionId === undefined) {
-    await Effect.runPromise(unroutableApproval("elicitation"));
-    return;
-  }
-  await postApproval({
-    blocks: elicitationBlocks({
-      askedBy: input.turn.userId,
+const requestElicitation = Effect.fn("Slack.runEvents.requestElicitation")(
+  function* (input: {
+    readonly event: Extract<
+      AgentRuntimeEvent,
+      { type: typeof Tag.ElicitationRequested }
+    >;
+    readonly pending: PendingApprovals;
+    readonly reply: MessageReplyShape;
+    readonly session: SessionSlot;
+    readonly turn: IncomingTurn;
+  }): Effect.fn.Return<void, SlackApiError> {
+    const { correlationId, message } = input.event.payload;
+    const sessionId = input.event.payload.sessionId ?? input.session.current;
+    if (sessionId === undefined) {
+      yield* unroutableApproval("elicitation");
+      return;
+    }
+    yield* postApproval({
+      blocks: elicitationBlocks({
+        askedBy: input.turn.userId,
+        correlationId,
+        message,
+        sessionId,
+      }),
       correlationId,
-      message,
-      sessionId,
-    }),
-    correlationId,
-    fallback: "Input requested",
-    operation: message,
-    pending: input.pending,
-    reply: input.reply,
-  });
-};
+      fallback: "Input requested",
+      operation: message,
+      pending: input.pending,
+      reply: input.reply,
+    });
+  }
+);
 
 /**
  * React to one runtime event.
@@ -315,68 +337,60 @@ const requestElicitation = async (input: {
  * Everything that changes what the THREAD shows lives here — approvals posted
  * and retired, the session recorded. Folding an event into the rendered run
  * state is `applyEvent`'s separate job.
+ *
+ * The failure is typed and propagated rather than killed at a boundary: the
+ * caller consuming the stream is the one that knows what a dead run should
+ * render as.
  */
-export const handleRunEvent = async (input: {
-  readonly event: AgentRuntimeEvent;
-  readonly pending: PendingApprovals;
-  readonly reply: MessageReplyShape;
-  readonly session: SessionSlot;
-  readonly store: StateStoreShape;
-  readonly turn: IncomingTurn;
-}): Promise<void> => {
-  const { event, pending, reply, session, store, turn } = input;
+export const handleRunEvent = Effect.fn("Slack.runEvents.handle")(
+  function* (input: {
+    readonly event: AgentRuntimeEvent;
+    readonly pending: PendingApprovals;
+    readonly reply: MessageReplyShape;
+    readonly session: SessionSlot;
+    readonly store: StateStoreShape;
+    readonly turn: IncomingTurn;
+  }): Effect.fn.Return<void, SlackApiError> {
+    const { event, pending, reply, session, store, turn } = input;
 
-  // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- as above: only the events that change what the thread shows are handled here
-  switch (event.type) {
-    case Tag.SessionStarted: {
-      const { sessionId } = event.payload;
-      if (sessionId !== undefined) {
-        session.current = sessionId;
-        await Effect.runPromise(
-          store.putSession(session.instanceId, {
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- as above: only the events that change what the thread shows are handled here
+    switch (event.type) {
+      case Tag.SessionStarted: {
+        const { sessionId } = event.payload;
+        if (sessionId !== undefined) {
+          session.current = sessionId;
+          yield* store.putSession(session.instanceId, {
             sessionId,
             startedAt: Date.now(),
-          })
-        );
+          });
+        }
+        break;
       }
-      break;
-    }
 
-    case Tag.PermissionRequested: {
-      await requestPermission({
-        event,
-        pending,
-        reply,
-        session,
-        turn,
-      });
-      break;
-    }
+      case Tag.PermissionRequested: {
+        yield* requestPermission({ event, pending, reply, session, turn });
+        break;
+      }
 
-    case Tag.ElicitationRequested: {
-      await requestElicitation({
-        event,
-        pending,
-        reply,
-        session,
-        turn,
-      });
-      break;
-    }
+      case Tag.ElicitationRequested: {
+        yield* requestElicitation({ event, pending, reply, session, turn });
+        break;
+      }
 
-    case Tag.PermissionResolved:
-    case Tag.ElicitationResolved: {
-      await retireApproval({
-        correlationId: event.payload.correlationId,
-        outcome: readOutcome(event),
-        pending,
-        reply,
-      });
-      break;
-    }
+      case Tag.PermissionResolved:
+      case Tag.ElicitationResolved: {
+        yield* retireApproval({
+          correlationId: event.payload.correlationId,
+          outcome: readOutcome(event),
+          pending,
+          reply,
+        });
+        break;
+      }
 
-    default: {
-      break;
+      default: {
+        break;
+      }
     }
   }
-};
+);

@@ -15,6 +15,12 @@
  * Stale lines are ignored rather than deleted. A line older than the window is
  * from a turn that has ended, and re-asserting it would put a finished run's
  * words back on a live thread.
+ *
+ * The pair below is Effect all the way down for the daemon, which lives in
+ * Effect and reads this from inside its own graph. `recordLiveLine` and
+ * `readLiveLine` are the Promise edge: the `slack-status` skill is a separate
+ * process with a plain `async main`, and that process boundary is where a
+ * `runPromise` genuinely belongs.
  */
 
 import { Effect } from "effect";
@@ -32,38 +38,63 @@ const DIR = join(tmpdir(), "ori-slack", "live");
 const fileFor = (threadKey: string): string =>
   join(DIR, `${threadKey.replaceAll(/[^\w.-]/gu, "_")}.txt`);
 
+/**
+ * The line a file holds, if it is recent enough to mean it.
+ *
+ * Pure on purpose: nothing here can throw, so nothing here can turn into a
+ * defect that the fallback below would not catch.
+ */
+const recentLine = (raw: string, now: number): string | undefined => {
+  const at = Number(raw.slice(0, raw.indexOf("\n")));
+  const line = raw.slice(raw.indexOf("\n") + 1).trim();
+  return Number.isFinite(at) && now - at < STALE_MS && line !== ""
+    ? line
+    : undefined;
+};
+
+/** Leave the line where the beat will look for it. Never fails. */
+export const recordLine = Effect.fn("Slack.liveLine.record")(function* (
+  threadKey: string,
+  line: string,
+  now: number = Date.now()
+): Effect.fn.Return<void> {
+  yield* Effect.tryPromise(async () => {
+    // Both writes stay inside the thunk: a throw out here would be a defect,
+    // and `ignore` recovers a failure, not a defect.
+    await mkdir(DIR, { recursive: true });
+    await writeFile(fileFor(threadKey), `${now}\n${line}`, "utf-8");
+  }).pipe(
+    // The beat falls back to its own line. An unwritable temp dir must not
+    // cost the agent the update it was making.
+    Effect.ignore
+  );
+});
+
+/**
+ * What the agent last said in this thread, if it was recent enough to mean it.
+ *
+ * Never fails: no file, or an unreadable one, means nothing was said recently
+ * — which is the same answer as a line too stale to mean it.
+ */
+export const readLine = Effect.fn("Slack.liveLine.read")(function* (
+  threadKey: string,
+  now: number = Date.now()
+): Effect.fn.Return<string | undefined> {
+  const raw = yield* Effect.tryPromise(() =>
+    readFile(fileFor(threadKey), "utf-8")
+  ).pipe(Effect.orElseSucceed(() => undefined));
+  return raw === undefined ? undefined : recentLine(raw, now);
+});
+
+/** The Promise edge, for the `slack-status` skill's own process. */
 export const recordLiveLine = (
   threadKey: string,
   line: string,
   now: number = Date.now()
-): Promise<void> =>
-  Effect.runPromise(
-    Effect.tryPromise(async () => {
-      await mkdir(DIR, { recursive: true });
-      await writeFile(fileFor(threadKey), `${now}\n${line}`, "utf-8");
-    }).pipe(
-      // The beat falls back to its own line. An unwritable temp dir must not
-      // cost the agent the update it was making.
-      Effect.ignore
-    )
-  );
+): Promise<void> => Effect.runPromise(recordLine(threadKey, line, now));
 
-/** What the agent last said in this thread, if it was recent enough to mean it. */
+/** The Promise edge, for callers outside the daemon's graph. */
 export const readLiveLine = (
   threadKey: string,
   now: number = Date.now()
-): Promise<string | undefined> =>
-  Effect.runPromise(
-    Effect.tryPromise(() => readFile(fileFor(threadKey), "utf-8")).pipe(
-      Effect.map((raw) => {
-        const at = Number(raw.slice(0, raw.indexOf("\n")));
-        const line = raw.slice(raw.indexOf("\n") + 1).trim();
-        return Number.isFinite(at) && now - at < STALE_MS && line !== ""
-          ? line
-          : undefined;
-      }),
-      // No file, or an unreadable one, means nothing was said recently —
-      // which is the same answer as a line too stale to mean it.
-      Effect.orElseSucceed(() => undefined)
-    )
-  );
+): Promise<string | undefined> => Effect.runPromise(readLine(threadKey, now));

@@ -21,7 +21,7 @@
 
 import type { AgentRuntimeEvent, Chat } from "ori";
 
-import { Effect, Ref } from "effect";
+import { Effect, Ref, Stream } from "effect";
 
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
 import type { RunState } from "../../message-stream/run-state.ts";
@@ -54,7 +54,7 @@ import { steerContextBlock } from "../context/steer-context.ts";
 import { toolContextBlock } from "../context/tool-context.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "../reply-style.ts";
 import { retireTurn } from "../retire-turn.ts";
-import { applyEvent, handleRunEvent } from "../run-events.ts";
+import { AgentStreamEnded, applyEvent, handleRunEvent } from "../run-events.ts";
 import { beatStatus } from "../status-beat.ts";
 import { turnEnv } from "../turn-input.ts";
 
@@ -64,25 +64,24 @@ import { turnEnv } from "../turn-input.ts";
  * Without this a cancelled or failed turn leaves live-looking buttons pointing
  * at a correlation id nothing will ever resolve.
  */
-const retirePending = (
+const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   pending: PendingApprovals,
   reply: MessageReplyShape
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    for (const [correlationId, entry] of pending) {
-      yield* reply
-        .updateBlocks(
-          entry.ts,
-          permissionResolvedBlocks(
-            { operation: entry.operation },
-            "no longer needed"
-          ),
-          entry.operation
-        )
-        .pipe(Effect.ignore);
-      pending.delete(correlationId);
-    }
-  });
+): Effect.fn.Return<void> {
+  for (const [correlationId, entry] of pending) {
+    yield* reply
+      .updateBlocks(
+        entry.ts,
+        permissionResolvedBlocks(
+          { operation: entry.operation },
+          "no longer needed"
+        ),
+        entry.operation
+      )
+      .pipe(Effect.ignore);
+    pending.delete(correlationId);
+  }
+});
 
 /**
  * How a run ended, from its signal.
@@ -112,7 +111,7 @@ const endedPhase = (signal: AbortSignal): RunPhase => {
  * Anything that escapes without one is caught here and rendered as an ending,
  * so the thread never keeps a live-looking message for a run that is over.
  */
-const consumeRun = (input: {
+const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
   readonly apply: (
     change: (state: RunState) => RunState
   ) => Effect.Effect<void>;
@@ -123,26 +122,31 @@ const consumeRun = (input: {
   readonly signal: AbortSignal;
   readonly store: StateStoreShape;
   readonly turn: IncomingTurn;
-}): Effect.Effect<void> =>
-  Effect.tryPromise({
-    catch: (cause) =>
-      new Error(`the agent event stream ended: ${String(cause)}`),
-    try: async () => {
-      for await (const event of input.events) {
-        await Effect.runPromise(
-          input.apply((state) => applyEvent(state, event))
-        );
-        await handleRunEvent({
-          event,
-          pending: input.pending,
-          reply: input.reply,
-          session: input.session,
-          store: input.store,
-          turn: input.turn,
-        });
-      }
-    },
-  }).pipe(
+}): Effect.fn.Return<void> {
+  // A stream because the agent's iterable is genuinely async — but pulled one
+  // event at a time, so the work below stays inside the same Effect rather
+  // than being run per event at a boundary the turn cannot be interrupted at.
+  const events = Stream.fromAsyncIterable(
+    input.events,
+    (cause) => new AgentStreamEnded({ cause })
+  );
+
+  yield* Stream.runForEach(events, (event) =>
+    input
+      .apply((state) => applyEvent(state, event))
+      .pipe(
+        Effect.andThen(() =>
+          handleRunEvent({
+            event,
+            pending: input.pending,
+            reply: input.reply,
+            session: input.session,
+            store: input.store,
+            turn: input.turn,
+          })
+        )
+      )
+  ).pipe(
     // A stream that rejects ended the run, one way or another: aborted is a
     // cancel or a timeout, anything else is a failure. `endedPhase` tells them
     // apart from the signal.
@@ -168,6 +172,7 @@ const consumeRun = (input: {
       )
     )
   );
+});
 
 /**
  * ONE state, two writers.
@@ -241,65 +246,65 @@ const openStream = (
       : { priorPartial: input.turn.priorPartial }),
   });
 
-const driveRun =
-  (input: {
-    readonly assistant: AssistantThreadsShape;
-    readonly existing: { readonly sessionId: string } | undefined;
-    readonly instanceId: string;
-    readonly live: LiveTurn;
-    readonly prompt: string;
-    readonly reply: MessageReplyShape;
-    readonly sendMessage: Chat["sendMessage"];
-    readonly store: StateStoreShape;
-    readonly turn: IncomingTurn;
-  }) =>
-  (advance: (next: RunState) => Effect.Effect<void>): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const { assistant, live, reply, store } = input;
-      const { apply, peek } = yield* makeApply(advance);
+const driveRun = (input: {
+  readonly assistant: AssistantThreadsShape;
+  readonly existing: { readonly sessionId: string } | undefined;
+  readonly instanceId: string;
+  readonly live: LiveTurn;
+  readonly prompt: string;
+  readonly reply: MessageReplyShape;
+  readonly sendMessage: Chat["sendMessage"];
+  readonly store: StateStoreShape;
+  readonly turn: IncomingTurn;
+}) =>
+  Effect.fn("Slack.turn.drive")(function* (
+    advance: (next: RunState) => Effect.Effect<void>
+  ): Effect.fn.Return<void> {
+    const { assistant, live, reply, store } = input;
+    const { apply, peek } = yield* makeApply(advance);
 
-      yield* apply((state) => state);
+    yield* apply((state) => state);
 
-      // Read at the moment this turn is interrupted, so a steer can hand the
-      // work to its replacement rather than throwing it away.
-      live.readPartial = (): string => partialOf(Effect.runSync(peek));
-      // What it was asked, so a steer can hand the correction something to
-      // amend rather than a blank slate.
-      live.readAsk = (): string => input.turn.text;
+    // Read at the moment this turn is interrupted, so a steer can hand the
+    // work to its replacement rather than throwing it away.
+    live.readPartial = (): string => partialOf(Effect.runSync(peek));
+    // What it was asked, so a steer can hand the correction something to
+    // amend rather than a blank slate.
+    live.readAsk = (): string => input.turn.text;
 
-      // The surface says the run is alive; the agent says what it found. This
-      // is the first half, and it needs nothing from the model.
-      const beat = yield* beatStatus({
-        assistant,
-        peek,
-        ref: input.turn.ref,
-        threadKey: input.instanceId,
-      });
-
-      const events = openStream(input, live.signal);
-
-      // Approval prompts posted this turn, so the message can be rewritten
-      // once answered. Scoped to the turn: a correlation id is only live while
-      // the run that raised it is.
-      const pending: PendingApprovals = new Map();
-      const session: SessionSlot = {
-        current: input.existing?.sessionId,
-        instanceId: input.instanceId,
-      };
-
-      yield* consumeRun({
-        apply,
-        events,
-        pending,
-        reply,
-        session,
-        signal: live.signal,
-        store,
-        turn: input.turn,
-      });
-      yield* beat.stop;
-      yield* retirePending(pending, reply);
+    // The surface says the run is alive; the agent says what it found. This
+    // is the first half, and it needs nothing from the model.
+    const beat = yield* beatStatus({
+      assistant,
+      peek,
+      ref: input.turn.ref,
+      threadKey: input.instanceId,
     });
+
+    const events = openStream(input, live.signal);
+
+    // Approval prompts posted this turn, so the message can be rewritten
+    // once answered. Scoped to the turn: a correlation id is only live while
+    // the run that raised it is.
+    const pending: PendingApprovals = new Map();
+    const session: SessionSlot = {
+      current: input.existing?.sessionId,
+      instanceId: input.instanceId,
+    };
+
+    yield* consumeRun({
+      apply,
+      events,
+      pending,
+      reply,
+      session,
+      signal: live.signal,
+      store,
+      turn: input.turn,
+    });
+    yield* beat.stop;
+    yield* retirePending(pending, reply);
+  });
 
 const runOptions = (turn: IncomingTurn): RunOptions => ({
   superseded: (): boolean => hasSuccessor(threadInstanceId(turn.ref)),
@@ -338,7 +343,7 @@ interface HandleTurnInput {
   readonly turn: IncomingTurn;
 }
 
-export const handleTurn = Effect.fn("slack.handleTurn")(function* (
+export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
   input: HandleTurnInput
 ) {
   const assistant = yield* AssistantThreads;

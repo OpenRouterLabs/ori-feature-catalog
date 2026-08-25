@@ -246,11 +246,14 @@ const turnRouteDeps = (input: {
   isStopping: input.isStopping,
   logger: input.logger,
   messageOf,
+  // The notes are effects; `runWith` is the same single edge every other
+  // Promise-shaped handle on this record crosses, not a boundary of their own.
   postQueuedNotice: (ref: ThreadRef): Promise<void> =>
-    postQueuedNotice(input.context, ref),
-  sayFailed: (ref: ThreadRef): Promise<void> => sayFailed(input.context, ref),
+    runWith(input.context, postQueuedNotice(ref)),
+  sayFailed: (ref: ThreadRef): Promise<void> =>
+    runWith(input.context, sayFailed(ref)),
   startStatus: (ref: ThreadRef): Promise<void> =>
-    startStatus(input.context, ref),
+    runWith(input.context, startStatus(ref)),
   runWith: <A>(effect: Effect.Effect<A, never, SlackServices>): Promise<A> =>
     runWith(input.context, effect),
   config: input.config,

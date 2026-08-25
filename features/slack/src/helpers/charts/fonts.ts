@@ -14,7 +14,26 @@
  * pointed at the family we actually found.
  */
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
+
+/**
+ * A font directory that could not be listed.
+ *
+ * Typed rather than thrown so the caller can decide: the one in this feature
+ * treats it as "this box has no font", which is the same dead end a box with
+ * no font files reaches, and says so to the person who asked for the chart.
+ */
+export class ChartFontScanError extends Schema.TaggedErrorClass<ChartFontScanError>()(
+  "ChartFontScanError",
+  {
+    dir: Schema.String,
+    cause: Schema.Defect(),
+  }
+) {
+  override get message(): string {
+    return `could not list the fonts in ${this.dir}`;
+  }
+}
 
 /** Where a Linux/macOS box keeps fonts. Missing entries are skipped. */
 export const FONT_DIR_CANDIDATES = [
@@ -141,19 +160,18 @@ const isFontFile = (path: string): boolean =>
  * Unguarded, one bad file rejected the whole walk — and discovery is memoised,
  * so it then failed every chart until a restart.
  */
-const familyOf = (
+const familyOf = Effect.fn("Slack.charts.familyOf")(function* (
   readFont: (path: string) => Promise<Uint8Array>,
   path: string
-): Promise<string | undefined> =>
-  Effect.runPromise(
-    // Both calls stay inside the `tryPromise`: a malformed name table throws
-    // out of `familyNameFrom`, and in an `Effect.map` that would be a defect
-    // rather than a failure — which `orElseSucceed` does not catch, so one bad
-    // font file would take down every chart instead of being skipped.
-    Effect.tryPromise(async () => familyNameFrom(await readFont(path))).pipe(
-      Effect.orElseSucceed(() => undefined)
-    )
-  );
+): Effect.fn.Return<string | undefined> {
+  // Both calls stay inside the `tryPromise` thunk: a malformed name table
+  // throws out of `familyNameFrom`, and in an `Effect.map` that would be a
+  // defect rather than a failure — which `orElseSucceed` does not catch, so
+  // one bad font file would take down every chart instead of being skipped.
+  return yield* Effect.tryPromise(
+    async () => familyNameFrom(await readFont(path))
+  ).pipe(Effect.orElseSucceed(() => undefined));
+});
 
 /**
  * Font options for resvg, or undefined when the box has no font at all.
@@ -161,48 +179,64 @@ const familyOf = (
  * Undefined is a real outcome, not an error: charts are unreadable without a
  * font, and a caller that knows that can say so instead of uploading a PNG of
  * empty boxes.
+ *
+ * The two dependencies stay Promise-returning on purpose. They are the
+ * filesystem itself — the one genuinely foreign thing this walk touches — and
+ * `Effect.tryPromise` is how a foreign, throwing capability is taken in. The
+ * walk around them is Effect all the way, so nothing here crosses back out.
  */
-export const discoverChartFonts = async (deps: {
-  readonly listFontFiles: (dir: string) => Promise<readonly string[]>;
-  readonly readFont: (path: string) => Promise<Uint8Array>;
-}): Promise<ChartFontOptions | undefined> => {
-  const dirs: string[] = [];
-  let fallback: string | undefined;
-  let preferred: string | undefined;
-  let scanned = 0;
+export const discoverChartFonts = Effect.fn("Slack.charts.discoverFonts")(
+  function* (deps: {
+    readonly listFontFiles: (dir: string) => Promise<readonly string[]>;
+    readonly readFont: (path: string) => Promise<Uint8Array>;
+  }): Effect.fn.Return<ChartFontOptions | undefined, ChartFontScanError> {
+    const dirs: string[] = [];
+    let fallback: string | undefined;
+    let preferred: string | undefined;
+    let scanned = 0;
 
-  for (const dir of FONT_DIR_CANDIDATES) {
-    const files = await deps.listFontFiles(dir);
-    const fonts = files.filter(isFontFile);
-    if (fonts.length === 0) {
-      continue;
-    }
-    dirs.push(dir);
-    for (const font of fonts) {
-      if (preferred !== undefined || scanned >= MAX_FONTS_SCANNED) {
-        break;
-      }
-      scanned += 1;
-      const family = await familyOf(deps.readFont, font);
-      if (family === undefined) {
+    for (const dir of FONT_DIR_CANDIDATES) {
+      const files = yield* Effect.tryPromise({
+        // The call sits inside the thunk, so a listing that throws on its way
+        // to the Promise fails here rather than dying past every handler.
+        try: async () => await deps.listFontFiles(dir),
+        catch: (cause) =>
+          new ChartFontScanError({
+            cause,
+            dir,
+          }),
+      });
+      const fonts = files.filter(isFontFile);
+      if (fonts.length === 0) {
         continue;
       }
-      fallback ??= family;
-      if (PREFERRED_FAMILIES.has(family)) {
-        preferred = family;
+      dirs.push(dir);
+      for (const font of fonts) {
+        if (preferred !== undefined || scanned >= MAX_FONTS_SCANNED) {
+          break;
+        }
+        scanned += 1;
+        const family = yield* familyOf(deps.readFont, font);
+        if (family === undefined) {
+          continue;
+        }
+        fallback ??= family;
+        if (PREFERRED_FAMILIES.has(family)) {
+          preferred = family;
+        }
       }
     }
-  }
 
-  const family = preferred ?? fallback;
-  if (family === undefined) {
-    return undefined;
+    const family = preferred ?? fallback;
+    if (family === undefined) {
+      return undefined;
+    }
+    return {
+      defaultFontFamily: family,
+      fontDirs: dirs,
+      monospaceFamily: family,
+      sansSerifFamily: family,
+      serifFamily: family,
+    };
   }
-  return {
-    defaultFontFamily: family,
-    fontDirs: dirs,
-    monospaceFamily: family,
-    sansSerifFamily: family,
-    serifFamily: family,
-  };
-};
+);
