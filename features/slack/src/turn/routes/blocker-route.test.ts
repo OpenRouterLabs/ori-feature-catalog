@@ -1,5 +1,5 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function -- test doubles stand in for Slack SDK shapes and cases read better whole than split */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -69,17 +69,18 @@ const ask = (body: unknown): Request =>
  * The route decodes, resolves the reply and posts before the ask exists, so
  * answering straight after calling it answers nothing.
  */
-const askRegistered = async (blockers: {
+const askRegistered = (blockers: {
   readonly count: () => Effect.Effect<number>;
-}): Promise<void> => {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (Effect.runSync(blockers.count()) > 0) {
-      return;
+}): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if ((yield* blockers.count()) > 0) {
+        return;
+      }
+      yield* Effect.sleep(1);
     }
-    await Effect.runPromise(Effect.sleep(1));
-  }
-  throw new Error("the route never opened an ask");
-};
+    throw new Error("the route never opened an ask");
+  });
 
 const question = {
   channel: "C1",
@@ -123,142 +124,152 @@ describe("parseAskBody", () => {
 });
 
 describe("the ask route", () => {
-  test("holds the response until someone answers, then returns the answer", async () => {
-    // This is what makes the skill a blocking call: the agent reads the answer
-    // off stdout, so the route cannot return before there is one.
-    const rec = recorder();
-    const blockers = Effect.runSync(BlockersMemory);
-    const route = makeBlockerRoute({
-      blockers,
-      replyFor: () => Promise.resolve(rec.reply),
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
+  test.effect("holds the response until someone answers, then returns the answer", () =>
+    Effect.gen(function* () {
+      // This is what makes the skill a blocking call: the agent reads the answer
+      // off stdout, so the route cannot return before there is one.
+      const rec = recorder();
+      const blockers = yield* BlockersMemory;
+      const route = makeBlockerRoute({
+        blockers,
+        replyFor: () => Promise.resolve(rec.reply),
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
 
-    const pending = route(ask(question));
-    await askRegistered(blockers);
+      const pending = route(ask(question));
+      yield* askRegistered(blockers);
 
-    // Nothing has answered yet, so nothing may have resolved.
-    const raced = await Promise.race([
-      pending.then(() => "returned"),
-      Promise.resolve("still waiting"),
-    ]);
+      // Nothing has answered yet, so nothing may have resolved.
+      const raced = yield* Effect.promise(() =>
+        Promise.race([
+          pending.then(() => "returned"),
+          Promise.resolve("still waiting"),
+        ])
+      );
 
-    expect(raced).toBe("still waiting");
+      expect(raced).toBe("still waiting");
 
-    await Effect.runPromise(blockers.answer(askIdFrom(rec.posted), "rebase"));
+      yield* blockers.answer(askIdFrom(rec.posted), "rebase");
 
-    const response = await pending;
+      const response = yield* Effect.promise(() => pending);
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      answer: "rebase",
-      ok: true,
-    });
-  });
+      expect(response.status).toBe(200);
+      expect(yield* Effect.promise(() => response.json())).toEqual({
+        answer: "rebase",
+        ok: true,
+      });
+    }));
 
-  test("retires the buttons once answered", async () => {
-    // Buttons on a closed question invite a second answer to something that
-    // is already decided.
-    const rec = recorder();
-    const blockers = Effect.runSync(BlockersMemory);
-    const route = makeBlockerRoute({
-      blockers,
-      replyFor: () => Promise.resolve(rec.reply),
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
+  test.effect("retires the buttons once answered", () =>
+    Effect.gen(function* () {
+      // Buttons on a closed question invite a second answer to something that
+      // is already decided.
+      const rec = recorder();
+      const blockers = yield* BlockersMemory;
+      const route = makeBlockerRoute({
+        blockers,
+        replyFor: () => Promise.resolve(rec.reply),
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
 
-    const pending = route(ask(question));
-    await askRegistered(blockers);
-    await Effect.runPromise(blockers.answer(askIdFrom(rec.posted), "rebase"));
-    await pending;
+      const pending = route(ask(question));
+      yield* askRegistered(blockers);
+      yield* blockers.answer(askIdFrom(rec.posted), "rebase");
+      yield* Effect.promise(() => pending);
 
-    // The reader sees the label they clicked, not the id the agent gets.
-    expect(rec.updated.join("\n")).toContain("Rebase them");
-    expect(rec.updated.join("\n")).not.toContain("actions");
-  });
+      // The reader sees the label they clicked, not the id the agent gets.
+      expect(rec.updated.join("\n")).toContain("Rebase them");
+      expect(rec.updated.join("\n")).not.toContain("actions");
+    }));
 
-  test("gives up rather than pinning the turn on its whole deadline", async () => {
-    const rec = recorder();
-    const route = makeBlockerRoute({
-      blockers: Effect.runSync(BlockersMemory),
-      replyFor: () => Promise.resolve(rec.reply),
-      timeoutMs: 5,
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
+  test.effect("gives up rather than pinning the turn on its whole deadline", () =>
+    Effect.gen(function* () {
+      const rec = recorder();
+      const route = makeBlockerRoute({
+        blockers: yield* BlockersMemory,
+        replyFor: () => Promise.resolve(rec.reply),
+        timeoutMs: 5,
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
 
-    const response = await route(ask(question));
+      const response = yield* Effect.promise(() => route(ask(question)));
 
-    expect(response.status).toBe(408);
-    // And says so in the thread, rather than leaving a live-looking question.
-    expect(rec.updated.join("\n")).toContain("No answer");
-  });
+      expect(response.status).toBe(408);
+      // And says so in the thread, rather than leaving a live-looking question.
+      expect(rec.updated.join("\n")).toContain("No answer");
+    }));
 
-  test("a blocker Slack refused is a bad gateway, not a timeout", async () => {
-    // Nothing is on screen, so nobody could have answered it — reporting a
-    // timeout would send the agent looking for a reader who never saw it.
-    const rec = recorder({ failPost: true });
-    const route = makeBlockerRoute({
-      blockers: Effect.runSync(BlockersMemory),
-      replyFor: () => Promise.resolve(rec.reply),
-      timeoutMs: 5,
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
+  test.effect("a blocker Slack refused is a bad gateway, not a timeout", () =>
+    Effect.gen(function* () {
+      // Nothing is on screen, so nobody could have answered it — reporting a
+      // timeout would send the agent looking for a reader who never saw it.
+      const rec = recorder({ failPost: true });
+      const route = makeBlockerRoute({
+        blockers: yield* BlockersMemory,
+        replyFor: () => Promise.resolve(rec.reply),
+        timeoutMs: 5,
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
 
-    const response = await route(ask(question));
+      const response = yield* Effect.promise(() => route(ask(question)));
 
-    expect(response.status).toBe(502);
-  });
+      expect(response.status).toBe(502);
+    }));
 
-  test("an oversized body is refused even when it declares no length", async () => {
-    // The cap used to read `content-length` and nothing else, so a chunked
-    // POST — which carries none — went straight through to an unbounded
-    // `json()`. The blocker holds its response for fifteen minutes, which
-    // made it the worst route to be able to flood.
-    const rec = recorder();
-    const route = makeBlockerRoute({
-      blockers: Effect.runSync(BlockersMemory),
-      replyFor: () => Promise.resolve(rec.reply),
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
-    const huge = JSON.stringify({
-      ...question,
-      question: "x".repeat(64 * 1024),
-    });
+  test.effect("an oversized body is refused even when it declares no length", () =>
+    Effect.gen(function* () {
+      // The cap used to read `content-length` and nothing else, so a chunked
+      // POST — which carries none — went straight through to an unbounded
+      // `json()`. The blocker holds its response for fifteen minutes, which
+      // made it the worst route to be able to flood.
+      const rec = recorder();
+      const route = makeBlockerRoute({
+        blockers: yield* BlockersMemory,
+        replyFor: () => Promise.resolve(rec.reply),
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
+      const huge = JSON.stringify({
+        ...question,
+        question: "x".repeat(64 * 1024),
+      });
 
-    const response = await route(
-      new Request("http://127.0.0.1/slack/thread/ask", {
-        body: new ReadableStream({
-          start(controller): void {
-            controller.enqueue(new TextEncoder().encode(huge));
-            controller.close();
-          },
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      })
-    );
+      const response = yield* Effect.promise(() =>
+        route(
+          new Request("http://127.0.0.1/slack/thread/ask", {
+            body: new ReadableStream({
+              start(controller): void {
+                controller.enqueue(new TextEncoder().encode(huge));
+                controller.close();
+              },
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          })
+        )
+      );
 
-    expect(response.status).toBe(413);
-    expect(rec.posted).toHaveLength(0);
-  });
+      expect(response.status).toBe(413);
+      expect(rec.posted).toHaveLength(0);
+    }));
 
-  test("a malformed body is refused before anything is posted", async () => {
-    const rec = recorder();
-    const route = makeBlockerRoute({
-      blockers: Effect.runSync(BlockersMemory),
-      replyFor: () => Promise.resolve(rec.reply),
-      threadKeyFor: () => "slack:T1:C1:1700.1",
-      workspaceTeamId: "T1",
-    });
+  test.effect("a malformed body is refused before anything is posted", () =>
+    Effect.gen(function* () {
+      const rec = recorder();
+      const route = makeBlockerRoute({
+        blockers: yield* BlockersMemory,
+        replyFor: () => Promise.resolve(rec.reply),
+        threadKeyFor: () => "slack:T1:C1:1700.1",
+        workspaceTeamId: "T1",
+      });
 
-    const response = await route(ask({ nope: true }));
+      const response = yield* Effect.promise(() => route(ask({ nope: true })));
 
-    expect(response.status).toBe(400);
-    expect(rec.posted).toHaveLength(0);
-  });
+      expect(response.status).toBe(400);
+      expect(rec.posted).toHaveLength(0);
+    }));
 });

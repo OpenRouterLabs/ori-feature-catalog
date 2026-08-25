@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import { afterEach, describe, expect, test } from "bun:test";
+import { Effect } from "effect";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -8,11 +9,23 @@ import type { DownloadableFile } from "./attachment-download.ts";
 
 import {
   attachmentDirFor,
-  discardAttachments,
-  downloadAttachments,
-  isAllowedFileUrl,
+  discardAttachments as discardAttachmentsEffect,
+  downloadAttachments as downloadAttachmentsEffect,
+  isAllowedFileUrl as isAllowedFileUrlEffect,
   safeFileName,
 } from "./attachment-download.ts";
+
+// The module is Effect now, so the run boundary lives out here instead of
+// inside it. Only the shape of the call moved; every case below is unchanged.
+const downloadAttachments = (
+  ...args: Parameters<typeof downloadAttachmentsEffect>
+) => Effect.runPromise(downloadAttachmentsEffect(...args));
+
+const discardAttachments = (dir: string) =>
+  Effect.runPromise(discardAttachmentsEffect(dir));
+
+const isAllowedFileUrl = (raw: string) =>
+  Effect.runSync(isAllowedFileUrlEffect(raw));
 
 const dirs: string[] = [];
 const scratch = async (): Promise<string> => {

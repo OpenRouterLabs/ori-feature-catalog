@@ -1,7 +1,7 @@
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 /* oxlint-disable typescript/no-unsafe-type-assertion import/no-relative-parent-imports -- the bridge fake stands in for the Chat surface, and modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Layer } from "effect";
 
@@ -21,40 +21,39 @@ import { handleTurn } from "./handler/handler.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "./reply-style.ts";
 
 /** A store that already answers this thread, so the turn is not the first. */
-const storeWithSession = async (): Promise<StateStoreShape> => {
-  const store = await Effect.runPromise(StateStoreMemory);
-  await Effect.runPromise(
-    store.putSession("slack:T1:C1:1700.0001", {
+const storeWithSession = (): Effect.Effect<StateStoreShape> =>
+  Effect.gen(function* () {
+    const store = yield* StateStoreMemory;
+    yield* store.putSession("slack:T1:C1:1700.0001", {
       sessionId: "session-1",
       startedAt: 0,
-    })
-  );
-  return store;
-};
+    });
+    return store;
+  });
 
 /** The prompt the surface puts in front of the agent. */
-const promptOf = async (store?: StateStoreShape): Promise<string> => {
-  const sent: ChatTurnInput[] = [];
-  const bridge = {
-    sendMessage: (input: ChatTurnInput): AsyncIterable<AgentRuntimeEvent> => {
-      sent.push(input);
-      return (async function* () {
-        yield {
-          payload: {},
-          type: "turn.succeeded",
-        } as AgentRuntimeEvent;
-      })();
-    },
-  } as unknown as Chat;
+const promptOf = (store?: StateStoreShape): Effect.Effect<string> =>
+  Effect.gen(function* () {
+    const sent: ChatTurnInput[] = [];
+    const bridge = {
+      sendMessage: (input: ChatTurnInput): AsyncIterable<AgentRuntimeEvent> => {
+        sent.push(input);
+        return (async function* () {
+          yield {
+            payload: {},
+            type: "turn.succeeded",
+          } as AgentRuntimeEvent;
+        })();
+      },
+    } as unknown as Chat;
 
-  const fake = makeFakeSlackClient(
-    {},
-    { "conversations.replies": () => ({ messages: [] }) }
-  );
-  const controller = new AbortController();
+    const fake = makeFakeSlackClient(
+      {},
+      { "conversations.replies": () => ({ messages: [] }) }
+    );
+    const controller = new AbortController();
 
-  await Effect.runPromise(
-    handleTurn({
+    yield* handleTurn({
       bridge,
       live: {
         abort: (): void => {
@@ -90,92 +89,99 @@ const promptOf = async (store?: StateStoreShape): Promise<string> => {
           Layer.effect(AssistantThreads)(AssistantThreadsLive())
         ).pipe(Layer.provideMerge(fake.layer))
       )
-    )
-  );
+    );
 
-  return sent[0]?.prompt ?? "";
-};
+    return sent[0]?.prompt ?? "";
+  });
 
 describe("the status obligations are not argued against later", () => {
-  test("nothing in the prompt tells the agent the thread works in silence", async () => {
-    // Twice now the block has stated the three obligations and then, a
-    // paragraph later, told the agent that "the thread shows a twenty-minute
-    // run working for all twenty minutes without you saying anything" — a
-    // leftover from the version that discouraged posting. The model reads the
-    // permission, says nothing, and the indicator falls back to the tool
-    // count. The obligations only hold if nothing downstream takes them back.
-    const prompt = await promptOf();
+  test.effect("nothing in the prompt tells the agent the thread works in silence", () =>
+    Effect.gen(function* () {
+      // Twice now the block has stated the three obligations and then, a
+      // paragraph later, told the agent that "the thread shows a twenty-minute
+      // run working for all twenty minutes without you saying anything" — a
+      // leftover from the version that discouraged posting. The model reads the
+      // permission, says nothing, and the indicator falls back to the tool
+      // count. The obligations only hold if nothing downstream takes them back.
+      const prompt = yield* promptOf();
 
-    for (const licence of [
-      "without you saying anything",
-      "You do not have to fill the silence",
-      "If the run turns up nothing like that, say nothing",
-      "a quiet minute reads as a run in progress",
-    ]) {
-      expect(prompt).not.toContain(licence);
-    }
-  });
+      for (const licence of [
+        "without you saying anything",
+        "You do not have to fill the silence",
+        "If the run turns up nothing like that, say nothing",
+        "a quiet minute reads as a run in progress",
+      ]) {
+        expect(prompt).not.toContain(licence);
+      }
+    }));
 
-  test("states the three obligations and that silence is the failure", async () => {
-    const prompt = await promptOf();
+  test.effect("states the three obligations and that silence is the failure", () =>
+    Effect.gen(function* () {
+      const prompt = yield* promptOf();
 
-    expect(prompt).toContain("POST WITHIN THE FIRST MINUTE");
-    expect(prompt).toContain("KEEP IT CURRENT AS YOU WORK");
-    expect(prompt).toContain("AND POST THE MOMENT YOU DISCOVER SOMETHING");
-    expect(prompt).toContain("Silence is not restraint here");
-  });
+      expect(prompt).toContain("POST WITHIN THE FIRST MINUTE");
+      expect(prompt).toContain("KEEP IT CURRENT AS YOU WORK");
+      expect(prompt).toContain("AND POST THE MOMENT YOU DISCOVER SOMETHING");
+      expect(prompt).toContain("Silence is not restraint here");
+    }));
 });
 
 describe("technical answers should be drawn, not described", () => {
-  test("asks for a picture whenever the answer has a shape", async () => {
-    // Routing only tabular data meant an explanation — how a request flows,
-    // why a run failed — stayed prose the reader has to rebuild a diagram
-    // from in their head.
-    const prompt = await promptOf();
+  test.effect("asks for a picture whenever the answer has a shape", () =>
+    Effect.gen(function* () {
+      // Routing only tabular data meant an explanation — how a request flows,
+      // why a run failed — stayed prose the reader has to rebuild a diagram
+      // from in their head.
+      const prompt = yield* promptOf();
 
-    expect(prompt).toContain("DRAW IT rather than describe it");
-    expect(prompt).toContain("why something failed");
-  });
+      expect(prompt).toContain("DRAW IT rather than describe it");
+      expect(prompt).toContain("why something failed");
+    }));
 
-  test("says to reach for it unprompted", async () => {
-    // It drew a good post-mortem diagram, but only when asked outright.
-    const prompt = await promptOf();
+  test.effect("says to reach for it unprompted", () =>
+    Effect.gen(function* () {
+      // It drew a good post-mortem diagram, but only when asked outright.
+      const prompt = yield* promptOf();
 
-    expect(prompt).toContain("without being asked");
-  });
+      expect(prompt).toContain("without being asked");
+    }));
 });
 
 describe("scope discipline", () => {
-  test("tells the agent to finish the ask, not the codebase", async () => {
-    // A long run spent every status on splitting files to satisfy a line
-    // limit — tidy, and not what anyone asked for. An hour of that is an
-    // hour the person waiting got nothing.
-    const prompt = await promptOf();
+  test.effect("tells the agent to finish the ask, not the codebase", () =>
+    Effect.gen(function* () {
+      // A long run spent every status on splitting files to satisfy a line
+      // limit — tidy, and not what anyone asked for. An hour of that is an
+      // hour the person waiting got nothing.
+      const prompt = yield* promptOf();
 
-    expect(prompt).toContain("FINISH THE ASK, NOT THE CODEBASE");
-  });
+      expect(prompt).toContain("FINISH THE ASK, NOT THE CODEBASE");
+    }));
 
-  test("says what to do when a lint rule is genuinely in the way", async () => {
-    // Without this the rule reads as "never touch anything", which blocks the
-    // change the person actually asked for.
-    const prompt = await promptOf();
+  test.effect("says what to do when a lint rule is genuinely in the way", () =>
+    Effect.gen(function* () {
+      // Without this the rule reads as "never touch anything", which blocks the
+      // change the person actually asked for.
+      const prompt = yield* promptOf();
 
-    expect(prompt).toContain("smallest");
-    expect(prompt).toContain("leave it and say so");
-  });
+      expect(prompt).toContain("smallest");
+      expect(prompt).toContain("leave it and say so");
+    }));
 });
 
 describe("the style is not restated on every turn", () => {
-  test("the first turn of a session carries the whole thing", async () => {
-    expect(await promptOf()).toContain(SLACK_REPLY_STYLE);
-  });
+  test.effect("the first turn of a session carries the whole thing", () =>
+    Effect.gen(function* () {
+      expect(yield* promptOf()).toContain(SLACK_REPLY_STYLE);
+    }));
 
-  test("a later turn carries the reminder instead", async () => {
-    const prompt = await promptOf(await storeWithSession());
+  test.effect("a later turn carries the reminder instead", () =>
+    Effect.gen(function* () {
+      const prompt = yield* promptOf(yield* storeWithSession());
 
-    expect(prompt).toContain(SLACK_STYLE_REMINDER);
-    expect(prompt).not.toContain("DRAW IT rather than describe it");
-  });
+      expect(prompt).toContain(SLACK_STYLE_REMINDER);
+      expect(prompt).not.toContain("DRAW IT rather than describe it");
+    }));
 
   test("the reminder costs a fraction of the block it replaces", () => {
     expect(SLACK_STYLE_REMINDER.length * 4).toBeLessThan(
@@ -185,33 +191,36 @@ describe("the style is not restated on every turn", () => {
 });
 
 describe("what the reminder may not drop", () => {
-  test("when an update is worth sending, with the command spelled out", async () => {
-    const prompt = await promptOf(await storeWithSession());
+  test.effect("when an update is worth sending, with the command spelled out", () =>
+    Effect.gen(function* () {
+      const prompt = yield* promptOf(yield* storeWithSession());
 
-    // The rule this pins: a reminder that only GESTURES at the script buys
-    // back the twenty minutes of silence, so the command stays spelled out —
-    // and it needs the sentence saying when to reach for it, or it is a bare
-    // command line with nothing telling the model what it is for.
-    expect(prompt).toContain("post inside the");
-    // And the carve-out, or a greeting gets a status before its own answer.
-    expect(prompt).toContain("a status before an immediate reply is noise");
-    expect(prompt).toContain(
-      "bun features/slack/skills/slack-status/scripts/index.ts"
-    );
-  });
+      // The rule this pins: a reminder that only GESTURES at the script buys
+      // back the twenty minutes of silence, so the command stays spelled out —
+      // and it needs the sentence saying when to reach for it, or it is a bare
+      // command line with nothing telling the model what it is for.
+      expect(prompt).toContain("post inside the");
+      // And the carve-out, or a greeting gets a status before its own answer.
+      expect(prompt).toContain("a status before an immediate reply is noise");
+      expect(prompt).toContain(
+        "bun features/slack/skills/slack-status/scripts/index.ts"
+      );
+    }));
 
-  test("scope discipline, which is what decays on a long run", async () => {
-    const prompt = await promptOf(await storeWithSession());
+  test.effect("scope discipline, which is what decays on a long run", () =>
+    Effect.gen(function* () {
+      const prompt = yield* promptOf(yield* storeWithSession());
 
-    expect(prompt).toContain("Finish the ask, not the codebase");
-  });
+      expect(prompt).toContain("Finish the ask, not the codebase");
+    }));
 
-  test("still says to draw a shape, and that tables render", async () => {
-    // It used to say "Slack has no tables", which was true when it was
-    // written and is why every comparison came back as a paragraph.
-    const prompt = await promptOf(await storeWithSession());
+  test.effect("still says to draw a shape, and that tables render", () =>
+    Effect.gen(function* () {
+      // It used to say "Slack has no tables", which was true when it was
+      // written and is why every comparison came back as a paragraph.
+      const prompt = yield* promptOf(yield* storeWithSession());
 
-    expect(prompt).toContain("slack-chart");
-    expect(prompt).toContain("Tables and lists render natively");
-  });
+      expect(prompt).toContain("slack-chart");
+      expect(prompt).toContain("Tables and lists render natively");
+    }));
 });

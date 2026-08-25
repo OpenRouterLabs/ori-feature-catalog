@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import type { WebClient } from "@slack/web-api";
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { retryPolicies } from "@slack/web-api";
 import { Effect } from "effect";
@@ -22,13 +22,8 @@ const stubClient = (impl: Record<string, unknown>): WebClient =>
 const withClient = <A>(
   client: WebClient,
   use: (slack: SlackClientShape) => Effect.Effect<A, SlackApiError>
-): Promise<A> =>
-  Effect.runPromise(
-    SlackClient.pipe(
-      Effect.flatMap(use),
-      Effect.provide(SlackClientLive(client))
-    )
-  );
+): Effect.Effect<A, SlackApiError> =>
+  SlackClient.pipe(Effect.flatMap(use), Effect.provide(SlackClientLive(client)));
 
 const platformError = (code: string): Error =>
   Object.assign(new Error("slack said no"), { data: { error: code } });
@@ -50,107 +45,114 @@ describe("makeConfiguredWebClient", () => {
 });
 
 describe("readSlackBotToken", () => {
-  test("returns the token when set", async () => {
-    await expect(
-      Effect.runPromise(readSlackBotToken({ SLACK_BOT_TOKEN: "xoxb-1" }))
-    ).resolves.toBe("xoxb-1");
-  });
-
-  test.each([{}, { SLACK_BOT_TOKEN: "" }])(
-    "fails with a config error for %p",
-    async (env) => {
-      const failure = await Effect.runPromise(
-        readSlackBotToken(env).pipe(Effect.flip)
+  test.effect("returns the token when set", () =>
+    Effect.gen(function* () {
+      expect(yield* readSlackBotToken({ SLACK_BOT_TOKEN: "xoxb-1" })).toBe(
+        "xoxb-1"
       );
+    })
+  );
 
-      // Names the variable, never its value.
-      expect(failure.message).toContain("SLACK_BOT_TOKEN");
-      expect(failure.op).toBe("config");
-    }
+  test.effect.each([{}, { SLACK_BOT_TOKEN: "" }])(
+    "fails with a config error for %p",
+    (env) =>
+      Effect.gen(function* () {
+        const failure = yield* readSlackBotToken(env).pipe(Effect.flip);
+
+        // Names the variable, never its value.
+        expect(failure.message).toContain("SLACK_BOT_TOKEN");
+        expect(failure.op).toBe("config");
+      })
   );
 });
 
 describe("postMessage", () => {
-  test("projects the Slack response into channel and ts", async () => {
-    const client = stubClient({
-      chat: {
-        postMessage: () =>
-          Promise.resolve({
+  test.effect("projects the Slack response into channel and ts", () =>
+    Effect.gen(function* () {
+      const client = stubClient({
+        chat: {
+          postMessage: () =>
+            Promise.resolve({
+              channel: "C1",
+              ok: true,
+              ts: "1700.1",
+            }),
+        },
+      });
+
+      expect(
+        yield* withClient(client, (slack) =>
+          slack.postMessage({
             channel: "C1",
-            ok: true,
-            ts: "1700.1",
-          }),
-      },
-    });
+            text: "hi",
+          })
+        )
+      ).toEqual({
+        channel: "C1",
+        ts: "1700.1",
+      });
+    })
+  );
 
-    await expect(
-      withClient(client, (slack) =>
+  test.effect("tolerates a response missing channel", () =>
+    Effect.gen(function* () {
+      // Edits address the message by ts against the thread ref channel, so a
+      // missing channel in the response costs nothing.
+      const client = stubClient({
+        chat: {
+          postMessage: () =>
+            Promise.resolve({
+              ok: true,
+              ts: "1700.1",
+            }),
+        },
+      });
+
+      expect(
+        yield* withClient(client, (slack) =>
+          slack.postMessage({
+            channel: "C1",
+            text: "hi",
+          })
+        )
+      ).toEqual({
+        channel: "",
+        ts: "1700.1",
+      });
+    })
+  );
+
+  test.effect("fails rather than handing back a message with no ts", () =>
+    Effect.gen(function* () {
+      // Every later edit addresses the message by ts. Defaulting to "" returns
+      // a handle that silently fails on every update for the rest of the turn;
+      // failing here lets the caller fall back to posting anew.
+      const client = stubClient({
+        chat: { postMessage: () => Promise.resolve({ ok: true }) },
+      });
+
+      const failure = yield* withClient(client, (slack) =>
         slack.postMessage({
           channel: "C1",
           text: "hi",
         })
-      )
-    ).resolves.toEqual({
-      channel: "C1",
-      ts: "1700.1",
-    });
-  });
+      ).pipe(Effect.flip);
 
-  test("tolerates a response missing channel", async () => {
-    // Edits address the message by ts against the thread ref channel, so a
-    // missing channel in the response costs nothing.
-    const client = stubClient({
-      chat: {
-        postMessage: () =>
-          Promise.resolve({
-            ok: true,
-            ts: "1700.1",
-          }),
-      },
-    });
-
-    await expect(
-      withClient(client, (slack) =>
-        slack.postMessage({
-          channel: "C1",
-          text: "hi",
-        })
-      )
-    ).resolves.toEqual({
-      channel: "",
-      ts: "1700.1",
-    });
-  });
-
-  test("fails rather than handing back a message with no ts", async () => {
-    // Every later edit addresses the message by ts. Defaulting to "" returns
-    // a handle that silently fails on every update for the rest of the turn;
-    // failing here lets the caller fall back to posting anew.
-    const client = stubClient({
-      chat: { postMessage: () => Promise.resolve({ ok: true }) },
-    });
-
-    await expect(
-      withClient(client, (slack) =>
-        slack.postMessage({
-          channel: "C1",
-          text: "hi",
-        })
-      )
-    ).rejects.toThrow();
-  });
+      expect(failure).toBeInstanceOf(SlackApiError);
+    })
+  );
 });
 
 describe("error classification", () => {
-  test("reads the platform code out of data.error", async () => {
-    const client = stubClient({
-      chat: {
-        postMessage: () => Promise.reject(platformError("missing_scope")),
-      },
-    });
+  test.effect("reads the platform code out of data.error", () =>
+    Effect.gen(function* () {
+      const client = stubClient({
+        chat: {
+          postMessage: () => Promise.reject(platformError("missing_scope")),
+        },
+      });
 
-    const failure = await Effect.runPromise(
-      SlackClient.pipe(
+      const failure = yield* SlackClient.pipe(
         Effect.flatMap((slack) =>
           slack.postMessage({
             channel: "C1",
@@ -159,28 +161,28 @@ describe("error classification", () => {
         ),
         Effect.flip,
         Effect.provide(SlackClientLive(client))
-      )
-    );
+      );
 
-    expect(failure).toBeInstanceOf(SlackApiError);
-    expect(failure.code).toBe("missing_scope");
-    expect(failure.op).toBe("chat.postMessage");
-  });
+      expect(failure).toBeInstanceOf(SlackApiError);
+      expect(failure.code).toBe("missing_scope");
+      expect(failure.op).toBe("chat.postMessage");
+    })
+  );
 
-  test("falls back to `code` when data.error is absent", async () => {
-    const client = stubClient({
-      chat: {
-        postMessage: () =>
-          Promise.reject(
-            Object.assign(new Error("limited"), {
-              code: "slack_webapi_rate_limited",
-            })
-          ),
-      },
-    });
+  test.effect("falls back to `code` when data.error is absent", () =>
+    Effect.gen(function* () {
+      const client = stubClient({
+        chat: {
+          postMessage: () =>
+            Promise.reject(
+              Object.assign(new Error("limited"), {
+                code: "slack_webapi_rate_limited",
+              })
+            ),
+        },
+      });
 
-    const failure = await Effect.runPromise(
-      SlackClient.pipe(
+      const failure = yield* SlackClient.pipe(
         Effect.flatMap((slack) =>
           slack.postMessage({
             channel: "C1",
@@ -189,19 +191,21 @@ describe("error classification", () => {
         ),
         Effect.flip,
         Effect.provide(SlackClientLive(client))
-      )
-    );
+      );
 
-    expect(failure.code).toBe("slack_webapi_rate_limited");
-  });
+      expect(failure.code).toBe("slack_webapi_rate_limited");
+    })
+  );
 
-  test("an unrecognisable failure still yields a typed error", async () => {
-    const client = stubClient({
-      chat: { postMessage: () => Promise.reject(new Error("socket hang up")) },
-    });
+  test.effect("an unrecognisable failure still yields a typed error", () =>
+    Effect.gen(function* () {
+      const client = stubClient({
+        chat: {
+          postMessage: () => Promise.reject(new Error("socket hang up")),
+        },
+      });
 
-    const failure = await Effect.runPromise(
-      SlackClient.pipe(
+      const failure = yield* SlackClient.pipe(
         Effect.flatMap((slack) =>
           slack.postMessage({
             channel: "C1",
@@ -210,12 +214,12 @@ describe("error classification", () => {
         ),
         Effect.flip,
         Effect.provide(SlackClientLive(client))
-      )
-    );
+      );
 
-    expect(failure.code).toBe("unknown");
-    expect(failure.transient).toBe(false);
-  });
+      expect(failure.code).toBe("unknown");
+      expect(failure.transient).toBe(false);
+    })
+  );
 
   test.each([
     "ratelimited",
