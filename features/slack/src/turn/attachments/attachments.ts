@@ -61,25 +61,34 @@ const gatherAttachments = Effect.fn("Slack.attachments.gather")(function* (
  * Fetch the event's attachments, run the turn, then discard them.
  *
  * Downloaded BEFORE the turn so the prompt can name real paths, and discarded
- * in a `finally` — an earlier version ran the cleanup as a trailing statement
+ * in an `ensuring` — an earlier version ran the cleanup as a trailing statement
  * and it was silently dropped in a refactor, leaving other people's files on
  * disk with nothing to catch it. Best effort: an unfetchable attachment is
  * still listed, just without a path the agent can open.
  *
- * The two `runPromise`s here are the edge, not a round trip: `run` is a
- * promise-returning callback owned by the caller, and the discard is fired and
- * not awaited so cleanup never delays the answer. Both fold away the day the
- * turn routes are Effect themselves.
+ * `ensuring` rather than the `finally` it replaces, and wider than it: a
+ * value, a failure, a defect and an interrupt all run it, where a `finally`
+ * covered the first three and the caller — a turn that a steer can interrupt —
+ * produces the fourth.
+ *
+ * The discard is forked detached rather than awaited, so cleanup never delays
+ * the answer and outlives the turn that owned the files. It was two
+ * `runPromise`s until `turn-routes.ts` became Effect itself; there is no edge
+ * left here to cross.
  */
-export const withAttachments = async (
-  input: IncomingEvent,
-  run: (warning: string | undefined) => Promise<void>
-): Promise<void> => {
-  const gathered = await Effect.runPromise(gatherAttachments(input));
+export const withAttachments = Effect.fn("Slack.attachments.run")(
+  function* <E, R>(
+    input: IncomingEvent,
+    run: (warning: string | undefined) => Effect.Effect<void, E, R>
+  ): Effect.fn.Return<void, E, R> {
+    const gathered = yield* gatherAttachments(input);
 
-  await run(gathered.warning).finally(() => {
-    if (gathered.fetched > 0) {
-      void Effect.runPromise(discardAttachments(gathered.dir));
-    }
-  });
-};
+    yield* run(gathered.warning).pipe(
+      Effect.ensuring(
+        gathered.fetched > 0
+          ? Effect.forkDetach(discardAttachments(gathered.dir))
+          : Effect.void
+      )
+    );
+  }
+);

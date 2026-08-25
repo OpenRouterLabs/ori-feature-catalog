@@ -12,7 +12,7 @@
  * words a refusal actually puts in front of the model.
  */
 
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 

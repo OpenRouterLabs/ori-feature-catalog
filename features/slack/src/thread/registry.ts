@@ -14,7 +14,23 @@
  *
  * Both are keyed by thread, because a thread is what maps to a session. Two
  * different threads run concurrently and should.
+ *
+ * The queue runs in Effect for one property: a turn CLAIMS the thread before
+ * it is allowed to await anything, so every way out has to give it back.
+ * `Effect.ensuring` is that guarantee and it is wider than the `try/finally`
+ * it replaces — a value, a failure, a defect and an interrupt all run it,
+ * where a `finally` covers the first three and a caller who reaches this from
+ * inside a graph can produce the fourth. The deadline in `drain` is a resource
+ * for the same reason: an armed timer holds the event loop open, so it is
+ * acquired and released rather than cleared on the way past.
+ *
+ * The exported functions stay Promise-shaped because their callers are:
+ * `index.ts`, `notes.ts`, `turn-routes.ts` and `bolt-lifecycle.ts` hand in
+ * promise-returning work and read a promise back. The two `runPromise` calls
+ * at the bottom are that edge, and the only ones in the file.
  */
+
+import { Effect } from "effect";
 
 export interface LiveTurn {
   readonly abort: (reason?: unknown) => void;
@@ -168,17 +184,26 @@ const releaseThread = (threadKey: string, turn: LiveTurn): void => {
 };
 
 /**
- * Serialise `run` behind any turn already active in the same thread.
+ * What an arrival takes before it is allowed to wait for anything.
  *
- * `onQueued` fires only when the caller actually has to wait, so the surface
- * can say so rather than looking hung. The chain is rebuilt from the previous
- * tail on every arrival, which is what makes arrivals FIFO.
+ * Everything here is settled synchronously, in the tick the message arrived:
+ * a second message in that same tick has to see `pending` already counted, or
+ * it reads an idle thread and skips the notice that it is queued.
  */
-export const enqueue = async <A>(
-  threadKey: string,
-  onQueued: () => Promise<void>,
-  run: (turn: LiveTurn) => Promise<A>
-): Promise<A> => {
+interface ThreadClaim {
+  /** True when a turn was already in flight, so the caller has to be told. */
+  readonly mustWait: boolean;
+  /** The tail of the arrival ahead of this one; resolved when it is done. */
+  readonly previous: Promise<void>;
+  /** Resolves this arrival's own tail, freeing whatever queued behind it. */
+  readonly release: () => void;
+  /** This arrival's tail, which the next one waits on. */
+  readonly tail: Promise<void>;
+  readonly turn: LiveTurn;
+}
+
+/** Claim the thread. Nothing may await between this and the `ensuring`. */
+const claimThread = (threadKey: string): ThreadClaim => {
   const existing = threads.get(threadKey);
   const previous = existing?.tail ?? Promise.resolve();
   const mustWait = (existing?.pending ?? 0) > 0;
@@ -196,44 +221,113 @@ export const enqueue = async <A>(
     tail,
   });
 
-  // From here on the thread is claimed, so every exit has to release it. An
-  // `onQueued` that throws used to escape before the try below, leaving
-  // `pending` incremented and `tail` unresolved — every later turn in that
-  // thread then waited on a promise that would never settle.
   const controller = new AbortController();
-  const turn: LiveTurn = {
-    abort: (reason?: unknown): void => {
-      controller.abort(reason);
+  return {
+    mustWait,
+    previous,
+    release,
+    tail,
+    turn: {
+      abort: (reason?: unknown): void => {
+        controller.abort(reason);
+      },
+      readPartial: (): string => "",
+      readAsk: (): string => "",
+      signal: controller.signal,
+      turnId: nextTurnId(),
     },
-    readPartial: (): string => "",
-    readAsk: (): string => "",
-    signal: controller.signal,
-    turnId: nextTurnId(),
   };
-
-  try {
-    if (mustWait) {
-      // Best effort: failing to say "queued" must not cost the turn.
-      await onQueued().catch(ignoreRejection);
-    }
-
-    // Wait for the thread to drain. Failures upstream must not wedge the
-    // queue, so a rejected predecessor still lets this turn proceed.
-    await previous.catch(ignoreRejection);
-
-    byTurnId.set(turn.turnId, turn);
-    threads.set(threadKey, {
-      live: turn,
-      pending: threads.get(threadKey)?.pending ?? 1,
-      tail,
-    });
-
-    return await run(turn);
-  } finally {
-    releaseThread(threadKey, turn);
-    release();
-  }
 };
+
+/** Take the thread, now that the arrival ahead has finished with it. */
+const takeThread = (threadKey: string, claim: ThreadClaim): void => {
+  byTurnId.set(claim.turn.turnId, claim.turn);
+  threads.set(threadKey, {
+    live: claim.turn,
+    pending: threads.get(threadKey)?.pending ?? 1,
+    tail: claim.tail,
+  });
+};
+
+/**
+ * The claimed half of an arrival: everything that happens once the thread is
+ * spoken for, which is everything that can fail.
+ *
+ * Split from `enqueueTurn` so the claim it depends on is visibly taken first
+ * and released by the one `ensuring` that wraps this whole effect.
+ */
+const runClaimed = Effect.fn("Slack.registry.runTurn")(function* <A>(
+  threadKey: string,
+  claim: ThreadClaim,
+  onQueued: () => Promise<void>,
+  run: (turn: LiveTurn) => Promise<A>
+): Effect.fn.Return<A, unknown> {
+  if (claim.mustWait) {
+    // Best effort: failing to say "queued" must not cost the turn. Both the
+    // call and the `catch` stay inside the thunk — a rejection is swallowed
+    // there, and anything `onQueued` throws outright still travels, exactly as
+    // it did when it escaped the old `.catch` too.
+    yield* Effect.promise(() => onQueued().catch(ignoreRejection));
+  }
+
+  // Wait for the thread to drain. Failures upstream must not wedge the
+  // queue, so a rejected predecessor still lets this turn proceed.
+  yield* Effect.promise(() => claim.previous.catch(ignoreRejection));
+
+  takeThread(threadKey, claim);
+
+  // The rejection travels untouched rather than becoming a tagged error:
+  // `run` is the caller's own work, the caller is the only one who can read
+  // what came back, and `enqueue` is contracted to reject with exactly what it
+  // was handed.
+  return yield* Effect.tryPromise({
+    try: () => run(claim.turn),
+    catch: (error: unknown) => error,
+  });
+});
+
+/**
+ * Serialise `run` behind any turn already active in the same thread.
+ *
+ * `onQueued` fires only when the caller actually has to wait, so the surface
+ * can say so rather than looking hung. The chain is rebuilt from the previous
+ * tail on every arrival, which is what makes arrivals FIFO.
+ */
+const enqueueTurn = Effect.fn("Slack.registry.enqueue")(function* <A>(
+  threadKey: string,
+  onQueued: () => Promise<void>,
+  run: (turn: LiveTurn) => Promise<A>
+): Effect.fn.Return<A, unknown> {
+  const claim = claimThread(threadKey);
+
+  // From here on the thread is claimed, so every exit has to release it. An
+  // `onQueued` that threw used to escape before the `try` below, leaving
+  // `pending` incremented and `tail` unresolved — every later turn in that
+  // thread then waited on a promise that would never settle. `ensuring` is
+  // that `finally`, and it also covers a fiber interrupted from outside,
+  // which the `finally` did not.
+  return yield* runClaimed(threadKey, claim, onQueued, run).pipe(
+    Effect.ensuring(
+      Effect.sync(() => {
+        releaseThread(threadKey, claim.turn);
+        claim.release();
+      })
+    )
+  );
+});
+
+/**
+ * Serialise `run` behind any turn already active in the same thread.
+ *
+ * The Promise edge: callers hand in promise-returning work and await a promise
+ * back. The claim above is taken synchronously inside `runPromise`, before the
+ * first suspension, which is what lets two messages in one tick both count.
+ */
+export const enqueue = <A>(
+  threadKey: string,
+  onQueued: () => Promise<void>,
+  run: (turn: LiveTurn) => Promise<A>
+): Promise<A> => Effect.runPromise(enqueueTurn(threadKey, onQueued, run));
 
 /**
  * Abort whatever is running in a thread. False when nothing is.
@@ -291,6 +385,41 @@ export const cancelAll = (): number => {
   return told;
 };
 
+/** An armed deadline: the promise that says it fired, and the handle to undo it. */
+interface Deadline {
+  readonly expired: Promise<void>;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * The losing half of a bounded wait: `false`, once the clock runs out.
+ *
+ * An armed timer is a genuine resource — it holds the event loop open — so it
+ * is acquired and released rather than cleared on the way past. Release runs
+ * on both outcomes: this side firing, and this side losing the race and being
+ * interrupted, which is the case a `finally` around the race covered only
+ * because the race was the whole function.
+ */
+const deadline = (timeoutMs: number): Effect.Effect<boolean> =>
+  Effect.acquireUseRelease(
+    Effect.sync((): Deadline => {
+      let fire!: () => void;
+      // oxlint-disable-next-line promise/avoid-new -- racing a timer against the in-flight tails is exactly what a bounded drain is
+      const expired = new Promise<void>((resolve) => {
+        fire = resolve;
+      });
+      return {
+        expired,
+        timer: setTimeout(fire, timeoutMs),
+      };
+    }),
+    (armed: Deadline) => Effect.promise(() => armed.expired),
+    (armed: Deadline) =>
+      Effect.sync(() => {
+        clearTimeout(armed.timer);
+      })
+  ).pipe(Effect.as(false));
+
 /**
  * Wait for in-flight turns to finish, up to `timeoutMs`.
  *
@@ -299,29 +428,24 @@ export const cancelAll = (): number => {
  * with nobody left to render its answer. A bounded wait is the compromise —
  * a wedged turn must not hold the process open forever.
  */
-export const drain = async (timeoutMs: number): Promise<boolean> => {
+const drainTurns = Effect.fn("Slack.registry.drain")(function* (
+  timeoutMs: number
+): Effect.fn.Return<boolean> {
   const inFlight = [...threads.values()].map((entry) => entry.tail);
   if (inFlight.length === 0) {
     return true;
   }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  // oxlint-disable-next-line promise/avoid-new -- racing a timer against the in-flight tails is exactly what a bounded drain is
-  const expired = new Promise<false>((resolve) => {
-    timer = setTimeout(() => {
-      resolve(false);
-    }, timeoutMs);
-  });
-  try {
-    return await Promise.race([
-      Promise.allSettled(inFlight).then(() => true),
-      expired,
-    ]);
-  } finally {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
-  }
-};
+  // `allSettled`, not `all`: a turn that failed is still a turn that finished,
+  // and what drain asks is whether anything is still running.
+  const settled = Effect.promise(() =>
+    Promise.allSettled(inFlight).then(() => true)
+  );
+  return yield* Effect.race(settled, deadline(timeoutMs));
+});
+
+/** The Promise edge, for shutdown, which is plain async code. */
+export const drain = (timeoutMs: number): Promise<boolean> =>
+  Effect.runPromise(drainTurns(timeoutMs));
 
 /**
  * Forget everything.

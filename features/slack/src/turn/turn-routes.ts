@@ -9,13 +9,20 @@
  * Built as a factory over the composition root's dependencies rather than
  * importing them, because the service graph is built once at start and held
  * for the process lifetime — see `index.ts`.
+ *
+ * A turn is one Effect from the thread claim to the last thing it posts. The
+ * two detached launches at the bottom are where it is entered, and they are
+ * edges: Slack's three-second ack means neither may be awaited, and a turn is
+ * interrupted through the registry's `AbortSignal` rather than through its
+ * fiber, so there is nothing a fork would buy.
  */
 
 import type { Context } from "effect";
 import type { Chat } from "ori";
 
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 
+import type { PostedMessage, SlackClient } from "../client/client.ts";
 import type { RawSlackMessage } from "../client/listeners.ts";
 import type { SlackConfig } from "../config.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
@@ -118,9 +125,18 @@ interface WorkerTurn {
   readonly userId: string;
 }
 
-const makeRunTurn =
-  (deps: RunTurnDeps) =>
-  async (turn: WorkerTurn): Promise<void> => {
+/**
+ * One turn, from the thread claim to the last thing the run posts.
+ *
+ * `enqueue` stays the registry's own Promise edge — it is contracted to reject
+ * with exactly what the work rejected with — so the rejection is carried
+ * across as a failure rather than a defect, and the launchers below log the
+ * value the `.catch` used to be handed.
+ */
+const makeRunTurn = (deps: RunTurnDeps) =>
+  Effect.fn("Slack.turn.run")(function* (
+    turn: WorkerTurn
+  ): Effect.fn.Return<void, unknown> {
     const threadKey = threadInstanceId(turn.ref);
     // A dispatched or spawned turn never steers: nobody asked for the running
     // one to stop, and it used to be killed by any turn that arrived.
@@ -132,36 +148,43 @@ const makeRunTurn =
             turn,
           };
 
-    await enqueue(
-      threadKey,
-      queuedNotice(steered, () => deps.postQueuedNotice(turn.ref)),
-      async (live) => {
-        // `ensuring` rather than a `finally` around the run: nothing may
-        // outlive the turn that owns it, and a turn that ended abnormally
-        // leaves the agent run behind it still blocked on an answer that is
-        // never coming, with no one left to render it. On a turn that finished
-        // normally the stream is already exhausted and this is a no-op.
-        await deps.runWith(
-          handleTurn({
-            bridge: deps.bridge,
-            live,
-            turn: redirected,
-          }).pipe(
-            Effect.catchCause((cause) =>
-              Effect.sync(() => {
-                deps.logger.error("[slack] turn failed", cause);
-              })
-            ),
-            Effect.ensuring(
-              Effect.sync(() => {
-                live.abort();
-              })
-            )
-          )
-        );
-      }
-    );
-  };
+    yield* Effect.tryPromise({
+      try: () =>
+        enqueue(
+          threadKey,
+          queuedNotice(steered, () => deps.postQueuedNotice(turn.ref)),
+          // `runWith` is the composition root's contract, not a round trip:
+          // the services live outside this graph and are entered per turn.
+          async (live) => {
+            // `ensuring` rather than a `finally` around the run: nothing may
+            // outlive the turn that owns it, and a turn that ended abnormally
+            // leaves the agent run behind it still blocked on an answer that
+            // is never coming, with no one left to render it. On a turn that
+            // finished normally the stream is already exhausted and this is a
+            // no-op.
+            await deps.runWith(
+              handleTurn({
+                bridge: deps.bridge,
+                live,
+                turn: redirected,
+              }).pipe(
+                Effect.catchCause((cause) =>
+                  Effect.sync(() => {
+                    deps.logger.error("[slack] turn failed", cause);
+                  })
+                ),
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    live.abort();
+                  })
+                )
+              )
+            );
+          }
+        ),
+      catch: (error: unknown) => error,
+    });
+  });
 
 /**
  * Turn a Slack message event into a turn: decide whether it is one, fetch any
@@ -183,17 +206,17 @@ interface StartedTurn {
  * starts a new thread rooted at itself — and that thread has no history, so
  * the cold-start read can be skipped entirely.
  */
-const runTheTurn = async (
+const runTheTurn = Effect.fn("Slack.turn.runWithAttachments")(function* (
   deps: {
-    readonly runTurn: (turn: StartedTurn) => Promise<void>;
+    readonly runTurn: (turn: StartedTurn) => Effect.Effect<void, unknown>;
     readonly token: string;
   },
   event: RawSlackMessage,
   ref: ThreadRef
-): Promise<void> => {
+): Effect.fn.Return<void, unknown> {
   const startsThread = event.thread_ts === undefined;
   const text = event.text ?? "";
-  await withAttachments(
+  yield* withAttachments(
     {
       event,
       token: deps.token,
@@ -210,20 +233,22 @@ const runTheTurn = async (
         userId: event.user ?? "",
       })
   );
-};
+});
 
-const makeStartTurn =
-  (deps: {
-    readonly engagement: EngagementDeps;
-    readonly startStatus: (ref: ThreadRef) => Promise<void>;
-    readonly sayFailed: (ref: ThreadRef) => Promise<void>;
-    readonly messageOf: (event: RawSlackMessage) => IncomingMessage;
-    readonly runTurn: (turn: StartedTurn) => Promise<void>;
-    readonly started: (ts: string | undefined) => boolean;
-    readonly token: string;
-    readonly workspaceTeamId: string;
-  }) =>
-  async (event: RawSlackMessage, addressed: boolean): Promise<void> => {
+const makeStartTurn = (deps: {
+  readonly engagement: EngagementDeps;
+  readonly startStatus: (ref: ThreadRef) => Promise<void>;
+  readonly sayFailed: (ref: ThreadRef) => Promise<void>;
+  readonly messageOf: (event: RawSlackMessage) => IncomingMessage;
+  readonly runTurn: (turn: StartedTurn) => Effect.Effect<void, unknown>;
+  readonly started: (ts: string | undefined) => boolean;
+  readonly token: string;
+  readonly workspaceTeamId: string;
+}) =>
+  Effect.fn("Slack.turn.start")(function* (
+    event: RawSlackMessage,
+    addressed: boolean
+  ): Effect.fn.Return<void, unknown> {
     const channelId = event.channel;
     const threadTs = event.thread_ts ?? event.ts;
     if (channelId === undefined || threadTs === undefined) {
@@ -235,11 +260,19 @@ const makeStartTurn =
       teamId: event.team ?? deps.workspaceTeamId,
       threadTs,
     };
-    const verdict = await considerTurn(deps.engagement, {
-      addressed,
-      key: threadInstanceId(ref),
-      message: deps.messageOf(event),
-      ref,
+    // These two are the surface's own promises, handed in by the composition
+    // root. A rejection from either belongs to the launcher below, not to the
+    // recovery around the turn: nothing has been said in the thread yet, so
+    // there is nothing to correct.
+    const verdict = yield* Effect.tryPromise({
+      try: () =>
+        considerTurn(deps.engagement, {
+          addressed,
+          key: threadInstanceId(ref),
+          message: deps.messageOf(event),
+          ref,
+        }),
+      catch: (error: unknown) => error,
     });
     if (verdict === "drop") {
       return;
@@ -251,22 +284,22 @@ const makeStartTurn =
     // Before the chatter, which is itself a model call: the indicator is the
     // only thing a reader has until something is posted, and it should not
     // wait on anything to appear.
-    await deps.startStatus(ref);
+    yield* Effect.tryPromise({
+      try: () => deps.startStatus(ref),
+      catch: (error: unknown) => error,
+    });
 
     // Everything past here can throw — attachments, the chatter, the session
     // lookup — and a throw used to be logged and nothing else, leaving the
     // thread silent. Silence is the one outcome a reader cannot act on.
-    await Effect.runPromise(
-      Effect.tryPromise(() => runTheTurn(deps, event, ref)).pipe(
-        Effect.catchCause((cause) =>
-          Effect.logError(
-            "[slack] the turn died before it answered",
-            cause
-          ).pipe(Effect.andThen(Effect.promise(() => deps.sayFailed(ref))))
+    yield* runTheTurn(deps, event, ref).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logError("[slack] the turn died before it answered", cause).pipe(
+          Effect.andThen(Effect.promise(() => deps.sayFailed(ref)))
         )
       )
     );
-  };
+  });
 
 /** A turn a route asked for rather than a person: no chatter, no steer. */
 interface LoopbackTurn {
@@ -275,6 +308,24 @@ interface LoopbackTurn {
   readonly text: string;
   readonly userId: string;
 }
+
+/**
+ * Post a questionnaire, and say where it landed.
+ *
+ * Slack refusing the post is not the route's failure to report: the form is
+ * still recorded, without a `messageTs`, which is how `questions-handler.ts`
+ * knows there is no message to retire on submit.
+ */
+const postForm = Effect.fn("Slack.turn.postForm")(function* (input: {
+  readonly blocks: readonly SlackBlock[];
+  readonly fallback: string;
+  readonly ref: ThreadRef;
+}): Effect.fn.Return<PostedMessage | void, never, SlackClient> {
+  const reply = yield* makeMessageReply(input.ref);
+  return yield* reply
+    .replyBlocks(input.blocks, input.fallback)
+    .pipe(Effect.orElseSucceed(() => {}));
+});
 
 /** The loopback routes, built together because they share the graph. */
 const makeSideRoutes = (input: {
@@ -318,11 +369,15 @@ const makeSideRoutes = (input: {
       isLive: (ref) => Promise.resolve(isBusy(threadInstanceId(ref))),
       newAskId: () => crypto.randomUUID(),
       post: async (ref, blocks, fallback) => {
-        const reply = await deps.runWith(makeMessageReply(ref));
+        // One crossing, not two: the reply is built and used in the same
+        // fiber, so the services are entered once per form rather than once
+        // to make the surface and again to post through it.
         const posted = await deps.runWith(
-          reply
-            .replyBlocks(blocks as readonly SlackBlock[], fallback)
-            .pipe(Effect.orElseSucceed(() => {}))
+          postForm({
+            blocks: blocks as readonly SlackBlock[],
+            fallback,
+            ref,
+          })
         );
         return posted?.ts;
       },
@@ -359,10 +414,29 @@ export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
     runWith: deps.runWith,
   });
 
+  /**
+   * Detached deliberately — see `listeners.ts` for why that is load-bearing.
+   *
+   * `runPromise` rather than a fork: there is no fiber here to fork from, the
+   * factory is plain TypeScript, and a turn is interrupted through the
+   * registry's `AbortSignal` rather than through its fiber — so forking would
+   * move nothing and would put shutdown's drain behind a scope that nobody
+   * closes. The cause is squashed back to the value the old `.catch` was
+   * handed, so a failure and a throw log the same thing they always did.
+   */
   const runTurnSafely = (turn: Parameters<typeof runTurn>[0]): void => {
-    runTurn(turn).catch((error: unknown) => {
-      deps.logger.error("[slack] dispatched turn failed", error);
-    });
+    void Effect.runPromise(
+      runTurn(turn).pipe(
+        Effect.catchCause((cause) =>
+          Effect.sync(() => {
+            deps.logger.error(
+              "[slack] dispatched turn failed",
+              Cause.squash(cause)
+            );
+          })
+        )
+      )
+    );
   };
 
   const startTurn = makeStartTurn({
@@ -376,14 +450,20 @@ export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
     workspaceTeamId: deps.workspaceTeamId,
   });
 
-  /** Detached deliberately — see `listeners.ts` for why that is load-bearing. */
+  /** Detached deliberately — see `runTurnSafely` above. */
   const startTurnSafely = (
     event: RawSlackMessage,
     addressed: boolean
   ): void => {
-    startTurn(event, addressed).catch((error: unknown) => {
-      deps.logger.error("[slack] turn failed", error);
-    });
+    void Effect.runPromise(
+      startTurn(event, addressed).pipe(
+        Effect.catchCause((cause) =>
+          Effect.sync(() => {
+            deps.logger.error("[slack] turn failed", Cause.squash(cause));
+          })
+        )
+      )
+    );
   };
 
   const routes = makeSideRoutes({
