@@ -25,7 +25,7 @@ export const COMMANDS = [
   "users.mention",
 ] as const;
 
-export type Command = (typeof COMMANDS)[number];
+type Command = (typeof COMMANDS)[number];
 
 export const isCommand = (value: string): value is Command =>
   (COMMANDS as readonly string[]).includes(value);

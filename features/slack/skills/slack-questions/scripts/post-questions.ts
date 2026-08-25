@@ -26,7 +26,7 @@ export interface Question {
   readonly prompt: string;
 }
 
-export type PostQuestionsOutcome =
+type PostQuestionsOutcome =
   | { readonly kind: "asked" }
   | { readonly kind: "error"; readonly message: string };
 

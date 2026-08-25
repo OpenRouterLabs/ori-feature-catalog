@@ -20,7 +20,7 @@
 
 import { Context, Effect } from "effect";
 
-export interface OpenAsk {
+interface OpenAsk {
   /** The chosen `id`, or the reason it was abandoned. */
   readonly answered: Promise<string>;
   readonly askId: string;

@@ -109,7 +109,7 @@ export const TURN_TIMEOUT_REASON = "ori:turn-timeout";
 export const TURN_STEER_REASON = "ori:turn-steer";
 
 /** What an interrupted turn hands to the turn replacing it. */
-export interface SteeredWork {
+interface SteeredWork {
   /** What the interrupted turn was asked, so the correction can amend it. */
   readonly ask: string;
   /** What it had produced by the time it was interrupted. */

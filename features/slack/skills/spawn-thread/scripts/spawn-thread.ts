@@ -43,7 +43,7 @@ export const Subcommand = {
 } as const;
 export type Subcommand = (typeof Subcommand)[keyof typeof Subcommand];
 
-export interface ParsedArgs {
+interface ParsedArgs {
   subcommand?: Subcommand;
   channel?: string;
   threadTs?: string;
@@ -215,7 +215,7 @@ export const resolveHttpPort = (
     : DEFAULT_HTTP_PORT;
 };
 
-export interface DispatchOpts {
+interface DispatchOpts {
   channel: string;
   threadTs: string;
   message: string;
@@ -273,7 +273,7 @@ export const dispatchToRunloop = async (
   return Result.void;
 };
 
-export interface RunContinueOpts {
+interface RunContinueOpts {
   channel: string;
   threadTs: string;
   prompt: string;

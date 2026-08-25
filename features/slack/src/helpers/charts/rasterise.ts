@@ -84,7 +84,7 @@ const chartFonts = async (): Promise<ChartFontOptions | undefined> => {
   return await fontsPromise;
 };
 
-export class NoChartFontError extends Error {
+class NoChartFontError extends Error {
   constructor() {
     super(
       "no font available to render chart text — every label would be invisible. " +

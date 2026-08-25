@@ -332,7 +332,7 @@ const promptFor = (input: {
     .filter((part) => part !== "")
     .join("\n\n");
 
-export interface HandleTurnInput {
+interface HandleTurnInput {
   readonly bridge: Chat;
   readonly live: LiveTurn;
   readonly turn: IncomingTurn;

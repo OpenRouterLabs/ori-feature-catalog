@@ -29,7 +29,7 @@ import {
 } from "#skills/slack-api/scripts/helpers.ts";
 import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
-export interface UpdateMessageOpts {
+interface UpdateMessageOpts {
   channel: string;
   ts: string;
   text: string;

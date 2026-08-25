@@ -30,7 +30,7 @@ export interface IncomingMessage {
   readonly userId: string | undefined;
 }
 
-export type GateDecision =
+type GateDecision =
   | { readonly admit: true }
   | { readonly admit: false; readonly reason: string };
 

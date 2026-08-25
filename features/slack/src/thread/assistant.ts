@@ -59,7 +59,7 @@ export interface PaneContext {
  */
 const MAX_TRACKED_PANES = 1000;
 
-export interface PaneRegistry {
+interface PaneRegistry {
   readonly contextFor: (key: string) => PaneContext | undefined;
   readonly has: (key: string) => boolean;
   readonly remember: (key: string, paneContext?: PaneContext) => void;
@@ -77,7 +77,7 @@ export const keyOf = (input: {
   readonly threadTs: string;
 }): string => `${input.channelId}:${input.threadTs}`;
 
-export const makePaneRegistry = (): PaneRegistry => {
+const makePaneRegistry = (): PaneRegistry => {
   /**
    * Known panes, mapped to the conversation behind each. A pane with no context
    * is present with `undefined` — membership is what makes the pane-only calls

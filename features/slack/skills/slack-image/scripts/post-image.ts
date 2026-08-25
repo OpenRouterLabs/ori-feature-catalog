@@ -9,7 +9,7 @@ import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 
-export type PostImageOutcome =
+type PostImageOutcome =
   | { readonly kind: "posted" }
   | { readonly kind: "error"; readonly message: string };
 

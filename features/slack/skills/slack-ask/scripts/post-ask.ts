@@ -20,13 +20,13 @@ export interface AskChoice {
   readonly label: string;
 }
 
-export type PostAskOutcome =
+type PostAskOutcome =
   | { readonly kind: "answered"; readonly answer: string }
   | { readonly kind: "unanswered" }
   | { readonly kind: "error"; readonly message: string };
 
 /** Structural so `Bun.env` passes straight through. */
-export type PostAskEnv = Readonly<Record<string, string | undefined>>;
+type PostAskEnv = Readonly<Record<string, string | undefined>>;
 
 /**
  * Parse `id=Label` pairs into choices.

@@ -12,7 +12,7 @@
 
 import { Context, Effect } from "effect";
 
-export interface InteractionAction {
+interface InteractionAction {
   readonly actionId: string;
   readonly value: string | undefined;
 }
@@ -39,11 +39,11 @@ export interface ViewSubmissionPayload {
   readonly values: ReadonlyMap<string, string>;
 }
 
-export type InteractionHandler = (
+type InteractionHandler = (
   payload: InteractionPayload
 ) => Effect.Effect<void>;
 
-export type ViewHandler = (
+type ViewHandler = (
   payload: ViewSubmissionPayload
 ) => Effect.Effect<void>;
 

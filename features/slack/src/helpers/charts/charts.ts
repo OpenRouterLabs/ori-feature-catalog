@@ -67,7 +67,7 @@ const rampAt = (index: number, total: number): string => {
   return RAMP[Math.min(RAMP.length - 1, Math.max(0, step))] ?? RAMP[0];
 };
 
-export interface ChartRow {
+interface ChartRow {
   readonly label: string;
   readonly value: number;
 }

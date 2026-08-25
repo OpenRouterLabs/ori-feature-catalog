@@ -62,7 +62,7 @@ export interface DownloadableFile {
   readonly urlPrivate: string;
 }
 
-export interface DownloadedFile {
+interface DownloadedFile {
   readonly bytes: number;
   /** The Slack file id this came from, so callers join on it rather than name. */
   readonly id: string;
@@ -121,7 +121,7 @@ export const attachmentDirFor = (threadTs: string): string => {
   );
 };
 
-export interface DownloadDeps {
+interface DownloadDeps {
   readonly fetch: typeof globalThis.fetch;
   readonly token: string;
   readonly writeDir: string;

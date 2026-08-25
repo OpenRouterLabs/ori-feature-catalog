@@ -95,7 +95,7 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
-export interface SlackReceiverOptions {
+interface SlackReceiverOptions {
   readonly signingSecret: string;
   readonly logger: {
     readonly error: (message: string, ...rest: readonly unknown[]) => void;

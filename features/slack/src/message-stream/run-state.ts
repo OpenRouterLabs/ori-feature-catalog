@@ -162,7 +162,7 @@ export const appendLine = (
  * sentence into the log and started the rest as a new line — "Mapping the
  * current tu" above "rn path."
  */
-export const endProseBlock = (state: RunState): RunState => {
+const endProseBlock = (state: RunState): RunState => {
   const text = state.text.trim();
   if (text === "" || !SENTENCE_END.test(text)) {
     return state;
@@ -344,7 +344,7 @@ const soFar = (state: RunState): string => {
 };
 
 /** A streamed message keeps its cards; repeating them below would be noise. */
-export interface RenderOptions {
+interface RenderOptions {
   /** Off when the caller renders its own small print, so it is not doubled. */
   readonly withModel?: boolean;
   readonly withWorkLog?: boolean;

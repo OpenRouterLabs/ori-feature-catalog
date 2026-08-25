@@ -122,7 +122,7 @@ export const SLACK_ENV_VARS = [
  * mid-turn — and so a test or a wrapping feature can supply a different one
  * without touching the process environment.
  */
-export class SlackConfigService extends Context.Service<
+class SlackConfigService extends Context.Service<
   SlackConfigService,
   SlackConfig
 >()("ori/slack/SlackConfig") {}

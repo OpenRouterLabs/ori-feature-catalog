@@ -23,7 +23,7 @@ import { updateMessage } from "./update-message.ts";
 
 const ANCHOR_PLACEHOLDER_TEXT = ":link: _spawning a new thread…_";
 
-export interface RunNewOpts {
+interface RunNewOpts {
   channel: string;
   opener: string;
   prompt: string;
@@ -191,7 +191,7 @@ const rewriteAnchorToNewThread = async (
   });
 };
 
-export interface SpawnedThread {
+interface SpawnedThread {
   readonly channel: string;
   readonly thread_ts: string;
 }

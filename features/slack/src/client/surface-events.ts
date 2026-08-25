@@ -60,7 +60,7 @@ const paneOf = (event: RawAssistantThreadStarted): Pane | undefined => {
   };
 };
 
-export interface SurfaceEventHandlers {
+interface SurfaceEventHandlers {
   readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
   readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
 }

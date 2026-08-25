@@ -36,7 +36,7 @@ import {
 } from "#skills/slack-api/scripts/helpers.ts";
 import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
-export interface PostMessageOpts {
+interface PostMessageOpts {
   channel: string;
   text?: string | undefined;
   blocks?: readonly KnownBlock[] | undefined;

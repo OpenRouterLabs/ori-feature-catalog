@@ -42,7 +42,7 @@ export interface DispatchRequest {
   readonly userId: string | undefined;
 }
 
-export type DispatchParse =
+type DispatchParse =
   | { readonly ok: true; readonly request: DispatchRequest }
   | { readonly ok: false; readonly error: string };
 

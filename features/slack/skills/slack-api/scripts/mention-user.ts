@@ -14,7 +14,7 @@ import { Result } from "effect";
 
 import { listUsers } from "./list-users.ts";
 
-export interface ResolveMentionOpts {
+interface ResolveMentionOpts {
   name: string;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;

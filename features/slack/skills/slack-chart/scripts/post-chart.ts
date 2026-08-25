@@ -23,7 +23,7 @@ const readErrorDetail = async (
   return typeof error === "string" && error !== "" ? error : undefined;
 };
 
-export type PostChartOutcome =
+type PostChartOutcome =
   | { readonly kind: "posted" }
   | { readonly kind: "error"; readonly message: string };
 

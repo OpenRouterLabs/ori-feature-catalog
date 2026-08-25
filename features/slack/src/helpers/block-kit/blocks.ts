@@ -28,7 +28,7 @@ export const LIMITS = {
 const truncate = (value: string, max: number): string =>
   value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 
-export interface SectionBlock {
+interface SectionBlock {
   readonly text: { readonly text: string; readonly type: "mrkdwn" };
   readonly type: "section";
 }
@@ -55,7 +55,7 @@ export const section = (text: string): SectionBlock => ({
   type: "section",
 });
 
-export interface HeaderBlock {
+interface HeaderBlock {
   readonly text: { readonly text: string; readonly type: "plain_text" };
   readonly type: "header";
 }
@@ -72,7 +72,7 @@ export const header = (text: string): HeaderBlock => ({
   type: "header",
 });
 
-export interface DividerBlock {
+interface DividerBlock {
   readonly type: "divider";
 }
 
@@ -101,7 +101,7 @@ export const button = (input: {
     : { value: truncate(input.value, LIMITS.buttonValue) }),
 });
 
-export interface ContextBlock {
+interface ContextBlock {
   readonly elements: readonly {
     readonly text: string;
     readonly type: "mrkdwn";
@@ -126,7 +126,7 @@ export const context = (text: string): ContextBlock => ({
   type: "context",
 });
 
-export interface InputBlock {
+interface InputBlock {
   readonly block_id: string;
   readonly element: {
     readonly action_id: string;
@@ -176,7 +176,7 @@ export const inputBlock = (options: {
 });
 
 /** One option in a radio group or checkbox set. */
-export interface ChoiceOption {
+interface ChoiceOption {
   readonly text: { readonly text: string; readonly type: "plain_text" };
   readonly value: string;
 }
@@ -193,7 +193,7 @@ const optionOf = (choice: {
   value: choice.value,
 });
 
-export interface ChoiceInputBlock {
+interface ChoiceInputBlock {
   readonly block_id: string;
   readonly element: {
     readonly action_id: string;

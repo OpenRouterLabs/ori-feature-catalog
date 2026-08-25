@@ -34,7 +34,7 @@ export const ELICITATION_ACTION_ID = "ori_elicitation_select";
 /** Separator that cannot appear in a correlation id, option kind, or session id. */
 const FIELD_SEPARATOR = "|";
 
-export interface PermissionRequest {
+interface PermissionRequest {
   /** The Slack user whose turn this is — the only one who may answer it. */
   readonly askedBy: string;
   readonly correlationId: string;
@@ -123,7 +123,7 @@ export const permissionResolvedBlocks = (
   section(`*Permission* — ${request.operation}\n_${outcome}_`),
 ];
 
-export interface ElicitationRequest {
+interface ElicitationRequest {
   readonly askedBy: string;
   readonly correlationId: string;
   readonly message: string;
@@ -151,7 +151,7 @@ export const elicitationBlocks = (
   ),
 ];
 
-export interface RespondInteraction {
+interface RespondInteraction {
   readonly respond: (
     input:
       | {
@@ -234,7 +234,7 @@ export const registerPermissionHandlers = (
   );
 };
 
-export const CANCEL_ACTION_ID = "ori_cancel_turn";
+const CANCEL_ACTION_ID = "ori_cancel_turn";
 
 /**
  * Wire the Cancel button to the live-turn registry. Registered once at start;
