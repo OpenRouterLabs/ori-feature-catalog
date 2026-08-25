@@ -111,13 +111,35 @@ interface EffectEach {
 const each: EffectEach = (cases: readonly unknown[]) =>
   register(bt.test.each(cases as unknown[]) as typeof bt.test);
 
+/**
+ * A variant whose registrar is looked up when the test is declared, not when
+ * this module loads.
+ *
+ * Reading `bt.test.only` is not free: bun throws outright on the property when
+ * `CI` is set, to stop a committed `.only` silently skipping a suite. Building
+ * the variant table eagerly therefore threw while this module was still
+ * evaluating, and since every converted test file imports it, CI lost 208 of
+ * 856 tests — they never registered, and the shortfall surfaced only as
+ * "Unhandled error between tests" rather than as a failure naming a cause.
+ *
+ * A getter does not fix it either: `Object.assign` copies by READING, so the
+ * getter fires during the copy. The read has to happen inside the call.
+ *
+ * Reproduce any regression here with `CI=true bun test`; a plain local run
+ * cannot see it, because the guard is keyed on `CI` alone.
+ */
+const lazyRegister =
+  <Args extends readonly unknown[]>(pick: () => typeof bt.test): EffectTest<Args> =>
+  (name, body, options) =>
+    register<Args>(pick())(name, body, options);
+
 const effect = Object.assign(register(bt.test), {
   each,
-  failing: register(bt.test.failing),
-  only: register(bt.test.only),
-  skip: register(bt.test.skip),
+  failing: lazyRegister(() => bt.test.failing),
+  only: lazyRegister(() => bt.test.only),
+  skip: lazyRegister(() => bt.test.skip),
   skipIf: (condition: boolean) => register(bt.test.skipIf(condition)),
-  todo: register(bt.test.todo),
+  todo: lazyRegister(() => bt.test.todo),
 });
 
 /**
