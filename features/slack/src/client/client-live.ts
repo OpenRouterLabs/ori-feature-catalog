@@ -9,10 +9,7 @@
 import type {
   AssistantThreadsSetStatusArguments,
   AssistantThreadsSetTitleArguments,
-  ChatAppendStreamArguments,
   ChatPostMessageArguments,
-  ChatStartStreamArguments,
-  ChatStopStreamArguments,
   ChatUpdateArguments,
   ViewsOpenArguments,
 } from "@slack/web-api";
@@ -143,51 +140,6 @@ const assistantMethods = (
     ).pipe(Effect.asVoid),
 });
 
-/**
- * The streaming trio. Grouped for the same reason as the assistant methods:
- * they are one capability with one lifecycle, and `makeSlackClient` is over
- * the line cap with them inline.
- */
-const streamMethods = (
-  client: WebClient
-): Pick<SlackClientShape, "appendStream" | "startStream" | "stopStream"> => ({
-  startStream: (
-    args: ChatStartStreamArguments
-  ): Effect.Effect<PostedMessage, SlackApiError> =>
-    call("chat.startStream", () => client.chat.startStream(args)).pipe(
-      // Same reason as postMessage: every append and the close address this
-      // `ts`, so handing back "" would fail silently for the whole turn.
-      Effect.flatMap((response) =>
-        response.ts === undefined
-          ? Effect.fail(
-              new SlackApiError({
-                cause: new Error("chat.startStream returned no ts"),
-                code: "missing_ts",
-                op: "chat.startStream",
-              })
-            )
-          : Effect.succeed({
-              channel: response.channel ?? "",
-              ts: response.ts,
-            } satisfies PostedMessage)
-      )
-    ),
-
-  appendStream: (
-    args: ChatAppendStreamArguments
-  ): Effect.Effect<void, SlackApiError> =>
-    call("chat.appendStream", () => client.chat.appendStream(args)).pipe(
-      Effect.asVoid
-    ),
-
-  stopStream: (
-    args: ChatStopStreamArguments
-  ): Effect.Effect<void, SlackApiError> =>
-    call("chat.stopStream", () => client.chat.stopStream(args)).pipe(
-      Effect.asVoid
-    ),
-});
-
 const makeSlackClient = (client: WebClient): SlackClientShape => ({
   getUserName: (userId: string): Effect.Effect<string, SlackApiError> =>
     call("users.info", () => client.users.info({ user: userId })).pipe(
@@ -203,7 +155,6 @@ const makeSlackClient = (client: WebClient): SlackClientShape => ({
   openView: (args: ViewsOpenArguments): Effect.Effect<void, SlackApiError> =>
     call("views.open", () => client.views.open(args)).pipe(Effect.asVoid),
   ...assistantMethods(client),
-  ...streamMethods(client),
   postMessage: (
     args: ChatPostMessageArguments
   ): Effect.Effect<PostedMessage, SlackApiError> =>

@@ -15,10 +15,7 @@
 import type {
   AssistantThreadsSetStatusArguments,
   AssistantThreadsSetTitleArguments,
-  ChatAppendStreamArguments,
   ChatPostMessageArguments,
-  ChatStartStreamArguments,
-  ChatStopStreamArguments,
   ChatUpdateArguments,
   ViewsOpenArguments,
   WebClient,
@@ -81,26 +78,6 @@ export interface SlackClientShape {
 
   readonly updateMessage: (
     args: ChatUpdateArguments
-  ) => Effect.Effect<void, SlackApiError>;
-
-  /**
-   * Open a streaming reply. Slack owns the rendering from here: chunks are
-   * appended rather than the whole message re-sent, so nothing here has to
-   * budget lines against the "Show more" fold.
-   *
-   * `recipient_user_id` and `recipient_team_id` are required in a channel.
-   */
-  readonly startStream: (
-    args: ChatStartStreamArguments
-  ) => Effect.Effect<PostedMessage, SlackApiError>;
-
-  readonly appendStream: (
-    args: ChatAppendStreamArguments
-  ) => Effect.Effect<void, SlackApiError>;
-
-  /** Close the stream. The message becomes an ordinary one at this point. */
-  readonly stopStream: (
-    args: ChatStopStreamArguments
   ) => Effect.Effect<void, SlackApiError>;
 
   readonly openView: (

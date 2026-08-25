@@ -31,8 +31,8 @@ const SHUTDOWN_DRAIN_MS = 15_000;
 /**
  * How long they then get to settle their messages once told to stop.
  *
- * Short: this is one `chat.stopStream` per turn, not more work. It only has
- * to beat the process going away.
+ * Short: a turn that has been told to stop has at most a final post left, not
+ * more work. It only has to beat the process going away.
  */
 const SHUTDOWN_SETTLE_MS = 5000;
 
