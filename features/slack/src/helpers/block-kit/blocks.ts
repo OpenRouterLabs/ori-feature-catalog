@@ -8,6 +8,8 @@
 
 import type { Block, KnownBlock, MarkdownBlock } from "@slack/types";
 
+import { asMrkdwn } from "./mrkdwn.ts";
+
 /**
  * What every helper here produces. Typed as Slack's own union so the boundary
  * that hands blocks to the Web API needs no assertion.
@@ -47,9 +49,28 @@ export const markdown = (text: string): MarkdownBlock => ({
   type: "markdown",
 });
 
+/**
+ * A section, written in the SAME markdown every other block takes.
+ *
+ * Slack has three dialects and two of them are not what anyone writes: a
+ * `section` speaks Slack's own `mrkdwn` (`*bold*`, no tables, no links as
+ * `[label](url)`), while the answer goes out through a `markdown` block that
+ * is GitHub-flavoured. Asking each caller to know which one it is holding is
+ * what produced a form opening with `**Two things** — see [PR #12](https://…)`
+ * printed exactly like that.
+ *
+ * So the conversion happens HERE, and every caller writes GitHub-flavoured
+ * markdown. That is not only tidiness: the `<` `>` `&` escape lives inside the
+ * conversion, and `<!channel>` in model-authored text broadcasts to the
+ * workspace. A caller who forgot `asMrkdwn` was not merely printing asterisks,
+ * it was skipping that escape.
+ *
+ * Truncation is applied AFTER converting, because the converted length is the
+ * one Slack measures.
+ */
 export const section = (text: string): SectionBlock => ({
   text: {
-    text: truncate(text, LIMITS.sectionText),
+    text: truncate(asMrkdwn(text), LIMITS.sectionText),
     type: "mrkdwn",
   },
   type: "section",

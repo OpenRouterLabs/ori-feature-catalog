@@ -28,7 +28,6 @@ import {
   inputBlock,
   section,
 } from "../block-kit/blocks.ts";
-import { asMrkdwn } from "../block-kit/mrkdwn.ts";
 
 export const QUESTIONS_ACTION_ID = "ori_questions_open";
 export const QUESTIONS_MODAL_CALLBACK = "ori_questions_form";
@@ -141,7 +140,7 @@ export const questionsBlocks = (input: {
   readonly count: number;
   readonly intro: string;
 }): readonly SlackBlock[] => [
-  section(asMrkdwn(input.intro)),
+  section(input.intro),
   actions([
     button({
       actionId: QUESTIONS_ACTION_ID,
@@ -161,8 +160,8 @@ export const questionsAnsweredBlocks = (
 ): readonly SlackBlock[] => [
   section(
     [
-      asMrkdwn(intro),
-      ...answers.map((entry) => `*${entry.prompt}*\n${asMrkdwn(entry.answer)}`),
+      intro,
+      ...answers.map((entry) => `**${entry.prompt}**\n${entry.answer}`),
     ].join("\n\n")
   ),
 ];
@@ -173,7 +172,7 @@ export const questionsModal = (input: {
   readonly questions: readonly Question[];
 }): ModalView => ({
   blocks: [
-    section(asMrkdwn(input.intro)),
+    section(input.intro),
     ...input.questions.slice(0, MAX_QUESTIONS).map(blockFor),
   ],
   callbackId: callbackFor(input.askId),

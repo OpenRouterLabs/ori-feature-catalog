@@ -15,14 +15,25 @@ import { openModal } from "./modals/modals.ts";
 import { makeUserDirectory } from "./users/users.ts";
 
 describe("section", () => {
-  test("renders mrkdwn", () => {
-    expect(section("*hi*")).toEqual({
-      text: {
-        text: "*hi*",
-        type: "mrkdwn",
-      },
-      type: "section",
-    });
+  test("takes the same markdown every other block takes", () => {
+    // GitHub-flavoured in, Slack `mrkdwn` out. `**bold**` reaching a section
+    // unconverted is what printed the asterisks in a live form.
+    // The zero-width spaces around it are slackify's own, to keep bold from
+    // fusing with an adjacent character; the contract is the single asterisk.
+    expect(section("**hi**").text.text.replaceAll("\u200b", "")).toBe("*hi*");
+  });
+
+  test("a link survives instead of arriving as its own source", () => {
+    expect(section("see [PR #12](https://example.com/12)").text.text).toBe(
+      "see <https://example.com/12|PR #12>"
+    );
+  });
+
+  test("escapes a broadcast in text the model wrote", () => {
+    // The reason the conversion cannot be left to the caller: `<!channel>` in
+    // a quoted message pings the workspace, and the escape rides with the
+    // conversion. Forgetting it was never only cosmetic.
+    expect(section("<!channel> ship it").text.text).not.toContain("<!channel>");
   });
 
   test("truncates past Slack's section ceiling rather than being rejected", () => {

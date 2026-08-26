@@ -106,7 +106,7 @@ const isPermissionOptionKind = (value: string): value is PermissionOptionKind =>
 export const permissionBlocks = (
   request: PermissionRequest
 ): readonly SlackBlock[] => [
-  section(`*Permission needed*\n${request.operation}`),
+  section(`**Permission needed**\n${request.operation}`),
   actions(
     request.options.map((option) =>
       button({
@@ -123,7 +123,7 @@ export const permissionResolvedBlocks = (
   request: Pick<PermissionRequest, "operation">,
   outcome: string
 ): readonly SlackBlock[] => [
-  section(`*Permission* — ${request.operation}\n_${outcome}_`),
+  section(`**Permission** — ${request.operation}\n_${outcome}_`),
 ];
 
 interface ElicitationRequest {
@@ -142,7 +142,7 @@ interface ElicitationRequest {
 export const elicitationBlocks = (
   request: ElicitationRequest
 ): readonly SlackBlock[] => [
-  section(`*Input requested*\n${request.message}`),
+  section(`**Input requested**\n${request.message}`),
   actions(
     ["decline", "cancel"].map((action) =>
       button({

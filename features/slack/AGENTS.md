@@ -234,6 +234,30 @@ It runs on its own model when `SLACK_CHATTER_MODEL` is set. It is deciding "is t
 
 **`chat.update` at most once every 3 seconds** is the documented ceiling. The old throttle ran at 2s.
 
+## One markdown, everywhere
+
+Slack has three dialects and two of them silently drop things:
+
+- a `section` block speaks Slack's own `mrkdwn` — `*bold*`, no tables, no
+  `[label](url)`
+- `markdown_text` on `chat.postMessage` renders `**bold**` but carries NO
+  tables, and is mutually exclusive with `text`/`blocks`
+- a `markdown` block is GitHub-flavoured: tables, task lists, dividers
+
+Nothing in this feature asks a caller to know which one it is holding.
+**Everything takes GitHub-flavoured markdown**; `section()` converts on the
+way in and the answer already goes out through a `markdown` block. Write
+`**bold**` and `[label](url)` wherever you are.
+
+That is not tidiness. The `<` `>` `&` escape rides with the conversion, and
+`<!channel>` in model-authored text broadcasts to the workspace — so a caller
+who forgot `asMrkdwn` was not merely printing asterisks, it was skipping the
+escape. `permissions.ts` forgot it in three places. Making the block do it
+means it cannot be forgotten.
+
+If a table does not render, the message went out through one of the other two
+dialects. That is the whole diagnosis.
+
 ## There is no message streaming, and that is deliberate
 
 `chat.startStream` / `appendStream` / `stopStream` were how the progress

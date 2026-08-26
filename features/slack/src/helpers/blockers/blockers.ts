@@ -10,7 +10,6 @@
 import type { SlackBlock } from "../block-kit/blocks.ts";
 
 import { actions, button, section } from "../block-kit/blocks.ts";
-import { asMrkdwn } from "../block-kit/mrkdwn.ts";
 
 export const BLOCKER_ACTION_ID = "ori_blocker_choice";
 
@@ -65,7 +64,7 @@ export const blockerBlocks = (input: {
   readonly choices: readonly BlockerChoice[];
   readonly question: string;
 }): readonly SlackBlock[] => [
-  section(`*Blocked*\n${asMrkdwn(input.question)}`),
+  section(`**Blocked**\n${input.question}`),
   actions(
     input.choices.map((choice) =>
       button({
@@ -81,4 +80,4 @@ export const blockerBlocks = (input: {
 export const blockerAnsweredBlocks = (
   question: string,
   answer: string
-): readonly SlackBlock[] => [section(`*Blocked* — ${question}\n_${answer}_`)];
+): readonly SlackBlock[] => [section(`**Blocked** — ${question}\n_${answer}_`)];
