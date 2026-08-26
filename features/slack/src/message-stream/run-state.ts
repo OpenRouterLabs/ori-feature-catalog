@@ -36,6 +36,17 @@ const gistOf = (line: string): string =>
     .replaceAll(/[^a-z0-9 ]/gu, "");
 
 export interface RunState {
+  /**
+   * When the harness began compacting the context, if it still is.
+   *
+   * Compaction is a model call that summarises the conversation, and it emits
+   * no tool events while it runs — so the indicator, which is built from tool
+   * calls, has nothing new to say and the thread reads as a run that stopped.
+   * That is the failure this surface exists to avoid, so the one thing the
+   * daemon does know gets said: that the pause is compaction, and how long it
+   * has been going.
+   */
+  readonly compactingSince: number | undefined;
   readonly phase: RunPhase;
   /**
    * When the run last put a line in the work log, so the surface can say how
@@ -75,6 +86,7 @@ export interface RunState {
 }
 
 export const initialRunState = (now: number = Date.now()): RunState => ({
+  compactingSince: undefined,
   alive: 0,
   openTools: 0,
   error: undefined,
