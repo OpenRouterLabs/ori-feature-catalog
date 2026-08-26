@@ -90,7 +90,7 @@ export const parseAskBody = (raw: unknown): AskParse =>
     },
   });
 
-export interface QuestionsRouteDeps {
+interface QuestionsRouteDeps {
   readonly forms: QuestionnairesShape;
   readonly newAskId: () => string;
   readonly post: (

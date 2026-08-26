@@ -73,7 +73,7 @@ const readNestedId = (value: unknown): string | undefined =>
  * reads the handful of fields that matter rather than asserting the union into
  * one member.
  */
-export const readInteractionPayload = (body: unknown): InteractionPayload => {
+const readInteractionPayload = (body: unknown): InteractionPayload => {
   const record = asRecord(body);
   const actions = Array.isArray(record.actions) ? record.actions : [];
 

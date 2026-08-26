@@ -46,9 +46,9 @@ const MAX_QUESTIONS = 20;
  * guess about what the reader wants to say and being wrong about that is what
  * makes a form worse than a plain question.
  */
-export const QuestionKind = Schema.Literals(["single", "multi", "text"]);
+const QuestionKind = Schema.Literals(["single", "multi", "text"]);
 
-export const QuestionSchema = Schema.Struct({
+const QuestionSchema = Schema.Struct({
   id: Schema.String,
   prompt: Schema.String,
   kind: Schema.optionalKey(QuestionKind),

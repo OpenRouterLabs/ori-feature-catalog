@@ -14,7 +14,7 @@ import { Result } from "effect";
 import { makeClient } from "./helpers.ts";
 import { tryCatchAsync } from "./result.ts";
 
-export interface OpenDmOpts {
+interface OpenDmOpts {
   users: string;
   /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;

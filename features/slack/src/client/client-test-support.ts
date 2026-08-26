@@ -89,12 +89,6 @@ export const makeFakeSlackClient = (
       ts: "1700000000.000100",
     }),
     raw: makeRaw(rawStubs, calls),
-    appendStream: record("chat.appendStream"),
-    startStream: record("chat.startStream", {
-      channel: "C_FAKE",
-      ts: "1700000000.000100",
-    }),
-    stopStream: record("chat.stopStream"),
     updateMessage: record("chat.update"),
     ...overrides,
   };

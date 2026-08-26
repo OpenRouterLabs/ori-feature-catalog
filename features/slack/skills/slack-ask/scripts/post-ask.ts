@@ -10,8 +10,7 @@
 
 import { Option, Schema } from "effect";
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 const HTTP_TIMEOUT = 408;
@@ -21,13 +20,13 @@ export interface AskChoice {
   readonly label: string;
 }
 
-export type PostAskOutcome =
+type PostAskOutcome =
   | { readonly kind: "answered"; readonly answer: string }
   | { readonly kind: "unanswered" }
   | { readonly kind: "error"; readonly message: string };
 
 /** Structural so `Bun.env` passes straight through. */
-export type PostAskEnv = Readonly<Record<string, string | undefined>>;
+type PostAskEnv = Readonly<Record<string, string | undefined>>;
 
 /**
  * Parse `id=Label` pairs into choices.
@@ -115,7 +114,7 @@ export const postAsk = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {

@@ -18,6 +18,8 @@
  *     starts a second agent run.
  */
 
+import { Effect } from "effect";
+
 import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
@@ -62,18 +64,21 @@ const eventIdOf = (body: unknown): string | undefined => {
  * `JSON.parse` is typed `any`, so its result is taken as `unknown` and narrowed
  * once here rather than asserted at each use.
  */
-const readJsonObject = (text: string): Record<string, unknown> | undefined => {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? { ...parsed }
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
+const readJsonObject = (text: string): Record<string, unknown> | undefined =>
+  Effect.runSync(
+    // The annotation is what turns `JSON.parse`'s `any` into `unknown`; the
+    // narrowing below is then a real check rather than a restated assertion.
+    Effect.try((): unknown => JSON.parse(text)).pipe(
+      Effect.map((parsed) =>
+        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+          ? { ...parsed }
+          : undefined
+      ),
+      // A body that is not JSON is a caller error, not a fault of ours: the
+      // handler answers 400 on `undefined`.
+      Effect.orElseSucceed(() => undefined)
+    )
+  );
 
 /**
  * Slack sends two encodings on this one endpoint: events arrive as JSON, while
@@ -90,7 +95,7 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
-export interface SlackReceiverOptions {
+interface SlackReceiverOptions {
   readonly signingSecret: string;
   readonly logger: {
     readonly error: (message: string, ...rest: readonly unknown[]) => void;
@@ -197,17 +202,33 @@ export class SlackReceiver implements Receiver {
       };
     }
 
-    try {
-      verifySlackRequest({
-        body: raw,
-        headers: {
-          "x-slack-request-timestamp": Number(timestamp),
-          "x-slack-signature": signature,
-        },
-        signingSecret: this.#options.signingSecret,
-      });
-    } catch (error) {
-      this.#options.logger.warn("[slack] rejected unverified request", error);
+    // `Effect.match` folds both outcomes to a boolean, so the Effect cannot
+    // fail and `runSync` cannot throw. Verification is synchronous and must
+    // stay on the request's own path — the ack clock is already running.
+    const admitted = Effect.runSync(
+      Effect.try(() => {
+        verifySlackRequest({
+          body: raw,
+          headers: {
+            "x-slack-request-timestamp": Number(timestamp),
+            "x-slack-signature": signature,
+          },
+          signingSecret: this.#options.signingSecret,
+        });
+      }).pipe(
+        Effect.match({
+          onFailure: (error) => {
+            this.#options.logger.warn(
+              "[slack] rejected unverified request",
+              error
+            );
+            return false;
+          },
+          onSuccess: () => true,
+        })
+      )
+    );
+    if (!admitted) {
       return {
         rejected: new Response("invalid signature", {
           status: HTTP_UNAUTHORIZED,
@@ -258,15 +279,20 @@ export class SlackReceiver implements Receiver {
       retryReason: request.headers.get("x-slack-retry-reason") ?? undefined,
     };
 
-    try {
-      await app.processEvent(event);
-    } catch (error) {
-      // The id was claimed before dispatch so concurrent duplicates collapse.
-      // Keeping it claimed after a failure would make Slack's retry a no-op
-      // and lose the message outright, so give the retry a real chance.
-      this.#release(eventId);
-      this.#options.logger.error("[slack] listener failed", error);
-    }
+    await Effect.runPromise(
+      Effect.tryPromise(() => app.processEvent(event)).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            // The id was claimed before dispatch so concurrent duplicates
+            // collapse. Keeping it claimed after a failure would make Slack's
+            // retry a no-op and lose the message outright, so give the retry a
+            // real chance.
+            this.#release(eventId);
+            this.#options.logger.error("[slack] listener failed", error);
+          })
+        )
+      )
+    );
 
     return new Response("", { status: HTTP_OK });
   }

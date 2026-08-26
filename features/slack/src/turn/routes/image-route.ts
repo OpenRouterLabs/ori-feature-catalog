@@ -35,7 +35,7 @@ const nonEmpty = (value: string | undefined): string | undefined => {
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
 };
 
-export interface ImageRequest {
+interface ImageRequest {
   readonly channel: string;
   readonly prompt: string;
   readonly team: string | undefined;
@@ -43,12 +43,12 @@ export interface ImageRequest {
   readonly title: string;
 }
 
-export type ImageParse =
+type ImageParse =
   | { readonly ok: true; readonly request: ImageRequest }
   | { readonly ok: false; readonly error: string };
 
 /** Decode the wire body. Rejects rather than guessing at a malformed shape. */
-export const parseImageBody = (raw: unknown): ImageParse =>
+const parseImageBody = (raw: unknown): ImageParse =>
   Result.match(decodeBody(raw), {
     onFailure: (): ImageParse => ({
       error: "expected { channel, thread_ts, prompt, title?, team? }",

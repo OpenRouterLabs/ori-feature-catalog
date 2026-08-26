@@ -40,7 +40,7 @@ export interface RunOptions {
   readonly recipientUserId?: string;
 }
 
-export interface MessageStreamShape {
+interface MessageStreamShape {
   /**
    * Drive one turn. `advance` is called with each new state; the surface keeps
    * the latest and answers with it when the run ends.

@@ -14,8 +14,7 @@
  * entry stays a thin shell mapping outcomes to exit codes.
  */
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 
@@ -27,7 +26,7 @@ export interface Question {
   readonly prompt: string;
 }
 
-export type PostQuestionsOutcome =
+type PostQuestionsOutcome =
   | { readonly kind: "asked" }
   | { readonly kind: "error"; readonly message: string };
 
@@ -80,7 +79,7 @@ export const postQuestions = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {
@@ -94,7 +93,7 @@ export const postQuestions = async (input: {
   // The route rejects rather than guessing, and its reason is written for a
   // model to act on: hand it back verbatim so the next call can be corrected
   // rather than the words being thrown away.
-  const reason = await response.text().catch(unreachable);
+  const reason = await response.text().catch(unreadable);
   return {
     kind: "error",
     message:

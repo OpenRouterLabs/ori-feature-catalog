@@ -29,7 +29,7 @@ import {
   withParticipant,
 } from "./listen.ts";
 
-export type TurnVerdict = "run" | "drop";
+type TurnVerdict = "run" | "drop";
 
 /** Timestamps retained before the oldest is forgotten; a redelivery is close. */
 const RECENT_STARTS = 512;

@@ -40,7 +40,6 @@ import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
 import { SlackClient } from "./client/client.ts";
 import { makeSurfaceEventHandlers } from "./client/surface-events.ts";
 import { readSlackConfig } from "./config.ts";
-import { applyExtensions } from "./extend.ts";
 import { forkWith } from "./fork.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
 import { registerCustomButtons } from "./interactions/custom.ts";
@@ -63,32 +62,6 @@ import {
 import { cancelTurn } from "./thread/registry.ts";
 import { makeTurnRoutes } from "./turn/turn-routes.ts";
 
-export {
-  AssistantThreads,
-  type AssistantThreadsShape,
-} from "./thread/assistant.ts";
-export { SlackClient, type SlackClientShape } from "./client/client.ts";
-export { extendSlack, type SlackExtension } from "./extend.ts";
-export { Interactions } from "./interactions/interactions.ts";
-export {
-  onButton,
-  RESERVED_ACTION_PREFIX,
-  registeredButtonIds,
-} from "./interactions/custom.ts";
-export type {
-  SlackButtonClick,
-  SlackButtonHandler,
-} from "./interactions/custom.ts";
-export { SlackDefaultLayers, type SlackServices } from "./layers.ts";
-export { makeMessageReply } from "./message-reply/reply-live.ts";
-export { type MessageReplyShape } from "./message-reply/reply.ts";
-export { MessageStream } from "./message-stream/stream.ts";
-export { StateStore } from "./state/store.ts";
-export {
-  ThreadContext,
-  type ThreadRef,
-  threadInstanceId,
-} from "./thread/thread.ts";
 
 export interface SlackLogger {
   readonly error: (message: string, ...rest: readonly unknown[]) => void;
@@ -132,7 +105,7 @@ const buildContext = (input: {
     Effect.gen(function* () {
       const scope = yield* Scope.make();
       const context = yield* Layer.build(
-        applyExtensions(SlackDefaultLayers(input))
+        SlackDefaultLayers(input)
       ).pipe(Effect.provideService(Scope.Scope, scope));
       return {
         context,

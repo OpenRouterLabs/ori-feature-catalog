@@ -5,16 +5,17 @@
  * entry stays a thin shell that maps outcomes to exit codes.
  */
 
-const DEFAULT_PORT = "3141";
+import { Effect, Option } from "effect";
 
-/** A daemon that is not there is reported, not thrown. */
-const unreachable = (): undefined => undefined;
+import { unreadable } from "#skills/slack-api/scripts/result.ts";
+
+const DEFAULT_PORT = "3141";
 
 /** The route's own explanation, when it left one that can be parsed. */
 const readErrorDetail = async (
   response: Response
 ): Promise<string | undefined> => {
-  const body: unknown = await response.json().catch(unreachable);
+  const body: unknown = await response.json().catch(unreadable);
   if (typeof body !== "object" || body === null) {
     return undefined;
   }
@@ -22,7 +23,7 @@ const readErrorDetail = async (
   return typeof error === "string" && error !== "" ? error : undefined;
 };
 
-export type PostChartOutcome =
+type PostChartOutcome =
   | { readonly kind: "posted" }
   | { readonly kind: "error"; readonly message: string };
 
@@ -43,15 +44,21 @@ export const postChart = async (input: {
     };
   }
 
-  let spec: unknown;
-  try {
-    spec = JSON.parse(input.spec);
-  } catch {
+  const parsed = Effect.runSync(
+    Effect.try((): unknown => JSON.parse(input.spec)).pipe(
+      Effect.map((value) => Option.some(value)),
+      // `None` is "not JSON at all"; the object check below is a separate
+      // answer, so the two failures keep their own messages.
+      Effect.orElseSucceed(() => Option.none<unknown>())
+    )
+  );
+  if (Option.isNone(parsed)) {
     return {
       kind: "error",
       message: "the spec must be JSON",
     };
   }
+  const spec: unknown = parsed.value;
   if (typeof spec !== "object" || spec === null) {
     return {
       kind: "error",
@@ -71,7 +78,7 @@ export const postChart = async (input: {
       headers: { "content-type": "application/json" },
       method: "POST",
     })
-    .catch(unreachable);
+    .catch(unreadable);
 
   if (response === undefined) {
     return {

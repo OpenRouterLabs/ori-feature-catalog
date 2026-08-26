@@ -83,7 +83,7 @@ export const beatLine = (state: RunState, now: number = Date.now()): string => {
   return line.length <= LINE_LIMIT ? line : `${line.slice(0, LINE_LIMIT - 1)}…`;
 };
 
-export interface StatusBeat {
+interface StatusBeat {
   readonly stop: Effect.Effect<void>;
 }
 

@@ -25,7 +25,7 @@ export const COMMANDS = [
   "users.mention",
 ] as const;
 
-export type Command = (typeof COMMANDS)[number];
+type Command = (typeof COMMANDS)[number];
 
 export const isCommand = (value: string): value is Command =>
   (COMMANDS as readonly string[]).includes(value);
@@ -41,16 +41,22 @@ type Flags = Record<string, string>;
 type Env = Record<string, string | undefined>;
 type CommandResult = Promise<Result.Result<unknown, Error>>;
 
-/** Parse a positive-integer flag, or fail if present but invalid. */
+/**
+ * Parse a positive-integer flag, or fail if present but invalid.
+ *
+ * Takes the absence as an `Option` rather than `undefined` so "the flag was
+ * not passed" is the same shape going in as it is coming out; the caller
+ * crosses from the raw `Flags` record with `Option.fromNullable` once.
+ */
 const parseIntFlag = (
-  raw: string | undefined,
+  raw: Option.Option<string>,
   name: string,
   allowZero = false
 ): Result.Result<Option.Option<number>, Error> => {
-  if (raw === undefined) {
+  if (Option.isNone(raw)) {
     return Result.succeed(Option.none());
   }
-  const n = Number(raw);
+  const n = Number(raw.value);
   if (
     !Number.isFinite(n) ||
     !Number.isInteger(n) ||
@@ -79,7 +85,7 @@ const handleConversations = async (
     if (Result.isFailure(flagsResult)) {
       return flagsResult;
     }
-    const limitResult = parseIntFlag(flags.limit, "limit");
+    const limitResult = parseIntFlag(Option.fromUndefinedOr(flags.limit), "limit");
     if (Result.isFailure(limitResult)) {
       return Result.fail(limitResult.failure);
     }
@@ -90,7 +96,7 @@ const handleConversations = async (
       env,
     });
   }
-  const limitResult = parseIntFlag(flags.limit, "limit", true);
+  const limitResult = parseIntFlag(Option.fromUndefinedOr(flags.limit), "limit", true);
   if (Result.isFailure(limitResult)) {
     return Result.fail(limitResult.failure);
   }

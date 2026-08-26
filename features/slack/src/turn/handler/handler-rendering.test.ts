@@ -150,17 +150,12 @@ const run = async (input: {
 };
 
 /**
- * What the thread ends up showing as the ANSWER — its own message, posted once
- * at the end, with the streamed message deleted out from under it.
- */
-/**
  * The answer is an EDIT now: the opening "On it…" is posted first and then
  * rewritten into the reply, so reading only posts finds the placeholder.
  */
 const ANSWER_OPS: ReadonlySet<string> = new Set([
   "chat.update",
   "chat.postMessage",
-  "chat.stopStream",
 ]);
 
 const answered = (fake: ReturnType<typeof makeFakeSlackClient>): string =>
@@ -179,10 +174,7 @@ const answered = (fake: ReturnType<typeof makeFakeSlackClient>): string =>
 
 /** Everything the run put on screen, whichever transport carried it. */
 const PROGRESS_OPS: ReadonlySet<string> = new Set([
-  "chat.appendStream",
   "chat.postMessage",
-  "chat.startStream",
-  "chat.stopStream",
   "chat.update",
 ]);
 

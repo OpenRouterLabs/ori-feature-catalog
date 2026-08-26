@@ -11,6 +11,8 @@
  * alternative and it reads worse than the thing it encodes.
  */
 
+import { Effect } from "effect";
+
 import type { Question } from "./post-questions.ts";
 
 import { postQuestions } from "./post-questions.ts";
@@ -27,14 +29,17 @@ const END_YOUR_TURN =
   "Asked. END YOUR TURN now — say what you are blocked on. You will be " +
   "started again on this thread with their answers when they reply.";
 
-const parseQuestions = (raw: string): readonly Question[] | undefined => {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as readonly Question[]) : undefined;
-  } catch {
-    return undefined;
-  }
-};
+const parseQuestions = (raw: string): readonly Question[] | undefined =>
+  Effect.runSync(
+    Effect.try((): readonly Question[] | undefined => {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as readonly Question[]) : undefined;
+    }).pipe(
+      // Not JSON and not an array are the same answer to the caller: nothing
+      // usable was passed, so it prints usage.
+      Effect.orElseSucceed(() => undefined)
+    )
+  );
 
 if (import.meta.main) {
   const [intro, argvQuestions] = process.argv.slice(2);

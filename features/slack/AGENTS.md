@@ -234,13 +234,30 @@ It runs on its own model when `SLACK_CHATTER_MODEL` is set. It is deciding "is t
 
 **`chat.update` at most once every 3 seconds** is the documented ceiling. The old throttle ran at 2s.
 
-## Do not rewrite a finalised stream
+## There is no message streaming, and that is deliberate
 
-`chat.update` with `markdown_text` against a stopped stream CLEARS it. The docs say a stopped stream "converts to a standard message", which reads like an ordinary update should work; live, every reply came back empty.
+`chat.startStream` / `appendStream` / `stopStream` were how the progress
+message rendered. The progress message went (see `message-stream/stream.ts`
+for every shape it took and how each one was wrong), and the client methods
+outlived it by a while: three port methods, their live implementations and two
+sets of fakes that nothing called, plus a shutdown window documented as
+covering "one `chat.stopStream` per turn" that could never happen. All of it
+is now gone — a capability nothing reaches is not a capability.
 
-This was shipped to collapse the task cards away once an answer existed, guarded so a REFUSED update would leave the answer under the cards. The guard was useless because the update did not fail — it succeeded and blanked the message. A fallback only helps against the failure you predicted.
+If streaming is ever worth another try — for the ANSWER, which is the one use
+the removal rationale never argued against — the trap that cost us a release
+is this: **`chat.update` with `markdown_text` against a stopped stream CLEARS
+it.** The docs say a stopped stream "converts to a standard message", which
+reads like an ordinary update should work; live, every reply came back empty.
+It was guarded so a REFUSED update would leave the answer in place, and the
+guard was useless because the update did not fail — it succeeded and blanked
+the message. A fallback only helps against the failure you predicted. Check it
+against a real workspace before trusting it.
 
-Cards above the answer is a cosmetic complaint. An empty reply loses the turn. If the collapse is worth another try, find a way to check it against a real workspace first.
+The other one, for the same reader: **`chat.stopStream`'s `markdown_text` is
+APPENDED to whatever was streamed, not a final value for the message.** Putting
+the opening line in the body fused it to the front of the answer —
+`IHere — sorry for the silence…`.
 
 ## The first thing it says opens the message
 
@@ -480,11 +497,6 @@ The sentence being written is now pushed to the OPEN card, throttled, reusing it
 
 `renderRunState` appends it on a Done turn and the streamed footer appended it again, so every answer ended with the model on two lines. The footer owns it now and passes `withModel: false`.
 
-## stopStream APPENDS, it does not replace
-
-`chat.stopStream`'s `markdown_text` is added to whatever was streamed. It is not a final value for the message.
-
-Putting the opening line in the body therefore fused it to the front of the answer: `IHere — sorry for the silence…`. Narration goes in CARDS; the body belongs to the answer alone. The stream opens on a `task_update` chunk, never on `markdown_text`.
 
 This is the same misreading as the collapse: the docs say a stopped stream "converts to a standard message", and that sentence has now cost two separate bugs. A streamed message is append-only until it is closed, and closing does not give you a blank slate.
 

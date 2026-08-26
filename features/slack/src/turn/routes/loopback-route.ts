@@ -101,7 +101,7 @@ const readCapped = async (
   return Result.succeed(jsonOrNull(raw));
 };
 
-export interface LoopbackSpec<
+interface LoopbackSpec<
   TRequest extends Addressed,
   TOutput extends object,
 > {

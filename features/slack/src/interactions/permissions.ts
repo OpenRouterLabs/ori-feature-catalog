@@ -23,7 +23,7 @@ import type { PermissionOptionKind } from "ori";
 
 import { Effect } from "effect";
 
-import type { ButtonElement, SlackBlock } from "../helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type { InteractionsShape } from "./interactions.ts";
 
 import { actions, button, section } from "../helpers/block-kit/blocks.ts";
@@ -34,7 +34,7 @@ export const ELICITATION_ACTION_ID = "ori_elicitation_select";
 /** Separator that cannot appear in a correlation id, option kind, or session id. */
 const FIELD_SEPARATOR = "|";
 
-export interface PermissionRequest {
+interface PermissionRequest {
   /** The Slack user whose turn this is — the only one who may answer it. */
   readonly askedBy: string;
   readonly correlationId: string;
@@ -123,7 +123,7 @@ export const permissionResolvedBlocks = (
   section(`*Permission* — ${request.operation}\n_${outcome}_`),
 ];
 
-export interface ElicitationRequest {
+interface ElicitationRequest {
   readonly askedBy: string;
   readonly correlationId: string;
   readonly message: string;
@@ -151,7 +151,7 @@ export const elicitationBlocks = (
   ),
 ];
 
-export interface RespondInteraction {
+interface RespondInteraction {
   readonly respond: (
     input:
       | {
@@ -234,19 +234,7 @@ export const registerPermissionHandlers = (
   );
 };
 
-export const CANCEL_ACTION_ID = "ori_cancel_turn";
-
-/**
- * The Cancel affordance rendered alongside a running turn. The turn id is the
- * button's value for the same reason a correlation id is: it is only known at
- * run time, so it cannot live in a statically registered action id.
- */
-export const cancelButton = (turnId: string, askedBy: string): ButtonElement =>
-  button({
-    actionId: CANCEL_ACTION_ID,
-    label: "Cancel",
-    value: [turnId, askedBy].join(FIELD_SEPARATOR),
-  });
+const CANCEL_ACTION_ID = "ori_cancel_turn";
 
 /**
  * Wire the Cancel button to the live-turn registry. Registered once at start;

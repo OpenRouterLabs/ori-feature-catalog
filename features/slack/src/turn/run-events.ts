@@ -52,7 +52,7 @@ const MAX_ACCUMULATED_CHARS = 45_000;
  * untranscribed tag is invisible here — which is how the watchdogs came to
  * miss every tool event but `started`, and read slow work as death.
  */
-export const Tag = {
+const Tag = {
   AssistantTextDelta: "assistant.text.delta",
   ElicitationRequested: "elicitation.requested",
   PermissionRequested: "permission.requested",

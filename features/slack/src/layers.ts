@@ -42,13 +42,13 @@ export type SlackServices =
   | StateStore
   | ThreadContext;
 
-export const SlackClientLayer = (token: string): Layer.Layer<SlackClient> =>
+const SlackClientLayer = (token: string): Layer.Layer<SlackClient> =>
   Layer.sync(SlackClient)(() =>
     SlackClient.of(makeSlackClientFromToken(token))
   );
 
 /** What the graph needs that is not a service. */
-export interface SlackGraphInput {
+interface SlackGraphInput {
   /**
    * The framework's state store, when the host injected one.
    *

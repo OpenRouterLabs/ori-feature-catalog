@@ -27,7 +27,7 @@ const runWith = <A>(
   effect: Effect.Effect<A, never, SlackServices>
 ): Promise<A> => Effect.runPromise(effect.pipe(Effect.provideContext(context)));
 
-export const postNote = (
+const postNote = (
   context: Context.Context<SlackServices>,
   ref: ThreadRef,
   text: string

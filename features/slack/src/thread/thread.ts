@@ -75,7 +75,7 @@ export const parseThreadInstanceId = (id: string): ThreadRef | undefined => {
       };
 };
 
-export interface ThreadContextShape {
+interface ThreadContextShape {
   /**
    * The context block prepended to a COLD-START turn. Returns "" when a
    * session already exists, which is the common case.

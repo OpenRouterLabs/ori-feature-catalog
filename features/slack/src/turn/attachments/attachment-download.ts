@@ -21,6 +21,8 @@
  *     daemon is long-lived.
  */
 
+import { Effect } from "effect";
+
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
@@ -60,7 +62,7 @@ export interface DownloadableFile {
   readonly urlPrivate: string;
 }
 
-export interface DownloadedFile {
+interface DownloadedFile {
   readonly bytes: number;
   /** The Slack file id this came from, so callers join on it rather than name. */
   readonly id: string;
@@ -85,13 +87,14 @@ export const safeFileName = (name: string, fileId: string): string => {
   return base.length > MAX_NAME_CHARS ? base.slice(-MAX_NAME_CHARS) : base;
 };
 
-export const isAllowedFileUrl = (raw: string): boolean => {
-  try {
-    return ALLOWED_FILE_HOSTS.has(new URL(raw).hostname);
-  } catch {
-    return false;
-  }
-};
+export const isAllowedFileUrl = (raw: string): boolean =>
+  Effect.runSync(
+    // `new URL` throws on anything that is not a URL, which is the same
+    // answer as a URL pointing somewhere we do not allow.
+    Effect.try(() => ALLOWED_FILE_HOSTS.has(new URL(raw).hostname)).pipe(
+      Effect.orElseSucceed(() => false)
+    )
+  );
 
 let downloadSequence = 0;
 
@@ -118,7 +121,7 @@ export const attachmentDirFor = (threadTs: string): string => {
   );
 };
 
-export interface DownloadDeps {
+interface DownloadDeps {
   readonly fetch: typeof globalThis.fetch;
   readonly token: string;
   readonly writeDir: string;
@@ -187,35 +190,37 @@ export const downloadAttachments = async (
       continue;
     }
 
-    try {
-      const bytes = await fetchWithinLimits(file, deps, budget);
-      if (bytes === undefined) {
-        continue;
-      }
+    // Best effort by design — see the module comment. `Effect.ignore` is what
+    // the `catch { continue }` was: one file that cannot be fetched or written
+    // must not cost the turn the files beside it.
+    await Effect.runPromise(
+      Effect.tryPromise(async () => {
+        const bytes = await fetchWithinLimits(file, deps, budget);
+        if (bytes === undefined) {
+          return;
+        }
 
-      if (!dirReady) {
-        // 0o700: tmpdir is shared, and these are someone else's Slack files.
-        await mkdir(deps.writeDir, {
-          mode: 0o700,
-          recursive: true,
+        if (!dirReady) {
+          // 0o700: tmpdir is shared, and these are someone else's Slack files.
+          await mkdir(deps.writeDir, {
+            mode: 0o700,
+            recursive: true,
+          });
+          dirReady = true;
+        }
+
+        const { label, path } = destinationFor(file, deps.writeDir);
+        await writeFile(path, bytes);
+
+        budget -= bytes.byteLength;
+        downloaded.push({
+          bytes: bytes.byteLength,
+          id: file.id,
+          label,
+          path,
         });
-        dirReady = true;
-      }
-
-      const { label, path } = destinationFor(file, deps.writeDir);
-      await writeFile(path, bytes);
-
-      budget -= bytes.byteLength;
-      downloaded.push({
-        bytes: bytes.byteLength,
-        id: file.id,
-        label,
-        path,
-      });
-    } catch {
-      // Best effort by design — see the module comment.
-      continue;
-    }
+      }).pipe(Effect.ignore)
+    );
   }
 
   return downloaded;
@@ -228,13 +233,15 @@ export const downloadAttachments = async (
  * daemon's lifetime — a slow disk leak, and a pile of other people's files
  * sitting around long after the turn that needed them.
  */
-export const discardAttachments = async (dir: string): Promise<void> => {
-  try {
-    await rm(dir, {
-      force: true,
-      recursive: true,
-    });
-  } catch {
-    // Cleanup is best effort; a failure here must not fail the turn.
-  }
-};
+export const discardAttachments = (dir: string): Promise<void> =>
+  Effect.runPromise(
+    Effect.tryPromise(() =>
+      rm(dir, {
+        force: true,
+        recursive: true,
+      })
+    ).pipe(
+      // Cleanup is best effort; a failure here must not fail the turn.
+      Effect.ignore
+    )
+  );

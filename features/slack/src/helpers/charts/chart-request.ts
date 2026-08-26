@@ -83,7 +83,7 @@ export interface ChartRequest {
   readonly title: string;
 }
 
-export type ChartParse =
+type ChartParse =
   | { readonly ok: true; readonly request: ChartRequest }
   | { readonly ok: false; readonly error: string };
 

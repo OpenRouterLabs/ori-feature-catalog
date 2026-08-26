@@ -160,17 +160,8 @@ export const run = async (input: {
   };
 };
 
-/**
- * What the thread ends up showing as the ANSWER.
- *
- * Closing a stream leaves the answer as the message, so `chat.stopStream`
- * counts alongside a plain post — a turn that could not open a stream falls
- * back to one.
- */
-const ANSWER_OPS: ReadonlySet<string> = new Set([
-  "chat.postMessage",
-  "chat.stopStream",
-]);
+/** What the thread ends up showing as the ANSWER. A turn posts it once. */
+const ANSWER_OPS: ReadonlySet<string> = new Set(["chat.postMessage"]);
 
 export const answered = (
   fake: ReturnType<typeof makeFakeSlackClient>
@@ -184,10 +175,7 @@ export const answered = (
 
 /** Everything the run put on screen, whichever transport carried it. */
 const PROGRESS_OPS: ReadonlySet<string> = new Set([
-  "chat.appendStream",
   "chat.postMessage",
-  "chat.startStream",
-  "chat.stopStream",
   "chat.update",
 ]);
 

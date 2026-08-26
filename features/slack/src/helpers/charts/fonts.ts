@@ -14,6 +14,8 @@
  * pointed at the family we actually found.
  */
 
+import { Effect } from "effect";
+
 /** Where a Linux/macOS box keeps fonts. Missing entries are skipped. */
 export const FONT_DIR_CANDIDATES = [
   "/usr/share/fonts",
@@ -139,16 +141,19 @@ const isFontFile = (path: string): boolean =>
  * Unguarded, one bad file rejected the whole walk — and discovery is memoised,
  * so it then failed every chart until a restart.
  */
-const familyOf = async (
+const familyOf = (
   readFont: (path: string) => Promise<Uint8Array>,
   path: string
-): Promise<string | undefined> => {
-  try {
-    return familyNameFrom(await readFont(path));
-  } catch {
-    return undefined;
-  }
-};
+): Promise<string | undefined> =>
+  Effect.runPromise(
+    // Both calls stay inside the `tryPromise`: a malformed name table throws
+    // out of `familyNameFrom`, and in an `Effect.map` that would be a defect
+    // rather than a failure — which `orElseSucceed` does not catch, so one bad
+    // font file would take down every chart instead of being skipped.
+    Effect.tryPromise(async () => familyNameFrom(await readFont(path))).pipe(
+      Effect.orElseSucceed(() => undefined)
+    )
+  );
 
 /**
  * Font options for resvg, or undefined when the box has no font at all.

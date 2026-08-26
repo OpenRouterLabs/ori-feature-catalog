@@ -18,7 +18,7 @@ export const BLOCKER_ACTION_ID = "ori_blocker_choice";
 const FIELD_SEPARATOR = "|";
 
 /** A choice offered to the reader. `id` comes back to the agent verbatim. */
-export interface BlockerChoice {
+interface BlockerChoice {
   readonly id: string;
   readonly label: string;
 }

@@ -78,7 +78,7 @@ const KIND_STROKE = {
   step: "#333941",
 } as const;
 
-export type FlowNodeKind = keyof typeof KIND_FILL;
+type FlowNodeKind = keyof typeof KIND_FILL;
 
 export interface FlowNode {
   readonly detail?: string | undefined;
