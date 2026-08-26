@@ -21,6 +21,7 @@ import type {
 } from "ori";
 
 import type {
+  SlackButtonHandler,
   SlackPostMessageInput,
   SlackPostMessageResult,
 } from "./src/exports.ts";
@@ -107,6 +108,19 @@ export const api = {
      */
     webClient: (): Promise<WebClient | undefined> =>
       import("./src/exports.ts").then(({ webClient }) => webClient()),
+
+    /**
+     * Answer a click on a button this feature did not post. Async only
+     * because the module is imported dynamically like the rest of `exports`;
+     * the registration itself is synchronous and needs no running surface.
+     */
+    onButton: (
+      actionId: string,
+      handler: SlackButtonHandler
+    ): Promise<void> =>
+      import("./src/exports.ts").then(({ onButton }) =>
+        onButton(actionId, handler)
+      ),
   },
   routes: {
     /** Public, and signature-checked by Bolt rather than by the loopback guard. */

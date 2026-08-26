@@ -429,6 +429,36 @@ This is proactive where auto-mute is reactive. Auto-mute needs a second particip
 
 Only when the whole message is the word. "stop using the cached client" is a request, not a command, and answering it as one would be worse than not having the feature.
 
+## A custom button is for a feature, not for the agent
+
+The section above still holds for the agent: it steers with sentences, and it
+has no way to post a button of its own. Nothing in `onButton` changes that,
+and no skill exposes it.
+
+What it changes is the sibling feature. `interactions.on` always routed any
+action id — the comment at the top of `interactions.ts` says the service
+exists so a downstream feature can add an action — but nothing outside this
+feature could reach the service. It lives in the Effect graph, and the public
+surface was `postMessage` and `webClient`. So a feature could post a perfectly
+good button and the click went nowhere: `dispatch` looked the id up, found no
+handler, and returned. The button rendered and did nothing, silently.
+
+Two constraints fall out of the design and are enforced rather than
+documented:
+
+`ori_` is reserved. Every built-in action id carries that prefix, and `on` is
+last-registration-wins, so a custom button claiming `ori_cancel_turn` would
+have quietly taken over stopping a run. Registration throws instead, at boot,
+where the author sees it.
+
+The click carries no `trigger_id` and no `response_url`. Those are the
+seconds-lived provider capabilities this file warns about elsewhere, and a
+registered handler runs after the ack, so it could not spend one anyway.
+Leaving them off the payload means a consumer cannot capture one by accident.
+It also means a custom button cannot open a modal — that needs a trigger the
+surface has to spend itself, within three seconds of the click.
+
+
 ## Test with ids Slack would actually send
 
 `U_SELF` is not a Slack user id and `<@U_SELF>` does not match the mention pattern, so the first version of these tests passed against fixtures no workspace can produce. Real ids are uppercase alphanumeric with no underscore.

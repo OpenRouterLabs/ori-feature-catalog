@@ -44,6 +44,7 @@ import { makeSurfaceEventHandlers } from "./client/surface-events.ts";
 import { readSlackConfig } from "./config.ts";
 import { forkWith } from "./fork.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
+import { registerCustomButtons } from "./interactions/custom.ts";
 import { Blockers } from "./interactions/blocker.ts";
 import { Interactions } from "./interactions/interactions.ts";
 import {
@@ -223,6 +224,14 @@ const registerInteractionHandlers = (input: {
   });
 
   registerCancelHandler(input.interactions, cancelTurn);
+
+  // Anything a sibling feature registered with `onButton`. Named in the log
+  // because a button that silently failed to wire looks, from Slack, exactly
+  // like a button whose handler did nothing.
+  const custom = registerCustomButtons(input.interactions);
+  if (custom.length > 0) {
+    input.logger.info(`[slack] custom buttons wired: ${custom.join(", ")}`);
+  }
 };
 
 /**

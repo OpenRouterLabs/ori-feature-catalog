@@ -164,3 +164,31 @@ export const postMessage = (
       })
     : makePostMessage(slack)(input);
 };
+
+/**
+ * Register a handler for a custom button, by action id.
+ *
+ * Re-exported here so `use("slack")` is the whole public surface: a consumer
+ * posts a button with `postMessage({ blocks })` and answers the click with
+ * this, without importing anything from inside the feature.
+ *
+ * Unlike `postMessage`, this needs no token and no running surface — it
+ * writes to a registry the surface drains at boot, and wires straight through
+ * if the surface is already up.
+ */
+export {
+  onButton,
+  RESERVED_ACTION_PREFIX,
+  registeredButtonIds,
+} from "./interactions/custom.ts";
+export type {
+  SlackButtonClick,
+  SlackButtonHandler,
+} from "./interactions/custom.ts";
+
+/**
+ * A Block Kit button element, with Slack's label and value ceilings applied.
+ * Handed over so a consumer does not have to rebuild the shape — or discover
+ * the truncation rules by having Slack reject the message.
+ */
+export { actions, button } from "./helpers/block-kit/blocks.ts";
