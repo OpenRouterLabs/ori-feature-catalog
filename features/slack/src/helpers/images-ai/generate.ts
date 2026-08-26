@@ -134,16 +134,17 @@ const request = (input: {
       duration: REQUEST_TIMEOUT_MS,
       orElse: () => Effect.fail(new Error("the request timed out")),
     }),
-    Effect.catchCause(() => Effect.succeed(NO_RESPONSE))
+    Effect.catchCause(() => Effect.succeed(NO_RESPONSE)),
+    Effect.withSpan("Slack.imagesAi.request")
   );
 
-export const generateImage = (input: {
-  readonly apiKey: string;
-  readonly fetch: typeof globalThis.fetch;
-  readonly model?: string | undefined;
-  readonly prompt: string;
-}): Effect.Effect<GenerateOutcome> =>
-  Effect.gen(function* () {
+export const generateImage = Effect.fn("Slack.imagesAi.generate")(
+  function* (input: {
+    readonly apiKey: string;
+    readonly fetch: typeof globalThis.fetch;
+    readonly model?: string | undefined;
+    readonly prompt: string;
+  }): Effect.fn.Return<GenerateOutcome> {
     const prompt = input.prompt.trim();
     if (prompt === "") {
       return {
@@ -184,7 +185,10 @@ export const generateImage = (input: {
     const payload: unknown = yield* Effect.tryPromise({
       catch: (cause) => new Error(String(cause)),
       try: (): Promise<unknown> => response.json(),
-    }).pipe(Effect.catchCause(() => Effect.succeed(null)));
+    }).pipe(
+      Effect.catchCause(() => Effect.succeed(null)),
+      Effect.withSpan("Slack.imagesAi.readBody")
+    );
     const image = firstImage(payload);
     return image === undefined
       ? ({
@@ -195,4 +199,5 @@ export const generateImage = (input: {
           image,
           ok: true,
         } as const);
-  });
+  }
+);

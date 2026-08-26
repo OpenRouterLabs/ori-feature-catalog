@@ -103,7 +103,7 @@ export const makeInteractions = (): InteractionsShape => {
               );
         },
         { discard: true }
-      ),
+      ).pipe(Effect.withSpan("Slack.interactions.dispatch")),
 
     dispatchView: (payload) => {
       const match = [...viewHandlers].find(([prefix]) =>
@@ -112,16 +112,18 @@ export const makeInteractions = (): InteractionsShape => {
       // Logged rather than swallowed, for the reason above: this is how a
       // typed answer reaches the waiting turn, and a lost one looks like a
       // modal that did nothing and a run that hangs until its deadline.
-      return match === undefined
-        ? Effect.void
-        : match[1](payload).pipe(
-            Effect.catchCause((cause) =>
-              Effect.logError(
-                `[slack] view handler failed: ${payload.callbackId}`,
-                cause
+      return (
+        match === undefined
+          ? Effect.void
+          : match[1](payload).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logError(
+                  `[slack] view handler failed: ${payload.callbackId}`,
+                  cause
+                )
               )
             )
-          );
+      ).pipe(Effect.withSpan("Slack.interactions.dispatchView"));
     },
 
     on: (actionId, handler) => {

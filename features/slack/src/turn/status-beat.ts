@@ -26,7 +26,7 @@ import type { ThreadRef } from "../thread/thread.ts";
 import { clampToWord } from "../clamp.ts";
 import { toolSummary } from "../message-stream/run-state.ts";
 import { paneOf } from "./context/pane-context.ts";
-import { readLiveLine } from "./live-line.ts";
+import { readLine } from "./live-line.ts";
 
 /**
  * Often enough that a post cannot leave the run looking idle for long, rarely
@@ -96,19 +96,19 @@ interface StatusBeat {
  * on a beat is what makes an answer, a chart or somebody else's message cost
  * the run nothing.
  */
-export const beatStatus = (input: {
+export const beatStatus = Effect.fn("Slack.statusBeat.arm")(function* (input: {
   readonly assistant: AssistantThreadsShape;
   readonly peek: Effect.Effect<RunState>;
   readonly ref: ThreadRef;
   readonly threadKey: string;
-}): Effect.Effect<StatusBeat> =>
-  Effect.gen(function* () {
-    // The agent's own words win when it has said something recently: it knows
-    // what it is doing and the surface only knows which tools were called.
-    // Falling back rather than deferring is what keeps the indicator alive
-    // through a turn where the agent never speaks.
-    const show = Effect.gen(function* () {
-      const said = yield* Effect.promise(() => readLiveLine(input.threadKey));
+}): Effect.fn.Return<StatusBeat> {
+  // The agent's own words win when it has said something recently: it knows
+  // what it is doing and the surface only knows which tools were called.
+  // Falling back rather than deferring is what keeps the indicator alive
+  // through a turn where the agent never speaks.
+  const show = Effect.fn("Slack.statusBeat.show")(
+    function* (): Effect.fn.Return<void> {
+      const said = yield* readLine(input.threadKey);
       const state = yield* input.peek;
       const line = said ?? beatLine(state);
       yield* input.assistant.setStatus(
@@ -116,19 +116,20 @@ export const beatStatus = (input: {
         line,
         loadingListOf(line)
       );
-    });
+    }
+  );
 
-    yield* show;
+  yield* show();
 
-    const fiber = yield* Effect.forkChild(
-      Effect.whileLoop({
-        body: () => Effect.sleep(BEAT_MS).pipe(Effect.andThen(show)),
-        step: () => {
-          /* runs until interrupted */
-        },
-        while: () => true,
-      })
-    );
+  const fiber = yield* Effect.forkChild(
+    Effect.whileLoop({
+      body: () => Effect.sleep(BEAT_MS).pipe(Effect.andThen(show())),
+      step: () => {
+        /* runs until interrupted */
+      },
+      while: () => true,
+    })
+  );
 
-    return { stop: Fiber.interrupt(fiber) };
-  });
+  return { stop: Fiber.interrupt(fiber) };
+});

@@ -7,7 +7,7 @@
  * with lived exactly there.
  */
 
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "#src/test-support/effect-test.ts";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

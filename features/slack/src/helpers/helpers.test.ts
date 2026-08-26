@@ -1,5 +1,5 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -118,87 +118,89 @@ describe("capBlocks", () => {
 });
 
 describe("openModal", () => {
-  test("sends a modal view with the given trigger", async () => {
-    const fake = makeFakeSlackClient();
+  test.effect("sends a modal view with the given trigger", () =>
+    Effect.gen(function* () {
+      const fake = makeFakeSlackClient();
 
-    await Effect.runPromise(
-      openModal(fake.shape, {
+      yield* openModal(fake.shape, {
         triggerId: "trig-1",
         view: {
           blocks: [],
           title: "Details",
         },
-      })
-    );
+      });
 
-    const args = fake.calls[0]?.args as {
-      trigger_id?: string;
-      view?: { title?: { text?: string }; type?: string };
-    };
-    expect(fake.calls[0]?.op).toBe("views.open");
-    expect(args.trigger_id).toBe("trig-1");
-    expect(args.view?.type).toBe("modal");
-    expect(args.view?.title?.text).toBe("Details");
-  });
+      const args = fake.calls[0]?.args as {
+        trigger_id?: string;
+        view?: { title?: { text?: string }; type?: string };
+      };
+      expect(fake.calls[0]?.op).toBe("views.open");
+      expect(args.trigger_id).toBe("trig-1");
+      expect(args.view?.type).toBe("modal");
+      expect(args.view?.title?.text).toBe("Details");
+    })
+  );
 
-  test("defaults the close label", async () => {
-    const fake = makeFakeSlackClient();
+  test.effect("defaults the close label", () =>
+    Effect.gen(function* () {
+      const fake = makeFakeSlackClient();
 
-    await Effect.runPromise(
-      openModal(fake.shape, {
+      yield* openModal(fake.shape, {
         triggerId: "t",
         view: {
           blocks: [],
           title: "T",
         },
-      })
-    );
+      });
 
-    const args = fake.calls[0]?.args as {
-      view?: { close?: { text?: string } };
-    };
-    expect(args.view?.close?.text).toBe("Close");
-  });
+      const args = fake.calls[0]?.args as {
+        view?: { close?: { text?: string } };
+      };
+      expect(args.view?.close?.text).toBe("Close");
+    })
+  );
 });
 
 describe("makeUserDirectory", () => {
   const build = (getUserName: () => Effect.Effect<string>) =>
-    Effect.runPromise(
-      makeUserDirectory.pipe(
-        Effect.provide(
-          makeFakeSlackClient({ getUserName: getUserName as never }).layer
-        )
+    makeUserDirectory.pipe(
+      Effect.provide(
+        makeFakeSlackClient({ getUserName: getUserName as never }).layer
       )
     );
 
-  test("resolves a display name", async () => {
-    const users = await build(() => Effect.succeed("ada"));
+  test.effect("resolves a display name", () =>
+    Effect.gen(function* () {
+      const users = yield* build(() => Effect.succeed("ada"));
 
-    await expect(Effect.runPromise(users.resolve("U1"))).resolves.toBe("ada");
-  });
+      expect(yield* users.resolve("U1")).toBe("ada");
+    })
+  );
 
-  test("caches so a repeated lookup does not re-hit Slack", async () => {
-    // users.info is a per-message call on the reply path.
-    let calls = 0;
-    const users = await build(() => {
-      calls += 1;
-      return Effect.succeed("ada");
-    });
+  test.effect("caches so a repeated lookup does not re-hit Slack", () =>
+    Effect.gen(function* () {
+      // users.info is a per-message call on the reply path.
+      let calls = 0;
+      const users = yield* build(() => {
+        calls += 1;
+        return Effect.succeed("ada");
+      });
 
-    await Effect.runPromise(users.resolve("U1"));
-    await Effect.runPromise(users.resolve("U1"));
+      yield* users.resolve("U1");
+      yield* users.resolve("U1");
 
-    expect(calls).toBe(1);
-  });
+      expect(calls).toBe(1);
+    })
+  );
 
-  test("falls back to the raw id when the lookup fails", async () => {
-    // A cosmetic label must never fail a turn.
-    const users = await build(
-      () => Effect.fail(new Error("missing_scope")) as never
-    );
+  test.effect("falls back to the raw id when the lookup fails", () =>
+    Effect.gen(function* () {
+      // A cosmetic label must never fail a turn.
+      const users = yield* build(
+        () => Effect.fail(new Error("missing_scope")) as never
+      );
 
-    await expect(Effect.runPromise(users.resolve("U_UNKNOWN"))).resolves.toBe(
-      "U_UNKNOWN"
-    );
-  });
+      expect(yield* users.resolve("U_UNKNOWN")).toBe("U_UNKNOWN");
+    })
+  );
 });

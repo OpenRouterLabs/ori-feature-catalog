@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion eslint/require-await -- fetch stubs stand in for the platform type, and a stub that answers from memory has nothing to await */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { QuestionsEnv } from "./post-questions.ts";
 

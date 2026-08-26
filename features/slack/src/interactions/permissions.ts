@@ -24,7 +24,10 @@ import type { PermissionOptionKind } from "ori";
 import { Effect } from "effect";
 
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
-import type { InteractionsShape } from "./interactions.ts";
+import type {
+  InteractionPayload,
+  InteractionsShape,
+} from "./interactions.ts";
 
 import { actions, button, section } from "../helpers/block-kit/blocks.ts";
 
@@ -185,8 +188,11 @@ export const registerPermissionHandlers = (
   interactions: InteractionsShape,
   bridge: RespondInteraction
 ): void => {
-  interactions.on(PERMISSION_ACTION_ID, (payload) =>
-    Effect.gen(function* () {
+  interactions.on(
+    PERMISSION_ACTION_ID,
+    Effect.fn("Slack.interactions.respondPermission")(function* (
+      payload: InteractionPayload
+    ) {
       const decoded = decode(payload.actions.at(0)?.value);
       if (
         decoded === undefined ||
@@ -210,8 +216,11 @@ export const registerPermissionHandlers = (
     })
   );
 
-  interactions.on(ELICITATION_ACTION_ID, (payload) =>
-    Effect.gen(function* () {
+  interactions.on(
+    ELICITATION_ACTION_ID,
+    Effect.fn("Slack.interactions.respondElicitation")(function* (
+      payload: InteractionPayload
+    ) {
       const decoded = decode(payload.actions.at(0)?.value);
       if (
         decoded === undefined ||
@@ -255,6 +264,6 @@ export const registerCancelHandler = (
         // outlived its run, which is not an error worth surfacing.
         cancel(turnId);
       }
-    })
+    }).pipe(Effect.withSpan("Slack.interactions.cancelTurn"))
   );
 };

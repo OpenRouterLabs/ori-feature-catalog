@@ -1,5 +1,5 @@
 /* oxlint-disable import/no-relative-parent-imports, typescript/explicit-function-return-type -- a test reaches across the feature for its fixtures, and typing every local helper buys nothing here */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -40,32 +40,33 @@ const FORM: PendingForm = {
 };
 
 /** A surface with the form already posted and waiting. */
-const withForm = async (posted: PendingForm = FORM) => {
-  const forms = await Effect.runPromise(QuestionnairesMemory);
-  await Effect.runPromise(forms.put(posted));
-  const interactions = makeInteractions();
-  const started: { prompt: string; ref: typeof REF }[] = [];
-  const fake = makeFakeSlackClient();
+const withForm = (posted: PendingForm = FORM) =>
+  Effect.gen(function* () {
+    const forms = yield* QuestionnairesMemory;
+    yield* forms.put(posted);
+    const interactions = makeInteractions();
+    const started: { prompt: string; ref: typeof REF }[] = [];
+    const fake = makeFakeSlackClient();
 
-  registerQuestionHandlers({
-    continueTurn: (form, prompt) => {
-      started.push({
-        prompt,
-        ref: form.ref,
-      });
-    },
-    forms,
-    interactions,
-    slack: fake.shape,
+    registerQuestionHandlers({
+      continueTurn: (form, prompt) => {
+        started.push({
+          prompt,
+          ref: form.ref,
+        });
+      },
+      forms,
+      interactions,
+      slack: fake.shape,
+    });
+
+    return {
+      fake,
+      forms,
+      interactions,
+      started,
+    };
   });
-
-  return {
-    fake,
-    forms,
-    interactions,
-    started,
-  };
-};
 
 const submit = (values: ReadonlyMap<string, string>) => ({
   callbackId: callbackFor("a1"),
@@ -74,67 +75,69 @@ const submit = (values: ReadonlyMap<string, string>) => ({
 });
 
 describe("answering a form starts the next turn", () => {
-  test("the answers arrive as a prompt, in the order they were asked", async () => {
-    const surface = await withForm();
+  test.effect("the answers arrive as a prompt, in the order they were asked", () =>
+    Effect.gen(function* () {
+      const surface = yield* withForm();
 
-    await Effect.runPromise(
-      surface.interactions.dispatchView(
+      yield* surface.interactions.dispatchView(
         submit(
           new Map([
             [blockIdFor("notes"), "ship it"],
             [blockIdFor("colour"), "volt"],
           ])
         )
-      )
-    );
+      );
 
-    expect(surface.started).toHaveLength(1);
-    // Slack returns state.values in no guaranteed order; a list whose order
-    // drifts from the questions leaves reader and model reading different
-    // documents.
-    const prompt = surface.started[0]?.prompt ?? "";
-    expect(prompt.indexOf("Which link colour?")).toBeLessThan(
-      prompt.indexOf("Anything else?")
-    );
-    expect(surface.started[0]?.ref).toEqual(REF);
-  });
+      expect(surface.started).toHaveLength(1);
+      // Slack returns state.values in no guaranteed order; a list whose order
+      // drifts from the questions leaves reader and model reading different
+      // documents.
+      const prompt = surface.started[0]?.prompt ?? "";
+      expect(prompt.indexOf("Which link colour?")).toBeLessThan(
+        prompt.indexOf("Anything else?")
+      );
+      expect(surface.started[0]?.ref).toEqual(REF);
+    })
+  );
 
-  test("the form is forgotten, so a second submit cannot start a second turn", async () => {
-    const surface = await withForm();
-    const payload = submit(new Map([[blockIdFor("colour"), "volt"]]));
+  test.effect("the form is forgotten, so a second submit cannot start a second turn", () =>
+    Effect.gen(function* () {
+      const surface = yield* withForm();
+      const payload = submit(new Map([[blockIdFor("colour"), "volt"]]));
 
-    await Effect.runPromise(surface.interactions.dispatchView(payload));
-    await Effect.runPromise(surface.interactions.dispatchView(payload));
+      yield* surface.interactions.dispatchView(payload);
+      yield* surface.interactions.dispatchView(payload);
 
-    expect(surface.started).toHaveLength(1);
-    expect(await Effect.runPromise(surface.forms.pending())).toBe(0);
-  });
+      expect(surface.started).toHaveLength(1);
+      expect(yield* surface.forms.pending()).toBe(0);
+    })
+  );
 
-  test("the message loses its button and shows what was answered", async () => {
-    const surface = await withForm();
+  test.effect("the message loses its button and shows what was answered", () =>
+    Effect.gen(function* () {
+      const surface = yield* withForm();
 
-    await Effect.runPromise(
-      surface.interactions.dispatchView(
+      yield* surface.interactions.dispatchView(
         submit(new Map([[blockIdFor("colour"), "volt"]]))
-      )
-    );
+      );
 
-    expect(JSON.stringify(surface.fake.calls)).toContain("volt");
-    expect(JSON.stringify(surface.fake.calls)).not.toContain(
-      "Answer 2 questions"
-    );
-  });
+      expect(JSON.stringify(surface.fake.calls)).toContain("volt");
+      expect(JSON.stringify(surface.fake.calls)).not.toContain(
+        "Answer 2 questions"
+      );
+    })
+  );
 
-  test("everything optional left blank starts nothing", async () => {
-    // A turn that says nothing is worse than a thread that sits.
-    const surface = await withForm();
+  test.effect("everything optional left blank starts nothing", () =>
+    Effect.gen(function* () {
+      // A turn that says nothing is worse than a thread that sits.
+      const surface = yield* withForm();
 
-    await Effect.runPromise(
-      surface.interactions.dispatchView(submit(new Map()))
-    );
+      yield* surface.interactions.dispatchView(submit(new Map()));
 
-    expect(surface.started).toHaveLength(0);
-  });
+      expect(surface.started).toHaveLength(0);
+    })
+  );
 });
 
 describe("the prompt the next turn reads", () => {
@@ -153,52 +156,52 @@ describe("the prompt the next turn reads", () => {
 });
 
 describe("an id Slack's round trip cannot carry", () => {
-  test("a separator in the id keeps the answer, because the id is the model's", async () => {
-    // `blockIdFor` joins with `|`, and splitting on every separator brought
-    // `scope|deep` back as `scope`, which matched no question: the person
-    // answered, the message retired with their answer gone, and the turn that
-    // would have read it never started.
-    const surface = await withForm({
-      ...FORM,
-      questions: [
-        {
-          id: "scope|deep",
-          prompt: "How deep should I go?",
-        },
-      ],
-    });
+  test.effect("a separator in the id keeps the answer, because the id is the model's", () =>
+    Effect.gen(function* () {
+      // `blockIdFor` joins with `|`, and splitting on every separator brought
+      // `scope|deep` back as `scope`, which matched no question: the person
+      // answered, the message retired with their answer gone, and the turn that
+      // would have read it never started.
+      const surface = yield* withForm({
+        ...FORM,
+        questions: [
+          {
+            id: "scope|deep",
+            prompt: "How deep should I go?",
+          },
+        ],
+      });
 
-    await Effect.runPromise(
-      surface.interactions.dispatchView(
+      yield* surface.interactions.dispatchView(
         submit(new Map([[blockIdFor("scope|deep"), "all the way"]]))
-      )
-    );
+      );
 
-    expect(surface.started).toHaveLength(1);
-    const echoed = JSON.stringify(surface.fake.calls);
+      expect(surface.started).toHaveLength(1);
+      const echoed = JSON.stringify(surface.fake.calls);
 
-    expect(echoed).toContain("all the way");
-    expect(echoed).toContain("How deep should I go?");
-  });
+      expect(echoed).toContain("all the way");
+      expect(echoed).toContain("How deep should I go?");
+    })
+  );
 
-  test("an empty id loses its answer the same way", async () => {
-    const surface = await withForm({
-      ...FORM,
-      questions: [
-        {
-          id: "",
-          prompt: "Which one?",
-        },
-      ],
-    });
+  test.effect("an empty id loses its answer the same way", () =>
+    Effect.gen(function* () {
+      const surface = yield* withForm({
+        ...FORM,
+        questions: [
+          {
+            id: "",
+            prompt: "Which one?",
+          },
+        ],
+      });
 
-    await Effect.runPromise(
-      surface.interactions.dispatchView(
+      yield* surface.interactions.dispatchView(
         submit(new Map([[blockIdFor(""), "the first"]]))
-      )
-    );
+      );
 
-    expect(surface.started).toHaveLength(0);
-    expect(JSON.stringify(surface.fake.calls)).not.toContain("the first");
-  });
+      expect(surface.started).toHaveLength(0);
+      expect(JSON.stringify(surface.fake.calls)).not.toContain("the first");
+    })
+  );
 });

@@ -23,7 +23,7 @@ export const makeUserDirectory = Effect.gen(function* () {
   const cache = yield* Ref.make(new Map<string, string>());
   const slack = yield* SlackClient;
 
-  const resolve = Effect.fn("users.resolve")(function* (userId: string) {
+  const resolve = Effect.fn("Slack.users.resolve")(function* (userId: string) {
     const cached = (yield* Ref.get(cache)).get(userId);
     if (cached !== undefined) {
       return cached;
@@ -47,4 +47,4 @@ export const makeUserDirectory = Effect.gen(function* () {
   });
 
   return { resolve } as const;
-});
+}).pipe(Effect.withSpan("Slack.users.openDirectory"));

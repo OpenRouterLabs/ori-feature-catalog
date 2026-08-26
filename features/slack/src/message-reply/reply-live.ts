@@ -33,67 +33,79 @@ import { capBlocks, withinSlackLimit } from "../helpers/block-kit/blocks.ts";
 import { uploadFile } from "../helpers/images-files/upload.ts";
 
 /** Liveness without a message, bound to the thread like the rest. */
-export const makeMessageReply = (
+export const makeMessageReply = Effect.fn("Slack.reply.make")(function* (
   ref: ThreadRef
-): Effect.Effect<MessageReplyShape, never, SlackClient> =>
-  Effect.gen(function* () {
-    const slack = yield* SlackClient;
+): Effect.fn.Return<MessageReplyShape, never, SlackClient> {
+  const slack = yield* SlackClient;
 
-    return {
-      attach: (
-        file: FileUpload,
-        comment?: string
-      ): Effect.Effect<UploadedFile, SlackApiError> =>
-        uploadFile({
-          channel: ref.channelId,
-          file,
-          initialComment: comment,
-          threadTs: ref.threadTs,
-        }).pipe(Effect.provideService(SlackClient, slack)),
+  return {
+    attach: (
+      file: FileUpload,
+      comment?: string
+    ): Effect.Effect<UploadedFile, SlackApiError> =>
+      uploadFile({
+        channel: ref.channelId,
+        file,
+        initialComment: comment,
+        threadTs: ref.threadTs,
+      }).pipe(
+        Effect.provideService(SlackClient, slack),
+        Effect.withSpan("Slack.reply.attach")
+      ),
 
-      ref,
+    ref,
 
-      reply: (text: string): Effect.Effect<PostedMessage, SlackApiError> =>
-        slack.postMessage({
+    reply: (text: string): Effect.Effect<PostedMessage, SlackApiError> =>
+      slack
+        .postMessage({
           channel: ref.channelId,
           markdown_text: withinSlackLimit(text),
           thread_ts: ref.threadTs,
-        }),
+        })
+        .pipe(Effect.withSpan("Slack.reply.reply")),
 
-      replyBlocks: (
-        blocks: readonly SlackBlock[],
-        fallback: string
-      ): Effect.Effect<PostedMessage, SlackApiError> =>
-        slack.postMessage({
+    replyBlocks: (
+      blocks: readonly SlackBlock[],
+      fallback: string
+    ): Effect.Effect<PostedMessage, SlackApiError> =>
+      slack
+        .postMessage({
           blocks: [...capBlocks(blocks)],
           channel: ref.channelId,
           text: withinSlackLimit(fallback),
           thread_ts: ref.threadTs,
-        }),
+        })
+        .pipe(Effect.withSpan("Slack.reply.replyBlocks")),
 
-      update: (ts: string, text: string): Effect.Effect<void, SlackApiError> =>
-        slack.updateMessage({
+    update: (ts: string, text: string): Effect.Effect<void, SlackApiError> =>
+      slack
+        .updateMessage({
           channel: ref.channelId,
           markdown_text: withinSlackLimit(text),
           ts,
-        }),
+        })
+        .pipe(Effect.withSpan("Slack.reply.update")),
 
-      remove: (ts: string): Effect.Effect<void, SlackApiError> =>
-        slack.deleteMessage({
+    remove: (ts: string): Effect.Effect<void, SlackApiError> =>
+      slack
+        .deleteMessage({
           channel: ref.channelId,
           ts,
-        }),
+        })
+        .pipe(Effect.withSpan("Slack.reply.remove")),
 
-      updateBlocks: (
-        ts: string,
-        blocks: readonly SlackBlock[],
-        fallback: string
-      ): Effect.Effect<void, SlackApiError> =>
-        slack.updateMessage({
+    updateBlocks: (
+      ts: string,
+      blocks: readonly SlackBlock[],
+      fallback: string
+    ): Effect.Effect<void, SlackApiError> =>
+      slack
+        .updateMessage({
           blocks: [...capBlocks(blocks)],
           channel: ref.channelId,
           text: withinSlackLimit(fallback),
           ts,
-        }),
-    };
-  });
+        })
+        .pipe(Effect.withSpan("Slack.reply.updateBlocks")),
+  };
+});

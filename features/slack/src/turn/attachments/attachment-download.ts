@@ -19,9 +19,15 @@
  *     must not escape the download directory.
  *   - Download without a ceiling. Slack allows very large uploads and the
  *     daemon is long-lived.
+ *
+ * Every step is an Effect, and each one is a named span: the download is the
+ * one part of a turn that reaches the network before the turn exists, so when
+ * a message is slow to answer this is where the trace has to show it.
  */
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
+
+import { bestEffort } from "../../helpers/best-effort.ts";
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -52,6 +58,26 @@ const DOWNLOAD_TIMEOUT_MS = SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 /** Long enough to stay recognisable, short of any filesystem's name limit. */
 const MAX_NAME_CHARS = 128;
+
+/**
+ * Why one attachment did not make it.
+ *
+ * Nothing recovers from this — the loop below is best effort per file — but a
+ * tagged failure names which file and which step in the trace, where a bare
+ * `Error` would only say that something went wrong somewhere in the turn.
+ */
+class AttachmentError extends Schema.TaggedErrorClass<AttachmentError>()(
+  "AttachmentError",
+  {
+    cause: Schema.Defect(),
+    fileId: Schema.String,
+    step: Schema.Literals(["fetch", "makeDir", "write"]),
+  }
+) {
+  override get message(): string {
+    return `The attachment "${this.fileId}" could not be ${this.step === "fetch" ? "fetched from Slack" : "written to disk"}`;
+  }
+}
 
 /** The subset of an {@link AttachedFile} this needs — kept structural so the
  * caller passes its own list straight through. */
@@ -87,14 +113,15 @@ export const safeFileName = (name: string, fileId: string): string => {
   return base.length > MAX_NAME_CHARS ? base.slice(-MAX_NAME_CHARS) : base;
 };
 
-export const isAllowedFileUrl = (raw: string): boolean =>
-  Effect.runSync(
+export const isAllowedFileUrl = Effect.fn("Slack.attachments.isAllowedUrl")(
+  function* (raw: string): Effect.fn.Return<boolean> {
     // `new URL` throws on anything that is not a URL, which is the same
     // answer as a URL pointing somewhere we do not allow.
-    Effect.try(() => ALLOWED_FILE_HOSTS.has(new URL(raw).hostname)).pipe(
-      Effect.orElseSucceed(() => false)
-    )
-  );
+    return yield* Effect.try(() =>
+      ALLOWED_FILE_HOSTS.has(new URL(raw).hostname)
+    ).pipe(Effect.orElseSucceed(() => false));
+  }
+);
 
 let downloadSequence = 0;
 
@@ -128,29 +155,43 @@ interface DownloadDeps {
 }
 
 /** Fetch one file's bytes, or undefined if it is not worth keeping. */
-const fetchWithinLimits = async (
+const fetchWithinLimits = Effect.fn("Slack.attachments.fetchFile")(function* (
   file: DownloadableFile,
   deps: DownloadDeps,
   budget: number
-): Promise<Uint8Array | undefined> => {
-  const response = await deps.fetch(file.urlPrivate, {
-    // url_private is authenticated: without the bot token Slack serves an
-    // HTML sign-in page, which would otherwise be written out as the file.
-    headers: { authorization: `Bearer ${deps.token}` },
-    // Downloads run BEFORE the turn is enqueued, so nothing else bounds them
-    // — not the turn deadline, not the client's retry policy. A stalled
-    // connection here means the message never becomes a turn at all and the
-    // user is left with no reply and no reason.
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    return undefined;
-  }
+): Effect.fn.Return<Uint8Array | undefined, AttachmentError> {
+  // Everything the old try/catch covered stays inside the thunk: a throw in a
+  // `map` further down the pipe would be a defect, which no `catch` here
+  // recovers, and this file's failure must stay this file's failure.
+  return yield* Effect.tryPromise({
+    catch: (cause) =>
+      new AttachmentError({
+        cause,
+        fileId: file.id,
+        step: "fetch",
+      }),
+    try: async () => {
+      const response = await deps.fetch(file.urlPrivate, {
+        // url_private is authenticated: without the bot token Slack serves an
+        // HTML sign-in page, which would otherwise be written out as the file.
+        headers: { authorization: `Bearer ${deps.token}` },
+        // Downloads run BEFORE the turn is enqueued, so nothing else bounds
+        // them — not the turn deadline, not the client's retry policy. A
+        // stalled connection here means the message never becomes a turn at
+        // all and the user is left with no reply and no reason.
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        return undefined;
+      }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  const tooBig = bytes.byteLength > MAX_FILE_BYTES || bytes.byteLength > budget;
-  return bytes.byteLength === 0 || tooBig ? undefined : bytes;
-};
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const tooBig =
+        bytes.byteLength > MAX_FILE_BYTES || bytes.byteLength > budget;
+      return bytes.byteLength === 0 || tooBig ? undefined : bytes;
+    },
+  });
+});
 
 /** Where one file's bytes land, extension restored when the name lacks one. */
 const destinationFor = (
@@ -168,63 +209,126 @@ const destinationFor = (
   };
 };
 
+/** Made once per turn, and only once a file is worth writing. */
+const ensureWriteDir = Effect.fn("Slack.attachments.ensureDir")(function* (
+  file: DownloadableFile,
+  writeDir: string
+): Effect.fn.Return<void, AttachmentError> {
+  yield* Effect.tryPromise({
+    catch: (cause) =>
+      new AttachmentError({
+        cause,
+        fileId: file.id,
+        step: "makeDir",
+      }),
+    // 0o700: tmpdir is shared, and these are someone else's Slack files.
+    try: () =>
+      mkdir(writeDir, {
+        mode: 0o700,
+        recursive: true,
+      }),
+  });
+});
+
+const writeDownload = Effect.fn("Slack.attachments.writeFile")(function* (
+  file: DownloadableFile,
+  writeDir: string,
+  bytes: Uint8Array
+): Effect.fn.Return<DownloadedFile, AttachmentError> {
+  return yield* Effect.tryPromise({
+    catch: (cause) =>
+      new AttachmentError({
+        cause,
+        fileId: file.id,
+        step: "write",
+      }),
+    // `destinationFor` belongs inside the thunk with the write it names: a
+    // path this cannot build is this file's failure, not a defect.
+    try: async () => {
+      const { label, path } = destinationFor(file, writeDir);
+      await writeFile(path, bytes);
+      return {
+        bytes: bytes.byteLength,
+        id: file.id,
+        label,
+        path,
+      };
+    },
+  });
+});
+
+/** What one file spends and whether the directory is already there. */
+interface TurnBudget {
+  budget: number;
+  dirReady: boolean;
+}
+
 /**
- * Download what is safe to download. Never throws: an attachment that cannot
- * be fetched is simply absent from the result, because a broken file must not
- * cost the user their turn.
+ * One file, start to finish. Charges the turn's budget only for bytes that
+ * reached the disk, and marks the directory made only once mkdir has said so —
+ * a failed mkdir leaves the next file to try again.
  */
-export const downloadAttachments = async (
-  files: readonly DownloadableFile[],
-  deps: DownloadDeps
-): Promise<readonly DownloadedFile[]> => {
-  if (files.length === 0) {
-    return [];
+const downloadOne = Effect.fn("Slack.attachments.downloadOne")(function* (
+  file: DownloadableFile,
+  deps: DownloadDeps,
+  turn: TurnBudget
+): Effect.fn.Return<DownloadedFile | undefined, AttachmentError> {
+  const bytes = yield* fetchWithinLimits(file, deps, turn.budget);
+  if (bytes === undefined) {
+    return undefined;
   }
 
-  const downloaded: DownloadedFile[] = [];
-  let budget = MAX_TURN_BYTES;
-  let dirReady = false;
+  if (!turn.dirReady) {
+    yield* ensureWriteDir(file, deps.writeDir);
+    turn.dirReady = true;
+  }
 
-  for (const file of files) {
-    if (!isAllowedFileUrl(file.urlPrivate) || budget <= 0) {
-      continue;
+  const written = yield* writeDownload(file, deps.writeDir, bytes);
+  turn.budget -= bytes.byteLength;
+  return written;
+});
+
+/**
+ * Download what is safe to download. Never fails: an attachment that cannot be
+ * fetched is simply absent from the result, because a broken file must not
+ * cost the user their turn.
+ *
+ * Sequential on purpose. The per-turn byte budget is spent as each file lands,
+ * so whether the fortieth attachment is admitted depends on what the thirty-
+ * nine before it cost. Running these concurrently would decide that against a
+ * budget nobody had spent yet, and the ceiling that keeps a Slack thread from
+ * filling the disk would only hold by luck.
+ */
+export const downloadAttachments = Effect.fn("Slack.attachments.download")(
+  function* (
+    files: readonly DownloadableFile[],
+    deps: DownloadDeps
+  ): Effect.fn.Return<readonly DownloadedFile[]> {
+    const downloaded: DownloadedFile[] = [];
+    const turn: TurnBudget = {
+      budget: MAX_TURN_BYTES,
+      dirReady: false,
+    };
+
+    for (const file of files) {
+      if (!(yield* isAllowedFileUrl(file.urlPrivate)) || turn.budget <= 0) {
+        continue;
+      }
+
+      // Best effort by design — see the module comment. One file that cannot
+      // be fetched or written must not cost the turn the files beside it, so
+      // the whole cause is swallowed here and nowhere else.
+      const written = yield* downloadOne(file, deps, turn).pipe(
+        Effect.catchCause(() => Effect.succeed(undefined))
+      );
+      if (written !== undefined) {
+        downloaded.push(written);
+      }
     }
 
-    // Best effort by design — see the module comment. `Effect.ignore` is what
-    // the `catch { continue }` was: one file that cannot be fetched or written
-    // must not cost the turn the files beside it.
-    await Effect.runPromise(
-      Effect.tryPromise(async () => {
-        const bytes = await fetchWithinLimits(file, deps, budget);
-        if (bytes === undefined) {
-          return;
-        }
-
-        if (!dirReady) {
-          // 0o700: tmpdir is shared, and these are someone else's Slack files.
-          await mkdir(deps.writeDir, {
-            mode: 0o700,
-            recursive: true,
-          });
-          dirReady = true;
-        }
-
-        const { label, path } = destinationFor(file, deps.writeDir);
-        await writeFile(path, bytes);
-
-        budget -= bytes.byteLength;
-        downloaded.push({
-          bytes: bytes.byteLength,
-          id: file.id,
-          label,
-          path,
-        });
-      }).pipe(Effect.ignore)
-    );
+    return downloaded;
   }
-
-  return downloaded;
-};
+);
 
 /**
  * Remove a turn's downloads.
@@ -233,15 +337,16 @@ export const downloadAttachments = async (
  * daemon's lifetime — a slow disk leak, and a pile of other people's files
  * sitting around long after the turn that needed them.
  */
-export const discardAttachments = (dir: string): Promise<void> =>
-  Effect.runPromise(
-    Effect.tryPromise(() =>
+export const discardAttachments = Effect.fn("Slack.attachments.discard")(
+  function* (dir: string): Effect.fn.Return<void> {
+    yield* Effect.tryPromise(() =>
       rm(dir, {
         force: true,
         recursive: true,
       })
     ).pipe(
       // Cleanup is best effort; a failure here must not fail the turn.
-      Effect.ignore
-    )
-  );
+      bestEffort
+    );
+  }
+);

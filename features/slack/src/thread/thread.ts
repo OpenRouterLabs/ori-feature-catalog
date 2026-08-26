@@ -217,7 +217,7 @@ const renderHistory = (messages: readonly unknown[]): string => {
 export const ThreadContextLive = Effect.gen(function* () {
   const slack = yield* SlackClient;
 
-  const build: ThreadContextShape["build"] = Effect.fn("ThreadContext.build")(
+  const build: ThreadContextShape["build"] = Effect.fn("Slack.thread.build")(
     function* (input) {
       // A live session already holds the conversation. Re-sending it every
       // turn is the context bloat this design exists to avoid.
@@ -270,4 +270,4 @@ export const ThreadContextLive = Effect.gen(function* () {
     build,
     instanceId: threadInstanceId,
   });
-});
+}).pipe(Effect.withSpan("Slack.thread.threadContextLive"));

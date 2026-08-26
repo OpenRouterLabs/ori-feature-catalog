@@ -131,7 +131,7 @@ export const BlockersMemory = Effect.sync(() => {
     abandon: (askId, reason) =>
       Effect.sync(() => {
         settle(pending, askId, reason);
-      }),
+      }).pipe(Effect.withSpan("Slack.interactions.abandon")),
 
     abandonThread: (threadKey, reason) =>
       Effect.sync(() => {
@@ -147,11 +147,17 @@ export const BlockersMemory = Effect.sync(() => {
         for (const entry of mine) {
           settle(pending, entry.askId, reason);
         }
-      }),
+      }).pipe(Effect.withSpan("Slack.interactions.abandonThread")),
 
-    answer: (askId, value) => Effect.sync(() => settle(pending, askId, value)),
+    answer: (askId, value) =>
+      Effect.sync(() => settle(pending, askId, value)).pipe(
+        Effect.withSpan("Slack.interactions.answer")
+      ),
 
-    count: () => Effect.sync(() => pending.size),
+    count: () =>
+      Effect.sync(() => pending.size).pipe(
+        Effect.withSpan("Slack.interactions.count")
+      ),
 
     open: (threadKey) =>
       Effect.sync(() => {
@@ -171,6 +177,6 @@ export const BlockersMemory = Effect.sync(() => {
           answered,
           askId,
         };
-      }),
+      }).pipe(Effect.withSpan("Slack.interactions.open")),
   });
 });

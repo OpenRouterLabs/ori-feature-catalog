@@ -8,7 +8,13 @@ import type { StateStore as OriStateStore } from "ori";
  * survives a restart and an in-memory double would prove nothing.
  */
 import { Database } from "bun:sqlite";
-import { afterEach, describe, expect, test } from "bun:test";
+
+import {
+  afterEach,
+  describe,
+  expect,
+  test,
+} from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -64,10 +70,11 @@ const sameDatabase = (): OriStateStore => {
   return current.store;
 };
 
-const store = async (): Promise<StateStoreShape> => {
-  opened = open();
-  return await Effect.runPromise(StateStoreDurable(opened.store));
-};
+const store = (): Effect.Effect<StateStoreShape> =>
+  Effect.suspend(() => {
+    opened = open();
+    return StateStoreDurable(opened.store);
+  });
 
 afterEach(() => {
   opened?.close();
@@ -75,124 +82,126 @@ afterEach(() => {
 });
 
 describe("state that survives a restart", () => {
-  test("a session is still there for the next process", async () => {
-    // The memory store lost every session on `ori start`, so a restart
-    // cold-started every conversation in the workspace.
-    const first = await store();
-    await Effect.runPromise(
-      first.putSession("C1:1700.1", {
+  test.effect("a session is still there for the next process", () =>
+    Effect.gen(function* () {
+      // The memory store lost every session on `ori start`, so a restart
+      // cold-started every conversation in the workspace.
+      const first = yield* store();
+      yield* first.putSession("C1:1700.1", {
         sessionId: "s-42",
         startedAt: 99,
-      })
-    );
+      });
 
-    // A second store over the same database is what the next process sees.
-    const reopened = await Effect.runPromise(StateStoreDurable(sameDatabase()));
-    const next = await Effect.runPromise(reopened.getSession("C1:1700.1"));
+      // A second store over the same database is what the next process sees.
+      const reopened = yield* StateStoreDurable(sameDatabase());
+      const next = yield* reopened.getSession("C1:1700.1");
 
-    expect(next?.sessionId).toBe("s-42");
-    expect(next?.startedAt).toBe(99);
-  });
+      expect(next?.sessionId).toBe("s-42");
+      expect(next?.startedAt).toBe(99);
+    })
+  );
 
-  test("a thread it stood down from stays muted", async () => {
-    const state = await store();
-    await Effect.runPromise(state.updateListen("C1:1700.2", mute));
+  test.effect("a thread it stood down from stays muted", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.updateListen("C1:1700.2", mute);
 
-    const after = await Effect.runPromise(state.getListen("C1:1700.2"));
+      const after = yield* state.getListen("C1:1700.2");
 
-    expect(after.muted).toBe(true);
-  });
+      expect(after.muted).toBe(true);
+    })
+  );
 
-  test("participants survive the round trip, Set and all", async () => {
-    // They are a Set, which does not survive JSON — so this is exactly the
-    // shape a naive serialisation loses.
-    const state = await store();
-    await Effect.runPromise(
-      state.updateListen("C1:1700.3", (s) =>
+  test.effect("participants survive the round trip, Set and all", () =>
+    Effect.gen(function* () {
+      // They are a Set, which does not survive JSON — so this is exactly the
+      // shape a naive serialisation loses.
+      const state = yield* store();
+      yield* state.updateListen("C1:1700.3", (s) =>
         withParticipant(withParticipant(s, "U1"), "U2")
-      )
-    );
+      );
 
-    const after = await Effect.runPromise(state.getListen("C1:1700.3"));
+      const after = yield* state.getListen("C1:1700.3");
 
-    expect([...after.participants].toSorted()).toEqual(["U1", "U2"]);
-  });
+      expect([...after.participants].toSorted()).toEqual(["U1", "U2"]);
+    })
+  );
 
-  test("a thread never seen reads as unseen, not as an error", async () => {
-    const state = await store();
+  test.effect("a thread never seen reads as unseen, not as an error", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
 
-    expect(await Effect.runPromise(state.getListen("C1:never"))).toEqual(
-      UNSEEN_THREAD
-    );
-  });
+      expect(yield* state.getListen("C1:never")).toEqual(UNSEEN_THREAD);
+    })
+  );
 
-  test("clearing a session removes it", async () => {
-    const state = await store();
-    await Effect.runPromise(
-      state.putSession("C1:1700.4", {
+  test.effect("clearing a session removes it", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.putSession("C1:1700.4", {
         sessionId: "s",
         startedAt: 1,
-      })
-    );
-    await Effect.runPromise(state.clearSession("C1:1700.4"));
+      });
+      yield* state.clearSession("C1:1700.4");
 
-    expect(
-      await Effect.runPromise(state.getSession("C1:1700.4"))
-    ).toBeUndefined();
-  });
+      expect(yield* state.getSession("C1:1700.4")).toBeUndefined();
+    })
+  );
 
-  test("a store that throws costs a cold start, never the turn", async () => {
-    // Every call is best-effort: an unreachable store degrades to what the
-    // memory store did on every restart anyway.
-    const broken: OriStateStore = {
-      exec: () => Promise.reject(new Error("disk gone")),
-      get: () => Promise.resolve(NO_VALUE),
-      name: "broken",
-      query: () => Promise.reject(new Error("disk gone")),
-      set: () => Promise.resolve(),
-    };
-    const state = await Effect.runPromise(StateStoreDurable(broken));
+  test.effect("a store that throws costs a cold start, never the turn", () =>
+    Effect.gen(function* () {
+      // Every call is best-effort: an unreachable store degrades to what the
+      // memory store did on every restart anyway.
+      const broken: OriStateStore = {
+        exec: () => Promise.reject(new Error("disk gone")),
+        get: () => Promise.resolve(NO_VALUE),
+        name: "broken",
+        query: () => Promise.reject(new Error("disk gone")),
+        set: () => Promise.resolve(),
+      };
+      const state = yield* StateStoreDurable(broken);
 
-    expect(await Effect.runPromise(state.getSession("C1:x"))).toBeUndefined();
-    expect(await Effect.runPromise(state.getListen("C1:x"))).toEqual(
-      UNSEEN_THREAD
-    );
-    await Effect.runPromise(state.updateListen("C1:x", engage));
-  });
+      expect(yield* state.getSession("C1:x")).toBeUndefined();
+      expect(yield* state.getListen("C1:x")).toEqual(UNSEEN_THREAD);
+      yield* state.updateListen("C1:x", engage);
+    })
+  );
 });
 
 describe("a crowded thread stays crowded", () => {
-  test("the people in it are still there after a restart", async () => {
-    // This is the whole reason participants are persisted. A busy thread had
-    // correctly stood the bot down; `ori start` forgot who was in it, so the
-    // count restarted at one and it answered plain replies in a room of five.
-    const before = await store();
-    await Effect.runPromise(
-      before.updateListen("C1:crowd", (s) =>
+  test.effect("the people in it are still there after a restart", () =>
+    Effect.gen(function* () {
+      // This is the whole reason participants are persisted. A busy thread had
+      // correctly stood the bot down; `ori start` forgot who was in it, so the
+      // count restarted at one and it answered plain replies in a room of five.
+      const before = yield* store();
+      yield* before.updateListen("C1:crowd", (s) =>
         mute(withParticipant(withParticipant(engage(s), "U_rob"), "U_jp"))
-      )
-    );
+      );
 
-    const after = await Effect.runPromise(StateStoreDurable(sameDatabase()));
-    const seen = await Effect.runPromise(after.getListen("C1:crowd"));
+      const after = yield* StateStoreDurable(sameDatabase());
+      const seen = yield* after.getListen("C1:crowd");
 
-    expect(isCrowded(seen)).toBe(true);
-    expect(answersUnaddressed(seen)).toBe(false);
-    expect(seen.engaged).toBe(true);
-  });
+      expect(isCrowded(seen)).toBe(true);
+      expect(answersUnaddressed(seen)).toBe(false);
+      expect(seen.engaged).toBe(true);
+    })
+  );
 
-  test("an explicit unmute survives too, so it is not re-muted on boot", async () => {
-    const before = await store();
-    await Effect.runPromise(
-      before.updateListen("C1:opted-in", (s) =>
-        unmute(withParticipant(withParticipant(s, "U_rob"), "U_jp"))
-      )
-    );
+  test.effect(
+    "an explicit unmute survives too, so it is not re-muted on boot",
+    () =>
+      Effect.gen(function* () {
+        const before = yield* store();
+        yield* before.updateListen("C1:opted-in", (s) =>
+          unmute(withParticipant(withParticipant(s, "U_rob"), "U_jp"))
+        );
 
-    const after = await Effect.runPromise(StateStoreDurable(sameDatabase()));
-    const seen = await Effect.runPromise(after.getListen("C1:opted-in"));
+        const after = yield* StateStoreDurable(sameDatabase());
+        const seen = yield* after.getListen("C1:opted-in");
 
-    expect(seen.suppressed).toBe(true);
-    expect(answersUnaddressed(seen)).toBe(true);
-  });
+        expect(seen.suppressed).toBe(true);
+        expect(answersUnaddressed(seen)).toBe(true);
+      })
+  );
 });

@@ -15,7 +15,7 @@ import type { MessageReplyShape } from "../message-reply/reply.ts";
 import type { RunState } from "./run-state.ts";
 
 import { context, markdown } from "../helpers/block-kit/blocks.ts";
-import { RunPhase, renderRunState } from "./run-state.ts";
+import { RunPhase, minutesSince, renderRunState } from "./run-state.ts";
 
 /**
  * A steered turn is superseded, not finished: its replacement carries the
@@ -40,8 +40,18 @@ const answerOf = (state: RunState): string =>
  * answer — nobody reading a reply wants to know how many times a shell ran,
  * and it sat under every message like a receipt nobody asked for.
  */
-const smallPrint = (state: RunState): string =>
-  [state.harness ?? "", state.model ?? ""]
+/**
+ * Whole minutes, never a decimal: this is a reply-time receipt, and "2.4m"
+ * invites a precision the number does not have. Under a minute reads as
+ * `<1m` rather than `0m`, which looks like the timer failed to start.
+ */
+const respondedIn = (state: RunState, now: number): string => {
+  const minutes = minutesSince(state.startedAt, now);
+  return minutes === 0 ? "<1m" : `${minutes}m`;
+};
+
+const smallPrint = (state: RunState, now: number): string =>
+  [state.harness ?? "", state.model ?? "", respondedIn(state, now)]
     .filter((part) => part !== "")
     .join(" · ");
 
@@ -59,20 +69,23 @@ const smallPrint = (state: RunState): string =>
  * finished answer they read as a reply that stopped half way. They had their
  * moment in the status line while the work was happening.
  */
-const answerBlocks = (state: RunState): readonly SlackBlock[] => {
-  const small = smallPrint(state);
+const answerBlocks = (state: RunState, now: number): readonly SlackBlock[] => {
+  const small = smallPrint(state, now);
   return [markdown(answerOf(state)), ...(small === "" ? [] : [context(small)])];
 };
 
-export const settle = (input: {
+export const settle = Effect.fn("Slack.stream.settle")(function* (input: {
   readonly reply: MessageReplyShape;
   readonly state: RunState;
   /** True when another turn is queued to answer in this one's place. */
   readonly superseded: boolean;
-}): Effect.Effect<void> => {
+  /** Injectable for tests; the wall clock otherwise. */
+  readonly now?: number | undefined;
+}): Effect.fn.Return<void> {
   const { reply, state } = input;
+  const now = input.now ?? Date.now();
   if (SUPERSEDED.has(state.phase) && input.superseded) {
-    return Effect.void;
+    return;
   }
   // Posted, never edited into an earlier message. Every shape that reused one
   // message needed a timestamp to survive the whole run, a fallback for when
@@ -82,10 +95,10 @@ export const settle = (input: {
   // Blocks, so the answer can be a `markdown` block — the only place Slack
   // renders tables and lists — while `replyBlocks` still carries plain
   // fallback text for the notification.
-  return reply.replyBlocks(answerBlocks(state), answerOf(state)).pipe(
+  yield* reply.replyBlocks(answerBlocks(state, now), answerOf(state)).pipe(
     Effect.catchCause((cause) =>
       Effect.logError("[slack] could not post the answer", cause)
     ),
     Effect.asVoid
   );
-};
+});

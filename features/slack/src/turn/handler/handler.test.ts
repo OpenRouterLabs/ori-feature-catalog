@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining import/no-relative-parent-imports -- modules inside this feature import siblings relatively; test doubles assert on recorded `unknown` args; cases read better whole than split */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -190,21 +190,23 @@ describe("handleTurn", () => {
     expect(sent[0]?.prompt).toContain("<slack_thread>");
   });
 
-  test("remembers the session so the next turn resumes it", async () => {
-    const fake = makeFakeSlackClient(
-      {},
-      { "conversations.replies": () => ({ messages: [] }) }
-    );
-    const services = servicesFor(fake);
+  test.effect("remembers the session so the next turn resumes it", () =>
+    Effect.gen(function* () {
+      const fake = makeFakeSlackClient(
+        {},
+        { "conversations.replies": () => ({ messages: [] }) }
+      );
+      const services = servicesFor(fake);
 
-    const first = bridgeOf([
-      event("session.started", { sessionId: "sess-42" }),
-      event("turn.succeeded", {}),
-    ]);
-    const second = bridgeOf([event("turn.succeeded", {})]);
+      const first = bridgeOf([
+        event("session.started", { sessionId: "sess-42" }),
+        event("turn.succeeded", {}),
+      ]);
+      const second = bridgeOf([event("turn.succeeded", {})]);
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
+      // One `provide` around both turns, not one each: the store they share is
+      // the thing under test, and a layer per turn would hand each its own.
+      yield* Effect.gen(function* () {
         yield* handleTurn({
           bridge: first.bridge,
           live: liveTurn(),
@@ -223,12 +225,11 @@ describe("handleTurn", () => {
             userId: "U1",
           },
         });
-      }).pipe(Effect.provide(services))
-    );
+      }).pipe(Effect.provide(services));
 
-    expect(first.sent[0]?.sessionId).toBeUndefined();
-    expect(second.sent[0]?.sessionId).toBe("sess-42");
-    // Second turn has a session, so no context block is replayed.
-    expect(second.sent[0]?.prompt).not.toContain("<slack_thread>");
-  });
+      expect(first.sent[0]?.sessionId).toBeUndefined();
+      expect(second.sent[0]?.sessionId).toBe("sess-42");
+      // Second turn has a session, so no context block is replayed.
+      expect(second.sent[0]?.prompt).not.toContain("<slack_thread>");
+    }));
 });

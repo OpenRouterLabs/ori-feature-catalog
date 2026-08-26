@@ -1,5 +1,13 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { afterEach, describe, expect, test } from "bun:test";
+import {
+  afterEach,
+  describe,
+  expect,
+  test,
+} from "#src/test-support/effect-test.ts";
+
+import { Effect } from "effect";
+
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -47,14 +55,16 @@ const okFetch = (body: BlobPart = "content") =>
     )) as unknown as typeof fetch;
 
 describe("isAllowedFileUrl", () => {
-  test.each([
+  test.effect.each([
     "https://files.slack.com/files-pri/T1-F1/a.png",
     "https://files-origin.slack.com/x",
-  ])("admits %s", (url) => {
-    expect(isAllowedFileUrl(url)).toBe(true);
-  });
+  ])("admits %s", (url) =>
+    Effect.gen(function* () {
+      expect(yield* isAllowedFileUrl(url)).toBe(true);
+    })
+  );
 
-  test.each([
+  test.effect.each([
     "http://169.254.169.254/latest/meta-data/",
     "https://internal.corp/secrets",
     "https://evil.test/files.slack.com",
@@ -62,11 +72,13 @@ describe("isAllowedFileUrl", () => {
     "file:///etc/passwd",
     "not a url",
     "",
-  ])("refuses %s", (url) => {
+  ])("refuses %s", (url) =>
     // url_private is attacker-influenced data on an inbound event. Following
     // it blindly would turn the bot into an SSRF proxy with a bot token.
-    expect(isAllowedFileUrl(url)).toBe(false);
-  });
+    Effect.gen(function* () {
+      expect(yield* isAllowedFileUrl(url)).toBe(false);
+    })
+  );
 });
 
 describe("safeFileName", () => {
@@ -122,225 +134,269 @@ describe("attachmentDirFor", () => {
 });
 
 describe("discardAttachments", () => {
-  test("removes the directory and everything in it", async () => {
+  test.effect("removes the directory and everything in it", () =>
     // This existed once and was silently dropped in a refactor, so other
     // people's Slack files piled up in a shared tmpdir again. Pinned now.
-    const writeDir = await scratch();
-    const [downloaded] = await downloadAttachments([file()], {
-      fetch: okFetch("secret"),
-      token: "t",
-      writeDir,
-    });
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+      const [downloaded] = yield* downloadAttachments([file()], {
+        fetch: okFetch("secret"),
+        token: "t",
+        writeDir,
+      });
 
-    expect(await readFile(downloaded?.path ?? "", "utf-8")).toBe("secret");
+      const written = yield* Effect.promise(() =>
+        readFile(downloaded?.path ?? "", "utf-8")
+      );
 
-    await discardAttachments(writeDir);
+      expect(written).toBe("secret");
 
-    await expect(readFile(downloaded?.path ?? "", "utf-8")).rejects.toThrow();
-  });
+      yield* discardAttachments(writeDir);
 
-  test("a missing directory is not an error", async () => {
-    await expect(
-      discardAttachments(join(tmpdir(), "ori-never-existed-xyz"))
-    ).resolves.toBeUndefined();
-  });
+      // `.rejects` is bun's own matcher, not a promise this can `yield*`: it
+      // hands back undefined and throws on its own. It stays inside the thunk.
+      yield* Effect.promise(async () => {
+        await expect(
+          readFile(downloaded?.path ?? "", "utf-8")
+        ).rejects.toThrow();
+      });
+    })
+  );
+
+  test.effect("a missing directory is not an error", () =>
+    Effect.gen(function* () {
+      expect(
+        yield* discardAttachments(join(tmpdir(), "ori-never-existed-xyz"))
+      ).toBeUndefined();
+    })
+  );
 });
 
 describe("downloadAttachments", () => {
-  test("writes an allowed file and reports its path", async () => {
-    const writeDir = await scratch();
+  test.effect("writes an allowed file and reports its path", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
 
-    const [downloaded] = await downloadAttachments([file()], {
-      fetch: okFetch("hello"),
-      token: "xoxb-test",
-      writeDir,
-    });
+      const [downloaded] = yield* downloadAttachments([file()], {
+        fetch: okFetch("hello"),
+        token: "xoxb-test",
+        writeDir,
+      });
 
-    expect(downloaded?.id).toBe("F1");
-    expect(downloaded?.bytes).toBe(5);
-    expect(await readFile(downloaded?.path ?? "", "utf-8")).toBe("hello");
-  });
+      expect(downloaded?.id).toBe("F1");
+      expect(downloaded?.bytes).toBe(5);
+      expect(
+        yield* Effect.promise(() => readFile(downloaded?.path ?? "", "utf-8"))
+      ).toBe("hello");
+    })
+  );
 
-  test("sends the bot token, or Slack serves a sign-in page instead", async () => {
-    const writeDir = await scratch();
-    const headers: string[] = [];
+  test.effect(
+    "sends the bot token, or Slack serves a sign-in page instead",
+    () =>
+      Effect.gen(function* () {
+        const writeDir = yield* Effect.promise(scratch);
+        const headers: string[] = [];
 
-    await downloadAttachments([file()], {
-      fetch: ((_url: string, init?: RequestInit) => {
-        headers.push((init?.headers as Record<string, string>).authorization);
-        return Promise.resolve(new Response("x", { status: 200 }));
-      }) as unknown as typeof fetch,
-      token: "xoxb-secret",
-      writeDir,
-    });
+        yield* downloadAttachments([file()], {
+          fetch: ((_url: string, init?: RequestInit) => {
+            headers.push(
+              (init?.headers as Record<string, string>).authorization
+            );
+            return Promise.resolve(new Response("x", { status: 200 }));
+          }) as unknown as typeof fetch,
+          token: "xoxb-secret",
+          writeDir,
+        });
 
-    expect(headers[0]).toBe("Bearer xoxb-secret");
-  });
+        expect(headers[0]).toBe("Bearer xoxb-secret");
+      })
+  );
 
-  test("bounds each download so a stall cannot cost the turn", async () => {
+  test.effect("bounds each download so a stall cannot cost the turn", () =>
     // Downloads run before the turn is enqueued, so nothing else bounds them
     // — not the turn deadline, not the client retry policy.
-    const writeDir = await scratch();
-    let signal: AbortSignal | undefined;
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+      let signal: AbortSignal | undefined;
 
-    await downloadAttachments([file()], {
-      fetch: ((_url: string, init?: RequestInit) => {
-        signal = init?.signal ?? undefined;
-        return Promise.resolve(new Response("x", { status: 200 }));
-      }) as unknown as typeof fetch,
-      token: "t",
-      writeDir,
-    });
-
-    expect(signal).toBeInstanceOf(AbortSignal);
-    expect(signal?.aborted).toBe(false);
-  });
-
-  test("a download that aborts costs that file, not the turn", async () => {
-    const writeDir = await scratch();
-
-    const result = await downloadAttachments(
-      [
-        file({
-          id: "F1",
-          urlPrivate: "https://files.slack.com/x/F1.png",
-        }),
-        file({
-          id: "F2",
-          urlPrivate: "https://files.slack.com/x/F2.png",
-        }),
-      ],
-      {
-        fetch: ((url: string) =>
-          url.includes("F1")
-            ? Promise.reject(
-                Object.assign(new Error("timed out"), { name: "TimeoutError" })
-              )
-            : Promise.resolve(
-                new Response("ok", { status: 200 })
-              )) as unknown as typeof fetch,
-        token: "t",
-        writeDir,
-      }
-    );
-
-    expect(result.map((r) => r.id)).toEqual(["F2"]);
-  });
-
-  test("skips a file on a host that is not Slack", async () => {
-    const writeDir = await scratch();
-    let called = false;
-
-    const result = await downloadAttachments(
-      [file({ urlPrivate: "http://169.254.169.254/latest/meta-data/" })],
-      {
-        fetch: (() => {
-          called = true;
-          return Promise.resolve(new Response("secrets", { status: 200 }));
+      yield* downloadAttachments([file()], {
+        fetch: ((_url: string, init?: RequestInit) => {
+          signal = init?.signal ?? undefined;
+          return Promise.resolve(new Response("x", { status: 200 }));
         }) as unknown as typeof fetch,
         token: "t",
         writeDir,
-      }
-    );
+      });
 
-    expect(result).toEqual([]);
-    expect(called).toBe(false);
-  });
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal?.aborted).toBe(false);
+    })
+  );
 
-  test("skips a file Slack refuses to serve", async () => {
-    const writeDir = await scratch();
+  test.effect("a download that aborts costs that file, not the turn", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
 
-    const result = await downloadAttachments([file()], {
-      fetch: (() =>
-        Promise.resolve(
-          new Response("nope", { status: 403 })
-        )) as unknown as typeof fetch,
-      token: "t",
-      writeDir,
-    });
+      const result = yield* downloadAttachments(
+        [
+          file({
+            id: "F1",
+            urlPrivate: "https://files.slack.com/x/F1.png",
+          }),
+          file({
+            id: "F2",
+            urlPrivate: "https://files.slack.com/x/F2.png",
+          }),
+        ],
+        {
+          fetch: ((url: string) =>
+            url.includes("F1")
+              ? Promise.reject(
+                  Object.assign(new Error("timed out"), {
+                    name: "TimeoutError",
+                  })
+                )
+              : Promise.resolve(
+                  new Response("ok", { status: 200 })
+                )) as unknown as typeof fetch,
+          token: "t",
+          writeDir,
+        }
+      );
 
-    expect(result).toEqual([]);
-  });
+      expect(result.map((r) => r.id)).toEqual(["F2"]);
+    })
+  );
 
-  test("skips a file past the per-file ceiling", async () => {
-    const writeDir = await scratch();
-    const huge = new Uint8Array(26 * 1024 * 1024);
+  test.effect("skips a file on a host that is not Slack", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+      let called = false;
 
-    const result = await downloadAttachments([file()], {
-      fetch: okFetch(huge),
-      token: "t",
-      writeDir,
-    });
+      const result = yield* downloadAttachments(
+        [file({ urlPrivate: "http://169.254.169.254/latest/meta-data/" })],
+        {
+          fetch: (() => {
+            called = true;
+            return Promise.resolve(new Response("secrets", { status: 200 }));
+          }) as unknown as typeof fetch,
+          token: "t",
+          writeDir,
+        }
+      );
 
-    expect(result).toEqual([]);
-  });
+      expect(result).toEqual([]);
+      expect(called).toBe(false);
+    })
+  );
 
-  test("skips an empty file rather than writing a zero-byte path", async () => {
-    const writeDir = await scratch();
+  test.effect("skips a file Slack refuses to serve", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
 
-    const result = await downloadAttachments([file()], {
-      fetch: okFetch(new Uint8Array(0)),
-      token: "t",
-      writeDir,
-    });
-
-    expect(result).toEqual([]);
-  });
-
-  test("a fetch that throws costs that file, not the turn", async () => {
-    const writeDir = await scratch();
-
-    const result = await downloadAttachments(
-      [
-        file({
-          id: "F1",
-          urlPrivate: "https://files.slack.com/x/F1.png",
-        }),
-        file({
-          id: "F2",
-          urlPrivate: "https://files.slack.com/x/F2.png",
-        }),
-      ],
-      {
-        fetch: ((url: string) =>
-          url.includes("F1")
-            ? Promise.reject(new Error("connection reset"))
-            : Promise.resolve(
-                new Response("ok", { status: 200 })
-              )) as unknown as typeof fetch,
+      const result = yield* downloadAttachments([file()], {
+        fetch: (() =>
+          Promise.resolve(
+            new Response("nope", { status: 403 })
+          )) as unknown as typeof fetch,
         token: "t",
         writeDir,
-      }
-    );
+      });
 
-    expect(result.map((r) => r.id)).toEqual(["F2"]);
-  });
+      expect(result).toEqual([]);
+    })
+  );
 
-  test("writes nothing at all when there are no attachments", async () => {
-    const writeDir = join(await scratch(), "never-created");
+  test.effect("skips a file past the per-file ceiling", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+      const huge = new Uint8Array(26 * 1024 * 1024);
 
-    expect(
-      await downloadAttachments([], {
-        fetch: okFetch(),
+      const result = yield* downloadAttachments([file()], {
+        fetch: okFetch(huge),
         token: "t",
         writeDir,
-      })
-    ).toEqual([]);
-  });
+      });
 
-  test("a traversing filename lands inside the download directory", async () => {
-    const writeDir = await scratch();
+      expect(result).toEqual([]);
+    })
+  );
 
-    const [downloaded] = await downloadAttachments(
-      [file({ label: "../../escaped.png" })],
-      {
-        fetch: okFetch("x"),
+  test.effect("skips an empty file rather than writing a zero-byte path", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+
+      const result = yield* downloadAttachments([file()], {
+        fetch: okFetch(new Uint8Array(0)),
         token: "t",
         writeDir,
-      }
-    );
+      });
 
-    expect(downloaded?.path.startsWith(writeDir)).toBe(true);
-    expect(downloaded?.path).not.toContain("..");
-  });
+      expect(result).toEqual([]);
+    })
+  );
+
+  test.effect("a fetch that throws costs that file, not the turn", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+
+      const result = yield* downloadAttachments(
+        [
+          file({
+            id: "F1",
+            urlPrivate: "https://files.slack.com/x/F1.png",
+          }),
+          file({
+            id: "F2",
+            urlPrivate: "https://files.slack.com/x/F2.png",
+          }),
+        ],
+        {
+          fetch: ((url: string) =>
+            url.includes("F1")
+              ? Promise.reject(new Error("connection reset"))
+              : Promise.resolve(
+                  new Response("ok", { status: 200 })
+                )) as unknown as typeof fetch,
+          token: "t",
+          writeDir,
+        }
+      );
+
+      expect(result.map((r) => r.id)).toEqual(["F2"]);
+    })
+  );
+
+  test.effect("writes nothing at all when there are no attachments", () =>
+    Effect.gen(function* () {
+      const writeDir = join(yield* Effect.promise(scratch), "never-created");
+
+      expect(
+        yield* downloadAttachments([], {
+          fetch: okFetch(),
+          token: "t",
+          writeDir,
+        })
+      ).toEqual([]);
+    })
+  );
+
+  test.effect("a traversing filename lands inside the download directory", () =>
+    Effect.gen(function* () {
+      const writeDir = yield* Effect.promise(scratch);
+
+      const [downloaded] = yield* downloadAttachments(
+        [file({ label: "../../escaped.png" })],
+        {
+          fetch: okFetch("x"),
+          token: "t",
+          writeDir,
+        }
+      );
+
+      expect(downloaded?.path.startsWith(writeDir)).toBe(true);
+      expect(downloaded?.path).not.toContain("..");
+    })
+  );
 });
