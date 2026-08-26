@@ -39,7 +39,14 @@ export interface ViewSubmissionPayload {
   readonly values: ReadonlyMap<string, string>;
 }
 
-type InteractionHandler = (
+/**
+ * Exported because it is the shape a caller has to WRITE, not merely pass:
+ * `on(actionId, handler)` takes one, and `custom.ts` adapts a plain callback
+ * into it. TypeScript inlines an un-exported type into the declaration rather
+ * than refusing it, so nothing here fails a typecheck — the type is simply
+ * un-nameable by whoever has to implement it.
+ */
+export type InteractionHandler = (
   payload: InteractionPayload
 ) => Effect.Effect<void>;
 
