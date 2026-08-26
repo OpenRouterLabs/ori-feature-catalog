@@ -29,6 +29,7 @@ import {
   unmute,
   withParticipant,
 } from "../turn/listen.ts";
+import { InterruptMode } from "./settings.ts";
 import { StateStoreDurable } from "./store-durable.ts";
 
 /** Named so the autofixer cannot strip a bare `undefined` and widen it. */
@@ -39,6 +40,9 @@ const open = (): {
   readonly store: OriStateStore;
 } => {
   const db = new Database(":memory:");
+  // The framework store's key-value side is a real map here rather than a
+  // stub: the setting persists through it, so a no-op would prove nothing.
+  const kv = new Map<string, string>();
   return {
     close: () => {
       db.close();
@@ -48,13 +52,16 @@ const open = (): {
         Promise.resolve(db.query(sql).run(...((params ?? []) as never[]))).then(
           () => {}
         ),
-      get: () => Promise.resolve(NO_VALUE),
+      get: (key: string) => Promise.resolve(kv.get(key) ?? NO_VALUE),
       name: "test",
       query: <Row>(sql: string, params?: readonly unknown[]) =>
         Promise.resolve(
           db.query(sql).all(...((params ?? []) as never[])) as readonly Row[]
         ),
-      set: () => Promise.resolve(),
+      set: (key: string, value: string) => {
+        kv.set(key, value);
+        return Promise.resolve();
+      },
     },
   };
 };
@@ -281,6 +288,38 @@ describe("listing every thread the database knows", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]?.listen.muted).toBe(true);
       expect(rows[0]?.session?.sessionId).toBe("sess-3");
+    })
+  );
+});
+
+describe("the interrupt setting", () => {
+  test.effect("defaults to steering, which is what the surface did before", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+
+      expect(yield* state.getInterruptMode()).toBe(InterruptMode.Steer);
+    })
+  );
+
+  test.effect("a saved setting is still there for the next process", () =>
+    Effect.gen(function* () {
+      // The whole point of settling this in the store: an operator who turned
+      // steering off should not have it turned back on by a restart.
+      const state = yield* store();
+      yield* state.putInterruptMode(InterruptMode.Queue);
+
+      const restarted = yield* StateStoreDurable(sameDatabase());
+
+      expect(yield* restarted.getInterruptMode()).toBe(InterruptMode.Queue);
+    })
+  );
+
+  test.effect("a value written by an older shape reads as the default", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* Effect.promise(() => sameDatabase().set("slack:interruptMode", "?"));
+
+      expect(yield* state.getInterruptMode()).toBe(InterruptMode.Steer);
     })
   );
 });

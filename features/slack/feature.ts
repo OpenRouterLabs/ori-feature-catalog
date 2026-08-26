@@ -136,6 +136,11 @@ export const api = {
       runtime.handleDashboardRequest(request)
     ),
 
+    /** The same page saving one field; the handler branches on the method. */
+    "POST /slack/dashboard": loopbackEntry((runtime, request) =>
+      runtime.handleDashboardRequest(request)
+    ),
+
     /** Holds the response until someone answers — what makes the skill blocking. */
     "POST /slack/thread/ask": loopbackEntry((runtime, request) =>
       runtime.handleAskRequest(request)

@@ -30,6 +30,8 @@ const PUBLIC_ROUTE = "POST /slack/events";
 /** Each loopback route and the runtime handler it must call. */
 const LOOPBACK_ROUTES = {
   "GET /slack/dashboard": "handleDashboardRequest",
+  // Same handler as the GET: one page, and it branches on the method.
+  "POST /slack/dashboard": "handleDashboardRequest",
   "POST /slack/thread/ask": "handleAskRequest",
   "POST /slack/thread/chart": "handleChartRequest",
   "POST /slack/thread/dispatch": "handleDispatchRequest",

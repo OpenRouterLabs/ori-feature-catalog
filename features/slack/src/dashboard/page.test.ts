@@ -11,8 +11,16 @@ import type { ThreadRow } from "../state/store.ts";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
+import { InterruptMode } from "../state/settings.ts";
 import { UNSEEN_THREAD } from "../turn/listen.ts";
-import { ago, renderDashboard } from "./page.ts";
+import { ago, renderDashboard as render } from "./page.ts";
+
+/** Most cases do not care about the mode; the ones that do pass it. */
+const renderDashboard = (
+  rows: Parameters<typeof render>[0],
+  now: number,
+  mode: InterruptMode = InterruptMode.Steer
+): string => render(rows, now, mode);
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
@@ -136,7 +144,36 @@ describe("what the page reports", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
-  test("the page refreshes itself, so it does not go stale while open", () => {
-    expect(renderDashboard([], NOW)).toContain('http-equiv="refresh"');
+  test("the page does not auto-refresh, because it carries a form", () => {
+    // A meta refresh would wipe a half-made radio selection every few
+    // seconds, which is worse than a stale table.
+    expect(renderDashboard([], NOW)).not.toContain("http-equiv");
+  });
+
+  test("the current mode is the one checked", () => {
+    const queueing = renderDashboard([], NOW, InterruptMode.Queue);
+
+    expect(queueing).toContain('value="queue" checked');
+    expect(queueing).not.toContain('value="steer" checked');
+  });
+
+  test("steering is shown as selected when it is", () => {
+    expect(renderDashboard([], NOW, InterruptMode.Steer)).toContain(
+      'value="steer" checked'
+    );
+  });
+
+  test("the form posts back to the page it came from", () => {
+    const html = renderDashboard([], NOW);
+
+    expect(html).toContain('method="post"');
+    expect(html).toContain('action="/slack/dashboard"');
+  });
+
+  test("both modes are described, so neither reads as the safe default", () => {
+    const html = renderDashboard([], NOW);
+
+    expect(html).toContain("interrupt the running turn");
+    expect(html).toContain("let the running turn finish");
   });
 });

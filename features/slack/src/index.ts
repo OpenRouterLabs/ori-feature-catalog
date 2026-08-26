@@ -385,7 +385,7 @@ const openForTraffic = async (input: {
 const runtimeOf = (input: {
   readonly receiver: SlackReceiver;
   readonly routes: TurnRoutes;
-  readonly dashboard: () => Promise<Response>;
+  readonly dashboard: (request: Request) => Promise<Response>;
   readonly slack: SlackClientShape;
   readonly stop: () => Promise<void>;
 }): SlackRuntime => ({

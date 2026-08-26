@@ -21,9 +21,11 @@ import type { StateStore as OriStateStore } from "ori";
 import { Effect, Schema } from "effect";
 
 import type { ThreadListen } from "../turn/listen.ts";
+import type { InterruptMode } from "./settings.ts";
 import type { StateStoreShape, ThreadRow, ThreadSession } from "./store.ts";
 
 import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { interruptModeFrom } from "./settings.ts";
 import { StateStore } from "./store.ts";
 
 const SCHEMA = [
@@ -258,6 +260,40 @@ const listThreads =
       Effect.withSpan("Slack.state.listThreads")
     );
 
+/** The framework store's key-value side; one row does not want a table. */
+const INTERRUPT_MODE_KEY = "slack:interruptMode";
+
+/**
+ * The operator's setting, and the write that changes it.
+ *
+ * Best-effort like every other read here: a store that cannot answer yields
+ * the default rather than failing the turn that asked. The cost of guessing
+ * wrong is one message steered that should have queued, which is what the
+ * surface did unconditionally before this existed.
+ */
+const settings = (
+  store: OriStateStore
+): Pick<StateStoreShape, "getInterruptMode" | "putInterruptMode"> => ({
+  getInterruptMode: (): Effect.Effect<InterruptMode> =>
+    Effect.tryPromise({
+      catch: (cause) => new Error(String(cause)),
+      try: () => store.get(INTERRUPT_MODE_KEY),
+    }).pipe(
+      Effect.map(interruptModeFrom),
+      Effect.catchCause((cause) =>
+        warn("getInterruptMode")(cause).pipe(
+          Effect.as(interruptModeFrom(undefined))
+        )
+      ),
+      Effect.withSpan("Slack.state.getInterruptMode")
+    ),
+
+  putInterruptMode: (mode: InterruptMode): Effect.Effect<void> =>
+    write("putInterruptMode", () => store.set(INTERRUPT_MODE_KEY, mode)).pipe(
+      Effect.withSpan("Slack.state.putInterruptMode")
+    ),
+});
+
 export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
   function* (store: OriStateStore): Effect.fn.Return<StateStoreShape> {
     for (const statement of SCHEMA) {
@@ -267,6 +303,7 @@ export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
     return StateStore.of({
       ...sessions(store),
       ...listens(store),
+      ...settings(store),
       listThreads: listThreads(store),
     });
   }

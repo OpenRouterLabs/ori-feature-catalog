@@ -10,8 +10,10 @@
 import { Context, Effect, Ref } from "effect";
 
 import type { ThreadListen } from "../turn/listen.ts";
+import type { InterruptMode } from "./settings.ts";
 
 import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
 export interface ThreadSession {
   readonly sessionId: string;
@@ -47,6 +49,9 @@ export interface StateStoreShape {
    * for that one by id.
    */
   readonly listThreads: () => Effect.Effect<readonly ThreadRow[]>;
+  /** How a second message treats a thread that is already running a turn. */
+  readonly getInterruptMode: () => Effect.Effect<InterruptMode>;
+  readonly putInterruptMode: (mode: InterruptMode) => Effect.Effect<void>;
   /** Atomic: a get-then-put would lose a concurrent second participant. */
   readonly updateListen: (
     instanceId: string,
@@ -90,6 +95,7 @@ const bounded = <T>(
 export const StateStoreMemory = Effect.gen(function* () {
   const sessions = yield* Ref.make(new Map<string, ThreadSession>());
   const listens = yield* Ref.make(new Map<string, ThreadListen>());
+  const interruptMode = yield* Ref.make(DEFAULT_INTERRUPT_MODE);
 
   return StateStore.of({
     clearSession: (instanceId) =>
@@ -98,6 +104,16 @@ export const StateStoreMemory = Effect.gen(function* () {
         next.delete(instanceId);
         return next;
       }).pipe(Effect.withSpan("Slack.state.clearSession")),
+
+    getInterruptMode: () =>
+      Ref.get(interruptMode).pipe(
+        Effect.withSpan("Slack.state.getInterruptMode")
+      ),
+
+    putInterruptMode: (mode) =>
+      Ref.set(interruptMode, mode).pipe(
+        Effect.withSpan("Slack.state.putInterruptMode")
+      ),
 
     getListen: (instanceId) =>
       Ref.get(listens).pipe(
