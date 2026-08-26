@@ -78,6 +78,12 @@ const slackCode = (cause: unknown): string => {
   return typeof code === "string" ? code : "unknown";
 };
 
+/**
+ * One logical call: the SDK promise, the transient retry, the total budget.
+ *
+ * The span sits outermost and is named from `op`, so every method on the port
+ * is traced here once rather than nine times, retries included.
+ */
 const call = <A>(
   op: string,
   run: () => Promise<A>
@@ -111,7 +117,8 @@ const call = <A>(
             op,
           })
         ),
-    })
+    }),
+    Effect.withSpan(`Slack.client.${op}`)
   );
 
 /**
@@ -227,4 +234,4 @@ export const readSlackBotToken = (
           })
         )
       : Effect.succeed(token);
-  });
+  }).pipe(Effect.withSpan("Slack.client.readSlackBotToken"));

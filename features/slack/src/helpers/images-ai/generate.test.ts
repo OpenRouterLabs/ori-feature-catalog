@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- fetch stubs stand in for the platform type */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -24,14 +24,12 @@ const run = (input: {
   fetch: typeof globalThis.fetch;
   apiKey?: string;
   prompt?: string;
-}): Promise<GenerateOutcome> =>
-  Effect.runPromise(
-    generateImage({
-      apiKey: input.apiKey ?? "sk-test",
-      fetch: input.fetch,
-      prompt: input.prompt ?? "a logo",
-    })
-  );
+}): Effect.Effect<GenerateOutcome> =>
+  generateImage({
+    apiKey: input.apiKey ?? "sk-test",
+    fetch: input.fetch,
+    prompt: input.prompt ?? "a logo",
+  });
 
 describe("decodeDataUrl", () => {
   test("decodes a base64 image into a blob of the right type", () => {
@@ -53,84 +51,100 @@ describe("decodeDataUrl", () => {
 });
 
 describe("generateImage", () => {
-  test("returns the first decodable image the model produced", async () => {
-    const outcome = await run({
-      fetch: answering(withImage(`data:image/png;base64,${PIXEL}`)),
-    });
+  test.effect("returns the first decodable image the model produced", () =>
+    Effect.gen(function* () {
+      const outcome = yield* run({
+        fetch: answering(withImage(`data:image/png;base64,${PIXEL}`)),
+      });
 
-    expect(outcome.ok).toBe(true);
-    expect(outcome.ok && outcome.image.contentType).toBe("image/png");
-  });
+      expect(outcome.ok).toBe(true);
+      expect(outcome.ok && outcome.image.contentType).toBe("image/png");
+    })
+  );
 
-  test("skips an image it cannot decode rather than failing outright", async () => {
-    const outcome = await run({
-      fetch: answering({
-        choices: [
-          {
-            message: {
-              images: [
-                { image_url: { url: "https://example.com/a.png" } },
-                { image_url: { url: `data:image/png;base64,${PIXEL}` } },
-              ],
-            },
-          },
-        ],
-      }),
-    });
+  test.effect(
+    "skips an image it cannot decode rather than failing outright",
+    () =>
+      Effect.gen(function* () {
+        const outcome = yield* run({
+          fetch: answering({
+            choices: [
+              {
+                message: {
+                  images: [
+                    { image_url: { url: "https://example.com/a.png" } },
+                    { image_url: { url: `data:image/png;base64,${PIXEL}` } },
+                  ],
+                },
+              },
+            ],
+          }),
+        });
 
-    expect(outcome.ok).toBe(true);
-  });
+        expect(outcome.ok).toBe(true);
+      })
+  );
 
-  test("a text-only answer is reported, not treated as an image", async () => {
+  test.effect("a text-only answer is reported, not treated as an image", () =>
     // The model can decline, or answer in prose. Uploading nothing and
     // claiming success would leave the thread with a caption and no picture.
-    const outcome = await run({
-      fetch: answering({ choices: [{ message: {} }] }),
-    });
+    Effect.gen(function* () {
+      const outcome = yield* run({
+        fetch: answering({ choices: [{ message: {} }] }),
+      });
 
-    expect(outcome.ok).toBe(false);
-    expect(!outcome.ok && outcome.error).toContain("no image");
-  });
+      expect(outcome.ok).toBe(false);
+      expect(!outcome.ok && outcome.error).toContain("no image");
+    })
+  );
 
-  test("a missing key is named, so the failure is actionable", async () => {
-    const outcome = await run({
-      apiKey: "",
-      fetch: answering({}),
-    });
+  test.effect("a missing key is named, so the failure is actionable", () =>
+    Effect.gen(function* () {
+      const outcome = yield* run({
+        apiKey: "",
+        fetch: answering({}),
+      });
 
-    expect(!outcome.ok && outcome.error).toContain("OPENROUTER_API_KEY");
-  });
+      expect(!outcome.ok && outcome.error).toContain("OPENROUTER_API_KEY");
+    })
+  );
 
-  test("an upstream error carries its status", async () => {
-    const outcome = await run({
-      fetch: answering({ error: "nope" }, 429),
-    });
+  test.effect("an upstream error carries its status", () =>
+    Effect.gen(function* () {
+      const outcome = yield* run({
+        fetch: answering({ error: "nope" }, 429),
+      });
 
-    expect(!outcome.ok && outcome.error).toContain("429");
-  });
+      expect(!outcome.ok && outcome.error).toContain("429");
+    })
+  );
 
-  test("an unreachable host is an outcome, not a crash", async () => {
-    const outcome = await run({
-      fetch: (() =>
-        Promise.reject(
-          new Error("ENOTFOUND")
-        )) as unknown as typeof globalThis.fetch,
-    });
+  test.effect("an unreachable host is an outcome, not a crash", () =>
+    Effect.gen(function* () {
+      const outcome = yield* run({
+        fetch: (() =>
+          Promise.reject(
+            new Error("ENOTFOUND")
+          )) as unknown as typeof globalThis.fetch,
+      });
 
-    expect(outcome.ok).toBe(false);
-  });
+      expect(outcome.ok).toBe(false);
+    })
+  );
 
-  test("refuses an empty prompt before spending a request", async () => {
-    let called = false;
-    const outcome = await run({
-      fetch: (() => {
-        called = true;
-        return Promise.resolve(Response.json({}));
-      }) as unknown as typeof globalThis.fetch,
-      prompt: "   ",
-    });
+  test.effect("refuses an empty prompt before spending a request", () =>
+    Effect.gen(function* () {
+      let called = false;
+      const outcome = yield* run({
+        fetch: (() => {
+          called = true;
+          return Promise.resolve(Response.json({}));
+        }) as unknown as typeof globalThis.fetch,
+        prompt: "   ",
+      });
 
-    expect(outcome.ok).toBe(false);
-    expect(called).toBe(false);
-  });
+      expect(outcome.ok).toBe(false);
+      expect(called).toBe(false);
+    })
+  );
 });

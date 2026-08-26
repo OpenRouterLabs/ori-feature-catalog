@@ -7,7 +7,7 @@
  * started it — post a button first, then use that interaction's fresh trigger.
  */
 
-import type { Effect } from "effect";
+import { Effect } from "effect";
 
 import type { SlackApiError, SlackClientShape } from "../../client/client.ts";
 import type { SlackBlock } from "../block-kit/blocks.ts";
@@ -55,4 +55,4 @@ export const openModal = (
             },
           }),
     },
-  });
+  }).pipe(Effect.withSpan("Slack.modals.openModal"));

@@ -7,7 +7,7 @@
  * middle differs, so only the work in the middle is written per route.
  */
 
-import { Result, Schema } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { ThreadRef } from "../../thread/thread.ts";
 
@@ -66,10 +66,10 @@ const jsonOrNull = (raw: string): unknown =>
  * advisory: it is optional, a chunked request carries none, `Number("")` is 0,
  * and the request went straight through to an unbounded `json()`.
  */
-const readCapped = async (
+const readCapped = Effect.fn("Slack.loopback.readBody")(function* (
   request: Request,
   capBytes: number
-): Promise<Result.Result<unknown, Refusal>> => {
+): Effect.fn.Return<Result.Result<unknown, Refusal>> {
   const declared = Number(request.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > capBytes) {
     return refuse(HTTP_PAYLOAD_TOO_LARGE, "payload too large");
@@ -85,13 +85,16 @@ const readCapped = async (
   let size = 0;
   let raw = "";
   for (;;) {
-    const chunk = await reader.read();
+    const chunk = yield* Effect.promise(() => reader.read());
     if (chunk.done) {
       break;
     }
     size += chunk.value.byteLength;
     if (size > capBytes) {
-      await reader.cancel().catch(alreadyGone);
+      // The `catch` stays inside the thunk: a peer that has already gone is
+      // handled here, where it happens, rather than travelling as a failure
+      // that this route would only swallow again.
+      yield* Effect.promise(() => reader.cancel().catch(alreadyGone));
       return refuse(HTTP_PAYLOAD_TOO_LARGE, "payload too large");
     }
     raw += decoder.decode(chunk.value, { stream: true });
@@ -99,7 +102,7 @@ const readCapped = async (
   raw += decoder.decode();
 
   return Result.succeed(jsonOrNull(raw));
-};
+});
 
 interface LoopbackSpec<
   TRequest extends Addressed,
@@ -121,38 +124,58 @@ interface LoopbackSpec<
 const refusalResponse = (refusal: Refusal): Response =>
   Response.json({ error: refusal.error }, { status: refusal.status });
 
-export const loopbackRoute =
-  <TRequest extends Addressed, TOutput extends object>(
-    spec: LoopbackSpec<TRequest, TOutput>
-  ) =>
-  async (request: Request): Promise<Response> => {
-    const raw = await readCapped(request, spec.capKiB * BYTES_PER_KIB);
-    if (Result.isFailure(raw)) {
-      return refusalResponse(raw.failure);
-    }
+/**
+ * The whole request, in one fiber: the read, the decode and the work.
+ *
+ * `handle` stays a Promise because it is the route's own contract — each
+ * route enters Effect for itself — so it is taken in through
+ * `Effect.promise` rather than reshaped from here.
+ */
+const runShell = Effect.fn("Slack.loopback.handle")(function* <
+  TRequest extends Addressed,
+  TOutput extends object,
+>(
+  spec: LoopbackSpec<TRequest, TOutput>,
+  request: Request
+): Effect.fn.Return<Response> {
+  const raw = yield* readCapped(request, spec.capKiB * BYTES_PER_KIB);
+  if (Result.isFailure(raw)) {
+    return refusalResponse(raw.failure);
+  }
 
-    const parsed = spec.parse(raw.success);
-    if (Result.isFailure(parsed)) {
-      return Response.json(
-        { error: parsed.failure },
-        { status: HTTP_BAD_REQUEST }
-      );
-    }
+  const parsed = spec.parse(raw.success);
+  if (Result.isFailure(parsed)) {
+    return Response.json(
+      { error: parsed.failure },
+      { status: HTTP_BAD_REQUEST }
+    );
+  }
 
-    const decoded = parsed.success;
-    const outcome = await spec.handle({
+  const decoded = parsed.success;
+  const outcome = yield* Effect.promise(() =>
+    spec.handle({
       ref: {
         channelId: decoded.channel,
         teamId: decoded.team ?? spec.workspaceTeamId,
         threadTs: decoded.threadTs,
       },
       request: decoded,
-    });
+    })
+  );
 
-    return Result.isFailure(outcome)
-      ? refusalResponse(outcome.failure)
-      : Response.json({
-          ok: true,
-          ...outcome.success,
-        });
-  };
+  return Result.isFailure(outcome)
+    ? refusalResponse(outcome.failure)
+    : Response.json({
+        ok: true,
+        ...outcome.success,
+      });
+});
+
+export const loopbackRoute =
+  <TRequest extends Addressed, TOutput extends object>(
+    spec: LoopbackSpec<TRequest, TOutput>
+  ) =>
+  // The one boundary the shell owns: HTTP is a Promise, everything under it
+  // is not.
+  (request: Request): Promise<Response> =>
+    Effect.runPromise(runShell(spec, request));

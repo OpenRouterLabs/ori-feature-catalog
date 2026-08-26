@@ -6,7 +6,7 @@
  * With no replacement that is just silence: the status line comes up, goes
  * down, and the thread has no reply and no way to tell it from a crash.
  */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -21,10 +21,10 @@ const steered = {
   text: "half of an answer",
 };
 
-const posted = async (superseded: boolean): Promise<readonly string[]> => {
-  const fake = makeFakeSlackClient();
-  await Effect.runPromise(
-    makeMessageReply({
+const posted = (superseded: boolean): Effect.Effect<readonly string[]> =>
+  Effect.gen(function* () {
+    const fake = makeFakeSlackClient();
+    yield* makeMessageReply({
       channelId: "C1",
       teamId: "T1",
       threadTs: "1700.1",
@@ -37,18 +37,21 @@ const posted = async (superseded: boolean): Promise<readonly string[]> => {
         })
       ),
       Effect.provide(fake.layer)
-    )
-  );
-  return fake.calls.map((call) => call.op);
-};
+    );
+    return fake.calls.map((call) => call.op);
+  });
 
 describe("a steered turn", () => {
-  test("stays quiet when something is queued to answer for it", async () => {
-    expect(await posted(true)).toEqual([]);
-  });
+  test.effect("stays quiet when something is queued to answer for it", () =>
+    Effect.gen(function* () {
+      expect(yield* posted(true)).toEqual([]);
+    })
+  );
 
-  test("answers anyway when nothing is", async () => {
+  test.effect("answers anyway when nothing is", () =>
     // Otherwise the reader is left with a status line that came and went.
-    expect(await posted(false)).toContain("chat.postMessage");
-  });
+    Effect.gen(function* () {
+      expect(yield* posted(false)).toContain("chat.postMessage");
+    })
+  );
 });

@@ -16,7 +16,11 @@
 import { Effect } from "effect";
 
 import type { SlackClientShape } from "../client/client.ts";
-import type { InteractionsShape } from "./interactions.ts";
+import type {
+  InteractionPayload,
+  InteractionsShape,
+  ViewSubmissionPayload,
+} from "./interactions.ts";
 import type { PendingForm, QuestionnairesShape } from "./questionnaires.ts";
 
 import {
@@ -90,8 +94,11 @@ interface HandlerDeps {
 
 /** The click that mints the trigger the modal cannot be opened without. */
 const onOpenClicked = (input: HandlerDeps): void => {
-  input.interactions.on(QUESTIONS_ACTION_ID, (payload) =>
-    Effect.gen(function* () {
+  input.interactions.on(
+    QUESTIONS_ACTION_ID,
+    Effect.fn("Slack.interactions.openQuestionsForm")(function* (
+      payload: InteractionPayload
+    ) {
       const askId = payload.actions[0]?.value;
       if (askId === undefined || payload.triggerId === undefined) {
         yield* Effect.logWarning(
@@ -125,8 +132,11 @@ const onOpenClicked = (input: HandlerDeps): void => {
 
 /** The submit that starts the next turn. */
 const onSubmitted = (input: HandlerDeps): void => {
-  input.interactions.onView(QUESTIONS_MODAL_CALLBACK, (payload) =>
-    Effect.gen(function* () {
+  input.interactions.onView(
+    QUESTIONS_MODAL_CALLBACK,
+    Effect.fn("Slack.interactions.submitQuestionsForm")(function* (
+      payload: ViewSubmissionPayload
+    ) {
       const askId = askIdFromQuestionsCallback(payload.callbackId);
       if (askId === undefined) {
         return;

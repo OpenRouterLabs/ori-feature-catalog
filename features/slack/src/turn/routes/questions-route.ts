@@ -10,12 +10,16 @@
  * That is the whole point: a question no longer costs a held run. A form left
  * over a weekend costs nothing, and the thread's queue is free the moment the
  * turn ends.
+ *
+ * HTTP is the one edge, so Effect is entered once per request: the liveness
+ * check, the post and the store all run in that single fiber.
  */
 
 import { Effect, Result, Schema } from "effect";
 
 import type { QuestionnairesShape } from "../../interactions/questionnaires.ts";
 import type { ThreadRef } from "../../thread/thread.ts";
+import type { Refusal } from "./loopback-route.ts";
 
 import {
   QuestionsSchema,
@@ -104,50 +108,66 @@ interface QuestionsRouteDeps {
   readonly workspaceTeamId: string;
 }
 
+/** Post the form, then record it under the id the answer will carry back. */
+const askQuestions = Effect.fn("Slack.questions.ask")(function* (input: {
+  readonly deps: QuestionsRouteDeps;
+  readonly ref: ThreadRef;
+  readonly request: AskRequest;
+}): Effect.fn.Return<Result.Result<{ readonly ask_id: string }, Refusal>> {
+  const live = yield* Effect.promise(() => input.deps.isLive(input.ref));
+  if (!live) {
+    // A form with no run behind it is dead mail: nothing will be started
+    // again when it is answered.
+    return refuse(HTTP_NOT_FOUND, "no run is active in that thread");
+  }
+
+  const askId = input.deps.newAskId();
+  const messageTs = yield* Effect.promise(() =>
+    input.deps.post(
+      input.ref,
+      questionsBlocks({
+        askId,
+        count: input.request.questions.length,
+        intro: input.request.intro,
+      }),
+      input.request.intro
+    )
+  );
+
+  if (messageTs === undefined) {
+    // Nothing is on screen, so nothing can ever answer it. Reporting an
+    // ask here is worse than failing: the skill tells the model to END ITS
+    // TURN and wait to be started again with the answers, and no message,
+    // no button and no `view_submission` will ever exist to do that.
+    return refuse(HTTP_BAD_GATEWAY, "the questions could not be posted");
+  }
+
+  yield* input.deps.forms.put({
+    askId,
+    intro: input.request.intro,
+    messageTs,
+    questions: input.request.questions,
+    ref: input.ref,
+  });
+
+  return Result.succeed({ ask_id: askId });
+});
+
 export const makeQuestionsRoute = (
   deps: QuestionsRouteDeps
 ): ((request: Request) => Promise<Response>) =>
   loopbackRoute<AskRequest, { readonly ask_id: string }>({
     // Ten questions with their choices; anything larger is not a form.
     capKiB: 32,
-    handle: async ({ ref, request }) => {
-      if (!(await deps.isLive(ref))) {
-        // A form with no run behind it is dead mail: nothing will be started
-        // again when it is answered.
-        return refuse(HTTP_NOT_FOUND, "no run is active in that thread");
-      }
-
-      const askId = deps.newAskId();
-      const messageTs = await deps.post(
-        ref,
-        questionsBlocks({
-          askId,
-          count: request.questions.length,
-          intro: request.intro,
-        }),
-        request.intro
-      );
-
-      if (messageTs === undefined) {
-        // Nothing is on screen, so nothing can ever answer it. Reporting an
-        // ask here is worse than failing: the skill tells the model to END ITS
-        // TURN and wait to be started again with the answers, and no message,
-        // no button and no `view_submission` will ever exist to do that.
-        return refuse(HTTP_BAD_GATEWAY, "the questions could not be posted");
-      }
-
-      await Effect.runPromise(
-        deps.forms.put({
-          askId,
-          intro: request.intro,
-          messageTs,
-          questions: request.questions,
+    handle: async ({ ref, request }) =>
+      // The one boundary the route owns: HTTP is a Promise, the work is not.
+      Effect.runPromise(
+        askQuestions({
+          deps,
           ref,
+          request,
         })
-      );
-
-      return Result.succeed({ ask_id: askId });
-    },
+      ),
     parse: (raw): Result.Result<AskRequest, string> => {
       const parsed = parseAskBody(raw);
       return parsed.ok

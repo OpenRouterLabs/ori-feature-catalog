@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/no-base-to-string -- fetch stubs stand in for the platform type, and request bodies are inspected as the JSON they are */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { parseChoice, postAsk } from "./post-ask.ts";
 

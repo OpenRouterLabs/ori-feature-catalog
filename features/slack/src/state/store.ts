@@ -78,23 +78,29 @@ export const StateStoreMemory = Effect.gen(function* () {
         const next = new Map(current);
         next.delete(instanceId);
         return next;
-      }),
+      }).pipe(Effect.withSpan("Slack.state.clearSession")),
 
     getListen: (instanceId) =>
       Ref.get(listens).pipe(
-        Effect.map((current) => current.get(instanceId) ?? UNSEEN_THREAD)
+        Effect.map((current) => current.get(instanceId) ?? UNSEEN_THREAD),
+        Effect.withSpan("Slack.state.getListen")
       ),
 
     getSession: (instanceId) =>
-      Ref.get(sessions).pipe(Effect.map((current) => current.get(instanceId))),
+      Ref.get(sessions).pipe(
+        Effect.map((current) => current.get(instanceId)),
+        Effect.withSpan("Slack.state.getSession")
+      ),
 
     putSession: (instanceId, session) =>
-      Ref.update(sessions, (current) => bounded(current, instanceId, session)),
+      Ref.update(sessions, (current) =>
+        bounded(current, instanceId, session)
+      ).pipe(Effect.withSpan("Slack.state.putSession")),
 
     updateListen: (instanceId, change) =>
       Ref.modify(listens, (current) => {
         const next = change(current.get(instanceId) ?? UNSEEN_THREAD);
         return [next, bounded(current, instanceId, next)];
-      }),
+      }).pipe(Effect.withSpan("Slack.state.updateListen")),
   });
-});
+}).pipe(Effect.withSpan("Slack.state.openMemory"));

@@ -1,5 +1,5 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- siblings are imported relatively, and the fake stands in for the Slack SDK shape */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -14,142 +14,153 @@ const PANE = {
   threadTs: "1700000000.000100",
 };
 
-const build = async (
+const build = (
   overrides: Partial<Parameters<typeof makeFakeSlackClient>[0]> = {}
-): Promise<{
+): Effect.Effect<{
   readonly assistant: AssistantThreadsShape;
   readonly fake: ReturnType<typeof makeFakeSlackClient>;
-}> => {
-  const fake = makeFakeSlackClient(overrides as never);
-  const assistant = await Effect.runPromise(
-    AssistantThreadsLive().pipe(Effect.provideService(SlackClient, fake.shape))
-  );
-  return {
-    assistant,
-    fake,
-  };
-};
-
-describe("AssistantThreadsLive", () => {
-  test("the title waits until the pane is known", async () => {
-    const { assistant, fake } = await build();
-
-    await Effect.runPromise(assistant.setTitle(PANE, "a title"));
-
-    // Slack answers `not_allowed` for these outside an assistant container, so
-    // the surface has to know it is in one rather than trying and ignoring.
-    expect(opsOf(fake)).toEqual([]);
+}> =>
+  Effect.gen(function* () {
+    const fake = makeFakeSlackClient(overrides as never);
+    const assistant = yield* AssistantThreadsLive().pipe(
+      Effect.provideService(SlackClient, fake.shape)
+    );
+    return {
+      assistant,
+      fake,
+    };
   });
 
-  test("the status line is attempted everywhere, pane or not", async () => {
+describe("AssistantThreadsLive", () => {
+  test.effect("the title waits until the pane is known", () =>
+    Effect.gen(function* () {
+      const { assistant, fake } = yield* build();
+
+      yield* assistant.setTitle(PANE, "a title");
+
+      // Slack answers `not_allowed` for these outside an assistant container, so
+      // the surface has to know it is in one rather than trying and ignoring.
+      expect(opsOf(fake)).toEqual([]);
+    })
+  );
+
+  test.effect("the status line is attempted everywhere, pane or not", () =>
     // It is the only working indicator a channel agent gets — Devin renders
     // exactly this under the composer of a channel thread. Refusal is a logged
     // warning, so trying costs one call and nothing else.
-    const { assistant, fake } = await build();
+    Effect.gen(function* () {
+      const { assistant, fake } = yield* build();
 
-    await Effect.runPromise(assistant.setStatus(PANE, "working"));
+      yield* assistant.setStatus(PANE, "working");
 
-    expect(opsOf(fake)).toEqual(["assistant.threads.setStatus"]);
-  });
+      expect(opsOf(fake)).toEqual(["assistant.threads.setStatus"]);
+    })
+  );
 });
 
 describe("AssistantThreadsLive, continued", () => {
-  test("once remembered, status and title reach Slack", async () => {
-    const { assistant, fake } = await build();
+  test.effect("once remembered, status and title reach Slack", () =>
+    Effect.gen(function* () {
+      const { assistant, fake } = yield* build();
 
-    await Effect.runPromise(assistant.remember(keyOf(PANE)));
-    await Effect.runPromise(assistant.setStatus(PANE, "reading the PR"));
-    await Effect.runPromise(assistant.setTitle(PANE, "triage the PRs"));
+      yield* assistant.remember(keyOf(PANE));
+      yield* assistant.setStatus(PANE, "reading the PR");
+      yield* assistant.setTitle(PANE, "triage the PRs");
 
-    expect(opsOf(fake)).toEqual([
-      "assistant.threads.setStatus",
-      "assistant.threads.setTitle",
-    ]);
-    expect(fake.calls.at(0)?.args).toMatchObject({
-      channel_id: "D1",
-      status: "reading the PR",
-      thread_ts: PANE.threadTs,
-    });
-  });
+      expect(opsOf(fake)).toEqual([
+        "assistant.threads.setStatus",
+        "assistant.threads.setTitle",
+      ]);
+      expect(fake.calls.at(0)?.args).toMatchObject({
+        channel_id: "D1",
+        status: "reading the PR",
+        thread_ts: PANE.threadTs,
+      });
+    })
+  );
 
-  test("a failed Slack call is warned about, never raised", async () => {
-    const { assistant } = await build({
-      // The port declares `SlackApiError`; a plain Error is enough to prove the
-      // failure is caught, and `orDie`-free typing keeps the double honest.
-      setAssistantStatus: () => Effect.fail(new Error("not_allowed")) as never,
-    });
+  test.effect("a failed Slack call is warned about, never raised", () =>
+    Effect.gen(function* () {
+      const { assistant } = yield* build({
+        // The port declares `SlackApiError`; a plain Error is enough to prove the
+        // failure is caught, and `orDie`-free typing keeps the double honest.
+        setAssistantStatus: () => Effect.fail(new Error("not_allowed")) as never,
+      });
 
-    await Effect.runPromise(assistant.remember(keyOf(PANE)));
+      yield* assistant.remember(keyOf(PANE));
 
-    // These are decoration around a turn running regardless — failing the run
-    // here would trade the answer for a label.
-    await expect(
-      Effect.runPromise(assistant.setStatus(PANE, "working"))
-    ).resolves.toBeUndefined();
-  });
+      // These are decoration around a turn running regardless — failing the run
+      // here would trade the answer for a label.
+      expect(yield* assistant.setStatus(PANE, "working")).toBeUndefined();
+    })
+  );
 
-  test("the pane's conversation context is remembered and readable", async () => {
-    const { assistant } = await build();
+  test.effect("the pane's conversation context is remembered and readable", () =>
+    Effect.gen(function* () {
+      const { assistant } = yield* build();
 
-    await Effect.runPromise(
-      assistant.remember(keyOf(PANE), {
+      yield* assistant.remember(keyOf(PANE), {
         channelId: "C_BEHIND",
         teamId: "T1",
-      })
-    );
+      });
 
-    // The pane is its own conversation, so without this "summarise this" has
-    // no referent but the question itself.
-    expect(await Effect.runPromise(assistant.contextFor(keyOf(PANE)))).toEqual({
-      channelId: "C_BEHIND",
-      teamId: "T1",
-    });
-  });
-
-  test("re-remembering replaces the context, because the reader navigated", async () => {
-    const { assistant } = await build();
-
-    await Effect.runPromise(
-      assistant.remember(keyOf(PANE), {
-        channelId: "C_FIRST",
+      // The pane is its own conversation, so without this "summarise this" has
+      // no referent but the question itself.
+      expect(yield* assistant.contextFor(keyOf(PANE))).toEqual({
+        channelId: "C_BEHIND",
         teamId: "T1",
+      });
+    })
+  );
+
+  test.effect(
+    "re-remembering replaces the context, because the reader navigated",
+    () =>
+      Effect.gen(function* () {
+        const { assistant } = yield* build();
+
+        yield* assistant.remember(keyOf(PANE), {
+          channelId: "C_FIRST",
+          teamId: "T1",
+        });
+        yield* assistant.remember(keyOf(PANE), {
+          channelId: "C_SECOND",
+          teamId: "T1",
+        });
+
+        const current = yield* assistant.contextFor(keyOf(PANE));
+        expect(current?.channelId).toBe("C_SECOND");
+        // Still a pane: membership is what makes the pane-only calls legal, and a
+        // context change must not revoke that.
+        expect(yield* assistant.isPane(keyOf(PANE))).toBe(true);
       })
-    );
-    await Effect.runPromise(
-      assistant.remember(keyOf(PANE), {
-        channelId: "C_SECOND",
-        teamId: "T1",
+  );
+
+  test.effect("a pane with no context is still a pane", () =>
+    Effect.gen(function* () {
+      const { assistant } = yield* build();
+
+      yield* assistant.remember(keyOf(PANE));
+
+      expect(yield* assistant.isPane(keyOf(PANE))).toBe(true);
+      expect(yield* assistant.contextFor(keyOf(PANE))).toBeUndefined();
+    })
+  );
+
+  test.effect(
+    "clearing the status sends an empty string, not a skipped call",
+    () =>
+      Effect.gen(function* () {
+        const { assistant, fake } = yield* build();
+
+        yield* assistant.remember(keyOf(PANE));
+        yield* assistant.setStatus(PANE, "");
+
+        // Slack shows the indicator until it is cleared, so a skipped clear leaves
+        // the pane thinking next to an answer that already arrived.
+        expect(fake.calls.at(0)?.args).toMatchObject({ status: "" });
       })
-    );
-
-    const current = await Effect.runPromise(assistant.contextFor(keyOf(PANE)));
-    expect(current?.channelId).toBe("C_SECOND");
-    // Still a pane: membership is what makes the pane-only calls legal, and a
-    // context change must not revoke that.
-    expect(await Effect.runPromise(assistant.isPane(keyOf(PANE)))).toBe(true);
-  });
-
-  test("a pane with no context is still a pane", async () => {
-    const { assistant } = await build();
-
-    await Effect.runPromise(assistant.remember(keyOf(PANE)));
-
-    expect(await Effect.runPromise(assistant.isPane(keyOf(PANE)))).toBe(true);
-    expect(
-      await Effect.runPromise(assistant.contextFor(keyOf(PANE)))
-    ).toBeUndefined();
-  });
-
-  test("clearing the status sends an empty string, not a skipped call", async () => {
-    const { assistant, fake } = await build();
-
-    await Effect.runPromise(assistant.remember(keyOf(PANE)));
-    await Effect.runPromise(assistant.setStatus(PANE, ""));
-
-    // Slack shows the indicator until it is cleared, so a skipped clear leaves
-    // the pane thinking next to an answer that already arrived.
-    expect(fake.calls.at(0)?.args).toMatchObject({ status: "" });
-  });
+  );
 
   test("the pane key does not carry a team id", () => {
     // Panes only ever exist in the installed workspace, and the callers here

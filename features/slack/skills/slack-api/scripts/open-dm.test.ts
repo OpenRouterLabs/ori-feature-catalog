@@ -5,7 +5,7 @@
  * (`conversations.open`), cast once at the seam.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
 import type { WebClient } from "@slack/web-api";

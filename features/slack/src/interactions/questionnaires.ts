@@ -63,11 +63,17 @@ export const QuestionnairesMemory = Effect.sync(() => {
     clear: (askId) =>
       Effect.sync(() => {
         forms.delete(askId);
-      }),
+      }).pipe(Effect.withSpan("Slack.interactions.clear")),
 
-    get: (askId) => Effect.sync(() => forms.get(askId)),
+    get: (askId) =>
+      Effect.sync(() => forms.get(askId)).pipe(
+        Effect.withSpan("Slack.interactions.get")
+      ),
 
-    pending: () => Effect.sync(() => forms.size),
+    pending: () =>
+      Effect.sync(() => forms.size).pipe(
+        Effect.withSpan("Slack.interactions.pending")
+      ),
 
     put: (form) =>
       Effect.sync(() => {
@@ -79,6 +85,6 @@ export const QuestionnairesMemory = Effect.sync(() => {
           }
           forms.delete(oldest.value);
         }
-      }),
+      }).pipe(Effect.withSpan("Slack.interactions.put")),
   });
 });

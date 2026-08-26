@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { attachedFiles, untrustedFilesWarning } from "./untrusted-files.ts";
 

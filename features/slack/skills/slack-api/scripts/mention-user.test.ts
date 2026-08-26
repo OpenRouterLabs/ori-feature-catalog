@@ -11,7 +11,7 @@
  * the fakes stand for what `listUsers` returns for a given search.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
 import type { ListUsersOpts, SlackMember } from "./list-users.ts";

@@ -21,7 +21,8 @@ export const forkWith =
         Effect.provide(context),
         Effect.catchDefect((defect: unknown) =>
           Effect.logError("[slack] a surface event failed", defect)
-        )
+        ),
+        Effect.withSpan("Slack.runtime.fork")
       )
     );
   };

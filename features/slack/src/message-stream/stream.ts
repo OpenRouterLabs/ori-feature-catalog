@@ -60,31 +60,39 @@ export class MessageStream extends Context.Service<
 >()("ori/slack/MessageStream") {}
 
 export const MessageStreamLive = MessageStream.of({
-  run: (reply, turn, options) =>
-    Effect.gen(function* () {
-      const latest = yield* Ref.make(initialRunState());
+  run: Effect.fn("Slack.stream.run")(function* (
+    reply: MessageReplyShape,
+    turn: (
+      advance: (next: RunState) => Effect.Effect<void>
+    ) => Effect.Effect<void>,
+    options?: RunOptions
+  ): Effect.fn.Return<void> {
+    const latest = yield* Ref.make(initialRunState());
 
-      const ran = turn((next) => Ref.set(latest, next)).pipe(
-        Effect.catchCause((cause) =>
-          Ref.update(latest, (state) => ({
-            ...state,
-            phase: RunPhase.Failed,
-          })).pipe(
-            Effect.andThen(Effect.logError("[slack] turn failed", cause))
-          )
+    const ran = turn((next) =>
+      Ref.set(latest, next).pipe(Effect.withSpan("Slack.stream.advance"))
+    ).pipe(
+      Effect.catchCause((cause) =>
+        Ref.update(latest, (state) => ({
+          ...state,
+          phase: RunPhase.Failed,
+        })).pipe(
+          Effect.andThen(Effect.logError("[slack] turn failed", cause)),
+          Effect.withSpan("Slack.stream.turnFailed")
         )
-      );
+      )
+    );
 
-      // The surface waits for the run, however long it takes. Deciding that
-      // work should stop is not a view's call, and the watcher that used to
-      // make it did not merely stop watching: `handleTurn` returning let the
-      // `finally` in turn-routes abort the run, so a thinking model lost its
-      // answer five minutes in.
-      yield* ran;
-      yield* settle({
-        reply,
-        state: yield* Ref.get(latest),
-        superseded: options?.superseded?.() ?? false,
-      });
-    }),
+    // The surface waits for the run, however long it takes. Deciding that
+    // work should stop is not a view's call, and the watcher that used to
+    // make it did not merely stop watching: `handleTurn` returning let the
+    // `finally` in turn-routes abort the run, so a thinking model lost its
+    // answer five minutes in.
+    yield* ran;
+    yield* settle({
+      reply,
+      state: yield* Ref.get(latest),
+      superseded: options?.superseded?.() ?? false,
+    });
+  }),
 });

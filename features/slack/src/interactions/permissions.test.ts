@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -161,29 +161,29 @@ describe("elicitationBlocks", () => {
 });
 
 describe("registerPermissionHandlers", () => {
-  test("a failing handler does not abandon the other actions", async () => {
+  test.effect("a failing handler does not abandon the other actions", () =>
     // These handlers are how an approval reaches the waiting turn, so a
     // swallowed failure looks like a button that did nothing and a run that
     // hangs until its deadline, with no record of why.
-    const interactions = makeInteractions();
-    let secondRan = false;
+    Effect.gen(function* () {
+      const interactions = makeInteractions();
+      let secondRan = false;
 
-    // Handlers are typed as never-failing, so a handler that breaks surfaces
-    // as a defect — which the previous Effect.ignore swallowed just as
-    // silently as a typed failure.
-    interactions.on("first", () =>
-      Effect.sync(() => {
-        throw new Error("bridge down");
-      })
-    );
-    interactions.on("second", () =>
-      Effect.sync(() => {
-        secondRan = true;
-      })
-    );
+      // Handlers are typed as never-failing, so a handler that breaks surfaces
+      // as a defect — which the previous Effect.ignore swallowed just as
+      // silently as a typed failure.
+      interactions.on("first", () =>
+        Effect.sync(() => {
+          throw new Error("bridge down");
+        })
+      );
+      interactions.on("second", () =>
+        Effect.sync(() => {
+          secondRan = true;
+        })
+      );
 
-    await Effect.runPromise(
-      interactions.dispatch({
+      yield* interactions.dispatch({
         actions: [
           {
             actionId: "first",
@@ -198,109 +198,123 @@ describe("registerPermissionHandlers", () => {
         threadTs: "1.1",
         triggerId: "t",
         userId: "U1",
-      })
-    );
+      });
 
-    expect(secondRan).toBe(true);
-  });
+      expect(secondRan).toBe(true);
+    })
+  );
 
-  const dispatchWith = async (
+  const dispatchWith = (
     actionId: string,
     value: string | undefined,
     clickedBy = "U1"
-  ): Promise<readonly unknown[]> => {
-    const responses: unknown[] = [];
-    const interactions = makeInteractions();
-    registerPermissionHandlers(interactions, {
-      respond: (response) => {
-        responses.push(response);
-        return Promise.resolve();
-      },
+  ): Effect.Effect<readonly unknown[]> =>
+    Effect.gen(function* () {
+      const responses: unknown[] = [];
+      const interactions = makeInteractions();
+      registerPermissionHandlers(interactions, {
+        respond: (response) => {
+          responses.push(response);
+          return Promise.resolve();
+        },
+      });
+
+      yield* interactions.dispatch(payload(actionId, value, clickedBy));
+      return responses;
     });
 
-    await Effect.runPromise(
-      interactions.dispatch(payload(actionId, value, clickedBy))
-    );
-    return responses;
-  };
+  test.effect("maps a chosen option to a selected permission response", () =>
+    Effect.gen(function* () {
+      const [response] = yield* dispatchWith(
+        PERMISSION_ACTION_ID,
+        buttonsOf(permissionBlocks(request))[0]?.value
+      );
 
-  test("maps a chosen option to a selected permission response", async () => {
-    const [response] = await dispatchWith(
-      PERMISSION_ACTION_ID,
-      buttonsOf(permissionBlocks(request))[0]?.value
-    );
-
-    expect(response).toEqual({
-      correlationId: "corr-1",
-      kind: "permission",
-      response: {
-        optionKind: "allow_once",
-        outcome: "selected",
-      },
-      sessionId: "sess-1",
-    });
-  });
-
-  test("an unrecognised choice cancels rather than inventing an option", async () => {
-    const [response] = await dispatchWith(
-      PERMISSION_ACTION_ID,
-      "corr-1|sess-1|not_a_real_kind|U1"
-    );
-
-    expect(response).toMatchObject({
-      response: { outcome: "cancelled" },
-    });
-  });
-
-  test("maps decline and cancel to elicitation actions", async () => {
-    const [declined] = await dispatchWith(
-      ELICITATION_ACTION_ID,
-      "corr-2|sess-2|decline|U1"
-    );
-    const [cancelled] = await dispatchWith(
-      ELICITATION_ACTION_ID,
-      "corr-2|sess-2|cancel|U1"
-    );
-
-    expect(declined).toMatchObject({
-      kind: "elicitation",
-      response: { action: "decline" },
-    });
-    expect(cancelled).toMatchObject({ response: { action: "cancel" } });
-  });
-
-  test.each([undefined, "", "only-one-field", "two|fields", "a|b|c"])(
-    "a malformed value %p is ignored rather than answered wrongly",
-    async (value) => {
-      // Answering a permission with a guessed correlation id would resolve
-      // somebody else's request.
-      expect(await dispatchWith(PERMISSION_ACTION_ID, value)).toHaveLength(0);
-    }
+      expect(response).toEqual({
+        correlationId: "corr-1",
+        kind: "permission",
+        response: {
+          optionKind: "allow_once",
+          outcome: "selected",
+        },
+        sessionId: "sess-1",
+      });
+    })
   );
 
-  test("a bystander cannot answer someone else's approval", async () => {
+  test.effect("an unrecognised choice cancels rather than inventing an option", () =>
+    Effect.gen(function* () {
+      const [response] = yield* dispatchWith(
+        PERMISSION_ACTION_ID,
+        "corr-1|sess-1|not_a_real_kind|U1"
+      );
+
+      expect(response).toMatchObject({
+        response: { outcome: "cancelled" },
+      });
+    })
+  );
+
+  test.effect("maps decline and cancel to elicitation actions", () =>
+    Effect.gen(function* () {
+      const [declined] = yield* dispatchWith(
+        ELICITATION_ACTION_ID,
+        "corr-2|sess-2|decline|U1"
+      );
+      const [cancelled] = yield* dispatchWith(
+        ELICITATION_ACTION_ID,
+        "corr-2|sess-2|cancel|U1"
+      );
+
+      expect(declined).toMatchObject({
+        kind: "elicitation",
+        response: { action: "decline" },
+      });
+      expect(cancelled).toMatchObject({ response: { action: "cancel" } });
+    })
+  );
+
+  test.effect.each([undefined, "", "only-one-field", "two|fields", "a|b|c"])(
+    "a malformed value %p is ignored rather than answered wrongly",
+    (value) =>
+      // Answering a permission with a guessed correlation id would resolve
+      // somebody else's request.
+      Effect.gen(function* () {
+        expect(yield* dispatchWith(PERMISSION_ACTION_ID, value)).toHaveLength(
+          0
+        );
+      })
+  );
+
+  test.effect("a bystander cannot answer someone else's approval", () =>
     // Buttons live in a channel, so everyone who can see the thread can click
     // them. Approving a command on another user's behalf defeats the ask.
-    const value = buttonsOf(permissionBlocks(request))[0]?.value;
+    Effect.gen(function* () {
+      const value = buttonsOf(permissionBlocks(request))[0]?.value;
 
-    expect(
-      await dispatchWith(PERMISSION_ACTION_ID, value, "U_BYSTANDER")
-    ).toHaveLength(0);
-  });
+      expect(
+        yield* dispatchWith(PERMISSION_ACTION_ID, value, "U_BYSTANDER")
+      ).toHaveLength(0);
+    })
+  );
 
-  test("a bystander cannot answer someone else's elicitation", async () => {
-    expect(
-      await dispatchWith(
-        ELICITATION_ACTION_ID,
-        "corr-2|sess-2|decline|U1",
-        "U_BYSTANDER"
-      )
-    ).toHaveLength(0);
-  });
+  test.effect("a bystander cannot answer someone else's elicitation", () =>
+    Effect.gen(function* () {
+      expect(
+        yield* dispatchWith(
+          ELICITATION_ACTION_ID,
+          "corr-2|sess-2|decline|U1",
+          "U_BYSTANDER"
+        )
+      ).toHaveLength(0);
+    })
+  );
 
-  test("an unrelated action id is not handled", async () => {
-    expect(
-      await dispatchWith("something_else", "corr|sess|allow_once|U1")
-    ).toHaveLength(0);
-  });
+  test.effect("an unrelated action id is not handled", () =>
+    Effect.gen(function* () {
+      expect(
+        yield* dispatchWith("something_else", "corr|sess|allow_once|U1")
+      ).toHaveLength(0);
+    })
+  );
 });

@@ -1,5 +1,5 @@
 /* oxlint-disable promise/avoid-new eslint/prefer-destructuring import/no-relative-parent-imports -- a manually settled barrier is how a test holds a turn open, the recorded reason reads clearer as a member access, and the registry is a sibling of this feature rather than of this directory */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import {
   enqueue,

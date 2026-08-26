@@ -9,7 +9,7 @@
  * integration path.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Option, Result } from "effect";
 
 import { decodePostMessageResponse, postMessage } from "./post-message.ts";

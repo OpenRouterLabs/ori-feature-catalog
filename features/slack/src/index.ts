@@ -22,6 +22,8 @@ import type { Chat, StateStore as OriStateStore } from "ori";
 
 import { Context, Effect, Layer, Scope } from "effect";
 
+import { bestEffort } from "./helpers/best-effort.ts";
+
 import type { SlackClientShape } from "./client/client.ts";
 import type { RawSlackMessage } from "./client/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
@@ -110,14 +112,20 @@ const buildContext = (input: {
         context,
         scope,
       };
-    })
+    }).pipe(Effect.withSpan("Slack.runtime.buildContext"))
   );
 
 /** Run an Effect against the graph built at start. */
 const runWith = <A>(
   context: Context.Context<SlackServices>,
   effect: Effect.Effect<A, never, SlackServices>
-): Promise<A> => Effect.runPromise(effect.pipe(Effect.provideContext(context)));
+): Promise<A> =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provideContext(context),
+      Effect.withSpan("Slack.runtime.runWith")
+    )
+  );
 
 const messageOf = (event: RawSlackMessage): IncomingMessage => ({
   botId: event.bot_id,
@@ -169,7 +177,20 @@ const resolveIdentity = (
           teamId: identity.team_id ?? "",
         };
       },
-    }).pipe(Effect.catchCause(() => Effect.succeed(UNKNOWN_IDENTITY)))
+    }).pipe(
+      // Logged before it is discarded. Degrading to an unknown identity is
+      // right — the surface can still serve — but the REASON must not vanish:
+      // a revoked token or a missing scope leaves `botUserId` undefined, which
+      // silently degrades the crowd tally to counting no bots at all, while
+      // boot still reports the surface live. `config.ts` fails the boot outright
+      // for a missing env var; a token that exists and does not work was the
+      // quieter failure of the two.
+      Effect.tapCause((cause) =>
+        Effect.logError("[slack] could not resolve the bot identity", cause)
+      ),
+      Effect.catchCause(() => Effect.succeed(UNKNOWN_IDENTITY)),
+      Effect.withSpan("Slack.runtime.resolveIdentity")
+    )
   );
 
 /**
@@ -217,9 +238,9 @@ const interactionDispatchers = (
   readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
 } => ({
   dispatchInteraction: (payload: InteractionPayload): Promise<void> =>
-    runWith(context, interactions.dispatch(payload).pipe(Effect.ignore)),
+    runWith(context, interactions.dispatch(payload).pipe(bestEffort)),
   dispatchView: (payload: ViewSubmissionPayload): Promise<void> =>
-    runWith(context, interactions.dispatchView(payload).pipe(Effect.ignore)),
+    runWith(context, interactions.dispatchView(payload).pipe(bestEffort)),
 });
 
 /**
@@ -246,11 +267,14 @@ const turnRouteDeps = (input: {
   isStopping: input.isStopping,
   logger: input.logger,
   messageOf,
+  // The notes are effects; `runWith` is the same single edge every other
+  // Promise-shaped handle on this record crosses, not a boundary of their own.
   postQueuedNotice: (ref: ThreadRef): Promise<void> =>
-    postQueuedNotice(input.context, ref),
-  sayFailed: (ref: ThreadRef): Promise<void> => sayFailed(input.context, ref),
+    runWith(input.context, postQueuedNotice(ref)),
+  sayFailed: (ref: ThreadRef): Promise<void> =>
+    runWith(input.context, sayFailed(ref)),
   startStatus: (ref: ThreadRef): Promise<void> =>
-    startStatus(input.context, ref),
+    runWith(input.context, startStatus(ref)),
   runWith: <A>(effect: Effect.Effect<A, never, SlackServices>): Promise<A> =>
     runWith(input.context, effect),
   config: input.config,

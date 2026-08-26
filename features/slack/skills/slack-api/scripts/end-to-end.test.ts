@@ -13,7 +13,7 @@
  * a real API call.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "slack.ts");

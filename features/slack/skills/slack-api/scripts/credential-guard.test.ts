@@ -5,7 +5,7 @@
  * the rest of this skill's tests hermetic.
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
 import { fetchChannelHistory } from "./get-history.ts";

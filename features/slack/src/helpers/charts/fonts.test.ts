@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
+
+import { Effect } from "effect";
 
 import { discoverChartFonts, familyNameFrom } from "./fonts.ts";
 
@@ -38,125 +40,141 @@ describe("familyNameFrom", () => {
 });
 
 describe("discoverChartFonts", () => {
-  test("points every family slot at the font it found", async () => {
-    // The chart SVGs ask for font-family="monospace". resvg only resolves that
-    // generic if it was told which real family backs it, so a discovered font
-    // that is not wired into monospaceFamily still renders nothing.
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts" ? ["/usr/share/fonts/lato/Lato.ttf"] : []
-        ),
-      readFont: () => Promise.resolve(fontWithFamily("Lato")),
-    });
+  test.effect("points every family slot at the font it found", () =>
+    Effect.gen(function* () {
+      // The chart SVGs ask for font-family="monospace". resvg only resolves that
+      // generic if it was told which real family backs it, so a discovered font
+      // that is not wired into monospaceFamily still renders nothing.
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts" ? ["/usr/share/fonts/lato/Lato.ttf"] : []
+          ),
+        readFont: () => Promise.resolve(fontWithFamily("Lato")),
+      });
 
-    expect(options).toBeDefined();
-    expect(options?.monospaceFamily).toBe("Lato");
-    expect(options?.defaultFontFamily).toBe("Lato");
-    expect(options?.fontDirs).toEqual(["/usr/share/fonts"]);
-  });
+      expect(options).toBeDefined();
+      expect(options?.monospaceFamily).toBe("Lato");
+      expect(options?.defaultFontFamily).toBe("Lato");
+      expect(options?.fontDirs).toEqual(["/usr/share/fonts"]);
+    })
+  );
 
-  test("ignores non-font files in a font directory", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts" ? ["/usr/share/fonts/README.txt"] : []
-        ),
-      readFont: () =>
-        Promise.reject(new Error("a .txt must never be parsed as a font")),
-    });
+  test.effect("ignores non-font files in a font directory", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts" ? ["/usr/share/fonts/README.txt"] : []
+          ),
+        readFont: () =>
+          Promise.reject(new Error("a .txt must never be parsed as a font")),
+      });
 
-    expect(options).toBeUndefined();
-  });
+      expect(options).toBeUndefined();
+    })
+  );
 
-  test("reports no font rather than pretending, when the box has none", async () => {
-    // This is the VM the bug appeared on: font files present, no fontconfig,
-    // so resvg's own system lookup finds nothing and draws zero glyphs.
-    const options = await discoverChartFonts({
-      listFontFiles: () => Promise.resolve([]),
-      readFont: () => Promise.resolve(new Uint8Array()),
-    });
+  test.effect("reports no font rather than pretending, when the box has none", () =>
+    Effect.gen(function* () {
+      // This is the VM the bug appeared on: font files present, no fontconfig,
+      // so resvg's own system lookup finds nothing and draws zero glyphs.
+      const options = yield* discoverChartFonts({
+        listFontFiles: () => Promise.resolve([]),
+        readFont: () => Promise.resolve(new Uint8Array()),
+      });
 
-    expect(options).toBeUndefined();
-  });
+      expect(options).toBeUndefined();
+    })
+  );
 
-  test("collects every directory that holds fonts", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts" || dir === "/usr/local/share/fonts"
-            ? [`${dir}/Lato.ttf`]
-            : []
-        ),
-      readFont: () => Promise.resolve(fontWithFamily("Lato")),
-    });
+  test.effect("collects every directory that holds fonts", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts" || dir === "/usr/local/share/fonts"
+              ? [`${dir}/Lato.ttf`]
+              : []
+          ),
+        readFont: () => Promise.resolve(fontWithFamily("Lato")),
+      });
 
-    expect(options?.fontDirs).toEqual([
-      "/usr/share/fonts",
-      "/usr/local/share/fonts",
-    ]);
-  });
+      expect(options?.fontDirs).toEqual([
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+      ]);
+    })
+  );
 
-  test("one unreadable file does not lose the fonts beside it", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts"
-            ? ["/usr/share/fonts/broken.ttf", "/usr/share/fonts/Lato.ttf"]
-            : []
-        ),
-      readFont: (path) =>
-        path.endsWith("broken.ttf")
-          ? Promise.reject(new Error("EACCES: permission denied"))
-          : Promise.resolve(fontWithFamily("Lato")),
-    });
+  test.effect("one unreadable file does not lose the fonts beside it", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts"
+              ? ["/usr/share/fonts/broken.ttf", "/usr/share/fonts/Lato.ttf"]
+              : []
+          ),
+        readFont: (path) =>
+          path.endsWith("broken.ttf")
+            ? Promise.reject(new Error("EACCES: permission denied"))
+            : Promise.resolve(fontWithFamily("Lato")),
+      });
 
-    expect(options?.defaultFontFamily).toBe("Lato");
-  });
+      expect(options?.defaultFontFamily).toBe("Lato");
+    })
+  );
 
-  test("a font whose name table is malformed is skipped, not fatal", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts"
-            ? ["/usr/share/fonts/truncated.ttf", "/usr/share/fonts/Lato.ttf"]
-            : []
-        ),
-      readFont: (path) =>
-        Promise.resolve(
-          path.endsWith("truncated.ttf")
-            ? fontWithFamily("Lato").subarray(0, 20)
-            : fontWithFamily("Lato")
-        ),
-    });
+  test.effect("a font whose name table is malformed is skipped, not fatal", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts"
+              ? ["/usr/share/fonts/truncated.ttf", "/usr/share/fonts/Lato.ttf"]
+              : []
+          ),
+        readFont: (path) =>
+          Promise.resolve(
+            path.endsWith("truncated.ttf")
+              ? fontWithFamily("Lato").subarray(0, 20)
+              : fontWithFamily("Lato")
+          ),
+      });
 
-    expect(options?.defaultFontFamily).toBe("Lato");
-  });
+      expect(options?.defaultFontFamily).toBe("Lato");
+    })
+  );
 
-  test("prefers a font that can draw Latin over whichever sorted first", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(
-          dir === "/usr/share/fonts"
-            ? ["/usr/share/fonts/Symbol.ttf", "/usr/share/fonts/DejaVuSans.ttf"]
-            : []
-        ),
-      readFont: (path) =>
-        Promise.resolve(
-          fontWithFamily(path.endsWith("Symbol.ttf") ? "Symbol" : "DejaVu Sans")
-        ),
-    });
+  test.effect("prefers a font that can draw Latin over whichever sorted first", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(
+            dir === "/usr/share/fonts"
+              ? ["/usr/share/fonts/Symbol.ttf", "/usr/share/fonts/DejaVuSans.ttf"]
+              : []
+          ),
+        readFont: (path) =>
+          Promise.resolve(
+            fontWithFamily(path.endsWith("Symbol.ttf") ? "Symbol" : "DejaVu Sans")
+          ),
+      });
 
-    expect(options?.defaultFontFamily).toBe("DejaVu Sans");
-  });
+      expect(options?.defaultFontFamily).toBe("DejaVu Sans");
+    })
+  );
 
-  test("falls back to any font when none of the preferred ones are there", async () => {
-    const options = await discoverChartFonts({
-      listFontFiles: (dir) =>
-        Promise.resolve(dir === "/usr/share/fonts" ? ["/f/Comic.ttf"] : []),
-      readFont: () => Promise.resolve(fontWithFamily("Comic Sans MS")),
-    });
+  test.effect("falls back to any font when none of the preferred ones are there", () =>
+    Effect.gen(function* () {
+      const options = yield* discoverChartFonts({
+        listFontFiles: (dir) =>
+          Promise.resolve(dir === "/usr/share/fonts" ? ["/f/Comic.ttf"] : []),
+        readFont: () => Promise.resolve(fontWithFamily("Comic Sans MS")),
+      });
 
-    expect(options?.defaultFontFamily).toBe("Comic Sans MS");
-  });
+      expect(options?.defaultFontFamily).toBe("Comic Sans MS");
+    })
+  );
 });

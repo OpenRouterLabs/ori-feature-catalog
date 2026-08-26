@@ -1,6 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { mkdtemp, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+
+import { Effect } from "effect";
 
 import { barChartSvg } from "./charts.ts";
 import { svgToPng } from "./rasterise.ts";
@@ -26,81 +28,87 @@ const readSvgToPng = (namespace: unknown): typeof svgToPng => {
 };
 
 describe("svgToPng", () => {
-  test("produces a real PNG, which is what Slack will preview", async () => {
-    // Slack renders no preview for an uploaded SVG — the thread shows an empty
-    // box. This is the whole reason the dependency is here.
-    const blob = await svgToPng(
-      barChartSvg({
-        rows: [
-          {
-            label: "a",
-            value: 3,
-          },
-        ],
-        title: "t",
-      })
-    );
-    const png = await blob.bytes();
+  test.effect("produces a real PNG, which is what Slack will preview", () =>
+    Effect.gen(function* () {
+      // Slack renders no preview for an uploaded SVG — the thread shows an empty
+      // box. This is the whole reason the dependency is here.
+      const blob = yield* svgToPng(
+        barChartSvg({
+          rows: [
+            {
+              label: "a",
+              value: 3,
+            },
+          ],
+          title: "t",
+        })
+      );
+      const png = yield* Effect.promise(() => blob.bytes());
 
-    expect(png.length).toBeGreaterThan(0);
-    // PNG magic: \x89 P N G
-    expect(png[0]).toBe(0x89);
-    expect(png[1]).toBe(0x50);
-    expect(png[2]).toBe(0x4e);
-    expect(png[3]).toBe(0x47);
-  });
+      expect(png.length).toBeGreaterThan(0);
+      // PNG magic: \x89 P N G
+      expect(png[0]).toBe(0x89);
+      expect(png[1]).toBe(0x50);
+      expect(png[2]).toBe(0x4e);
+      expect(png[3]).toBe(0x47);
+    })
+  );
 
-  test("actually draws the text, not just the boxes", async () => {
-    // The bug this guards: with no font resolved, resvg renders every <text>
-    // as zero glyphs and still returns a valid PNG. Every assertion about
-    // magic bytes and length passed while the chart was blank, so the only
-    // check worth having is that the labels change the pixels.
-    const withText = await svgToPng(
-      barChartSvg({
-        rows: [
-          {
-            label: "runtime",
-            value: 86_000,
-          },
-        ],
-        title: "ori lines of code",
-      })
-    );
-    const withoutText = await svgToPng(
-      barChartSvg({
-        rows: [
-          {
-            label: "",
-            value: 86_000,
-          },
-        ],
-        title: "",
-      })
-    );
+  test.effect("actually draws the text, not just the boxes", () =>
+    Effect.gen(function* () {
+      // The bug this guards: with no font resolved, resvg renders every <text>
+      // as zero glyphs and still returns a valid PNG. Every assertion about
+      // magic bytes and length passed while the chart was blank, so the only
+      // check worth having is that the labels change the pixels.
+      const withText = yield* svgToPng(
+        barChartSvg({
+          rows: [
+            {
+              label: "runtime",
+              value: 86_000,
+            },
+          ],
+          title: "ori lines of code",
+        })
+      );
+      const withoutText = yield* svgToPng(
+        barChartSvg({
+          rows: [
+            {
+              label: "",
+              value: 86_000,
+            },
+          ],
+          title: "",
+        })
+      );
 
-    expect(withText.size).toBeGreaterThan(withoutText.size);
-  });
+      expect(withText.size).toBeGreaterThan(withoutText.size);
+    })
+  );
 
-  test("renders every chart kind the route can build", async () => {
-    const blob = await svgToPng(
-      barChartSvg({
-        rows: [
-          {
-            label: "conflicts",
-            value: 20,
-          },
-          {
-            label: "ready",
-            value: 5,
-          },
-        ],
-        title: "PR queue",
-      })
-    );
-    const png = await blob.bytes();
+  test.effect("renders every chart kind the route can build", () =>
+    Effect.gen(function* () {
+      const blob = yield* svgToPng(
+        barChartSvg({
+          rows: [
+            {
+              label: "conflicts",
+              value: 20,
+            },
+            {
+              label: "ready",
+              value: 5,
+            },
+          ],
+          title: "PR queue",
+        })
+      );
+      const png = yield* Effect.promise(() => blob.bytes());
 
-    expect(png.length).toBeGreaterThan(100);
-  });
+      expect(png.length).toBeGreaterThan(100);
+    })
+  );
 
   /**
    * The bug this guards took every chart in the product down, and no test in
@@ -119,35 +127,57 @@ describe("svgToPng", () => {
    * unaffected. Without the delete the test passes either way and guards
    * nothing.
    */
-  test("renders after the bundle's temp output directory is gone", async () => {
-    const here = dirname(import.meta.path);
-    // Inside the workspace so the bundle resolves the same packages the daemon
-    // does, and hidden from the test runner so it is never collected as a test.
-    const outDir = await mkdtemp(
-      join(here, "..", "..", "..", "rasterise-bundle-")
-    );
+  test.effect("renders after the bundle's temp output directory is gone", () =>
+    Effect.gen(function* () {
+      const here = dirname(import.meta.path);
+      // Inside the workspace so the bundle resolves the same packages the
+      // daemon does, and under `node_modules/` so the coverage reporter does
+      // not count it. It used to sit at the feature root, where bun
+      // instrumented ~27k lines of bundled resvg on import and charged them to
+      // this feature: 12% of its functions covered, dragging the repo-wide
+      // number below the CI floor for a file that exists for milliseconds and
+      // is deleted before the run ends.
+      // The release is the `finally` this used to have: the scope the harness
+      // opens closes it however the test ends.
+      const outDir = yield* Effect.acquireRelease(
+        Effect.promise(() =>
+          mkdtemp(join(here, "..", "..", "..", "node_modules", ".rasterise-bundle-"))
+        ),
+        (dir) =>
+          Effect.promise(() =>
+            rm(dir, {
+              force: true,
+              recursive: true,
+            })
+          )
+      );
 
-    try {
-      const built = await Bun.build({
-        entrypoints: [join(here, "rasterise.ts")],
-        naming: "module.mjs",
-        outdir: outDir,
-        target: "bun",
-        throw: false,
-      });
+      const built = yield* Effect.promise(() =>
+        Bun.build({
+          entrypoints: [join(here, "rasterise.ts")],
+          naming: "module.mjs",
+          outdir: outDir,
+          target: "bun",
+          throw: false,
+        })
+      );
       expect(built.success).toBe(true);
 
-      const namespace: unknown = await import(join(outDir, "module.mjs"));
+      const namespace: unknown = yield* Effect.promise(
+        () => import(join(outDir, "module.mjs"))
+      );
       const render = readSvgToPng(namespace);
 
       // The renderer has NOT been touched yet — exactly the daemon's position
       // when it drops the temp dir after loading the feature.
-      await rm(outDir, {
-        force: true,
-        recursive: true,
-      });
+      yield* Effect.promise(() =>
+        rm(outDir, {
+          force: true,
+          recursive: true,
+        })
+      );
 
-      const png = await render(
+      const blob = yield* render(
         barChartSvg({
           rows: [
             {
@@ -157,15 +187,11 @@ describe("svgToPng", () => {
           ],
           title: "t",
         })
-      ).then(async (blob) => await blob.bytes());
+      );
+      const png = yield* Effect.promise(() => blob.bytes());
 
       expect(png[0]).toBe(0x89);
       expect(png.length).toBeGreaterThan(100);
-    } finally {
-      await rm(outDir, {
-        force: true,
-        recursive: true,
-      });
-    }
-  });
+    })
+  );
 });
