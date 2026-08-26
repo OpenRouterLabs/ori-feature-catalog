@@ -17,6 +17,8 @@ import type { AgentFailure, AgentRuntimeEvent } from "ori";
 
 import { Effect, Schema } from "effect";
 
+import { bestEffort } from "../helpers/best-effort.ts";
+
 import type { SlackApiError } from "../client/client.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type { MessageReplyShape } from "../message-reply/reply.ts";
@@ -248,7 +250,7 @@ const retireApproval = Effect.fn("Slack.runEvents.retireApproval")(
         permissionResolvedBlocks({ operation: entry.operation }, outcome),
         entry.operation
       )
-      .pipe(Effect.ignore);
+      .pipe(bestEffort);
     pending.delete(correlationId);
   }
 );

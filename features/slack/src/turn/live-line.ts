@@ -25,6 +25,8 @@
 
 import { Effect } from "effect";
 
+import { bestEffort } from "../helpers/best-effort.ts";
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,7 +68,7 @@ export const recordLine = Effect.fn("Slack.liveLine.record")(function* (
   }).pipe(
     // The beat falls back to its own line. An unwritable temp dir must not
     // cost the agent the update it was making.
-    Effect.ignore
+    bestEffort
   );
 });
 

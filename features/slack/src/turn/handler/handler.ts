@@ -23,6 +23,8 @@ import type { AgentRuntimeEvent, Chat } from "ori";
 
 import { Effect, Ref, Stream } from "effect";
 
+import { bestEffort } from "../../helpers/best-effort.ts";
+
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
 import type { RunState } from "../../message-stream/run-state.ts";
 import type { RunOptions } from "../../message-stream/stream.ts";
@@ -78,7 +80,7 @@ const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
         ),
         entry.operation
       )
-      .pipe(Effect.ignore);
+      .pipe(bestEffort);
     pending.delete(correlationId);
   }
 });

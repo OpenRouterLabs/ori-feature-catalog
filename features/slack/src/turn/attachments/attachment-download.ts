@@ -27,6 +27,8 @@
 
 import { Effect, Schema } from "effect";
 
+import { bestEffort } from "../../helpers/best-effort.ts";
+
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
@@ -344,7 +346,7 @@ export const discardAttachments = Effect.fn("Slack.attachments.discard")(
       })
     ).pipe(
       // Cleanup is best effort; a failure here must not fail the turn.
-      Effect.ignore
+      bestEffort
     );
   }
 );

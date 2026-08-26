@@ -14,6 +14,8 @@
 
 import { Effect, Result, Schema } from "effect";
 
+import { bestEffort } from "../../helpers/best-effort.ts";
+
 import type { SlackBlock } from "../../helpers/block-kit/blocks.ts";
 import type { BlockersShape } from "../../interactions/blocker.ts";
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
@@ -170,7 +172,7 @@ const retireQuestion = (input: {
       ),
       input.request.question
     )
-    .pipe(Effect.ignore, Effect.withSpan("Slack.routes.retireQuestion"));
+    .pipe(bestEffort, Effect.withSpan("Slack.routes.retireQuestion"));
 
 /**
  * Post the question and wait for the answer.

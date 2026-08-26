@@ -22,6 +22,8 @@ import type { Chat, StateStore as OriStateStore } from "ori";
 
 import { Context, Effect, Layer, Scope } from "effect";
 
+import { bestEffort } from "./helpers/best-effort.ts";
+
 import type { SlackClientShape } from "./client/client.ts";
 import type { RawSlackMessage } from "./client/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
@@ -176,6 +178,16 @@ const resolveIdentity = (
         };
       },
     }).pipe(
+      // Logged before it is discarded. Degrading to an unknown identity is
+      // right — the surface can still serve — but the REASON must not vanish:
+      // a revoked token or a missing scope leaves `botUserId` undefined, which
+      // silently degrades the crowd tally to counting no bots at all, while
+      // boot still reports the surface live. `config.ts` fails the boot outright
+      // for a missing env var; a token that exists and does not work was the
+      // quieter failure of the two.
+      Effect.tapCause((cause) =>
+        Effect.logError("[slack] could not resolve the bot identity", cause)
+      ),
       Effect.catchCause(() => Effect.succeed(UNKNOWN_IDENTITY)),
       Effect.withSpan("Slack.runtime.resolveIdentity")
     )
@@ -226,9 +238,9 @@ const interactionDispatchers = (
   readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
 } => ({
   dispatchInteraction: (payload: InteractionPayload): Promise<void> =>
-    runWith(context, interactions.dispatch(payload).pipe(Effect.ignore)),
+    runWith(context, interactions.dispatch(payload).pipe(bestEffort)),
   dispatchView: (payload: ViewSubmissionPayload): Promise<void> =>
-    runWith(context, interactions.dispatchView(payload).pipe(Effect.ignore)),
+    runWith(context, interactions.dispatchView(payload).pipe(bestEffort)),
 });
 
 /**

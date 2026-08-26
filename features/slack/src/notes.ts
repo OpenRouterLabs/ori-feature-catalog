@@ -16,6 +16,8 @@
 
 import { Context, Effect } from "effect";
 
+import { bestEffort } from "./helpers/best-effort.ts";
+
 import type { SlackConfig } from "./config.ts";
 import type { SlackServices } from "./layers.ts";
 import type { ThreadRef } from "./thread/thread.ts";
@@ -39,7 +41,7 @@ const postNote = Effect.fn("Slack.notes.post")(function* (
   text: string
 ): Effect.fn.Return<void, never, SlackClient> {
   const reply = yield* makeMessageReply(ref);
-  yield* reply.reply(text).pipe(Effect.ignore);
+  yield* reply.reply(text).pipe(bestEffort);
 });
 
 /**
