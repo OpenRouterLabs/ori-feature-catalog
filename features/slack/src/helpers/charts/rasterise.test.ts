@@ -130,13 +130,18 @@ describe("svgToPng", () => {
   test.effect("renders after the bundle's temp output directory is gone", () =>
     Effect.gen(function* () {
       const here = dirname(import.meta.path);
-      // Inside the workspace so the bundle resolves the same packages the daemon
-      // does, and hidden from the test runner so it is never collected as a test.
+      // Inside the workspace so the bundle resolves the same packages the
+      // daemon does, and under `node_modules/` so the coverage reporter does
+      // not count it. It used to sit at the feature root, where bun
+      // instrumented ~27k lines of bundled resvg on import and charged them to
+      // this feature: 12% of its functions covered, dragging the repo-wide
+      // number below the CI floor for a file that exists for milliseconds and
+      // is deleted before the run ends.
       // The release is the `finally` this used to have: the scope the harness
       // opens closes it however the test ends.
       const outDir = yield* Effect.acquireRelease(
         Effect.promise(() =>
-          mkdtemp(join(here, "..", "..", "..", "rasterise-bundle-"))
+          mkdtemp(join(here, "..", "..", "..", "node_modules", ".rasterise-bundle-"))
         ),
         (dir) =>
           Effect.promise(() =>

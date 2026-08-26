@@ -61,8 +61,13 @@ const carriedValues = (cause: Cause.Cause<unknown>): readonly unknown[] =>
  * diff. Anything else — a non-`Error` failure, several reasons, a bare
  * interrupt — is wrapped around the rendered cause, which is then the only
  * place the whole story is written down.
+ *
+ * Exported for its own test. This one function decides whether a failing test
+ * fails at all, and the suite it underwrites cannot be the thing that proves
+ * it: a harness that swallowed a cause would report every test green,
+ * including its own.
  */
-const asThrowable = (cause: Cause.Cause<unknown>): unknown => {
+export const asThrowable = (cause: Cause.Cause<unknown>): unknown => {
   const carried = carriedValues(cause);
   const [only] = carried;
   if (carried.length === 1 && only instanceof Error) return only;
