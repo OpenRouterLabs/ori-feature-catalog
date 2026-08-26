@@ -18,6 +18,19 @@ export interface ThreadSession {
   readonly startedAt: number;
 }
 
+/**
+ * One thread as the dashboard sees it: what is remembered about it, together.
+ *
+ * `session` is optional because the two halves are written independently — a
+ * thread the bot has merely watched has listen state and no session, and a
+ * session whose thread state was evicted has the reverse.
+ */
+export interface ThreadRow {
+  readonly instanceId: string;
+  readonly listen: ThreadListen;
+  readonly session: ThreadSession | undefined;
+}
+
 export interface StateStoreShape {
   readonly getSession: (
     instanceId: string
@@ -28,6 +41,12 @@ export interface StateStoreShape {
   ) => Effect.Effect<void>;
   readonly clearSession: (instanceId: string) => Effect.Effect<void>;
   readonly getListen: (instanceId: string) => Effect.Effect<ThreadListen>;
+  /**
+   * Every thread this store knows about. Read-only, and read by the dashboard
+   * rather than by a turn: a turn always knows which thread it is in and asks
+   * for that one by id.
+   */
+  readonly listThreads: () => Effect.Effect<readonly ThreadRow[]>;
   /** Atomic: a get-then-put would lose a concurrent second participant. */
   readonly updateListen: (
     instanceId: string,
@@ -84,6 +103,23 @@ export const StateStoreMemory = Effect.gen(function* () {
       Ref.get(listens).pipe(
         Effect.map((current) => current.get(instanceId) ?? UNSEEN_THREAD),
         Effect.withSpan("Slack.state.getListen")
+      ),
+
+    listThreads: () =>
+      Effect.all([Ref.get(sessions), Ref.get(listens)]).pipe(
+        Effect.map(([sessionsNow, listensNow]) =>
+          // Union of both halves, not just the sessions: a thread the bot is
+          // watching but has not answered yet is exactly the one an operator
+          // is most likely to be asking about.
+          [...new Set([...sessionsNow.keys(), ...listensNow.keys()])].map(
+            (instanceId) => ({
+              instanceId,
+              listen: listensNow.get(instanceId) ?? UNSEEN_THREAD,
+              session: sessionsNow.get(instanceId),
+            })
+          )
+        ),
+        Effect.withSpan("Slack.state.listThreads")
       ),
 
     getSession: (instanceId) =>

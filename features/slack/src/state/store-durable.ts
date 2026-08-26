@@ -21,7 +21,7 @@ import type { StateStore as OriStateStore } from "ori";
 import { Effect, Schema } from "effect";
 
 import type { ThreadListen } from "../turn/listen.ts";
-import type { StateStoreShape, ThreadSession } from "./store.ts";
+import type { StateStoreShape, ThreadRow, ThreadSession } from "./store.ts";
 
 import { UNSEEN_THREAD } from "../turn/listen.ts";
 import { StateStore } from "./store.ts";
@@ -205,6 +205,59 @@ const listens = (
   };
 };
 
+/** A joined row. Either half may be absent, so both sides are nullable. */
+const ThreadRowShape = Schema.Struct({
+  instance_id: Schema.String,
+  session_id: Schema.NullOr(Schema.String),
+  started_at: Schema.NullOr(Schema.Number),
+  state: Schema.NullOr(Schema.String),
+});
+
+const decodeThreadRow = Schema.decodeUnknownOption(ThreadRowShape);
+
+/**
+ * Every thread either table knows about.
+ *
+ * A FULL OUTER JOIN in SQLite's dialect: the two halves are written
+ * independently, so neither table alone is the list. A row that does not
+ * decode is dropped rather than failing the page — the same choice
+ * `listenFrom` makes for a single row, for the same reason.
+ */
+const listThreads =
+  (store: OriStateStore) => (): Effect.Effect<readonly ThreadRow[]> =>
+    read("listThreads", () =>
+      store.query(
+        `SELECT s.instance_id AS instance_id, s.session_id, s.started_at, l.state
+           FROM slack_sessions s
+           LEFT JOIN slack_listens l ON l.instance_id = s.instance_id
+         UNION
+         SELECT l.instance_id AS instance_id, s.session_id, s.started_at, l.state
+           FROM slack_listens l
+           LEFT JOIN slack_sessions s ON s.instance_id = l.instance_id`
+      )
+    ).pipe(
+      Effect.map((rows) =>
+        rows.flatMap((row) => {
+          const decoded = decodeThreadRow(row);
+          if (decoded._tag === "None") {
+            return [];
+          }
+          const { instance_id, session_id, started_at, state } = decoded.value;
+          return [
+            {
+              instanceId: instance_id,
+              listen: state === null ? UNSEEN_THREAD : listenFrom(state),
+              session:
+                session_id === null || started_at === null
+                  ? NO_SESSION
+                  : { sessionId: session_id, startedAt: started_at },
+            },
+          ];
+        })
+      ),
+      Effect.withSpan("Slack.state.listThreads")
+    );
+
 export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
   function* (store: OriStateStore): Effect.fn.Return<StateStoreShape> {
     for (const statement of SCHEMA) {
@@ -214,6 +267,7 @@ export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
     return StateStore.of({
       ...sessions(store),
       ...listens(store),
+      listThreads: listThreads(store),
     });
   }
 );

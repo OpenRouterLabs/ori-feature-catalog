@@ -39,6 +39,7 @@ import type { IncomingMessage } from "./turn/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
 import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
+import { makeDashboardRoute } from "./dashboard/dashboard.ts";
 import { SlackClient } from "./client/client.ts";
 import { makeSurfaceEventHandlers } from "./client/surface-events.ts";
 import { readSlackConfig } from "./config.ts";
@@ -53,6 +54,7 @@ import {
 } from "./interactions/permissions.ts";
 import { Questionnaires } from "./interactions/questionnaires.ts";
 import { registerQuestionHandlers } from "./interactions/questions-handler.ts";
+import { StateStore } from "./state/store.ts";
 import { SlackDefaultLayers } from "./layers.ts";
 import { setLoadingEmoji } from "./message-stream/run-state.ts";
 import {
@@ -85,6 +87,8 @@ export interface SlackRuntime {
   readonly handleDispatchRequest: (request: Request) => Promise<Response>;
   readonly handleEventsRequest: (request: Request) => Promise<Response>;
   readonly handleChartRequest: (request: Request) => Promise<Response>;
+  /** The operator's read-only view of what this surface remembers. */
+  readonly handleDashboardRequest: (request: Request) => Promise<Response>;
   readonly handleImageRequest: (request: Request) => Promise<Response>;
   readonly handleQuestionsRequest: (request: Request) => Promise<Response>;
   readonly stop: () => Promise<void>;
@@ -381,11 +385,13 @@ const openForTraffic = async (input: {
 const runtimeOf = (input: {
   readonly receiver: SlackReceiver;
   readonly routes: TurnRoutes;
+  readonly dashboard: () => Promise<Response>;
   readonly slack: SlackClientShape;
   readonly stop: () => Promise<void>;
 }): SlackRuntime => ({
   handleAskRequest: input.routes.handleAsk,
   handleChartRequest: input.routes.handleChart,
+  handleDashboardRequest: input.dashboard,
   handleDispatchRequest: input.routes.handleDispatch,
   handleEventsRequest: (request: Request): Promise<Response> =>
     input.receiver.handleRequest(request),
@@ -432,6 +438,10 @@ export const startSlackRuntime = async (input: {
   });
 
   return runtimeOf({
+    // Read straight off the built graph, like the client above: the dashboard
+    // is a read of state the turn pipeline already owns, so it needs no route
+    // of its own inside it.
+    dashboard: makeDashboardRoute(Context.get(context, StateStore)),
     receiver,
     routes,
     slack: Context.get(context, SlackClient),

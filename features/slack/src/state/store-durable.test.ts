@@ -205,3 +205,82 @@ describe("a crowded thread stays crowded", () => {
       })
   );
 });
+
+describe("listing every thread the database knows", () => {
+  test.effect("lists nothing from a fresh database", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+
+      expect(yield* state.listThreads()).toEqual([]);
+    })
+  );
+
+  test.effect("finds a thread that only ever had a session", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.putSession("thread-a", {
+        sessionId: "sess-1",
+        startedAt: 1_700_000_000_000,
+      });
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-a");
+      expect(rows[0]?.session?.sessionId).toBe("sess-1");
+    })
+  );
+
+  test.effect("finds a thread that was only ever listened to", () =>
+    Effect.gen(function* () {
+      // The two tables are written independently, so neither one alone is the
+      // list. A thread muted before the bot ever answered lives only here.
+      const state = yield* store();
+      yield* state.updateListen("thread-b", mute);
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-b");
+      expect(rows[0]?.listen.muted).toBe(true);
+      expect(rows[0]?.session).toBeUndefined();
+    })
+  );
+
+  test.effect("a thread in both tables is listed once, joined", () =>
+    Effect.gen(function* () {
+      // What the UNION is for: the same instance id in both halves must not
+      // render as two rows.
+      const state = yield* store();
+      yield* state.putSession("thread-c", {
+        sessionId: "sess-2",
+        startedAt: 1_700_000_000_000,
+      });
+      yield* state.updateListen("thread-c", engage);
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.session?.sessionId).toBe("sess-2");
+      expect(rows[0]?.listen.engaged).toBe(true);
+    })
+  );
+
+  test.effect("survives into the next process", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.putSession("thread-d", {
+        sessionId: "sess-3",
+        startedAt: 1_700_000_000_000,
+      });
+      yield* state.updateListen("thread-d", mute);
+
+      const restarted = yield* StateStoreDurable(sameDatabase());
+      const rows = yield* restarted.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.listen.muted).toBe(true);
+      expect(rows[0]?.session?.sessionId).toBe("sess-3");
+    })
+  );
+});

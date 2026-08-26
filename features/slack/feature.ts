@@ -127,6 +127,15 @@ export const api = {
     "POST /slack/events": (request): Answer =>
       withRuntime((runtime) => runtime.handleEventsRequest(request)),
 
+    /**
+     * The operator's page. Loopback-guarded like the skill routes: the daemon
+     * is reachable from the internet because `POST /slack/events` has to be,
+     * and this lists thread ids and participants.
+     */
+    "GET /slack/dashboard": loopbackEntry((runtime, request) =>
+      runtime.handleDashboardRequest(request)
+    ),
+
     /** Holds the response until someone answers — what makes the skill blocking. */
     "POST /slack/thread/ask": loopbackEntry((runtime, request) =>
       runtime.handleAskRequest(request)
