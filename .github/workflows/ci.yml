@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # Every pull request, not just those targeting main. The feature work is
+  # stacked — each PR bases onto the branch below it — and a `branches: [main]`
+  # filter would silently skip every PR in a stack except the bottom one.
+  pull_request:
+
+env:
+  # The floor sits just under the coverage measured when it was last raised
+  # (88.12% functions / 90.01% lines). Ratchet it upward when coverage rises;
+  # never lower it to make a red build green.
+  COVERAGE_FLOOR_FUNCS: "86.5"
+  COVERAGE_FLOOR_LINES: "88.5"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      # `main` currently carries a README and nothing else: the features live on
+      # branches that have not landed yet. Without this probe the job fails on
+      # `main` for the least useful reason there is — `bun install` with no
+      # manifest — and a red default branch teaches everyone to ignore CI before
+      # it has checked anything.
+      #
+      # This is not a way to let a broken workspace pass. It distinguishes "no
+      # workspace here" from "the workspace is failing"; the moment a
+      # package.json lands, every step below runs and the floor applies.
+      - name: Look for a workspace to test
+        id: workspace
+        shell: bash
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "no package.json at the repo root — nothing to test yet" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install dependencies
+        if: steps.workspace.outputs.present == 'true'
+        run: bun install
+
+      - name: Test with coverage
+        if: steps.workspace.outputs.present == 'true'
+        shell: bash
+        run: bun test --coverage 2>&1 | tee coverage.txt
+
+      - name: Enforce the coverage floor
+        if: steps.workspace.outputs.present == 'true'
+        shell: bash
+        run: |
+          # Bun 1.3.14 accepts bunfig's `coverageThreshold = { line, function }`
+          # and silently ignores it; the scalar form it honours is applied per
+          # file and exits 1 with no message. So the repo-wide floor is checked
+          # here, against the summary row the text reporter prints.
+          sed $'s/\x1b\\[[0-9;]*m//g' coverage.txt > coverage.plain.txt
+          awk -F'|' -v floor_funcs="$COVERAGE_FLOOR_FUNCS" \
+                    -v floor_lines="$COVERAGE_FLOOR_LINES" '
+            $1 ~ /^All files/ {
+              funcs = $2 + 0
+              lines = $3 + 0
+              found = 1
+              printf "coverage: %.2f%% functions (floor %.2f), %.2f%% lines (floor %.2f)\n", \
+                funcs, floor_funcs, lines, floor_lines
+              if (funcs < floor_funcs + 0 || lines < floor_lines + 0) {
+                print "::error::coverage fell below the floor"
+                exit 1
+              }
+            }
+            END {
+              if (!found) {
+                print "::error::no coverage summary in the test output"
+                exit 1
+              }
+            }
+          ' coverage.plain.txt
