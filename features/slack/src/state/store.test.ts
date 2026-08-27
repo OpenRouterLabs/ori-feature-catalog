@@ -126,4 +126,66 @@ describe("StateStoreMemory", () => {
       expect(yield* second.getSession("thread-a")).toBeUndefined();
     })
   );
+  test.effect("lists nothing before anything has been seen", () =>
+    Effect.gen(function* () {
+      const state = yield* StateStoreMemory;
+
+      expect(yield* state.listThreads()).toEqual([]);
+    })
+  );
+
+  test.effect("lists a thread that has a session but no listen state", () =>
+    Effect.gen(function* () {
+      const state = yield* StateStoreMemory;
+      yield* state.putSession("thread-a", {
+        sessionId: "sess-1",
+        startedAt: 1_700_000_000_000,
+      });
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-a");
+      expect(rows[0]?.listen.engaged).toBe(false);
+    })
+  );
+
+  test.effect("lists a thread that is only being listened to", () =>
+    Effect.gen(function* () {
+      // The half that would be missed by listing sessions alone, and the one
+      // an operator is most likely asking about: watched, never answered.
+      const state = yield* StateStoreMemory;
+      yield* state.updateListen("thread-b", (listen) => ({
+        ...listen,
+        muted: true,
+      }));
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-b");
+      expect(rows[0]?.session).toBeUndefined();
+      expect(rows[0]?.listen.muted).toBe(true);
+    })
+  );
+
+  test.effect("counts a thread in both halves once", () =>
+    Effect.gen(function* () {
+      const state = yield* StateStoreMemory;
+      yield* state.putSession("thread-c", {
+        sessionId: "sess-2",
+        startedAt: 1_700_000_000_000,
+      });
+      yield* state.updateListen("thread-c", (listen) => ({
+        ...listen,
+        engaged: true,
+      }));
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.session?.sessionId).toBe("sess-2");
+      expect(rows[0]?.listen.engaged).toBe(true);
+    })
+  );
 });

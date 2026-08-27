@@ -10,12 +10,27 @@
 import { Context, Effect, Ref } from "effect";
 
 import type { ThreadListen } from "../turn/listen.ts";
+import type { InterruptMode } from "./settings.ts";
 
 import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
 export interface ThreadSession {
   readonly sessionId: string;
   readonly startedAt: number;
+}
+
+/**
+ * One thread as the dashboard sees it: what is remembered about it, together.
+ *
+ * `session` is optional because the two halves are written independently — a
+ * thread the bot has merely watched has listen state and no session, and a
+ * session whose thread state was evicted has the reverse.
+ */
+export interface ThreadRow {
+  readonly instanceId: string;
+  readonly listen: ThreadListen;
+  readonly session: ThreadSession | undefined;
 }
 
 export interface StateStoreShape {
@@ -28,6 +43,15 @@ export interface StateStoreShape {
   ) => Effect.Effect<void>;
   readonly clearSession: (instanceId: string) => Effect.Effect<void>;
   readonly getListen: (instanceId: string) => Effect.Effect<ThreadListen>;
+  /**
+   * Every thread this store knows about. Read-only, and read by the dashboard
+   * rather than by a turn: a turn always knows which thread it is in and asks
+   * for that one by id.
+   */
+  readonly listThreads: () => Effect.Effect<readonly ThreadRow[]>;
+  /** How a second message treats a thread that is already running a turn. */
+  readonly getInterruptMode: () => Effect.Effect<InterruptMode>;
+  readonly putInterruptMode: (mode: InterruptMode) => Effect.Effect<void>;
   /** Atomic: a get-then-put would lose a concurrent second participant. */
   readonly updateListen: (
     instanceId: string,
@@ -71,6 +95,7 @@ const bounded = <T>(
 export const StateStoreMemory = Effect.gen(function* () {
   const sessions = yield* Ref.make(new Map<string, ThreadSession>());
   const listens = yield* Ref.make(new Map<string, ThreadListen>());
+  const interruptMode = yield* Ref.make(DEFAULT_INTERRUPT_MODE);
 
   return StateStore.of({
     clearSession: (instanceId) =>
@@ -80,10 +105,37 @@ export const StateStoreMemory = Effect.gen(function* () {
         return next;
       }).pipe(Effect.withSpan("Slack.state.clearSession")),
 
+    getInterruptMode: () =>
+      Ref.get(interruptMode).pipe(
+        Effect.withSpan("Slack.state.getInterruptMode")
+      ),
+
+    putInterruptMode: (mode) =>
+      Ref.set(interruptMode, mode).pipe(
+        Effect.withSpan("Slack.state.putInterruptMode")
+      ),
+
     getListen: (instanceId) =>
       Ref.get(listens).pipe(
         Effect.map((current) => current.get(instanceId) ?? UNSEEN_THREAD),
         Effect.withSpan("Slack.state.getListen")
+      ),
+
+    listThreads: () =>
+      Effect.all([Ref.get(sessions), Ref.get(listens)]).pipe(
+        Effect.map(([sessionsNow, listensNow]) =>
+          // Union of both halves, not just the sessions: a thread the bot is
+          // watching but has not answered yet is exactly the one an operator
+          // is most likely to be asking about.
+          [...new Set([...sessionsNow.keys(), ...listensNow.keys()])].map(
+            (instanceId) => ({
+              instanceId,
+              listen: listensNow.get(instanceId) ?? UNSEEN_THREAD,
+              session: sessionsNow.get(instanceId),
+            })
+          )
+        ),
+        Effect.withSpan("Slack.state.listThreads")
       ),
 
     getSession: (instanceId) =>

@@ -21,9 +21,11 @@ import type { StateStore as OriStateStore } from "ori";
 import { Effect, Schema } from "effect";
 
 import type { ThreadListen } from "../turn/listen.ts";
-import type { StateStoreShape, ThreadSession } from "./store.ts";
+import type { InterruptMode } from "./settings.ts";
+import type { StateStoreShape, ThreadRow, ThreadSession } from "./store.ts";
 
 import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { interruptModeFrom } from "./settings.ts";
 import { StateStore } from "./store.ts";
 
 const SCHEMA = [
@@ -205,6 +207,93 @@ const listens = (
   };
 };
 
+/** A joined row. Either half may be absent, so both sides are nullable. */
+const ThreadRowShape = Schema.Struct({
+  instance_id: Schema.String,
+  session_id: Schema.NullOr(Schema.String),
+  started_at: Schema.NullOr(Schema.Number),
+  state: Schema.NullOr(Schema.String),
+});
+
+const decodeThreadRow = Schema.decodeUnknownOption(ThreadRowShape);
+
+/**
+ * Every thread either table knows about.
+ *
+ * A FULL OUTER JOIN in SQLite's dialect: the two halves are written
+ * independently, so neither table alone is the list. A row that does not
+ * decode is dropped rather than failing the page — the same choice
+ * `listenFrom` makes for a single row, for the same reason.
+ */
+const listThreads =
+  (store: OriStateStore) => (): Effect.Effect<readonly ThreadRow[]> =>
+    read("listThreads", () =>
+      store.query(
+        `SELECT s.instance_id AS instance_id, s.session_id, s.started_at, l.state
+           FROM slack_sessions s
+           LEFT JOIN slack_listens l ON l.instance_id = s.instance_id
+         UNION
+         SELECT l.instance_id AS instance_id, s.session_id, s.started_at, l.state
+           FROM slack_listens l
+           LEFT JOIN slack_sessions s ON s.instance_id = l.instance_id`
+      )
+    ).pipe(
+      Effect.map((rows) =>
+        rows.flatMap((row) => {
+          const decoded = decodeThreadRow(row);
+          if (decoded._tag === "None") {
+            return [];
+          }
+          const { instance_id, session_id, started_at, state } = decoded.value;
+          return [
+            {
+              instanceId: instance_id,
+              listen: state === null ? UNSEEN_THREAD : listenFrom(state),
+              session:
+                session_id === null || started_at === null
+                  ? NO_SESSION
+                  : { sessionId: session_id, startedAt: started_at },
+            },
+          ];
+        })
+      ),
+      Effect.withSpan("Slack.state.listThreads")
+    );
+
+/** The framework store's key-value side; one row does not want a table. */
+const INTERRUPT_MODE_KEY = "slack:interruptMode";
+
+/**
+ * The operator's setting, and the write that changes it.
+ *
+ * Best-effort like every other read here: a store that cannot answer yields
+ * the default rather than failing the turn that asked. The cost of guessing
+ * wrong is one message steered that should have queued, which is what the
+ * surface did unconditionally before this existed.
+ */
+const settings = (
+  store: OriStateStore
+): Pick<StateStoreShape, "getInterruptMode" | "putInterruptMode"> => ({
+  getInterruptMode: (): Effect.Effect<InterruptMode> =>
+    Effect.tryPromise({
+      catch: (cause) => new Error(String(cause)),
+      try: () => store.get(INTERRUPT_MODE_KEY),
+    }).pipe(
+      Effect.map(interruptModeFrom),
+      Effect.catchCause((cause) =>
+        warn("getInterruptMode")(cause).pipe(
+          Effect.as(interruptModeFrom(undefined))
+        )
+      ),
+      Effect.withSpan("Slack.state.getInterruptMode")
+    ),
+
+  putInterruptMode: (mode: InterruptMode): Effect.Effect<void> =>
+    write("putInterruptMode", () => store.set(INTERRUPT_MODE_KEY, mode)).pipe(
+      Effect.withSpan("Slack.state.putInterruptMode")
+    ),
+});
+
 export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
   function* (store: OriStateStore): Effect.fn.Return<StateStoreShape> {
     for (const statement of SCHEMA) {
@@ -214,6 +303,8 @@ export const StateStoreDurable = Effect.fn("Slack.state.openDurable")(
     return StateStore.of({
       ...sessions(store),
       ...listens(store),
+      ...settings(store),
+      listThreads: listThreads(store),
     });
   }
 );

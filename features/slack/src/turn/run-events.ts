@@ -83,6 +83,10 @@ const Tag = {
   ToolProgress: "tool.progress",
   ToolStarted: "tool.started",
   ToolSucceeded: "tool.succeeded",
+  CompactionCancelled: "compaction.cancelled",
+  CompactionCompleted: "compaction.completed",
+  CompactionFailed: "compaction.failed",
+  CompactionStarted: "compaction.started",
   TurnFailed: "turn.failed",
   TurnSucceeded: "turn.succeeded",
 } as const;
@@ -166,6 +170,24 @@ export const applyEvent = (
     case Tag.ToolOutputDelta:
     case Tag.ToolProgress: {
       return workingTool(withModel);
+    }
+    case Tag.CompactionStarted: {
+      // Stamped rather than flagged, so the indicator can say how long the
+      // pause has lasted. A second start without an end keeps the first
+      // stamp: the elapsed time a reader cares about is since the pause
+      // began, not since the last event about it.
+      return withModel.compactingSince === undefined
+        ? { ...withModel, compactingSince: Date.now() }
+        : withModel;
+    }
+    // Cleared on every ending, not just the happy one. A compaction that
+    // failed or was cancelled leaves the run working, and an indicator still
+    // claiming to compact would be the stale line this surface keeps
+    // relearning not to leave behind.
+    case Tag.CompactionCancelled:
+    case Tag.CompactionCompleted:
+    case Tag.CompactionFailed: {
+      return { ...withModel, compactingSince: undefined };
     }
     case Tag.TurnSucceeded: {
       return {
