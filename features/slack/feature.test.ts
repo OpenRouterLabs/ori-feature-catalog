@@ -29,6 +29,9 @@ const PUBLIC_ROUTE = "POST /slack/events";
 
 /** Each loopback route and the runtime handler it must call. */
 const LOOPBACK_ROUTES = {
+  "GET /slack/dashboard": "handleDashboardRequest",
+  // Same handler as the GET: one page, and it branches on the method.
+  "POST /slack/dashboard": "handleDashboardRequest",
   "POST /slack/thread/ask": "handleAskRequest",
   "POST /slack/thread/chart": "handleChartRequest",
   "POST /slack/thread/dispatch": "handleDispatchRequest",
@@ -53,12 +56,22 @@ const contextFrom = (remoteAddress: string | undefined): ApiRouteContext =>
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the two fields the handlers read are needed
   }) as unknown as ApiRouteContext;
 
-const post = (path: string): Request =>
-  new Request(`http://127.0.0.1${path.replace("POST ", "")}`, {
-    body: "{}",
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+/**
+ * A request for a `"METHOD /path"` key. The method is read off the key rather
+ * than assumed: the dashboard is a GET, and a GET carrying a JSON body is not
+ * a request any client would actually send.
+ */
+const requestFor = (key: string): Request => {
+  const [method = "POST", path = "/"] = key.split(" ");
+  const url = `http://127.0.0.1${path}`;
+  return method === "GET"
+    ? new Request(url)
+    : new Request(url, {
+        body: "{}",
+        headers: { "content-type": "application/json" },
+        method,
+      });
+};
 
 /** Install a runtime that only records which handler was called. */
 const withRuntime = async (
@@ -74,6 +87,7 @@ const withRuntime = async (
   globalThis.__oriSlackRuntime = {
     handleAskRequest: handler("handleAskRequest"),
     handleChartRequest: handler("handleChartRequest"),
+    handleDashboardRequest: handler("handleDashboardRequest"),
     handleDispatchRequest: handler("handleDispatchRequest"),
     handleEventsRequest: handler("handleEventsRequest"),
     handleImageRequest: handler("handleImageRequest"),
@@ -86,7 +100,7 @@ const withRuntime = async (
 
   try {
     const response = await routes[route](
-      post(route),
+      requestFor(route),
       contextFrom(remoteAddress)
     );
     return {
@@ -121,7 +135,7 @@ describe("slack route table", () => {
     test(`${route} answers 503 before the surface is up`, async () => {
       globalThis.__oriSlackRuntime = undefined;
       const response = await routes[route](
-        post(route),
+        requestFor(route),
         contextFrom("127.0.0.1")
       );
       expect(response.status).toBe(HTTP_SERVICE_UNAVAILABLE);
@@ -151,7 +165,7 @@ describe("slack route table", () => {
     } as unknown as ApiRouteContext;
 
     await routes["POST /slack/thread/dispatch"](
-      post("POST /slack/thread/dispatch"),
+      requestFor("POST /slack/thread/dispatch"),
       context
     );
 

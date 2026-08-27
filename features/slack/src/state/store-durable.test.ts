@@ -29,6 +29,7 @@ import {
   unmute,
   withParticipant,
 } from "../turn/listen.ts";
+import { InterruptMode } from "./settings.ts";
 import { StateStoreDurable } from "./store-durable.ts";
 
 /** Named so the autofixer cannot strip a bare `undefined` and widen it. */
@@ -39,6 +40,9 @@ const open = (): {
   readonly store: OriStateStore;
 } => {
   const db = new Database(":memory:");
+  // The framework store's key-value side is a real map here rather than a
+  // stub: the setting persists through it, so a no-op would prove nothing.
+  const kv = new Map<string, string>();
   return {
     close: () => {
       db.close();
@@ -48,13 +52,16 @@ const open = (): {
         Promise.resolve(db.query(sql).run(...((params ?? []) as never[]))).then(
           () => {}
         ),
-      get: () => Promise.resolve(NO_VALUE),
+      get: (key: string) => Promise.resolve(kv.get(key) ?? NO_VALUE),
       name: "test",
       query: <Row>(sql: string, params?: readonly unknown[]) =>
         Promise.resolve(
           db.query(sql).all(...((params ?? []) as never[])) as readonly Row[]
         ),
-      set: () => Promise.resolve(),
+      set: (key: string, value: string) => {
+        kv.set(key, value);
+        return Promise.resolve();
+      },
     },
   };
 };
@@ -203,5 +210,116 @@ describe("a crowded thread stays crowded", () => {
         expect(seen.suppressed).toBe(true);
         expect(answersUnaddressed(seen)).toBe(true);
       })
+  );
+});
+
+describe("listing every thread the database knows", () => {
+  test.effect("lists nothing from a fresh database", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+
+      expect(yield* state.listThreads()).toEqual([]);
+    })
+  );
+
+  test.effect("finds a thread that only ever had a session", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.putSession("thread-a", {
+        sessionId: "sess-1",
+        startedAt: 1_700_000_000_000,
+      });
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-a");
+      expect(rows[0]?.session?.sessionId).toBe("sess-1");
+    })
+  );
+
+  test.effect("finds a thread that was only ever listened to", () =>
+    Effect.gen(function* () {
+      // The two tables are written independently, so neither one alone is the
+      // list. A thread muted before the bot ever answered lives only here.
+      const state = yield* store();
+      yield* state.updateListen("thread-b", mute);
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.instanceId).toBe("thread-b");
+      expect(rows[0]?.listen.muted).toBe(true);
+      expect(rows[0]?.session).toBeUndefined();
+    })
+  );
+
+  test.effect("a thread in both tables is listed once, joined", () =>
+    Effect.gen(function* () {
+      // What the UNION is for: the same instance id in both halves must not
+      // render as two rows.
+      const state = yield* store();
+      yield* state.putSession("thread-c", {
+        sessionId: "sess-2",
+        startedAt: 1_700_000_000_000,
+      });
+      yield* state.updateListen("thread-c", engage);
+
+      const rows = yield* state.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.session?.sessionId).toBe("sess-2");
+      expect(rows[0]?.listen.engaged).toBe(true);
+    })
+  );
+
+  test.effect("survives into the next process", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* state.putSession("thread-d", {
+        sessionId: "sess-3",
+        startedAt: 1_700_000_000_000,
+      });
+      yield* state.updateListen("thread-d", mute);
+
+      const restarted = yield* StateStoreDurable(sameDatabase());
+      const rows = yield* restarted.listThreads();
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.listen.muted).toBe(true);
+      expect(rows[0]?.session?.sessionId).toBe("sess-3");
+    })
+  );
+});
+
+describe("the interrupt setting", () => {
+  test.effect("defaults to steering, which is what the surface did before", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+
+      expect(yield* state.getInterruptMode()).toBe(InterruptMode.Steer);
+    })
+  );
+
+  test.effect("a saved setting is still there for the next process", () =>
+    Effect.gen(function* () {
+      // The whole point of settling this in the store: an operator who turned
+      // steering off should not have it turned back on by a restart.
+      const state = yield* store();
+      yield* state.putInterruptMode(InterruptMode.Queue);
+
+      const restarted = yield* StateStoreDurable(sameDatabase());
+
+      expect(yield* restarted.getInterruptMode()).toBe(InterruptMode.Queue);
+    })
+  );
+
+  test.effect("a value written by an older shape reads as the default", () =>
+    Effect.gen(function* () {
+      const state = yield* store();
+      yield* Effect.promise(() => sameDatabase().set("slack:interruptMode", "?"));
+
+      expect(yield* state.getInterruptMode()).toBe(InterruptMode.Steer);
+    })
   );
 });

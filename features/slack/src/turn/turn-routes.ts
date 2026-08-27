@@ -17,10 +17,9 @@
  * fiber, so there is nothing a fork would buy.
  */
 
-import type { Context } from "effect";
 import type { Chat } from "ori";
 
-import { Cause, Effect } from "effect";
+import { Cause, Context, Effect } from "effect";
 
 import type { PostedMessage, SlackClient } from "../client/client.ts";
 import type { RawSlackMessage } from "../client/listeners.ts";
@@ -30,11 +29,14 @@ import type { SlackLogger } from "../index.ts";
 import type { BlockersShape } from "../interactions/blocker.ts";
 import type { QuestionnairesShape } from "../interactions/questionnaires.ts";
 import type { SlackServices } from "../layers.ts";
+import type { InterruptMode as InterruptModeType } from "../state/settings.ts";
 import type { ThreadRef } from "../thread/thread.ts";
 import type { EngagementDeps } from "./engagement.ts";
 import type { IncomingMessage } from "./gates.ts";
 
 import { makeMessageReply } from "../message-reply/reply-live.ts";
+import { InterruptMode } from "../state/settings.ts";
+import { StateStore } from "../state/store.ts";
 import { enqueue, isBusy, steerThread } from "../thread/registry.ts";
 import { threadInstanceId } from "../thread/thread.ts";
 import { withAttachments } from "./attachments/attachments.ts";
@@ -63,6 +65,22 @@ export interface TurnRoutes {
     addressed: boolean
   ) => void;
 }
+
+/**
+ * Whether this turn may interrupt the one already running.
+ *
+ * Two ways to answer no, and they are different questions. A dispatched or
+ * spawned turn never steers because nobody asked the running one to stop — it
+ * used to be killed by any turn that arrived. `Queue` is the operator saying
+ * that no message should, anywhere in this workspace.
+ *
+ * Exported for its own test: it is the whole of the setting's effect, and the
+ * turn pipeline around it is not cheap to stand up.
+ */
+export const shouldSteer = (
+  steerable: boolean | undefined,
+  mode: InterruptModeType
+): boolean => steerable === true && mode === InterruptMode.Steer;
 
 /**
  * Redirect a live turn into this one, if there is one.
@@ -107,6 +125,8 @@ const queuedNotice =
 
 interface RunTurnDeps {
   readonly bridge: Chat;
+  /** The operator's queue-vs-steer setting, read fresh on every turn. */
+  readonly interruptMode: () => Effect.Effect<InterruptModeType>;
   readonly logger: SlackLogger;
   readonly postQueuedNotice: (ref: ThreadRef) => Promise<void>;
   readonly runWith: <A>(
@@ -138,15 +158,15 @@ const makeRunTurn = (deps: RunTurnDeps) =>
     turn: WorkerTurn
   ): Effect.fn.Return<void, unknown> {
     const threadKey = threadInstanceId(turn.ref);
-    // A dispatched or spawned turn never steers: nobody asked for the running
-    // one to stop, and it used to be killed by any turn that arrived.
-    const { steered, turn: redirected } =
-      turn.steer === true
-        ? steerInto(threadKey, turn)
-        : {
-            steered: false,
-            turn,
-          };
+    // Read per turn rather than cached at boot: the whole point of the setting
+    // is that an operator can change it while the daemon is answering.
+    const mode = yield* deps.interruptMode();
+    const { steered, turn: redirected } = shouldSteer(turn.steer, mode)
+      ? steerInto(threadKey, turn)
+      : {
+          steered: false,
+          turn,
+        };
 
     yield* Effect.tryPromise({
       try: () =>
@@ -409,6 +429,9 @@ export interface TurnRouteDeps {
 export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
   const runTurn = makeRunTurn({
     bridge: deps.bridge,
+    // Off the context rather than threaded through every caller: the store is
+    // already in the graph these routes were handed.
+    interruptMode: () => Context.get(deps.context, StateStore).getInterruptMode(),
     logger: deps.logger,
     postQueuedNotice: deps.postQueuedNotice,
     runWith: deps.runWith,
