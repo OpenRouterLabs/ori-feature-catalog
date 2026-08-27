@@ -38,8 +38,10 @@ const MAX_PORT = 65_535;
 export const MAX_SPAWN_DEPTH = 3;
 
 export const Subcommand = {
-  New: "new",
   Continue: "continue",
+  /** Several threads in one request; see run-fork.ts. */
+  Fork: "fork",
+  New: "new",
 } as const;
 export type Subcommand = (typeof Subcommand)[keyof typeof Subcommand];
 
@@ -63,7 +65,9 @@ export type FetchLike = (
 
 const readSubcommand = (argv: readonly string[]): Subcommand | undefined => {
   const [first] = argv;
-  return first === Subcommand.New || first === Subcommand.Continue
+  return first === Subcommand.New ||
+    first === Subcommand.Continue ||
+    first === Subcommand.Fork
     ? first
     : undefined;
 };
