@@ -159,15 +159,12 @@ export const makeQuestionsRoute = (
   loopbackRoute<AskRequest, { readonly ask_id: string }>({
     // Ten questions with their choices; anything larger is not a form.
     capKiB: 32,
-    handle: async ({ ref, request }) =>
-      // The one boundary the route owns: HTTP is a Promise, the work is not.
-      Effect.runPromise(
-        askQuestions({
-          deps,
-          ref,
-          request,
-        })
-      ),
+    handle: ({ ref, request }) =>
+      askQuestions({
+        deps,
+        ref,
+        request,
+      }),
     parse: (raw): Result.Result<AskRequest, string> => {
       const parsed = parseAskBody(raw);
       return parsed.ok

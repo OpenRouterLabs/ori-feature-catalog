@@ -1,5 +1,10 @@
 /* oxlint-disable import/no-relative-parent-imports -- siblings are imported relatively */
-import { afterEach, describe, expect, test } from "bun:test";
+import {
+  afterEach,
+  describe,
+  expect,
+  test,
+} from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
@@ -31,73 +36,79 @@ afterEach(() => {
 });
 
 describe("custom buttons", () => {
-  test("a click reaches the handler that registered the id", async () => {
-    const seen: string[] = [];
-    onButton("deploy_now", (c) => {
-      seen.push(`${c.actionId}:${c.value ?? "-"}:${c.userId}`);
-    });
+  test.effect("a click reaches the handler that registered the id", () =>
+    Effect.gen(function* () {
+      const seen: string[] = [];
+      onButton("deploy_now", (c) => {
+        seen.push(`${c.actionId}:${c.value ?? "-"}:${c.userId}`);
+      });
 
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
-    await Effect.runPromise(interactions.dispatch(click("deploy_now", "v1")));
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
+      yield* interactions.dispatch(click("deploy_now", "v1"));
 
-    expect(seen).toEqual(["deploy_now:v1:U1"]);
-  });
+      expect(seen).toEqual(["deploy_now:v1:U1"]);
+    })
+  );
 
-  test("registering after the surface is up still wires the button", async () => {
-    const interactions = makeInteractions();
-    // Surface boots first, with nothing registered.
-    expect(registerCustomButtons(interactions)).toEqual([]);
+  test.effect("registering after the surface is up still wires the button", () =>
+    Effect.gen(function* () {
+      const interactions = makeInteractions();
+      // Surface boots first, with nothing registered.
+      expect(registerCustomButtons(interactions)).toEqual([]);
 
-    const seen: string[] = [];
-    onButton("late", () => {
-      seen.push("clicked");
-    });
-    await Effect.runPromise(interactions.dispatch(click("late")));
+      const seen: string[] = [];
+      onButton("late", () => {
+        seen.push("clicked");
+      });
+      yield* interactions.dispatch(click("late"));
 
-    // The alternative — silently dropping it — reads as a dead button.
-    expect(seen).toEqual(["clicked"]);
-  });
+      // The alternative — silently dropping it — reads as a dead button.
+      expect(seen).toEqual(["clicked"]);
+    })
+  );
 
-  test("the click carries no trigger id or response url", async () => {
-    let keys: readonly string[] = [];
-    onButton("inspect", (c) => {
-      keys = Object.keys(c).sort();
-    });
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
-    await Effect.runPromise(interactions.dispatch(click("inspect")));
+  test.effect("the click carries no trigger id or response url", () =>
+    Effect.gen(function* () {
+      let keys: readonly string[] = [];
+      onButton("inspect", (c) => {
+        keys = Object.keys(c).sort();
+      });
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
+      yield* interactions.dispatch(click("inspect"));
 
-    // These are seconds-lived provider capabilities. A consumer must not be
-    // able to capture one by accident.
-    expect(keys).toEqual([
-      "actionId",
-      "channelId",
-      "threadTs",
-      "userId",
-      "value",
-    ]);
-  });
+      // These are seconds-lived provider capabilities. A consumer must not be
+      // able to capture one by accident.
+      expect(keys).toEqual([
+        "actionId",
+        "channelId",
+        "threadTs",
+        "userId",
+        "value",
+      ]);
+    })
+  );
 
-  test("the value comes off the matching action, not the first one", async () => {
-    let got: string | undefined = "unset";
-    onButton("second", (c) => {
-      got = c.value;
-    });
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
-    await Effect.runPromise(
-      interactions.dispatch({
+  test.effect("the value comes off the matching action, not the first one", () =>
+    Effect.gen(function* () {
+      let got: string | undefined = "unset";
+      onButton("second", (c) => {
+        got = c.value;
+      });
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
+      yield* interactions.dispatch({
         ...click("first", "wrong"),
         actions: [
           { actionId: "first", value: "wrong" },
           { actionId: "second", value: "right" },
         ],
-      })
-    );
+      });
 
-    expect(got).toBe("right");
-  });
+      expect(got).toBe("right");
+    })
+  );
 
   test("a reserved action id is refused at registration", () => {
     // `on` is last-registration-wins, so this would have taken over the
@@ -110,56 +121,64 @@ describe("custom buttons", () => {
     expect(() => onButton("   ", () => {})).toThrow(/non-empty/);
   });
 
-  test("last registration wins for the same id", async () => {
-    const seen: string[] = [];
-    onButton("dup", () => {
-      seen.push("first");
-    });
-    onButton("dup", () => {
-      seen.push("second");
-    });
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
-    await Effect.runPromise(interactions.dispatch(click("dup")));
+  test.effect("last registration wins for the same id", () =>
+    Effect.gen(function* () {
+      const seen: string[] = [];
+      onButton("dup", () => {
+        seen.push("first");
+      });
+      onButton("dup", () => {
+        seen.push("second");
+      });
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
+      yield* interactions.dispatch(click("dup"));
 
-    expect(seen).toEqual(["second"]);
-  });
+      expect(seen).toEqual(["second"]);
+    })
+  );
 
-  test("an unregistered id is ignored rather than failing the dispatch", async () => {
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
+  test.effect("an unregistered id is ignored rather than failing the dispatch", () =>
+    Effect.gen(function* () {
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
 
-    await expect(
-      Effect.runPromise(interactions.dispatch(click("never_registered")))
-    ).resolves.toBeUndefined();
-  });
+      // Nothing to assert past "this does not fail": the harness fails the
+      // test on any failure or defect, with the cause rendered.
+      expect(
+        yield* interactions.dispatch(click("never_registered"))
+      ).toBeUndefined();
+    })
+  );
 
-  test("a throwing handler dies rather than passing silently", async () => {
-    onButton("boom", () => {
-      throw new Error("handler exploded");
-    });
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
+  test.effect("a throwing handler dies rather than passing silently", () =>
+    Effect.gen(function* () {
+      onButton("boom", () => {
+        throw new Error("handler exploded");
+      });
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
 
-    // `dispatch` catches the cause and logs it, so the listener Slack is
-    // waiting on still settles — but the failure is not swallowed here.
-    await expect(
-      Effect.runPromise(interactions.dispatch(click("boom")))
-    ).resolves.toBeUndefined();
-  });
+      // `dispatch` catches the cause and logs it, so the listener Slack is
+      // waiting on still settles — but the failure is not swallowed here.
+      expect(yield* interactions.dispatch(click("boom"))).toBeUndefined();
+    })
+  );
 
-  test("a rejecting async handler is awaited", async () => {
-    let finished = false;
-    onButton("slow", async () => {
-      await Promise.resolve();
-      finished = true;
-    });
-    const interactions = makeInteractions();
-    registerCustomButtons(interactions);
-    await Effect.runPromise(interactions.dispatch(click("slow")));
+  test.effect("a rejecting async handler is awaited", () =>
+    Effect.gen(function* () {
+      let finished = false;
+      onButton("slow", async () => {
+        await Promise.resolve();
+        finished = true;
+      });
+      const interactions = makeInteractions();
+      registerCustomButtons(interactions);
+      yield* interactions.dispatch(click("slow"));
 
-    expect(finished).toBe(true);
-  });
+      expect(finished).toBe(true);
+    })
+  );
 
   test("registerCustomButtons reports what it wired", () => {
     onButton("a", () => {});

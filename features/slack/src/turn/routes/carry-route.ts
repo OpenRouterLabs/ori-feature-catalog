@@ -12,7 +12,7 @@
  * safe.
  */
 
-import { Result } from "effect";
+import { Effect, Result } from "effect";
 
 import type { ThreadRef } from "../../thread/thread.ts";
 import type { CarryResult } from "../carry.ts";
@@ -76,7 +76,7 @@ export const makeCarryRoute = (deps: {
   loopbackRoute<CarryRequest, { readonly sessionId: string }>({
     // Three ids of JSON; anything larger is not a carry.
     capKiB: 16,
-    handle: async ({ ref, request }) => {
+    handle: Effect.fn("Slack.carry.handle")(function* ({ ref, request }) {
       if (deps.isStopping()) {
         return refuse(HTTP_SERVICE_UNAVAILABLE, "shutting down");
       }
@@ -91,13 +91,17 @@ export const makeCarryRoute = (deps: {
         );
       }
 
-      const result = await deps.carry({
-        from: ref,
-        to: {
-          ...ref,
-          threadTs: request.toThreadTs,
-        },
-      });
+      // `carry` crosses out through the composition root's `runWith`, so it
+      // arrives here as a Promise and is taken back in rather than run again.
+      const result = yield* Effect.promise(() =>
+        deps.carry({
+          from: ref,
+          to: {
+            ...ref,
+            threadTs: request.toThreadTs,
+          },
+        })
+      );
 
       return result.kind === CarryOutcome.NothingToCarry
         ? refuse(
@@ -105,7 +109,7 @@ export const makeCarryRoute = (deps: {
             "that thread has no session to carry — nothing has run in it yet"
           )
         : Result.succeed({ sessionId: result.sessionId });
-    },
+    }),
     parse,
     workspaceTeamId: deps.workspaceTeamId,
   });
