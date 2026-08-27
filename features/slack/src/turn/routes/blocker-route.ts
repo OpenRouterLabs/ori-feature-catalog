@@ -250,16 +250,17 @@ export const makeBlockerRoute = (deps: {
 }): ((request: Request) => Promise<Response>) =>
   loopbackRoute<AskRequest, { readonly answer: string }>({
     capKiB: MAX_ASK_BODY_KIB,
-    handle: async ({ ref, request }) => {
-      const outcome = await Effect.runPromise(
-        askAndWait({
-          blockers: deps.blockers,
-          reply: await deps.replyFor(ref),
-          request,
-          threadKey: deps.threadKeyFor(ref),
-          timeoutMs: deps.timeoutMs ?? DEFAULT_ASK_TIMEOUT_MS,
-        })
-      );
+    handle: Effect.fn("Slack.blocker.handle")(function* ({ ref, request }) {
+      // `replyFor` is the composition root's Promise contract, so it is taken
+      // in here rather than being run as a second runtime around the ask.
+      const reply = yield* Effect.promise(() => deps.replyFor(ref));
+      const outcome = yield* askAndWait({
+        blockers: deps.blockers,
+        reply,
+        request,
+        threadKey: deps.threadKeyFor(ref),
+        timeoutMs: deps.timeoutMs ?? DEFAULT_ASK_TIMEOUT_MS,
+      });
 
       if (outcome === undefined) {
         return refuse(HTTP_BAD_GATEWAY, "the blocker could not be posted");
@@ -268,7 +269,7 @@ export const makeBlockerRoute = (deps: {
       return outcome.timedOut
         ? refuse(HTTP_TIMEOUT, "nobody answered")
         : Result.succeed({ answer: outcome.value });
-    },
+    }),
     parse: (raw): Result.Result<AskRequest, string> => {
       const parsed = parseAskBody(raw);
       return parsed.ok

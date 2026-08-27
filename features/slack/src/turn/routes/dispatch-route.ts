@@ -7,7 +7,7 @@
  * not apply. The loopback check in `feature.ts` is what makes that safe.
  */
 
-import { Result } from "effect";
+import { Effect, Result } from "effect";
 
 import type { ThreadRef } from "../../thread/thread.ts";
 import type { Addressed } from "./loopback-route.ts";
@@ -58,9 +58,7 @@ export const makeDispatchRoute = (deps: {
     handle: ({ ref, request }) => {
       if (deps.isStopping()) {
         // The caller is a skill that can report this, unlike a Slack event.
-        return Promise.resolve(
-          refuse(HTTP_SERVICE_UNAVAILABLE, "shutting down")
-        );
+        return Effect.succeed(refuse(HTTP_SERVICE_UNAVAILABLE, "shutting down"));
       }
 
       // Do not await the turn: the skill's HTTP call must return promptly, and
@@ -74,7 +72,7 @@ export const makeDispatchRoute = (deps: {
         userId: request.userId ?? "",
       });
 
-      return Promise.resolve(Result.succeed({}));
+      return Effect.succeed(Result.succeed({}));
     },
     parse,
     workspaceTeamId: deps.workspaceTeamId,

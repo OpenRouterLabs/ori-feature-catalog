@@ -131,16 +131,12 @@ export const makeChartRoute = (
   loopbackRoute<ChartRequest, Record<string, never>>({
     // A mermaid source or 24 rows of data; anything larger is not a chart.
     capKiB: 64,
-    handle: async ({ ref, request }) =>
-      // The one boundary the route owns: HTTP is a Promise, everything under
-      // it is not.
-      Effect.runPromise(
-        handleChart({
-          deps,
-          ref,
-          request,
-        })
-      ),
+    handle: ({ ref, request }) =>
+      handleChart({
+        deps,
+        ref,
+        request,
+      }),
     parse: (raw): Result.Result<ChartRequest, string> => {
       const parsed = parseChartBody(raw);
       return parsed.ok
