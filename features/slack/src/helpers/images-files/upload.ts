@@ -17,9 +17,9 @@
 
 import { Effect, Schema } from "effect";
 
-import type { SlackClientShape } from "../../client/client.ts";
+import type { SlackClientShape } from "../../client/index.ts";
 
-import { SlackApiError, SlackClient } from "../../client/client.ts";
+import { SlackApiError, SlackClient } from "../../client/index.ts";
 
 /** A file to send. `content` is any `BlobPart`: string, Blob, or byte view. */
 export interface FileUpload {

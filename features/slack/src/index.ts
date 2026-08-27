@@ -24,7 +24,7 @@ import { Context, Effect, Layer, Scope } from "effect";
 
 import { bestEffort } from "./helpers/best-effort.ts";
 
-import type { SlackClientShape } from "./client/client.ts";
+import type { SlackClientShape } from "./client/index.ts";
 import type { RawSlackMessage } from "./client/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
 import type { SlackConfig } from "./config.ts";
@@ -38,10 +38,9 @@ import type { ThreadRef } from "./thread/thread.ts";
 import type { IncomingMessage } from "./turn/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
+import { makeSurfaceEventHandlers, SlackClient } from "./client/index.ts";
 import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
 import { makeDashboardRoute } from "./dashboard/dashboard.ts";
-import { SlackClient } from "./client/client.ts";
-import { makeSurfaceEventHandlers } from "./client/surface-events.ts";
 import { readSlackConfig } from "./config.ts";
 import { forkWith } from "./fork.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";

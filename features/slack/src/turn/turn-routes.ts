@@ -21,7 +21,7 @@ import type { Chat } from "ori";
 
 import { Cause, Context, Effect } from "effect";
 
-import type { PostedMessage, SlackClient } from "../client/client.ts";
+import type { PostedMessage, SlackClient } from "../client/index.ts";
 import type { RawSlackMessage } from "../client/listeners.ts";
 import type { SlackConfig } from "../config.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";

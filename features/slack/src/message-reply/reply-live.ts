@@ -19,7 +19,7 @@
 
 import { Effect } from "effect";
 
-import type { PostedMessage, SlackApiError } from "../client/client.ts";
+import type { PostedMessage, SlackApiError } from "../client/index.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type {
   FileUpload,
@@ -28,7 +28,7 @@ import type {
 import type { ThreadRef } from "../thread/thread.ts";
 import type { MessageReplyShape } from "./reply.ts";
 
-import { SlackClient } from "../client/client.ts";
+import { SlackClient } from "../client/index.ts";
 import { capBlocks, withinSlackLimit } from "../helpers/block-kit/blocks.ts";
 import { uploadFile } from "../helpers/images-files/upload.ts";
 

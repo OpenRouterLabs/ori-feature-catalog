@@ -10,7 +10,7 @@
 
 import type { Effect } from "effect";
 
-import type { PostedMessage, SlackApiError } from "../client/client.ts";
+import type { PostedMessage, SlackApiError } from "../client/index.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type {
   FileUpload,
