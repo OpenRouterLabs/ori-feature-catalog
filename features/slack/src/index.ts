@@ -84,6 +84,8 @@ export interface SlackRuntime {
   readonly slack: SlackClientShape;
   readonly handleDispatchRequest: (request: Request) => Promise<Response>;
   readonly handleEventsRequest: (request: Request) => Promise<Response>;
+  /** Move a live session onto a thread the caller has just opened. */
+  readonly handleCarryRequest: (request: Request) => Promise<Response>;
   readonly handleChartRequest: (request: Request) => Promise<Response>;
   readonly handleImageRequest: (request: Request) => Promise<Response>;
   readonly handleQuestionsRequest: (request: Request) => Promise<Response>;
@@ -385,6 +387,7 @@ const runtimeOf = (input: {
   readonly stop: () => Promise<void>;
 }): SlackRuntime => ({
   handleAskRequest: input.routes.handleAsk,
+  handleCarryRequest: input.routes.handleCarry,
   handleChartRequest: input.routes.handleChart,
   handleDispatchRequest: input.routes.handleDispatch,
   handleEventsRequest: (request: Request): Promise<Response> =>

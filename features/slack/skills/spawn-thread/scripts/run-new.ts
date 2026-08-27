@@ -191,7 +191,7 @@ const rewriteAnchorToNewThread = async (
   });
 };
 
-interface SpawnedThread {
+export interface SpawnedThread {
   readonly channel: string;
   readonly thread_ts: string;
 }
@@ -230,17 +230,23 @@ const dispatchNewThread = async (
   return dispatchResult;
 };
 
-export const runNew = async (
-  opts: RunNewOpts
-): Promise<Result.Result<SpawnedThread, Error>> => {
+/**
+ * Open a fresh top-level thread and return its ts: anchor reply in the
+ * originating thread, opener with a back-link button, then the anchor
+ * rewritten to point forward. Everything except what happens IN the new
+ * thread, which is what separates `new` from `carry`.
+ */
+export const openThread = async (opts: {
+  channel: string;
+  opener: string;
+  env: Record<string, string | undefined>;
+  postMessageImpl?: typeof postMessage | undefined;
+  updateMessageImpl?: typeof updateMessage | undefined;
+}): Promise<Result.Result<string, Error>> => {
   const postFn = opts.postMessageImpl ?? postMessage;
   const updateFn = opts.updateMessageImpl ?? updateMessage;
   const origin = resolveOriginThread(opts.env);
 
-  // When we have a real originating thread, post an anchor reply into
-  // it BEFORE the opener. Capturing this anchor's ts lets the opener's backlink
-  // button target a specific reply (the form Slack reliably opens as a thread
-  // side-panel). Best-effort: if it fails we fall back to a parent-ts URL.
   const anchorTs = origin
     ? await postAnchorPlaceholder(postFn, origin.channel, origin.threadTs)
     : undefined;
@@ -272,6 +278,19 @@ export const runNew = async (
       newThreadTs: newTs,
     });
   }
+
+  return Result.succeed(newTs);
+};
+
+export const runNew = async (
+  opts: RunNewOpts
+): Promise<Result.Result<SpawnedThread, Error>> => {
+  const postFn = opts.postMessageImpl ?? postMessage;
+  const opened = await openThread(opts);
+  if (Result.isFailure(opened)) {
+    return Result.fail(opened.failure);
+  }
+  const newTs = opened.success;
 
   const dispatchResult = await dispatchNewThread({
     postFn,

@@ -30,6 +30,7 @@ const PUBLIC_ROUTE = "POST /slack/events";
 /** Each loopback route and the runtime handler it must call. */
 const LOOPBACK_ROUTES = {
   "POST /slack/thread/ask": "handleAskRequest",
+  "POST /slack/thread/carry": "handleCarryRequest",
   "POST /slack/thread/chart": "handleChartRequest",
   "POST /slack/thread/dispatch": "handleDispatchRequest",
   "POST /slack/thread/image": "handleImageRequest",
@@ -73,6 +74,7 @@ const withRuntime = async (
 
   globalThis.__oriSlackRuntime = {
     handleAskRequest: handler("handleAskRequest"),
+    handleCarryRequest: handler("handleCarryRequest"),
     handleChartRequest: handler("handleChartRequest"),
     handleDispatchRequest: handler("handleDispatchRequest"),
     handleEventsRequest: handler("handleEventsRequest"),

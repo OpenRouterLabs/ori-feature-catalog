@@ -17,8 +17,9 @@
  * fiber, so there is nothing a fork would buy.
  */
 
-import type { Context } from "effect";
 import type { Chat } from "ori";
+
+import type { Context } from "effect";
 
 import { Cause, Effect } from "effect";
 
@@ -41,6 +42,8 @@ import { withAttachments } from "./attachments/attachments.ts";
 import { claimStart, considerTurn } from "./engagement.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
+import { carrySession } from "./carry.ts";
+import { makeCarryRoute } from "./routes/carry-route.ts";
 import { makeChartRoute } from "./routes/chart-route.ts";
 import { makeDispatchRoute } from "./routes/dispatch-route.ts";
 import { makeImageRoute } from "./routes/image-route.ts";
@@ -48,6 +51,8 @@ import { makeQuestionsRoute } from "./routes/questions-route.ts";
 
 export interface TurnRoutes {
   readonly handleAsk: (request: Request) => Promise<Response>;
+  /** Move a live session onto a thread the caller has just opened. */
+  readonly handleCarry: (request: Request) => Promise<Response>;
   readonly handleDispatch: (request: Request) => Promise<Response>;
   readonly handleChart: (request: Request) => Promise<Response>;
   readonly handleImage: (request: Request) => Promise<Response>;
@@ -333,6 +338,7 @@ const makeSideRoutes = (input: {
   readonly runTurnSafely: (turn: LoopbackTurn) => void;
 }): {
   readonly ask: (request: Request) => Promise<Response>;
+  readonly carry: (request: Request) => Promise<Response>;
   readonly chart: (request: Request) => Promise<Response>;
   readonly dispatch: (request: Request) => Promise<Response>;
   readonly image: (request: Request) => Promise<Response>;
@@ -344,6 +350,15 @@ const makeSideRoutes = (input: {
       blockers: deps.blockers,
       threadKeyFor: threadInstanceId,
       replyFor: (ref) => deps.runWith(makeMessageReply(ref)),
+      workspaceTeamId: deps.workspaceTeamId,
+    }),
+    carry: makeCarryRoute({
+      // `runWith` is the composition root's boundary, the same one every other
+      // route here crosses on: the services live outside this graph and are
+      // entered per call.
+      carry: ({ from, to }) => deps.runWith(carrySession({ from, to })),
+      isBusy: (ref) => isBusy(threadInstanceId(ref)),
+      isStopping: deps.isStopping,
       workspaceTeamId: deps.workspaceTeamId,
     }),
     chart: makeChartRoute({
@@ -473,6 +488,7 @@ export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
 
   return {
     handleAsk: routes.ask,
+    handleCarry: routes.carry,
     handleChart: routes.chart,
     handleImage: routes.image,
     handleDispatch: routes.dispatch,
