@@ -18,6 +18,7 @@
 
 import { Result } from "effect";
 
+import { parseThreads, runFork } from "./run-fork.ts";
 import { runNew } from "./run-new.ts";
 import {
   checkDepth,
@@ -37,6 +38,11 @@ const USAGE = [
   "  # Open a new top-level thread + dispatch atomically:",
   "  bun features/slack/skills/spawn-thread/index.ts new \\",
   '    --channel <CHANNEL_ID> --opener "<opener text>" --prompt "<task>"',
+  "",
+  "  # Open several threads at once, each with its own task:",
+  "  bun features/slack/skills/spawn-thread/index.ts fork \\",
+  "    --channel <CHANNEL_ID> \\",
+  "    --threads '[{\"opener\":\"...\",\"prompt\":\"...\"},{\"opener\":\"...\",\"prompt\":\"...\"}]'",
   "",
   "  # Legacy form (no subcommand) — treated as `continue`:",
   "  bun features/slack/skills/spawn-thread/index.ts \\",
@@ -106,6 +112,50 @@ const runContinueCommand = async (
   process.exit(0);
 };
 
+/**
+ * `fork` parses its own argv rather than going through `parseArgs`: `--opener`
+ * and `--prompt` each consume the rest of the line there, which is exactly
+ * what a multi-thread request cannot express.
+ */
+const readFlag = (argv: readonly string[], flag: string): string | undefined => {
+  const at = argv.indexOf(flag);
+  return at === -1 ? undefined : argv[at + 1];
+};
+
+const runForkCommand = async (
+  argv: readonly string[],
+  depth: number,
+  env: Record<string, string | undefined>
+): Promise<void> => {
+  const channel = readFlag(argv, "--channel");
+  if (channel === undefined) {
+    printUsageAndExit();
+    return;
+  }
+  const threads = parseThreads(readFlag(argv, "--threads"));
+  if (Result.isFailure(threads)) {
+    failWith(threads.failure.message);
+    return;
+  }
+
+  const report = await runFork({
+    channel,
+    depth,
+    env,
+    threads: threads.success,
+  });
+
+  process.stdout.write(
+    `${JSON.stringify({
+      ok: report.failed.length === 0,
+      ...report,
+    })}\n`
+  );
+  // A partial fork-out is not a success: the caller has to know which threads
+  // it can actually refer to.
+  process.exit(report.failed.length === 0 ? 0 : 1);
+};
+
 const runSpawnThreadCli = async (
   argv: string[],
   env: Record<string, string | undefined>
@@ -121,6 +171,10 @@ const runSpawnThreadCli = async (
 
   const parsed = parseArgs(argv);
   const subcommand: Subcommand = parsed.subcommand ?? Subcommand.Continue;
+  if (subcommand === Subcommand.Fork) {
+    await runForkCommand(argv, depth, env);
+    return;
+  }
   await (subcommand === Subcommand.New
     ? runNewCommand(parsed, depth, env)
     : runContinueCommand(parsed, depth, env));

@@ -191,7 +191,7 @@ const rewriteAnchorToNewThread = async (
   });
 };
 
-interface SpawnedThread {
+export interface SpawnedThread {
   readonly channel: string;
   readonly thread_ts: string;
 }
