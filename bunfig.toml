@@ -1,0 +1,12 @@
+[install]
+exact = true
+
+[test]
+# Coverage is measured on every run so the floor is visible before CI enforces
+# it. The floor itself lives in .github/workflows/ci.yml: Bun 1.3.14 accepts
+# `coverageThreshold = { line = …, function = … }` and then ignores it, and the
+# scalar form it does honour is applied per FILE (and fails with no message at
+# all), which cannot express a repo-wide floor. The workflow reads the summary
+# this reporter prints instead.
+coverage = true
+coverageReporter = ["text"]

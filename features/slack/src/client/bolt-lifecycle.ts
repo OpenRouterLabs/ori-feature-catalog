@@ -1,0 +1,126 @@
+/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
+/**
+ * bolt-lifecycle.ts — the Bolt app, its receiver, and how both go up and down.
+ *
+ * Split from `index.ts` so that file is about COMPOSING the service graph while
+ * this one is about the Slack connection's lifecycle. The two change for
+ * different reasons: a new capability touches the graph, a new event touches
+ * the listeners.
+ */
+
+import { App, LogLevel } from "@slack/bolt";
+import { Effect, Exit, Scope } from "effect";
+
+import type { SlackLogger } from "../index.ts";
+import type {
+  InteractionPayload,
+  ViewSubmissionPayload,
+} from "../interactions/interactions.ts";
+import type {
+  RawAssistantThreadStarted,
+  RawSlackMessage,
+} from "./listeners.ts";
+
+import { cancelAll, drain, resetRegistry } from "../thread/registry.ts";
+import { registerListeners } from "./listeners.ts";
+import { SlackReceiver } from "./receiver.ts";
+
+/** How long shutdown waits for live turns to finish on their own. */
+const SHUTDOWN_DRAIN_MS = 15_000;
+
+/**
+ * How long they then get to settle their messages once told to stop.
+ *
+ * Short: a turn that has been told to stop has at most a final post left, not
+ * more work. It only has to beat the process going away.
+ */
+const SHUTDOWN_SETTLE_MS = 5000;
+
+/**
+ * Shut down without stranding work.
+ *
+ * The receiver is stopped FIRST. Otherwise events arriving during the drain are
+ * admitted, acked 200, and then abandoned when the process goes away — the
+ * sender sees "Queued" and then silence, with Slack believing the event was
+ * delivered. A stopped receiver answers 503 instead, and Slack redelivers to
+ * the restarted instance.
+ *
+ * Draining then happens before the Bolt app stops, because stopping the app
+ * first pulls the client out from under turns that are still streaming.
+ */
+export const makeStop =
+  (deps: {
+    readonly app: App;
+    readonly logger: SlackLogger;
+    readonly markStopping: () => void;
+    readonly receiver: SlackReceiver;
+    readonly scope: Scope.Closeable;
+  }) =>
+  async (): Promise<void> => {
+    deps.markStopping();
+    await deps.receiver.stop();
+
+    if (!(await drain(SHUTDOWN_DRAIN_MS))) {
+      // Whatever is left is not going to finish in time, and abandoning it
+      // strands the message it owns. Tell it to stop so it can say so.
+      const told = cancelAll();
+      deps.logger.warn(
+        `[slack] shutting down with ${told} turn(s) still running — stopping them`
+      );
+      if (!(await drain(SHUTDOWN_SETTLE_MS))) {
+        deps.logger.warn("[slack] some turns did not settle before shutdown");
+      }
+    }
+
+    await deps.app.stop();
+    // Module-global, so a stop/start cycle would otherwise leave a stopped
+    // run's threads marked busy and the next turn would queue forever.
+    resetRegistry();
+    // Releases anything an extension acquired while building the graph.
+    await Effect.runPromise(Scope.close(deps.scope, Exit.void));
+  };
+
+/**
+ * Bolt driven by our own receiver rather than one of its built-in servers: the
+ * daemon already owns the HTTP listener, so this plugs into it.
+ */
+export const makeBoltApp = (input: {
+  readonly logger: SlackLogger;
+  readonly signingSecret: string;
+  readonly token: string;
+}): { readonly app: App; readonly receiver: SlackReceiver } => {
+  const receiver = new SlackReceiver({
+    logger: input.logger,
+    signingSecret: input.signingSecret,
+  });
+  return {
+    app: new App({
+      logLevel: LogLevel.WARN,
+      receiver,
+      token: input.token,
+    }),
+    receiver,
+  };
+};
+
+/** Register the listeners and open the surface for traffic. */
+export const goLive = async (input: {
+  readonly app: App;
+  readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
+  readonly dispatchInteraction: (payload: InteractionPayload) => Promise<void>;
+  readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
+  readonly logger: SlackLogger;
+  readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
+  readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
+}): Promise<void> => {
+  registerListeners({
+    app: input.app,
+    changeAssistantContext: input.changeAssistantContext,
+    dispatchInteraction: input.dispatchInteraction,
+    dispatchView: input.dispatchView,
+    openAssistantThread: input.openAssistantThread,
+    startTurn: input.startTurn,
+  });
+  await input.app.start();
+  input.logger.info("[slack] chat surface is live");
+};
