@@ -20,6 +20,10 @@ Three subcommands cover the real workflows:
 - `fork` — the user asked for several threads at once.
 - `continue` — the user asked to keep working in an existing (already-spawned) thread.
 
+To move the CURRENT conversation to a new thread while keeping its memory, use
+the **carry-thread** skill instead — every thread this skill opens gets a fresh
+session that knows only what you put in its prompt.
+
 A flag-only legacy form (no subcommand) is preserved and treated as `continue`.
 
 ## `continue` — dispatch into an existing thread

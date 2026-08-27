@@ -33,6 +33,7 @@ const LOOPBACK_ROUTES = {
   // Same handler as the GET: one page, and it branches on the method.
   "POST /slack/dashboard": "handleDashboardRequest",
   "POST /slack/thread/ask": "handleAskRequest",
+  "POST /slack/thread/carry": "handleCarryRequest",
   "POST /slack/thread/chart": "handleChartRequest",
   "POST /slack/thread/dispatch": "handleDispatchRequest",
   "POST /slack/thread/image": "handleImageRequest",
@@ -86,6 +87,7 @@ const withRuntime = async (
 
   globalThis.__oriSlackRuntime = {
     handleAskRequest: handler("handleAskRequest"),
+    handleCarryRequest: handler("handleCarryRequest"),
     handleChartRequest: handler("handleChartRequest"),
     handleDashboardRequest: handler("handleDashboardRequest"),
     handleDispatchRequest: handler("handleDispatchRequest"),

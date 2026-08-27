@@ -146,6 +146,11 @@ export const api = {
       runtime.handleAskRequest(request)
     ),
 
+    /** Moves a live session onto a new thread; never starts one. */
+    "POST /slack/thread/carry": loopbackEntry((runtime, request) =>
+      runtime.handleCarryRequest(request)
+    ),
+
     "POST /slack/thread/chart": loopbackEntry((runtime, request) =>
       runtime.handleChartRequest(request)
     ),
