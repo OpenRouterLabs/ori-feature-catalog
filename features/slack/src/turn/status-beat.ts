@@ -74,9 +74,21 @@ const minutesSince = (from: number, now: number): number =>
 export const beatLine = (state: RunState, now: number = Date.now()): string => {
   const elapsed = minutesSince(state.startedAt, now);
   const tools = toolSummary(state.tools);
+  // Compaction replaces the tool summary rather than joining it: the tools are
+  // what the run did BEFORE the pause, and reading "bash ×12" while nothing is
+  // happening is what makes a stalled run look busy. Total elapsed stays, so
+  // the line still says how long the turn has taken overall.
+  const doing =
+    state.compactingSince === undefined
+      ? tools
+      : `compacting the context${
+          minutesSince(state.compactingSince, now) > 0
+            ? ` · ${minutesSince(state.compactingSince, now)}m so far`
+            : ""
+        }`;
   const parts = [
     "working",
-    tools === "" ? "" : tools,
+    doing === "" ? "" : doing,
     elapsed > 0 ? `${elapsed}m` : "",
   ].filter((part) => part !== "");
   const line = parts.join(" · ");
