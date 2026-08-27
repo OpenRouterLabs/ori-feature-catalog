@@ -12,7 +12,7 @@
  * safe.
  */
 
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { ThreadRef } from "../../thread/thread.ts";
 import type { CarryResult } from "../carry.ts";
@@ -36,33 +36,44 @@ interface CarryRequest extends Addressed {
   readonly toThreadTs: string;
 }
 
-const nonEmpty = (value: unknown): value is string =>
-  typeof value === "string" && value.trim().length > 0;
+const CarryBodySchema = Schema.Struct({
+  channel: Schema.String,
+  thread_ts: Schema.String,
+  to_thread_ts: Schema.String,
+});
 
-const parse = (raw: unknown): Result.Result<CarryRequest, string> => {
-  if (typeof raw !== "object" || raw === null) {
-    return Result.fail("body must be a JSON object");
-  }
-  const body = raw as Record<string, unknown>;
-  if (!nonEmpty(body.channel)) {
-    return Result.fail("channel is required");
-  }
-  if (!nonEmpty(body.thread_ts)) {
-    return Result.fail("thread_ts (the thread being carried) is required");
-  }
-  if (!nonEmpty(body.to_thread_ts)) {
-    return Result.fail("to_thread_ts (the destination thread) is required");
-  }
-  if (body.thread_ts === body.to_thread_ts) {
-    return Result.fail("a thread cannot be carried onto itself");
-  }
-  return Result.succeed({
-    channel: body.channel,
-    team: undefined,
-    threadTs: body.thread_ts,
-    toThreadTs: body.to_thread_ts,
+const decodeBody = Schema.decodeUnknownResult(CarryBodySchema);
+
+/** Blank after trimming. `Schema.String` admits "", so the shape is not enough. */
+const blank = (value: string): boolean => value.trim().length === 0;
+
+const parse = (raw: unknown): Result.Result<CarryRequest, string> =>
+  Result.match(decodeBody(raw), {
+    onFailure: (): Result.Result<CarryRequest, string> =>
+      Result.fail("expected { channel, thread_ts, to_thread_ts }"),
+    onSuccess: (decoded): Result.Result<CarryRequest, string> => {
+      // The ids decode cleanly when blank and then fail deep in the store,
+      // well past the point where this could have said which one was missing.
+      if (blank(decoded.channel)) {
+        return Result.fail("channel must not be empty");
+      }
+      if (blank(decoded.thread_ts)) {
+        return Result.fail("thread_ts (the thread being carried) must not be empty");
+      }
+      if (blank(decoded.to_thread_ts)) {
+        return Result.fail("to_thread_ts (the destination thread) must not be empty");
+      }
+      if (decoded.thread_ts === decoded.to_thread_ts) {
+        return Result.fail("a thread cannot be carried onto itself");
+      }
+      return Result.succeed({
+        channel: decoded.channel,
+        team: undefined,
+        threadTs: decoded.thread_ts,
+        toThreadTs: decoded.to_thread_ts,
+      });
+    },
   });
-};
 
 export const makeCarryRoute = (deps: {
   readonly carry: (input: {
