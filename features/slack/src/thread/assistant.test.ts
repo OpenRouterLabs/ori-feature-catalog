@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import type { AssistantThreadsShape } from "./assistant.ts";
 
 import { makeFakeSlackClient, opsOf } from "../client/client-test-support.ts";
-import { SlackClient } from "../client/client.ts";
+import { SlackClient } from "../client/index.ts";
 import { AssistantThreadsLive, keyOf, titleFromMessage } from "./assistant.ts";
 
 const PANE = {

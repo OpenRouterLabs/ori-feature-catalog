@@ -9,7 +9,7 @@
 
 import { Effect } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "../../client/client.ts";
+import type { SlackApiError, SlackClientShape } from "../../client/index.ts";
 import type { SlackBlock } from "../block-kit/blocks.ts";
 
 export interface ModalView {

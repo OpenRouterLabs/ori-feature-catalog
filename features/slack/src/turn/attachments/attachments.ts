@@ -5,7 +5,7 @@
 
 import { Effect } from "effect";
 
-import type { RawSlackMessage } from "../../client/listeners.ts";
+import type { RawSlackMessage } from "../../client/index.ts";
 
 import {
   attachmentDirFor,

@@ -28,10 +28,10 @@
 
 import { Context, Effect } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "../client/client.ts";
+import type { SlackApiError, SlackClientShape } from "../client/index.ts";
 
 import { clampToWord } from "../clamp.ts";
-import { SlackClient } from "../client/client.ts";
+import { SlackClient } from "../client/index.ts";
 
 // ── which threads are panes, and what is behind each ────────────────────────
 

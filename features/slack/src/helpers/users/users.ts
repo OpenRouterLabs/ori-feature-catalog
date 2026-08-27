@@ -14,7 +14,7 @@
 
 import { Effect, Ref } from "effect";
 
-import { SlackClient } from "../../client/client.ts";
+import { SlackClient } from "../../client/index.ts";
 
 /** Enough for an active workspace; small enough to stay bounded. */
 const MAX_CACHED_NAMES = 1000;

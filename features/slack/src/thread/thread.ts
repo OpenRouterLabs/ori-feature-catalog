@@ -16,7 +16,7 @@
 import { Context, Effect, Schema } from "effect";
 
 import { clampToWord } from "../clamp.ts";
-import { SlackClient } from "../client/client.ts";
+import { SlackClient } from "../client/index.ts";
 
 /** Everything needed to address a thread and route a reply back to it. */
 export interface ThreadRef {

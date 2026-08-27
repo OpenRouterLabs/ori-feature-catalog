@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { readViewSubmissionPayload } from "../client/listeners.ts";
+import { readViewSubmissionPayload } from "../client/index.ts";
 import { blockIdFor, callbackFor } from "../helpers/blockers/questions.ts";
 
 /** Slack's real `view_submission` body, nested exactly as it arrives. */

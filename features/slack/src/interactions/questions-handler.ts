@@ -15,7 +15,7 @@
 
 import { Effect } from "effect";
 
-import type { SlackClientShape } from "../client/client.ts";
+import type { SlackClientShape } from "../client/index.ts";
 import type {
   InteractionPayload,
   InteractionsShape,

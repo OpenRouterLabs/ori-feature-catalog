@@ -19,7 +19,7 @@ import { Effect, Schema } from "effect";
 
 import { bestEffort } from "../helpers/best-effort.ts";
 
-import type { SlackApiError } from "../client/client.ts";
+import type { SlackApiError } from "../client/index.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type { MessageReplyShape } from "../message-reply/reply.ts";
 import type { RunState } from "../message-stream/run-state.ts";
