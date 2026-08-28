@@ -14,12 +14,15 @@ import type {
   ViewsOpenArguments,
 } from "@slack/web-api";
 
+import type { WebClientOptions } from "@slack/web-api";
+
 import { retryPolicies, WebClient } from "@slack/web-api";
-import { Duration, Effect, Layer, Schedule, Schema } from "effect";
+import { Duration, Effect, Layer, Predicate, Schedule, Schema } from "effect";
 
 import type { PostedMessage, SlackClientShape } from "./client.ts";
 
 import { SlackApiError, SlackClient, SlackConfigError } from "./client.ts";
+import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 
 /** Per-attempt HTTP timeout. The SDK default is `0` — no timeout at all. */
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -45,11 +48,26 @@ const CALL_BUDGET_MS = 90_000;
  * timeout applies per attempt, not to the total retry period, so the bounded
  * policy is doing most of the work.
  */
-export const makeConfiguredWebClient = (token: string): WebClient =>
-  new WebClient(token, {
+export const makeConfiguredWebClient = (
+  token: string,
+  env: Readonly<Record<string, string | undefined>> = Bun.env
+): WebClient => {
+  const options: WebClientOptions = {
+    headers: { Authorization: `Bearer ${token}` },
     retryConfig: retryPolicies.fiveRetriesInFiveMinutes,
     timeout: REQUEST_TIMEOUT_MS,
-  });
+  };
+  const agent = resolveSlackProxyAgent(env);
+  if (Predicate.isNotUndefined(agent)) {
+    options.agent = agent;
+  }
+  /*
+   * The token rides the Authorization header, not the constructor's first
+   * argument, so the vault sidecar sees a header it can substitute. Passing
+   * `undefined` keeps the SDK from writing its own.
+   */
+  return new WebClient(undefined, options);
+};
 
 /**
  * The Slack SDK reports logical failures as a thrown error carrying
