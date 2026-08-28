@@ -151,6 +151,10 @@ export const api = {
       runtime.handleCarryRequest(request)
     ),
 
+    "POST /slack/thread/attach": loopbackEntry((runtime, request) =>
+      runtime.handleAttachRequest(request)
+    ),
+
     "POST /slack/thread/chart": loopbackEntry((runtime, request) =>
       runtime.handleChartRequest(request)
     ),
