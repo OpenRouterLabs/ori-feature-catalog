@@ -18,6 +18,35 @@ A directory is for reading, not for filing. Once a topic reaches five files — 
 
 Four or fewer stays flat. A folder holding one module and its test earns nothing, and `client/client/` is worse than the problem it solves — when the oversized topic IS the directory's own subject, the directory is already the answer.
 
+## Names carry the role
+
+Every one of these is already true of every file here. They are written down
+because a convention nobody can find is one the next contributor breaks.
+
+**Files are kebab-case**, and the suffix says what kind of module it is:
+`-live` is the layer that implements a service, `-route` the HTTP half of a
+loopback endpoint, `-test-support` a fake that production never imports,
+`-request` and `-source` the parsers that decode one wire shape.
+
+**Types are suffixed by their part in the graph.** `SlackClient` is the
+`Context.Service` tag, `SlackClientShape` the interface it carries, and
+`SlackClientLive` the layer providing it — the tag and its structure never
+share a name, because a caller needs to say which one it means.
+`Deps` bundles what a factory takes, `Input` one call's arguments, `Error` a
+tagged failure.
+
+**Spans are `Slack.<area>.<verb>`**, always three segments. A helper takes its
+area from the directory it lives in — `helpers/charts` is `Slack.charts.*`,
+`helpers/images-ai` is `Slack.imagesAi.*`. A route takes its area from the
+subject it serves, singular: `chart-route.ts` is `Slack.chart.*`. That is why
+`Slack.chart.render` and `Slack.charts.svgToPng` are both correct and are not
+the same area — one is the route, one is the pipeline it calls.
+
+An index re-exports its directory when the directory has callers outside
+itself, and it is curated rather than exhaustive: anything whose import cost
+must stay opt-in is reached by path. `client/index.ts` leaves out the three
+Bolt modules for exactly that reason.
+
 ## Nice-to-haves live in `helpers/`
 
 `helpers/` is for optional, pure surface area: Block Kit builders, charts, modals. Everything there should be importable without booting anything.
