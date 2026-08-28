@@ -141,3 +141,45 @@ describe("a flow that would draw as a smear", () => {
     expect(JSON.stringify(parsed)).not.toContain("<br");
   });
 });
+
+describe("a flow with more nodes than fit", () => {
+  const nodesOf = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `n${index}`,
+      label: `Stage ${index}`,
+    }));
+
+  const chainOf = (count: number) =>
+    Array.from({ length: count - 1 }, (_, index) => ({
+      from: `n${index}`,
+      to: `n${index + 1}`,
+    }));
+
+  test("is refused rather than quietly losing its tail", () => {
+    const parsed = parseChartBody({
+      channel: "C1",
+      edges: chainOf(40),
+      kind: "flow",
+      nodes: nodesOf(40),
+      thread_ts: "1700.1",
+      title: "too long",
+    });
+
+    expect(parsed.ok).toBe(false);
+    expect(!parsed.ok && parsed.error).toContain("split it into two charts");
+  });
+
+  test("a flow at the cap still renders", () => {
+    const parsed = parseChartBody({
+      channel: "C1",
+      edges: chainOf(30),
+      kind: "flow",
+      nodes: nodesOf(30),
+      thread_ts: "1700.1",
+      title: "at the cap",
+    });
+
+    expect(parsed.ok).toBe(true);
+  });
+});
+

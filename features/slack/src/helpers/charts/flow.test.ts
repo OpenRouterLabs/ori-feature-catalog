@@ -142,3 +142,75 @@ describe("flowChartSvg", () => {
     expect(svg).not.toContain("<script>");
   });
 });
+
+describe("a flow that does not fit the old limits", () => {
+  const longFlow = (count: number) => {
+    const nodes = Array.from({ length: count }, (_, index) => ({
+      id: `n${index}`,
+      label: `Stage ${index} dedup claim on the thread so a lead never processes twice`,
+    }));
+    return {
+      edges: nodes.slice(0, -1).map((node, index) => ({
+        from: node.id,
+        to: `n${index + 1}`,
+      })),
+      nodes,
+      title: "Inbound lead flow",
+    };
+  };
+
+  test("every node is drawn, past the old cap of fourteen", () => {
+    const svg = flowChartSvg(longFlow(18));
+
+    expect(svg).toContain("Stage 17");
+    expect(svg).toContain("Stage 14");
+  });
+
+  test("a long label wraps instead of ending in an ellipsis", () => {
+    const svg = flowChartSvg(longFlow(3));
+
+    expect(svg).not.toContain("…");
+    expect(svg).toContain("processes twice");
+  });
+
+  test("a label too long even for a full-width box wraps rather than clips", () => {
+    const svg = flowChartSvg({
+      edges: [],
+      nodes: [
+        {
+          id: "solo",
+          label:
+            "Stage 2.5 runs the research pipeline: CRM audit, segment classification, spend signal, and enrichment, then scores the lead before anything is drafted",
+        },
+      ],
+      title: "t",
+    });
+
+    expect((svg.match(/<text/gu) ?? []).length).toBeGreaterThan(2);
+    expect(svg).not.toContain("…");
+  });
+
+  test("the canvas reaches below the lowest box", () => {
+    const svg = flowChartSvg(longFlow(12));
+
+    const canvas = Number(/height="(\d+)"/u.exec(svg)?.[1] ?? 0);
+    const lowest = Math.max(
+      ...[
+        ...svg.matchAll(/<rect[^>]*y="([\d.]+)"[^>]*height="([\d.]+)"/gu),
+      ].map((match) => Number(match[1]) + Number(match[2]))
+    );
+
+    expect(lowest).toBeLessThanOrEqual(canvas);
+  });
+
+  test("a node alone on a row uses the width it actually has", () => {
+    const wide = flowChartSvg({
+      edges: [],
+      nodes: [{ id: "solo", label: "A label of forty-eight characters or so, kept whole" }],
+      title: "t",
+    });
+
+    expect(wide).toContain("A label of forty-eight characters");
+    expect(wide).not.toContain("…");
+  });
+});

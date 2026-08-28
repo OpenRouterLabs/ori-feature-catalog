@@ -12,7 +12,7 @@
  * shapes a thread carries, and it needs no measuring pass.
  */
 
-import { escape, truncate } from "./text.ts";
+import { charsThatFit, escape, truncate, wrapText } from "./text.ts";
 
 const WIDTH = 760;
 const NODE_HEIGHT = 52;
@@ -21,20 +21,21 @@ const NODE_GAP = 16;
 const PADDING = 16;
 const TITLE_HEIGHT = 52;
 
-/** Baselines inside a box: centred alone, or stacked over a detail line. */
-const LABEL_ALONE_Y = 31;
-const LABEL_OVER_DETAIL_Y = 24;
-const DETAIL_Y = 40;
 /** Clear of the arrow it names. */
 const EDGE_LABEL_LIFT = 5;
+const EDGE_LABEL_LINE_HEIGHT = 12;
+const EDGE_LABEL_WIDTH = WIDTH / 3;
+const MAX_EDGE_LABEL_LINES = 2;
 
-const MAX_LABEL_CHARS = 30;
-const MAX_DETAIL_CHARS = 46;
-const MAX_EDGE_LABEL_CHARS = 18;
 const MAX_TITLE_CHARS = 60;
 
-/** Past this a flow is a document, not a picture. */
-export const MAX_NODES = 14;
+const TEXT_INSET = 12;
+const LABEL_LINE_HEIGHT = 17;
+const DETAIL_LINE_HEIGHT = 13;
+const MAX_LABEL_LINES = 4;
+const MAX_DETAIL_LINES = 2;
+
+export const MAX_NODES = 30;
 
 /**
  * How many boxes may share a row before the picture stops being one.
@@ -94,11 +95,14 @@ export interface FlowEdge {
 }
 
 interface Placed {
+  readonly detail: readonly string[];
+  readonly height: number;
+  readonly label: readonly string[];
   readonly node: FlowNode;
   readonly row: number;
+  readonly width: number;
   readonly x: number;
   readonly y: number;
-  readonly width: number;
 }
 
 /**
@@ -159,35 +163,75 @@ const placeNodes = (
 
   const placed: Placed[] = [];
   const usable = WIDTH - PADDING * 2;
-  for (const [row, rowNodes] of byRow) {
+
+  let y = TITLE_HEIGHT;
+  for (const row of [...byRow.keys()].sort((left, right) => left - right)) {
+    const rowNodes = byRow.get(row) ?? [];
     const width = Math.floor(
       (usable - NODE_GAP * (rowNodes.length - 1)) / rowNodes.length
     );
-    for (const [index, node] of rowNodes.entries()) {
-      placed.push({
-        node,
-        row,
-        width,
-        x: PADDING + index * (width + NODE_GAP),
-        y: TITLE_HEIGHT + row * (NODE_HEIGHT + ROW_GAP),
-      });
-    }
+    const onThisRow = rowNodes.map((node, index) => ({
+      ...measure(node, width),
+      node,
+      row,
+      width,
+      x: PADDING + index * (width + NODE_GAP),
+      y,
+    }));
+    placed.push(...onThisRow);
+    y += Math.max(...onThisRow.map((item) => item.height)) + ROW_GAP;
   }
   return placed;
 };
 
+const measure = (
+  node: FlowNode,
+  width: number
+): Pick<Placed, "detail" | "height" | "label"> => {
+  const usable = width - TEXT_INSET * 2;
+  const label = wrapText(node.label, charsThatFit(usable, 14)).slice(
+    0,
+    MAX_LABEL_LINES
+  );
+  const detail =
+    node.detail === undefined || node.detail === ""
+      ? []
+      : wrapText(node.detail, charsThatFit(usable, 11)).slice(
+          0,
+          MAX_DETAIL_LINES
+        );
+  const text =
+    label.length * LABEL_LINE_HEIGHT + detail.length * DETAIL_LINE_HEIGHT;
+  return {
+    detail,
+    height: Math.max(NODE_HEIGHT, text + TEXT_INSET * 2),
+    label,
+  };
+};
+
 const nodeSvg = (placed: Placed): string => {
+  const { detail, height, label } = placed;
   const kind = placed.node.kind ?? "step";
-  const detail = placed.node.detail ?? "";
   const centre = placed.x + placed.width / 2;
+
+  const text =
+    label.length * LABEL_LINE_HEIGHT + detail.length * DETAIL_LINE_HEIGHT;
+  let baseline = placed.y + (height - text) / 2 + LABEL_LINE_HEIGHT - 4;
+
   const parts = [
-    `<rect x="${placed.x}" y="${placed.y}" width="${placed.width}" height="${NODE_HEIGHT}" fill="${KIND_FILL[kind]}" stroke="${KIND_STROKE[kind]}" rx="8"/>`,
-    `<text x="${centre}" y="${placed.y + (detail === "" ? LABEL_ALONE_Y : LABEL_OVER_DETAIL_Y)}" text-anchor="middle" fill="${TITLE_FILL}" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="600">${escape(truncate(placed.node.label, MAX_LABEL_CHARS))}</text>`,
+    `<rect x="${placed.x}" y="${placed.y}" width="${placed.width}" height="${height}" fill="${KIND_FILL[kind]}" stroke="${KIND_STROKE[kind]}" rx="8"/>`,
   ];
-  if (detail !== "") {
+  for (const line of label) {
     parts.push(
-      `<text x="${centre}" y="${placed.y + DETAIL_Y}" text-anchor="middle" fill="${TEXT_FILL}" font-family="monospace" font-size="11">${escape(truncate(detail, MAX_DETAIL_CHARS))}</text>`
+      `<text x="${centre}" y="${baseline}" text-anchor="middle" fill="${TITLE_FILL}" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="600">${escape(line)}</text>`
     );
+    baseline += LABEL_LINE_HEIGHT;
+  }
+  for (const line of detail) {
+    parts.push(
+      `<text x="${centre}" y="${baseline}" text-anchor="middle" fill="${TEXT_FILL}" font-family="monospace" font-size="11">${escape(line)}</text>`
+    );
+    baseline += DETAIL_LINE_HEIGHT;
   }
   return parts.join("");
 };
@@ -201,7 +245,7 @@ const nodeSvg = (placed: Placed): string => {
  */
 const edgeSvg = (from: Placed, to: Placed, label: string): string => {
   const startX = from.x + from.width / 2;
-  const startY = from.y + NODE_HEIGHT;
+  const startY = from.y + from.height;
   const endX = to.x + to.width / 2;
   const endY = to.y;
   const midY = startY + (endY - startY) / 2;
@@ -211,7 +255,12 @@ const edgeSvg = (from: Placed, to: Placed, label: string): string => {
   ];
   if (label !== "") {
     parts.push(
-      `<text x="${(startX + endX) / 2}" y="${midY - EDGE_LABEL_LIFT}" text-anchor="middle" fill="${TEXT_FILL}" font-family="monospace" font-size="10">${escape(truncate(label, MAX_EDGE_LABEL_CHARS))}</text>`
+      ...wrapText(label, charsThatFit(EDGE_LABEL_WIDTH, 10))
+        .slice(0, MAX_EDGE_LABEL_LINES)
+        .map(
+          (line, index, all) =>
+            `<text x="${(startX + endX) / 2}" y="${midY - EDGE_LABEL_LIFT - (all.length - 1 - index) * EDGE_LABEL_LINE_HEIGHT}" text-anchor="middle" fill="${TEXT_FILL}" font-family="monospace" font-size="10">${escape(line)}</text>`
+        )
     );
   }
   return parts.join("");
@@ -237,9 +286,11 @@ export const flowChartSvg = (input: {
 
   const placed = placeNodes(nodes, rowsOf(nodes, edges));
   const byId = new Map(placed.map((item) => [item.node.id, item]));
-  const rowCount = Math.max(1, ...placed.map((item) => item.row + 1));
   const height =
-    TITLE_HEIGHT + rowCount * NODE_HEIGHT + (rowCount - 1) * ROW_GAP + PADDING;
+    Math.max(
+      TITLE_HEIGHT + NODE_HEIGHT,
+      ...placed.map((item) => item.y + item.height)
+    ) + PADDING;
 
   const arrows = edges.flatMap((edge) => {
     const from = byId.get(edge.from);

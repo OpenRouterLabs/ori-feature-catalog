@@ -67,21 +67,12 @@ const rampAt = (index: number, total: number): string => {
   return RAMP[Math.min(RAMP.length - 1, Math.max(0, step))] ?? RAMP[0];
 };
 
+import { escape, truncate } from "./text.ts";
+
 interface ChartRow {
   readonly label: string;
   readonly value: number;
 }
-
-/** Text lands in markup, so anything that could close a tag must not. */
-const escape = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-
-const truncate = (value: string, max: number): string =>
-  value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 
 /** Opening markup every chart shares: the card, its title, and the rule under it. */
 const cardHead = (title: string, width: number, height: number): string =>

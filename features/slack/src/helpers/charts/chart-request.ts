@@ -109,8 +109,7 @@ export const parseChartBody = (raw: unknown): ChartParse =>
               nodes: decoded.nodes ?? [],
             }
           : parseGraphSource(decoded.graph);
-      const nodes = drawn.nodes.slice(0, MAX_NODES);
-      const { edges } = drawn;
+      const { edges, nodes } = drawn;
       const counts = {
         bars: rows.length,
         flow: nodes.length,
@@ -120,6 +119,12 @@ export const parseChartBody = (raw: unknown): ChartParse =>
       // than rendered, because the model can write the table instead and only
       // will if it is told.
       if (decoded.kind === "flow") {
+        if (nodes.length > MAX_NODES) {
+          return {
+            error: `${nodes.length} nodes is more than a flow chart can carry (max ${MAX_NODES}) — split it into two charts rather than losing the tail`,
+            ok: false,
+          };
+        }
         const widest = widestRow(nodes, edges);
         if (widest > MAX_ROW_WIDTH) {
           return {
