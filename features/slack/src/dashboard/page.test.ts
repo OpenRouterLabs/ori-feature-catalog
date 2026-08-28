@@ -12,7 +12,7 @@ import type { ThreadRow } from "../state/index.ts";
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { InterruptMode } from "../state/index.ts";
-import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { UNSEEN_THREAD } from "../turn/listening/index.ts";
 import { ago, renderDashboard as render } from "./page.ts";
 
 /** Most cases do not care about the mode; the ones that do pass it. */

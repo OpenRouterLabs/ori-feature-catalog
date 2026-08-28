@@ -19,13 +19,13 @@
 
 import { Effect, Fiber } from "effect";
 
-import type { RunState } from "../message-stream/run-state.ts";
-import type { AssistantThreadsShape } from "../thread/index.ts";
-import type { ThreadRef } from "../thread/index.ts";
+import type { RunState } from "../../message-stream/run-state.ts";
+import type { AssistantThreadsShape } from "../../thread/index.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 
-import { clampToWord } from "../clamp.ts";
-import { toolSummary } from "../message-stream/run-state.ts";
-import { paneOf } from "./context/pane-context.ts";
+import { clampToWord } from "../../clamp.ts";
+import { toolSummary } from "../../message-stream/run-state.ts";
+import { paneOf } from "../context/pane-context.ts";
 import { readLine } from "./live-line.ts";
 
 /**

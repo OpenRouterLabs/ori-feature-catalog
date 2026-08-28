@@ -57,7 +57,7 @@ import { toolContextBlock } from "../context/tool-context.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "../reply-style.ts";
 import { retireTurn } from "../retire-turn.ts";
 import { AgentStreamEnded, applyEvent, handleRunEvent } from "../run-events.ts";
-import { beatStatus } from "../status-beat.ts";
+import { beatStatus } from "../indicator/index.ts";
 import { turnEnv } from "../turn-input.ts";
 
 /**

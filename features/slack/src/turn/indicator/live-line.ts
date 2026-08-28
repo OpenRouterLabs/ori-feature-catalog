@@ -25,7 +25,7 @@
 
 import { Effect } from "effect";
 
-import { bestEffort } from "../helpers/best-effort.ts";
+import { bestEffort } from "../../helpers/best-effort.ts";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

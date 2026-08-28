@@ -14,7 +14,7 @@ import type { StateStoreShape } from "../state/index.ts";
 
 import { InterruptMode } from "../state/index.ts";
 import { StateStoreMemory } from "../state/index.ts";
-import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { UNSEEN_THREAD } from "../turn/listening/index.ts";
 import { dashboardResponse } from "./dashboard.ts";
 
 const NOW = 1_700_000_000_000;

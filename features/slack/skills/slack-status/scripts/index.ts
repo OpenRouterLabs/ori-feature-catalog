@@ -12,7 +12,7 @@
 import { retryPolicies, WebClient } from "@slack/web-api";
 import { slackifyMarkdown } from "slackify-markdown";
 
-import { recordLiveLine } from "#src/turn/live-line.ts";
+import { recordLiveLine } from "#src/turn/indicator/index.ts";
 import { postStatus } from "./post-status.ts";
 
 /** Long enough for a slow Slack, short enough that a turn notices. */

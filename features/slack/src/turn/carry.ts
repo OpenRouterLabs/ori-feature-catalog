@@ -30,7 +30,7 @@ import type { ThreadRef } from "../thread/index.ts";
 
 import { StateStore } from "../state/index.ts";
 import { threadInstanceId } from "../thread/index.ts";
-import { engage, mute } from "./listen.ts";
+import { engage, mute } from "./listening/index.ts";
 
 export const CarryOutcome = {
   /** Moved. The new thread now owns the session. */

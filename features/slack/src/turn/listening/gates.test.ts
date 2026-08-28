@@ -4,7 +4,7 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { GateContext, IncomingMessage } from "./gates.ts";
 
-import { readSlackConfig } from "../config.ts";
+import { readSlackConfig } from "../../config.ts";
 import { admitMessage, gateContextOf } from "./gates.ts";
 
 /** The gates as configured by an environment, end to end. */

@@ -28,7 +28,7 @@ import {
   UNSEEN_THREAD,
   unmute,
   withParticipant,
-} from "../turn/listen.ts";
+} from "../turn/listening/index.ts";
 import { InterruptMode } from "./settings.ts";
 import { StateStoreDurable } from "./store-durable.ts";
 
