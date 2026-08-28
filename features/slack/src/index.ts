@@ -144,12 +144,15 @@ const messageOf = (event: RawSlackMessage): IncomingMessage => ({
 interface SlackIdentity {
   /** Display name, for copy a reader sees. Falls back to a neutral noun. */
   readonly botName: string;
+  /** Bolt's `authorize` carries this so Bolt never authenticates on its own. */
+  readonly botId: string | undefined;
   readonly botUserId: string | undefined;
   readonly teamId: string;
 }
 
 const UNKNOWN_IDENTITY: SlackIdentity = {
   botName: "this bot",
+  botId: undefined,
   botUserId: undefined,
   teamId: "",
 };
@@ -179,6 +182,7 @@ const resolveIdentity = (
         ).raw.auth.test();
         return {
           botName: identity.user ?? UNKNOWN_IDENTITY.botName,
+          botId: identity.bot_id,
           botUserId: identity.user_id,
           teamId: identity.team_id ?? "",
         };
@@ -327,6 +331,7 @@ const openForTraffic = async (input: {
   });
 
   const { app, receiver } = makeBoltApp({
+    identity: input.identity,
     logger: input.logger,
     signingSecret: input.config.signingSecret,
     token: input.config.token,

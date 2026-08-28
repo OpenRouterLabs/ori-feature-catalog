@@ -87,6 +87,13 @@ export const makeStop =
  */
 export const makeBoltApp = (input: {
   readonly env?: Readonly<Record<string, string | undefined>> | undefined;
+  /** Resolved on OUR proxied client. Absent means identity resolution failed. */
+  readonly identity?:
+    | {
+        readonly botId: string | undefined;
+        readonly botUserId: string | undefined;
+      }
+    | undefined;
   readonly logger: SlackLogger;
   readonly signingSecret: string;
   readonly token: string;
@@ -106,12 +113,43 @@ export const makeBoltApp = (input: {
    * http/httpsAgent — so it must be set here as well as on our own client.
    */
   const agent = resolveSlackProxyAgent(input.env ?? Bun.env);
+  /*
+   * `authorize`, not `token`, and this is the whole point.
+   *
+   * Given a token Bolt authenticates for itself: with `tokenVerificationEnabled`
+   * defaulting to true it calls `auth.test({ token })` on its own client and
+   * caches the result as the authorize function. A PER-CALL token does not only
+   * set the header — `WebClient.apiCall` spreads its options into the request
+   * BODY, so `body.token` carries it too (`WebClient.js:199-201`). On a
+   * vault-mode intern the sidecar substitutes the header and the body still
+   * carries `__slack_bot_token__`, Slack reads that, and every incoming event is
+   * refused with "No listeners will be called". Proxying the call cannot fix it,
+   * because the placeholder is inside the request.
+   *
+   * Handing Bolt an identity we already resolved on our own client removes the
+   * call, so there is nothing left to substitute. Falling back to `token` when
+   * identity resolution failed keeps the previous behaviour rather than booting
+   * a surface that cannot authorize at all.
+   */
+  const identity = input.identity;
+  const authorize =
+    Predicate.isNotUndefined(identity) &&
+    Predicate.isNotUndefined(identity.botUserId)
+      ? {
+          authorize: () =>
+            Promise.resolve(
+              Predicate.isUndefined(identity.botId)
+                ? { botUserId: identity.botUserId }
+                : { botId: identity.botId, botUserId: identity.botUserId }
+            ),
+        }
+      : { token: input.token };
   return {
     app: new App({
       ...(Predicate.isNotUndefined(agent) ? { agent } : {}),
+      ...authorize,
       logLevel: LogLevel.WARN,
       receiver,
-      token: input.token,
     }),
     receiver,
   };

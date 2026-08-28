@@ -128,3 +128,48 @@ describe("makeBoltApp", () => {
     }
   });
 });
+
+describe("makeBoltApp authorization", () => {
+  test("makes no Slack call of its own when an identity is supplied", async () => {
+    /*
+     * The regression this guards: given a token, Bolt calls
+     * `auth.test({ token })` itself, and a per-call token rides the request
+     * BODY as well as the header. The vault substitutes the header only, so
+     * the body still carries the placeholder and Slack answers invalid_auth.
+     * With `authorize` there is no call to substitute.
+     */
+    const proxy = await startConnectProxy();
+    try {
+      makeBoltApp({
+        env: { HTTPS_PROXY: proxy.url },
+        identity: { botId: "B123", botUserId: "U123" },
+        logger: { error() {}, info() {}, warn() {} },
+        signingSecret: "sig",
+        token: PLACEHOLDER,
+      });
+      await Bun.sleep(400);
+      expect(proxy.requestLines).toEqual([]);
+    } finally {
+      proxy.stop();
+    }
+  });
+
+  test("falls back to the token when identity resolution failed", async () => {
+    const proxy = await startConnectProxy();
+    try {
+      makeBoltApp({
+        env: { HTTPS_PROXY: proxy.url },
+        identity: { botId: undefined, botUserId: undefined },
+        logger: { error() {}, info() {}, warn() {} },
+        signingSecret: "sig",
+        token: PLACEHOLDER,
+      });
+      for (let wait = 0; wait < 100 && proxy.requestLines.length === 0; wait++) {
+        await Bun.sleep(20);
+      }
+      expect(proxy.requestLines[0]).toContain("CONNECT slack.com:443");
+    } finally {
+      proxy.stop();
+    }
+  });
+});
