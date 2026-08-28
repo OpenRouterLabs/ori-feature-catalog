@@ -4,6 +4,7 @@ import { WebClient } from "@slack/web-api";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
+import { makeBoltApp } from "./bolt-lifecycle.ts";
 import { makeConfiguredWebClient } from "./client-live.ts";
 import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 
@@ -99,5 +100,31 @@ describe("makeConfiguredWebClient", () => {
     const client = makeConfiguredWebClient(PLACEHOLDER, {});
     expect(client).toBeInstanceOf(WebClient);
     expect(client.token).toBeUndefined();
+  });
+});
+
+describe("makeBoltApp", () => {
+  test("routes Bolt's OWN client through the sidecar", async () => {
+    /*
+     * The regression this guards: Bolt builds its own WebClient and runs the
+     * authorization `auth.test` on it. Proxying only our client leaves that
+     * call direct, it answers `invalid_auth` against the placeholder token,
+     * and every incoming event is refused before a listener runs.
+     */
+    const proxy = await startConnectProxy();
+    try {
+      makeBoltApp({
+        env: { HTTPS_PROXY: proxy.url },
+        logger: { debug() {}, error() {}, info() {}, warn() {} },
+        signingSecret: "secret",
+        token: PLACEHOLDER,
+      });
+      for (let wait = 0; wait < 100 && proxy.requestLines.length === 0; wait++) {
+        await Bun.sleep(20);
+      }
+      expect(proxy.requestLines[0]).toContain("CONNECT slack.com:443");
+    } finally {
+      proxy.stop();
+    }
   });
 });
