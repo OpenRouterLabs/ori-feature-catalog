@@ -45,6 +45,7 @@ import { handleTurn } from "./handler/handler.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 import { carrySession } from "./carry.ts";
 import { makeCarryRoute } from "./routes/carry-route.ts";
+import { makeAttachRoute } from "./routes/attach-route.ts";
 import { makeChartRoute } from "./routes/chart-route.ts";
 import { makeDispatchRoute } from "./routes/dispatch-route.ts";
 import { makeImageRoute } from "./routes/image-route.ts";
@@ -52,6 +53,7 @@ import { makeQuestionsRoute } from "./routes/questions-route.ts";
 
 export interface TurnRoutes {
   readonly handleAsk: (request: Request) => Promise<Response>;
+  readonly handleAttach: (request: Request) => Promise<Response>;
   /** Move a live session onto a thread the caller has just opened. */
   readonly handleCarry: (request: Request) => Promise<Response>;
   readonly handleDispatch: (request: Request) => Promise<Response>;
@@ -357,6 +359,7 @@ const makeSideRoutes = (input: {
   readonly runTurnSafely: (turn: LoopbackTurn) => void;
 }): {
   readonly ask: (request: Request) => Promise<Response>;
+  readonly attach: (request: Request) => Promise<Response>;
   readonly carry: (request: Request) => Promise<Response>;
   readonly chart: (request: Request) => Promise<Response>;
   readonly dispatch: (request: Request) => Promise<Response>;
@@ -378,6 +381,11 @@ const makeSideRoutes = (input: {
       carry: ({ from, to }) => deps.runWith(carrySession({ from, to })),
       isBusy: (ref) => isBusy(threadInstanceId(ref)),
       isStopping: deps.isStopping,
+      workspaceTeamId: deps.workspaceTeamId,
+    }),
+    attach: makeAttachRoute({
+      readFile: async (path) => new Blob([await Bun.file(path).arrayBuffer()]),
+      replyFor: (ref) => deps.runWith(makeMessageReply(ref)),
       workspaceTeamId: deps.workspaceTeamId,
     }),
     chart: makeChartRoute({
@@ -510,6 +518,7 @@ export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
 
   return {
     handleAsk: routes.ask,
+    handleAttach: routes.attach,
     handleCarry: routes.carry,
     handleChart: routes.chart,
     handleImage: routes.image,
