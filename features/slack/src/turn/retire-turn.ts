@@ -17,8 +17,8 @@
 import { Effect } from "effect";
 
 import type { BlockersShape } from "../interactions/blocker.ts";
-import type { AssistantThreadsShape } from "../thread/assistant.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { AssistantThreadsShape } from "../thread/index.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
 import { paneOf } from "./context/pane-context.ts";
 

@@ -25,7 +25,7 @@ import type {
   FileUpload,
   UploadedFile,
 } from "../helpers/images-files/upload.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 import type { MessageReplyShape } from "./reply.ts";
 
 import { SlackClient } from "../client/index.ts";

@@ -18,7 +18,7 @@
 
 import { Schema } from "effect";
 
-import { sanitizeThreadContent } from "../../thread/thread.ts";
+import { sanitizeThreadContent } from "../../thread/index.ts";
 
 /**
  * The subset of a Slack file this gate reads. Every field is optional and

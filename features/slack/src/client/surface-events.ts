@@ -17,10 +17,10 @@
 import { Context, Effect } from "effect";
 
 import type { SlackServices } from "../layers.ts";
-import type { PaneContext } from "../thread/assistant.ts";
+import type { PaneContext } from "../thread/index.ts";
 import type { RawAssistantThreadStarted } from "./listeners.ts";
 
-import { AssistantThreads, keyOf } from "../thread/assistant.ts";
+import { AssistantThreads, keyOf } from "../thread/index.ts";
 
 /**
  * be published to.

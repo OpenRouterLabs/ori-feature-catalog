@@ -26,10 +26,10 @@
 
 import { Effect } from "effect";
 
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
-import { StateStore } from "../state/store.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { StateStore } from "../state/index.ts";
+import { threadInstanceId } from "../thread/index.ts";
 import { engage, mute } from "./listen.ts";
 
 export const CarryOutcome = {

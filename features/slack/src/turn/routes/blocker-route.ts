@@ -19,7 +19,7 @@ import { bestEffort } from "../../helpers/best-effort.ts";
 import type { SlackBlock } from "../../helpers/block-kit/blocks.ts";
 import type { BlockersShape } from "../../interactions/blocker.ts";
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 
 import {
   blockerAnsweredBlocks,

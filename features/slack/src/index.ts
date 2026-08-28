@@ -34,7 +34,7 @@ import type {
   ViewSubmissionPayload,
 } from "./interactions/interactions.ts";
 import type { SlackServices } from "./layers.ts";
-import type { ThreadRef } from "./thread/thread.ts";
+import type { ThreadRef } from "./thread/index.ts";
 import type { IncomingMessage } from "./turn/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
@@ -53,7 +53,7 @@ import {
 } from "./interactions/permissions.ts";
 import { Questionnaires } from "./interactions/questionnaires.ts";
 import { registerQuestionHandlers } from "./interactions/questions-handler.ts";
-import { StateStore } from "./state/store.ts";
+import { StateStore } from "./state/index.ts";
 import { SlackDefaultLayers } from "./layers.ts";
 import { setLoadingEmoji } from "./message-stream/run-state.ts";
 import {
@@ -62,7 +62,7 @@ import {
   sayFailed,
   startStatus,
 } from "./notes.ts";
-import { cancelTurn } from "./thread/registry.ts";
+import { cancelTurn } from "./thread/index.ts";
 import { makeTurnRoutes } from "./turn/turn-routes.ts";
 
 

@@ -23,7 +23,7 @@ import type {
   RawSlackMessage,
 } from "./listeners.ts";
 
-import { cancelAll, drain, resetRegistry } from "../thread/registry.ts";
+import { cancelAll, drain, resetRegistry } from "../thread/index.ts";
 import { registerListeners } from "./listeners.ts";
 import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 import { SlackReceiver } from "./receiver.ts";

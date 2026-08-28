@@ -24,12 +24,12 @@ import {
   MessageStream,
   MessageStreamLive,
 } from "../../message-stream/stream.ts";
-import { StateStore, StateStoreMemory } from "../../state/store.ts";
+import { StateStore, StateStoreMemory } from "../../state/index.ts";
 import {
   AssistantThreads,
   AssistantThreadsLive,
-} from "../../thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "../../thread/thread.ts";
+} from "../../thread/index.ts";
+import { ThreadContext, ThreadContextLive } from "../../thread/index.ts";
 import { handleTurn } from "./handler.ts";
 
 export const ref = {

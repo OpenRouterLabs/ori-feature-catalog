@@ -15,7 +15,7 @@ import { Effect, Result, Schema } from "effect";
 
 import type { GeneratedImage } from "../../helpers/images-ai/generate.ts";
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import { generateImage } from "../../helpers/images-ai/generate.ts";

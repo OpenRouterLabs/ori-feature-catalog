@@ -21,7 +21,7 @@
 import { Context, Effect } from "effect";
 
 import type { Question } from "../helpers/blockers/questions.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
 /** A form that has been posted and is waiting on someone. */
 export interface PendingForm {

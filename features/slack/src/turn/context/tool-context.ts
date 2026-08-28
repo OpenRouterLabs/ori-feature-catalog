@@ -12,7 +12,7 @@
  * Not sanitised, because it holds nothing but ids Slack itself supplied.
  */
 
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 
 export const toolContextBlock = (ref: ThreadRef): string =>
   [

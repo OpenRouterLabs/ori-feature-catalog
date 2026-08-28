@@ -9,7 +9,7 @@
 
 import { Effect, Result, Schema } from "effect";
 
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 
 const BYTES_PER_KIB = 1024;
 

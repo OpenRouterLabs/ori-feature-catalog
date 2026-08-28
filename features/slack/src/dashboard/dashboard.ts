@@ -16,9 +16,9 @@
 
 import { Effect } from "effect";
 
-import type { StateStoreShape } from "../state/store.ts";
+import type { StateStoreShape } from "../state/index.ts";
 
-import { interruptModeFrom } from "../state/settings.ts";
+import { interruptModeFrom } from "../state/index.ts";
 import { renderDashboard } from "./page.ts";
 
 /** Where the form posts to, and where a save sends the browser back to. */

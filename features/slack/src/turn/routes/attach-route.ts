@@ -2,7 +2,7 @@
 import { Effect, Result, Schema } from "effect";
 
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 import type { Addressed } from "./loopback-route.ts";
 
 import { loopbackRoute, refuse } from "./loopback-route.ts";

@@ -23,7 +23,7 @@ import type { SlackApiError } from "../client/index.ts";
 import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
 import type { MessageReplyShape } from "../message-reply/reply.ts";
 import type { RunState } from "../message-stream/run-state.ts";
-import type { StateStoreShape } from "../state/store.ts";
+import type { StateStoreShape } from "../state/index.ts";
 import type { IncomingTurn } from "./turn-input.ts";
 
 import {

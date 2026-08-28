@@ -18,7 +18,7 @@
 import { Effect, Result, Schema } from "effect";
 
 import type { QuestionnairesShape } from "../../interactions/questionnaires.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import {

@@ -26,10 +26,10 @@
  * markup, not HTTP, and this way a test asserts on the markup directly.
  */
 
-import type { InterruptMode } from "../state/settings.ts";
-import type { ThreadRow } from "../state/store.ts";
+import type { InterruptMode } from "../state/index.ts";
+import type { ThreadRow } from "../state/index.ts";
 
-import { InterruptMode as Mode } from "../state/settings.ts";
+import { InterruptMode as Mode } from "../state/index.ts";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;

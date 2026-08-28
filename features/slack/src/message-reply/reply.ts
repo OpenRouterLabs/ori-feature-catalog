@@ -16,7 +16,7 @@ import type {
   FileUpload,
   UploadedFile,
 } from "../helpers/images-files/upload.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
 export interface MessageReplyShape {
   /** The thread this surface answers into. */

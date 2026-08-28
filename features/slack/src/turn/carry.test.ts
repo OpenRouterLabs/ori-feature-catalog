@@ -11,12 +11,12 @@ import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { StateStoreShape } from "../state/store.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { StateStoreShape } from "../state/index.ts";
+import type { ThreadRef } from "../thread/index.ts";
 import type { CarryResult } from "./carry.ts";
 
-import { StateStore, StateStoreMemory } from "../state/store.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { StateStore, StateStoreMemory } from "../state/index.ts";
+import { threadInstanceId } from "../thread/index.ts";
 import { carrySession, CarryOutcome } from "./carry.ts";
 
 const FROM = {

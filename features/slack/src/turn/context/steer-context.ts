@@ -15,7 +15,7 @@
  * external text.
  */
 
-import { sanitizeThreadContent } from "../../thread/thread.ts";
+import { sanitizeThreadContent } from "../../thread/index.ts";
 
 export const steerContextBlock = (priorAsk?: string): string => {
   const ask = (priorAsk ?? "").trim();

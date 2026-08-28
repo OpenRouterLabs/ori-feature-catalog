@@ -14,7 +14,7 @@
 
 import { Result } from "effect";
 
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 import type { CarryResult } from "../carry.ts";
 import type { Addressed } from "./loopback-route.ts";
 

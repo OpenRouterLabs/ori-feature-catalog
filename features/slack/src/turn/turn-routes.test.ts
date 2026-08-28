@@ -24,8 +24,8 @@ import type { TurnRouteDeps } from "./turn-routes.ts";
 import { makeFakeSlackClient } from "../client/client-test-support.ts";
 import { QuestionnairesMemory } from "../interactions/questionnaires.ts";
 import { deferred } from "../thread/registry-test-support.ts";
-import { enqueue, resetRegistry } from "../thread/registry.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { enqueue, resetRegistry } from "../thread/index.ts";
+import { threadInstanceId } from "../thread/index.ts";
 import { makeTurnRoutes } from "./turn-routes.ts";
 
 const REF = {

@@ -17,7 +17,7 @@ import { Effect, Result } from "effect";
 import type { ChartRequest } from "../../helpers/charts/chart-request.ts";
 import type { ChartRenderFailure } from "../../helpers/charts/rasterise.ts";
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import { parseChartBody } from "../../helpers/charts/chart-request.ts";

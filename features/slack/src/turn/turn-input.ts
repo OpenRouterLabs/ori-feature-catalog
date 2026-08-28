@@ -9,7 +9,7 @@
  * module that decodes runtime output.
  */
 
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
 export interface IncomingTurn {
   /** Warning block for any attachments on the message; "" when there are none. */

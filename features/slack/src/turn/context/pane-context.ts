@@ -11,10 +11,10 @@ import { Effect } from "effect";
 import type {
   AssistantThreadsShape,
   PaneContext,
-} from "../../thread/assistant.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+} from "../../thread/index.ts";
+import type { ThreadRef } from "../../thread/index.ts";
 
-import { keyOf, titleFromMessage } from "../../thread/assistant.ts";
+import { keyOf, titleFromMessage } from "../../thread/index.ts";
 
 /** The pane coordinates for a thread, which the assistant calls take. */
 export const paneOf = (

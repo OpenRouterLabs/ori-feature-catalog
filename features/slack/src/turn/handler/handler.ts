@@ -28,12 +28,12 @@ import { bestEffort } from "../../helpers/best-effort.ts";
 import type { MessageReplyShape } from "../../message-reply/reply.ts";
 import type { RunState } from "../../message-stream/run-state.ts";
 import type { RunOptions } from "../../message-stream/stream.ts";
-import type { StateStoreShape } from "../../state/store.ts";
+import type { StateStoreShape } from "../../state/index.ts";
 import type {
   AssistantThreadsShape,
   PaneContext,
-} from "../../thread/assistant.ts";
-import type { LiveTurn } from "../../thread/registry.ts";
+} from "../../thread/index.ts";
+import type { LiveTurn } from "../../thread/index.ts";
 import type { PendingApprovals, SessionSlot } from "../run-events.ts";
 import type { IncomingTurn } from "../turn-input.ts";
 
@@ -43,14 +43,14 @@ import { makeMessageReply } from "../../message-reply/reply-live.ts";
 import { answerText } from "../../message-stream/answer-text.ts";
 import { RunPhase, initialRunState } from "../../message-stream/run-state.ts";
 import { MessageStream } from "../../message-stream/stream.ts";
-import { StateStore } from "../../state/store.ts";
-import { AssistantThreads } from "../../thread/assistant.ts";
+import { StateStore } from "../../state/index.ts";
+import { AssistantThreads } from "../../thread/index.ts";
 import {
   hasSuccessor,
   TURN_STEER_REASON,
   TURN_TIMEOUT_REASON,
-} from "../../thread/registry.ts";
-import { threadInstanceId, ThreadContext } from "../../thread/thread.ts";
+} from "../../thread/index.ts";
+import { threadInstanceId, ThreadContext } from "../../thread/index.ts";
 import { openPane, paneContextBlock } from "../context/pane-context.ts";
 import { steerContextBlock } from "../context/steer-context.ts";
 import { toolContextBlock } from "../context/tool-context.ts";

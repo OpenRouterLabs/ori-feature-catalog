@@ -6,7 +6,7 @@ import {
   resetRegistry,
   steerThread,
   TURN_STEER_REASON,
-} from "../thread/registry.ts";
+} from "../thread/index.ts";
 
 const settle = (): Promise<void> =>
   new Promise((resolve) => {

@@ -26,9 +26,9 @@ import {
 } from "./interactions/questionnaires.ts";
 import { MessageStream, MessageStreamLive } from "./message-stream/stream.ts";
 import { StateStoreDurable } from "./state/store-durable.ts";
-import { StateStore, StateStoreMemory } from "./state/store.ts";
-import { AssistantThreads, AssistantThreadsLive } from "./thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "./thread/thread.ts";
+import { StateStore, StateStoreMemory } from "./state/index.ts";
+import { AssistantThreads, AssistantThreadsLive } from "./thread/index.ts";
+import { ThreadContext, ThreadContextLive } from "./thread/index.ts";
 
 /** Everything the turn path needs. This is the published surface. */
 export type SlackServices =

@@ -7,11 +7,11 @@
  * markup for its own sake.
  */
 
-import type { ThreadRow } from "../state/store.ts";
+import type { ThreadRow } from "../state/index.ts";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { InterruptMode } from "../state/settings.ts";
+import { InterruptMode } from "../state/index.ts";
 import { UNSEEN_THREAD } from "../turn/listen.ts";
 import { ago, renderDashboard as render } from "./page.ts";
 

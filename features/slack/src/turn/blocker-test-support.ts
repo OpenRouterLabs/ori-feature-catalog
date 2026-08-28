@@ -13,7 +13,7 @@ import { Effect } from "effect";
 import type { BlockersShape } from "../interactions/blocker.ts";
 import type { InteractionPayload } from "../interactions/interactions.ts";
 import type { MessageReplyShape } from "../message-reply/reply.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../thread/index.ts";
 
 import { BLOCKER_ACTION_ID } from "../helpers/blockers/blockers.ts";
 import { registerBlockerHandlers } from "../interactions/blocker-handler.ts";
