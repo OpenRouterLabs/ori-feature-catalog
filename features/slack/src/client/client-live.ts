@@ -14,10 +14,8 @@ import type {
   ViewsOpenArguments,
 } from "@slack/web-api";
 
-import type { WebClientOptions } from "@slack/web-api";
-
 import { retryPolicies, WebClient } from "@slack/web-api";
-import { Duration, Effect, Layer, Predicate, Schedule, Schema } from "effect";
+import { Duration, Effect, Layer, Schedule, Schema } from "effect";
 
 import type { PostedMessage, SlackClientShape } from "./client.ts";
 
@@ -52,21 +50,14 @@ export const makeConfiguredWebClient = (
   token: string,
   env: Readonly<Record<string, string | undefined>> = Bun.env
 ): WebClient => {
-  const options: WebClientOptions = {
+  /* The header is what the vault sidecar substitutes; `undefined` keeps the
+     SDK from writing its own. */
+  return new WebClient(undefined, {
+    agent: resolveSlackProxyAgent(env),
     headers: { Authorization: `Bearer ${token}` },
     retryConfig: retryPolicies.fiveRetriesInFiveMinutes,
     timeout: REQUEST_TIMEOUT_MS,
-  };
-  const agent = resolveSlackProxyAgent(env);
-  if (Predicate.isNotUndefined(agent)) {
-    options.agent = agent;
-  }
-  /*
-   * The token rides the Authorization header, not the constructor's first
-   * argument, so the vault sidecar sees a header it can substitute. Passing
-   * `undefined` keeps the SDK from writing its own.
-   */
-  return new WebClient(undefined, options);
+  });
 };
 
 /**

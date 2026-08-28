@@ -8,8 +8,10 @@
  * the listeners.
  */
 
+import type { AuthorizeResult } from "@slack/bolt";
+
 import { App, LogLevel } from "@slack/bolt";
-import { Effect, Exit, Predicate, Scope } from "effect";
+import { Effect, Exit, Option, Scope } from "effect";
 
 import type { SlackLogger } from "../index.ts";
 import type {
@@ -85,8 +87,37 @@ export const makeStop =
  * Bolt driven by our own receiver rather than one of its built-in servers: the
  * daemon already owns the HTTP listener, so this plugs into it.
  */
+/** Who Slack says we are, resolved on our own proxied client. */
+interface BoltIdentity {
+  readonly botId: string | undefined;
+  readonly botUserId: string | undefined;
+}
+
+/*
+ * `authorize`, not `token`: given a token Bolt calls `auth.test({ token })`
+ * itself, and a per-call token rides the request BODY too (WebClient.js:199),
+ * where the vault cannot substitute it. A resolved identity removes the call.
+ */
+type BoltAuthorization =
+  | { readonly authorize: () => Promise<AuthorizeResult> }
+  | { readonly token: string };
+
+const boltAuthorization = (input: {
+  readonly identity?: BoltIdentity | undefined;
+  readonly token: string;
+}): BoltAuthorization =>
+  Option.match(Option.fromNullishOr(input.identity?.botUserId), {
+    onNone: (): BoltAuthorization => ({ token: input.token }),
+    onSome: (botUserId): BoltAuthorization => ({
+      authorize: () =>
+        Promise.resolve({ botId: input.identity?.botId, botUserId }),
+    }),
+  });
+
 export const makeBoltApp = (input: {
   readonly env?: Readonly<Record<string, string | undefined>> | undefined;
+  /** Absent, or without a user id, means identity resolution failed. */
+  readonly identity?: BoltIdentity | undefined;
   readonly logger: SlackLogger;
   readonly signingSecret: string;
   readonly token: string;
@@ -108,10 +139,10 @@ export const makeBoltApp = (input: {
   const agent = resolveSlackProxyAgent(input.env ?? Bun.env);
   return {
     app: new App({
-      ...(Predicate.isNotUndefined(agent) ? { agent } : {}),
+      agent,
+      ...boltAuthorization(input),
       logLevel: LogLevel.WARN,
       receiver,
-      token: input.token,
     }),
     receiver,
   };
