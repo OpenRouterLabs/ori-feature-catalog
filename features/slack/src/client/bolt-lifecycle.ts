@@ -9,7 +9,7 @@
  */
 
 import { App, LogLevel } from "@slack/bolt";
-import { Effect, Exit, Scope } from "effect";
+import { Effect, Exit, Predicate, Scope } from "effect";
 
 import type { SlackLogger } from "../index.ts";
 import type {
@@ -23,6 +23,7 @@ import type {
 
 import { cancelAll, drain, resetRegistry } from "../thread/registry.ts";
 import { registerListeners } from "./listeners.ts";
+import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 import { SlackReceiver } from "./receiver.ts";
 
 /** How long shutdown waits for live turns to finish on their own. */
@@ -85,6 +86,7 @@ export const makeStop =
  * daemon already owns the HTTP listener, so this plugs into it.
  */
 export const makeBoltApp = (input: {
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined;
   readonly logger: SlackLogger;
   readonly signingSecret: string;
   readonly token: string;
@@ -93,8 +95,20 @@ export const makeBoltApp = (input: {
     logger: input.logger,
     signingSecret: input.signingSecret,
   });
+  /*
+   * Bolt builds its OWN WebClient and axios instance, and the authorization
+   * path runs on them, not on ours: with `tokenVerificationEnabled` defaulting
+   * to true the constructor fires `client.auth.test` and caches the result as
+   * the authorize function. Unproxied, that answers `invalid_auth` against the
+   * container's placeholder token and every incoming event is then refused
+   * with "No listeners will be called". `agent` is the one option that reaches
+   * both — App routes it into `clientOptions.agent` and into axios's
+   * http/httpsAgent — so it must be set here as well as on our own client.
+   */
+  const agent = resolveSlackProxyAgent(input.env ?? Bun.env);
   return {
     app: new App({
+      ...(Predicate.isNotUndefined(agent) ? { agent } : {}),
       logLevel: LogLevel.WARN,
       receiver,
       token: input.token,

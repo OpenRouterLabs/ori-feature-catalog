@@ -17,6 +17,7 @@
     "@slack/types": "2.22.0",
     "@slack/web-api": "7.15.0",
     "effect": "4.0.0-beta.90",
+    "https-proxy-agent": "7.0.6",
     "slackify-markdown": "5.0.0"
   }
 }
