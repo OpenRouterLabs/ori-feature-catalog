@@ -114,22 +114,9 @@ export const makeBoltApp = (input: {
    */
   const agent = resolveSlackProxyAgent(input.env ?? Bun.env);
   /*
-   * `authorize`, not `token`, and this is the whole point.
-   *
-   * Given a token Bolt authenticates for itself: with `tokenVerificationEnabled`
-   * defaulting to true it calls `auth.test({ token })` on its own client and
-   * caches the result as the authorize function. A PER-CALL token does not only
-   * set the header — `WebClient.apiCall` spreads its options into the request
-   * BODY, so `body.token` carries it too (`WebClient.js:199-201`). On a
-   * vault-mode intern the sidecar substitutes the header and the body still
-   * carries `__slack_bot_token__`, Slack reads that, and every incoming event is
-   * refused with "No listeners will be called". Proxying the call cannot fix it,
-   * because the placeholder is inside the request.
-   *
-   * Handing Bolt an identity we already resolved on our own client removes the
-   * call, so there is nothing left to substitute. Falling back to `token` when
-   * identity resolution failed keeps the previous behaviour rather than booting
-   * a surface that cannot authorize at all.
+   * `authorize`, not `token`: given a token Bolt calls `auth.test({ token })`
+   * itself, and a per-call token rides the request BODY too (WebClient.js:199),
+   * where the vault cannot substitute it. A resolved identity removes the call.
    */
   const identity = input.identity;
   const authorize =

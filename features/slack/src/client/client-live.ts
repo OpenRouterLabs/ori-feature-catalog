@@ -61,11 +61,8 @@ export const makeConfiguredWebClient = (
   if (Predicate.isNotUndefined(agent)) {
     options.agent = agent;
   }
-  /*
-   * The token rides the Authorization header, not the constructor's first
-   * argument, so the vault sidecar sees a header it can substitute. Passing
-   * `undefined` keeps the SDK from writing its own.
-   */
+  /* The header is what the vault sidecar substitutes; `undefined` keeps the
+     SDK from writing its own. */
   return new WebClient(undefined, options);
 };
 
