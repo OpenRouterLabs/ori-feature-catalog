@@ -116,6 +116,8 @@ export const isBusy = (threadKey: string): boolean =>
  */
 export const TURN_TIMEOUT_REASON = "ori:turn-timeout";
 
+export const TURN_SHUTDOWN_REASON = "ori:turn-shutdown";
+
 /**
  * A turn interrupted because the person said something else.
  *
@@ -378,7 +380,7 @@ export const cancelAll = (): number => {
   let told = 0;
   for (const entry of threads.values()) {
     if (entry.live !== undefined) {
-      entry.live.abort(TURN_TIMEOUT_REASON);
+      entry.live.abort(TURN_SHUTDOWN_REASON);
       told += 1;
     }
   }

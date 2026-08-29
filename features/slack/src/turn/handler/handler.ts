@@ -48,6 +48,7 @@ import { AssistantThreads } from "../../thread/assistant.ts";
 import {
   hasSuccessor,
   TURN_STEER_REASON,
+  TURN_SHUTDOWN_REASON,
   TURN_TIMEOUT_REASON,
 } from "../../thread/registry.ts";
 import { threadInstanceId, ThreadContext } from "../../thread/thread.ts";
@@ -96,6 +97,9 @@ const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
 const endedPhase = (signal: AbortSignal): RunPhase => {
   if (!signal.aborted) {
     return RunPhase.Failed;
+  }
+  if (signal.reason === TURN_SHUTDOWN_REASON) {
+    return RunPhase.Shutdown;
   }
   if (signal.reason === TURN_TIMEOUT_REASON) {
     return RunPhase.TimedOut;
