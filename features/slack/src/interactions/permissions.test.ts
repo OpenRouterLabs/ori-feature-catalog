@@ -70,14 +70,16 @@ describe("permissionBlocks", () => {
     expect(rendered).toContain("rm -rf build");
   });
 
-  test("every button carries the same statically registered action id", () => {
-    // The correlation id cannot live in the action id: handlers are registered
-    // at start and a correlation id only exists at request time.
+  test("every button carries its own action id, under one prefix", () => {
+    // Slack refuses a message whose elements share an action id, so they
+    // cannot be identical. The handler is registered on the prefix, and the
+    // correlation id still rides in the value — it only exists at request
+    // time, so it could never have lived in a registered id.
     const buttons = buttonsOf(permissionBlocks(request));
+    const ids = buttons.map((b) => b.action_id);
 
-    expect(buttons.every((b) => b.action_id === PERMISSION_ACTION_ID)).toBe(
-      true
-    );
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every((id) => id.startsWith(PERMISSION_ACTION_ID))).toBe(true);
   });
 
   test("the value carries correlation, session and choice", () => {
@@ -141,9 +143,9 @@ describe("elicitationBlocks", () => {
     );
 
     expect(buttons.map((b) => b.text.text)).toEqual(["Decline", "Cancel"]);
-    expect(buttons.every((b) => b.action_id === ELICITATION_ACTION_ID)).toBe(
-      true
-    );
+    const ids = buttons.map((b) => b.action_id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every((id) => id.startsWith(ELICITATION_ACTION_ID))).toBe(true);
   });
 
   test("shows what was asked", () => {

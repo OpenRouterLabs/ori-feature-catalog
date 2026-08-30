@@ -108,9 +108,9 @@ export const permissionBlocks = (
 ): readonly SlackBlock[] => [
   section(`**Permission needed**\n${request.operation}`),
   actions(
-    request.options.map((option) =>
+    request.options.map((option, index) =>
       button({
-        actionId: PERMISSION_ACTION_ID,
+        actionId: `${PERMISSION_ACTION_ID}|${index}`,
         label: OPTION_LABELS[option],
         value: encode(request, option),
       })
@@ -144,9 +144,9 @@ export const elicitationBlocks = (
 ): readonly SlackBlock[] => [
   section(`**Input requested**\n${request.message}`),
   actions(
-    ["decline", "cancel"].map((action) =>
+    ["decline", "cancel"].map((action, index) =>
       button({
-        actionId: ELICITATION_ACTION_ID,
+        actionId: `${ELICITATION_ACTION_ID}|${index}`,
         label: action === "decline" ? "Decline" : "Cancel",
         value: encode(request, action),
       })
@@ -188,7 +188,7 @@ export const registerPermissionHandlers = (
   interactions: InteractionsShape,
   bridge: RespondInteraction
 ): void => {
-  interactions.on(
+  interactions.onPrefix(
     PERMISSION_ACTION_ID,
     Effect.fn("Slack.interactions.respondPermission")(function* (
       payload: InteractionPayload
@@ -216,7 +216,7 @@ export const registerPermissionHandlers = (
     })
   );
 
-  interactions.on(
+  interactions.onPrefix(
     ELICITATION_ACTION_ID,
     Effect.fn("Slack.interactions.respondElicitation")(function* (
       payload: InteractionPayload

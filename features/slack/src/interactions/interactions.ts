@@ -64,6 +64,16 @@ export interface InteractionsShape {
   /** Register a handler for an action id. Last registration wins. */
   readonly on: (actionId: string, handler: InteractionHandler) => void;
   /**
+   * Register a handler for a family of action ids, matched by PREFIX. Slack
+   * refuses a message whose buttons share an action id, so a set of buttons
+   * answering one question cannot register a single exact id between them.
+   * Exact registrations are matched first.
+   */
+  readonly onPrefix: (
+    actionPrefix: string,
+    handler: InteractionHandler
+  ) => void;
+  /**
    * Register a handler for a modal callback id. Matched by PREFIX, because a
    * callback id has to carry the ask it answers — a `view_submission` payload
    * carries no button value, so the id is the only place to put it.
@@ -78,21 +88,31 @@ export class Interactions extends Context.Service<
 
 export const makeInteractions = (): InteractionsShape => {
   const handlers = new Map<string, InteractionHandler>();
+  const prefixHandlers = new Map<string, InteractionHandler>();
   const viewHandlers = new Map<string, ViewHandler>();
+
+  const handlerFor = (actionId: string): InteractionHandler | undefined =>
+    handlers.get(actionId) ??
+    [...prefixHandlers].find(([prefix]) => actionId.startsWith(prefix))?.[1];
 
   return {
     dispatch: (payload) =>
       Effect.forEach(
         payload.actions,
         (action) => {
-          const handler = handlers.get(action.actionId);
+          const handler = handlerFor(action.actionId);
           // One failing action must not abandon the others — but it must not
           // vanish either. These handlers are how an approval reaches the
           // waiting turn, so a swallowed failure looks like a button that did
           // nothing and a run that hangs until its deadline, with no record of
           // why.
           return handler === undefined
-            ? Effect.void
+            ? // A click nothing claims is a button that visibly does nothing.
+              // Said out loud, because the id is usually a typo in an
+              // `onButton` registration and nothing else reports it.
+              Effect.logWarning(
+                `[slack] no handler for interaction: ${action.actionId}`
+              )
             : handler(payload).pipe(
                 Effect.catchCause((cause) =>
                   Effect.logError(
@@ -128,6 +148,10 @@ export const makeInteractions = (): InteractionsShape => {
 
     on: (actionId, handler) => {
       handlers.set(actionId, handler);
+    },
+
+    onPrefix: (actionPrefix, handler) => {
+      prefixHandlers.set(actionPrefix, handler);
     },
 
     onView: (callbackPrefix, handler) => {
