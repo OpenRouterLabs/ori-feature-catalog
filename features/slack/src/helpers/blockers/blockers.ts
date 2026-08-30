@@ -66,9 +66,11 @@ export const blockerBlocks = (input: {
 }): readonly SlackBlock[] => [
   section(`**Blocked**\n${input.question}`),
   actions(
-    input.choices.map((choice) =>
+    input.choices.map((choice, index) =>
       button({
-        actionId: BLOCKER_ACTION_ID,
+        // Slack refuses a message whose buttons share an action id, so every
+        // button carries its own. The handler is registered on the prefix.
+        actionId: `${BLOCKER_ACTION_ID}${FIELD_SEPARATOR}${index}`,
         label: choice.label,
         value: encodeChoice(input.askId, choice.id),
       })

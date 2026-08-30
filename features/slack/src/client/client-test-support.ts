@@ -62,6 +62,39 @@ const makeRaw = (stubs: RawStubs, calls: RecordedCall[]): WebClient => {
   ) as WebClient;
 };
 
+/**
+ * Slack refuses a message whose interactive elements share an `action_id`, and
+ * the fake used to accept it — so `blockerBlocks` shipped giving every button
+ * the same id, every blocker test passed, and the skill failed against the
+ * real API the moment it offered a second choice.
+ *
+ * A double that accepts what the API rejects is not a double.
+ */
+const rejectDuplicateActionIds = (op: string, args: unknown): void => {
+  const blocks = (args as { readonly blocks?: readonly unknown[] } | undefined)
+    ?.blocks;
+  if (blocks === undefined) {
+    return;
+  }
+  const seen = new Set<string>();
+  for (const block of blocks) {
+    const elements =
+      (block as { readonly elements?: readonly unknown[] }).elements ?? [];
+    for (const element of elements) {
+      const actionId = (element as { readonly action_id?: unknown }).action_id;
+      if (typeof actionId !== "string") {
+        continue;
+      }
+      if (seen.has(actionId)) {
+        throw new Error(
+          `${op}: \`action_id\` "${actionId}" already exists — Slack rejects a message whose elements share one`
+        );
+      }
+      seen.add(actionId);
+    }
+  }
+};
+
 export const makeFakeSlackClient = (
   overrides: Partial<SlackClientShape> = {},
   rawStubs: RawStubs = {}
@@ -71,6 +104,7 @@ export const makeFakeSlackClient = (
   const record =
     <A>(op: string, result?: A) =>
     (args: unknown): Effect.Effect<A> => {
+      rejectDuplicateActionIds(op, args);
       calls.push({
         args,
         op,

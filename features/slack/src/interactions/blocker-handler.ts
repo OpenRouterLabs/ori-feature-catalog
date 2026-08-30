@@ -29,7 +29,7 @@ export const registerBlockerHandlers = (input: {
   readonly blockers: BlockersShape;
   readonly interactions: InteractionsShape;
 }): void => {
-  input.interactions.on(
+  input.interactions.onPrefix(
     BLOCKER_ACTION_ID,
     Effect.fn("Slack.interactions.answerBlocker")(function* (
       payload: InteractionPayload
