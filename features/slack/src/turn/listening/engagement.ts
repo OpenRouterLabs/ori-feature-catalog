@@ -16,7 +16,7 @@
 
 import { Effect } from "effect";
 
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "../../thread/thread.ts";
 import type { GateContext, IncomingMessage } from "./gates.ts";
 import type { ThreadListen } from "./listen.ts";
 

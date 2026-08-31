@@ -1,10 +1,5 @@
 export type { CarryResult } from "./carry.ts";
 export { CarryOutcome } from "./carry.ts";
-export type { EngagementDeps } from "./engagement.ts";
-export type { IncomingMessage } from "./gates.ts";
-export { gateContextOf } from "./gates.ts";
-export type { ThreadListen } from "./listen.ts";
-export { UNSEEN_THREAD, answersUnaddressed, engage, isCrowded, mute, unmute, withParticipant } from "./listen.ts";
 export { recordLiveLine } from "./live-line.ts";
 export { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "./reply-style.ts";
 export { retireTurn } from "./retire-turn.ts";

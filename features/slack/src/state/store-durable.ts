@@ -20,11 +20,11 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import type { ThreadListen } from "../turn/listen.ts";
+import type { ThreadListen } from "../turn/listening/listen.ts";
 import type { InterruptMode } from "./settings.ts";
 import type { StateStoreShape, ThreadRow, ThreadSession } from "./store.ts";
 
-import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { UNSEEN_THREAD } from "../turn/listening/listen.ts";
 import { interruptModeFrom } from "./settings.ts";
 import { StateStore } from "./store.ts";
 

@@ -21,14 +21,14 @@ import { bestEffort } from "./helpers/best-effort.ts";
 import type { SlackConfig } from "./config.ts";
 import type { SlackServices } from "./layers.ts";
 import type { ThreadRef } from "./thread/thread.ts";
-import type { EngagementDeps } from "./turn/engagement.ts";
+import type { EngagementDeps } from "./turn/listening/engagement.ts";
 
 import { SlackClient } from "./client/index.ts";
 import { makeMessageReply } from "./message-reply/reply-live.ts";
 import { StateStore } from "./state/store.ts";
 import { AssistantThreads } from "./thread/assistant.ts";
 import { cancelThread } from "./thread/registry.ts";
-import { gateContextOf } from "./turn/gates.ts";
+import { gateContextOf } from "./turn/listening/gates.ts";
 
 /**
  * One line into a thread, best-effort.

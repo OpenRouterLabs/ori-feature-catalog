@@ -9,10 +9,10 @@
 
 import { Context, Effect, Ref } from "effect";
 
-import type { ThreadListen } from "../turn/listen.ts";
+import type { ThreadListen } from "../turn/listening/listen.ts";
 import type { InterruptMode } from "./settings.ts";
 
-import { UNSEEN_THREAD } from "../turn/listen.ts";
+import { UNSEEN_THREAD } from "../turn/listening/listen.ts";
 import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
 export interface ThreadSession {
