@@ -110,11 +110,20 @@ interface LoopbackSpec<
 > {
   /** Body ceiling in KiB. Not advisory: the read stops at it. */
   readonly capKiB: number;
-  /** Do the work. Free to take as long as it likes — a blocker holds here. */
+  /**
+   * Do the work. Free to take as long as it likes — a blocker holds here.
+   *
+   * An Effect rather than a Promise. When this was a Promise every route
+   * opened its own `Effect.runPromise` to get back in, which meant a second
+   * runtime per request and a span detached from the one this shell already
+   * owns. Worse, taking it back in through `Effect.promise` made a rejection a
+   * DEFECT: a handler that threw escaped every handler here and surfaced at
+   * the HTTP edge as an unhandled rejection rather than a refusal.
+   */
   readonly handle: (input: {
     readonly ref: ThreadRef;
     readonly request: TRequest;
-  }) => Promise<Result.Result<TOutput, Refusal>>;
+  }) => Effect.Effect<Result.Result<TOutput, Refusal>>;
   /** Decode the wire body; a failure is the sentence the 400 carries. */
   readonly parse: (raw: unknown) => Result.Result<TRequest, string>;
   /** The team a body that omits one belongs to. */
@@ -127,9 +136,9 @@ const refusalResponse = (refusal: Refusal): Response =>
 /**
  * The whole request, in one fiber: the read, the decode and the work.
  *
- * `handle` stays a Promise because it is the route's own contract — each
- * route enters Effect for itself — so it is taken in through
- * `Effect.promise` rather than reshaped from here.
+ * One boundary for the whole route, owned here. `loopbackRoute` below is the
+ * only place this feature's loopback routes leave Effect, so a handler's spans
+ * are children of this one and a handler's failure is still a failure.
  */
 const runShell = Effect.fn("Slack.loopback.handle")(function* <
   TRequest extends Addressed,
@@ -152,16 +161,14 @@ const runShell = Effect.fn("Slack.loopback.handle")(function* <
   }
 
   const decoded = parsed.success;
-  const outcome = yield* Effect.promise(() =>
-    spec.handle({
-      ref: {
-        channelId: decoded.channel,
-        teamId: decoded.team ?? spec.workspaceTeamId,
-        threadTs: decoded.threadTs,
-      },
-      request: decoded,
-    })
-  );
+  const outcome = yield* spec.handle({
+    ref: {
+      channelId: decoded.channel,
+      teamId: decoded.team ?? spec.workspaceTeamId,
+      threadTs: decoded.threadTs,
+    },
+    request: decoded,
+  });
 
   return Result.isFailure(outcome)
     ? refusalResponse(outcome.failure)

@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { Result, Schema } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { Addressed } from "./loopback-route.ts";
 
@@ -42,7 +42,7 @@ const route = loopbackRoute({
   capKiB: 1,
   handle: ({ ref, request }) => {
     seen.refs.push(`${ref.teamId}/${ref.channelId}/${ref.threadTs}`);
-    return Promise.resolve(
+    return Effect.succeed(
       request.note === "no"
         ? refuse(418, "refused by the handler")
         : Result.succeed({ noted: request.note })

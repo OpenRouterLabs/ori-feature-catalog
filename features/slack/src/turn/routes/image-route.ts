@@ -153,16 +153,12 @@ export const makeImageRoute = (
   loopbackRoute<ImageRequest, Record<string, never>>({
     // A prompt and a title; anything larger is not an image request.
     capKiB: 16,
-    handle: async ({ ref, request }) =>
-      // The one boundary the route owns: HTTP is a Promise, everything under
-      // it is not.
-      Effect.runPromise(
-        handleImage({
-          deps,
-          ref,
-          request,
-        })
-      ),
+    handle: ({ ref, request }) =>
+      handleImage({
+        deps,
+        ref,
+        request,
+      }),
     parse: (raw): Result.Result<ImageRequest, string> => {
       const parsed = parseImageBody(raw);
       return parsed.ok
