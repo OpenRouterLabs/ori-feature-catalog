@@ -20,7 +20,6 @@ import { ThreadContext, ThreadContextLive } from "../thread/thread.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "./reply-style.ts";
 
-/** A store that already answers this thread, so the turn is not the first. */
 const storeWithSession = (): Effect.Effect<StateStoreShape> =>
   Effect.gen(function* () {
     const store = yield* StateStoreMemory;
@@ -31,7 +30,6 @@ const storeWithSession = (): Effect.Effect<StateStoreShape> =>
     return store;
   });
 
-/** The prompt the surface puts in front of the agent. */
 const promptOf = (store?: StateStoreShape): Effect.Effect<string> =>
   Effect.gen(function* () {
     const sent: ChatTurnInput[] = [];
@@ -83,9 +81,6 @@ const promptOf = (store?: StateStoreShape): Effect.Effect<string> =>
           Layer.succeed(MessageStream)(MessageStreamLive),
           Layer.effect(Blockers)(BlockersMemory),
           Layer.sync(Interactions)(makeInteractions),
-          // The turn path now prepares the assistant pane, so the service has
-          // to be present even for a channel turn — every call is a no-op off
-          // a pane, but the layer is still required to build the effect.
           Layer.effect(AssistantThreads)(AssistantThreadsLive())
         ).pipe(Layer.provideMerge(fake.layer))
       )
@@ -97,12 +92,6 @@ const promptOf = (store?: StateStoreShape): Effect.Effect<string> =>
 describe("the status obligations are not argued against later", () => {
   test.effect("nothing in the prompt tells the agent the thread works in silence", () =>
     Effect.gen(function* () {
-      // Twice now the block has stated the three obligations and then, a
-      // paragraph later, told the agent that "the thread shows a twenty-minute
-      // run working for all twenty minutes without you saying anything" — a
-      // leftover from the version that discouraged posting. The model reads the
-      // permission, says nothing, and the indicator falls back to the tool
-      // count. The obligations only hold if nothing downstream takes them back.
       const prompt = yield* promptOf();
 
       for (const licence of [
@@ -129,9 +118,6 @@ describe("the status obligations are not argued against later", () => {
 describe("technical answers should be drawn, not described", () => {
   test.effect("asks for a picture whenever the answer has a shape", () =>
     Effect.gen(function* () {
-      // Routing only tabular data meant an explanation — how a request flows,
-      // why a run failed — stayed prose the reader has to rebuild a diagram
-      // from in their head.
       const prompt = yield* promptOf();
 
       expect(prompt).toContain("DRAW IT rather than describe it");
@@ -140,7 +126,6 @@ describe("technical answers should be drawn, not described", () => {
 
   test.effect("says to reach for it unprompted", () =>
     Effect.gen(function* () {
-      // It drew a good post-mortem diagram, but only when asked outright.
       const prompt = yield* promptOf();
 
       expect(prompt).toContain("without being asked");
@@ -150,9 +135,6 @@ describe("technical answers should be drawn, not described", () => {
 describe("scope discipline", () => {
   test.effect("tells the agent to finish the ask, not the codebase", () =>
     Effect.gen(function* () {
-      // A long run spent every status on splitting files to satisfy a line
-      // limit — tidy, and not what anyone asked for. An hour of that is an
-      // hour the person waiting got nothing.
       const prompt = yield* promptOf();
 
       expect(prompt).toContain("FINISH THE ASK, NOT THE CODEBASE");
@@ -160,8 +142,6 @@ describe("scope discipline", () => {
 
   test.effect("says what to do when a lint rule is genuinely in the way", () =>
     Effect.gen(function* () {
-      // Without this the rule reads as "never touch anything", which blocks the
-      // change the person actually asked for.
       const prompt = yield* promptOf();
 
       expect(prompt).toContain("smallest");
@@ -195,12 +175,7 @@ describe("what the reminder may not drop", () => {
     Effect.gen(function* () {
       const prompt = yield* promptOf(yield* storeWithSession());
 
-      // The rule this pins: a reminder that only GESTURES at the script buys
-      // back the twenty minutes of silence, so the command stays spelled out —
-      // and it needs the sentence saying when to reach for it, or it is a bare
-      // command line with nothing telling the model what it is for.
       expect(prompt).toContain("post inside the");
-      // And the carve-out, or a greeting gets a status before its own answer.
       expect(prompt).toContain("a status before an immediate reply is noise");
       expect(prompt).toContain(
         "bun features/slack/skills/slack-status/scripts/index.ts"
@@ -216,8 +191,6 @@ describe("what the reminder may not drop", () => {
 
   test.effect("still says to draw a shape, and that tables render", () =>
     Effect.gen(function* () {
-      // It used to say "Slack has no tables", which was true when it was
-      // written and is why every comparison came back as a paragraph.
       const prompt = yield* promptOf(yield* storeWithSession());
 
       expect(prompt).toContain("slack-chart");

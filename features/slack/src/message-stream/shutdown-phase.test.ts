@@ -22,8 +22,6 @@ describe("a restart is not a timeout", () => {
   });
 
   test("it never claims the run is still going", () => {
-    // The process is gone. "Still running — I will post if it lands" left a
-    // reader waiting for an answer from something that no longer exists.
     const line = rendered(RunPhase.Shutdown);
 
     expect(line).not.toContain("Still running");
@@ -41,7 +39,6 @@ describe("a restart is not a timeout", () => {
   });
 
   test("the timeout line is left alone, because it is true of a timeout", () => {
-    // A deadline means the surface stopped watching, not that the run died.
     const line = rendered(RunPhase.TimedOut);
 
     expect(line).toContain("Still running");
@@ -51,7 +48,6 @@ describe("a restart is not a timeout", () => {
 
 describe("what shutdown aborts with", () => {
   test("a live turn is aborted with the shutdown reason, not the deadline's", async () => {
-    // One token for both is what routed a restart to the timeout copy.
     resetRegistry();
     let reason: unknown;
     const running = enqueue(

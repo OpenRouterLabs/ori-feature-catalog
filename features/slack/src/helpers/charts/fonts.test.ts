@@ -4,7 +4,6 @@ import { Effect } from "effect";
 
 import { discoverChartFonts, familyNameFrom } from "./fonts.ts";
 
-/** A minimal sfnt with one `name` table carrying family name ID 1. */
 const fontWithFamily = (family: string): Uint8Array => {
   const name = new TextEncoder().encode(family);
   const nameTable = 12 + 16;
@@ -19,7 +18,6 @@ const fontWithFamily = (family: string): Uint8Array => {
 
   view.setUint16(nameTable + 2, 1);
   view.setUint16(nameTable + 4, storage);
-  // Platform 1 (Mac) so the string is single-byte, keeping the fixture legible.
   view.setUint16(nameTable + 6, 1);
   view.setUint16(nameTable + 6 + 6, 1);
   view.setUint16(nameTable + 6 + 8, name.length);
@@ -42,9 +40,6 @@ describe("familyNameFrom", () => {
 describe("discoverChartFonts", () => {
   test.effect("points every family slot at the font it found", () =>
     Effect.gen(function* () {
-      // The chart SVGs ask for font-family="monospace". resvg only resolves that
-      // generic if it was told which real family backs it, so a discovered font
-      // that is not wired into monospaceFamily still renders nothing.
       const options = yield* discoverChartFonts({
         listFontFiles: (dir) =>
           Promise.resolve(
@@ -77,8 +72,6 @@ describe("discoverChartFonts", () => {
 
   test.effect("reports no font rather than pretending, when the box has none", () =>
     Effect.gen(function* () {
-      // This is the VM the bug appeared on: font files present, no fontconfig,
-      // so resvg's own system lookup finds nothing and draws zero glyphs.
       const options = yield* discoverChartFonts({
         listFontFiles: () => Promise.resolve([]),
         readFont: () => Promise.resolve(new Uint8Array()),

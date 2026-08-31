@@ -43,8 +43,6 @@ const run = (input: {
 
 describe("the line is free; a message is not", () => {
   test("a bare update sets the indicator and posts nothing", async () => {
-    // This is the one the model is told to make on every action, so it has to
-    // cost nothing: no message, no ping, replaced by the next one.
     const lines: string[] = [];
     const posted: { pane: StatusPane; text: string }[] = [];
 
@@ -84,8 +82,6 @@ describe("the line is free; a message is not", () => {
   });
 
   test("the message goes out before the line is set", async () => {
-    // Slack clears the indicator whenever the app posts to the thread, so the
-    // reverse order sets the line and then immediately wipes it.
     const order: string[] = [];
 
     await postStatus({
@@ -134,8 +130,6 @@ describe("what it refuses", () => {
   });
 
   test("a blank expansion reads as absent, not as a channel", async () => {
-    // A harness expanding a variable it does not have hands over a blank, and
-    // `??` does not catch a blank.
     const outcome = await run({
       env: {
         SLACK_CHANNEL_ID: "C1",

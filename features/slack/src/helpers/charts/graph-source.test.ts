@@ -16,8 +16,6 @@ const edgesOf = (source: string): string =>
 
 describe("parseGraphSource", () => {
   test("reads a branch that splits and rejoins", () => {
-    // The shape our own schema made awkward enough that the model never drew
-    // it: two paths out of a decision, back into one step.
     const source = `flowchart TD
       A(Boots) --> B{Bundled?}
       B -->|yes| C[Copy to temp]
@@ -35,7 +33,6 @@ describe("parseGraphSource", () => {
   });
 
   test("a label given once survives a later bare mention", () => {
-    // "C --> E" after "C[Copy to temp]" must not rename C to "C".
     expect(idsOf("A[Copy to temp] --> B[Next]\n A --> B")).toBe(
       "A:step:Copy to temp B:step:Next"
     );
@@ -50,7 +47,6 @@ describe("parseGraphSource", () => {
   });
 
   test("a line it cannot read is skipped, not fatal", () => {
-    // A diagram missing one line still reads; an error message does not.
     expect(edgesOf("A --> B\n!!! nonsense (((\nB --> C")).toContain("A->B");
     expect(edgesOf("A --> B\n!!! nonsense (((\nB --> C")).toContain("B->C");
   });

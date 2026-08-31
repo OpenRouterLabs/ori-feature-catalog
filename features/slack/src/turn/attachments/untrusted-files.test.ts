@@ -92,8 +92,6 @@ describe("attachedFiles", () => {
   });
 
   test("tolerates the nulls a tombstoned file sends", () => {
-    // Losing an answerable turn because an expired file sent nulls would be
-    // the worse failure.
     expect(
       attachedFiles(
         withFiles([
@@ -122,7 +120,6 @@ describe("attachedFiles", () => {
   });
 
   test("sanitizes a filename so it cannot forge its own fence", () => {
-    // A filename is attacker-chosen and lands inside a fenced block.
     const [file] = attachedFiles(
       withFiles([
         {

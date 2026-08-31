@@ -16,8 +16,6 @@ describe("parseFlags", () => {
   });
 
   test("keeps everything after the first equals sign", () => {
-    // A search term or a ts can contain "="; splitting on every one of them
-    // would quietly truncate the value.
     expect(parseFlags(["--search=a=b=c"])).toEqual({ search: "a=b=c" });
   });
 
@@ -30,8 +28,6 @@ describe("parseFlags", () => {
   });
 
   test("a negative number is a value, not the next flag", () => {
-    // Only a `--` prefix ends a value, so `--oldest -1` still carries -1 into
-    // the validator that rejects it with a message about the range.
     expect(parseFlags(["--oldest", "-1"])).toEqual({ oldest: "-1" });
   });
 
@@ -42,8 +38,6 @@ describe("parseFlags", () => {
   });
 
   test("an empty joined value stays empty rather than becoming true", () => {
-    // The required-flag check treats "" as missing, which is the right answer
-    // for `--ts=`; turning it into "true" would send the literal word to Slack.
     expect(parseFlags(["--ts="])).toEqual({ ts: "" });
   });
 });
@@ -54,8 +48,6 @@ describe("tryCatch", () => {
   });
 
   test("keeps the thrown error's own name and message", () => {
-    // Callers branch on `failure.name === "AbortError"`, so the wrapper has to
-    // stay transparent about what was actually thrown.
     const error = new Error("ratelimited");
     error.name = "AbortError";
 
@@ -89,8 +81,6 @@ describe("tryCatchAsync", () => {
   });
 
   test("never rejects, so every caller can stay on the Result path", async () => {
-    // Every command module awaits this without a try/catch; a rejection here
-    // would escape as an unhandled error instead of an exit-1 message.
     const result = await tryCatchAsync(() =>
       Promise.reject(new Error("an API error occurred: ratelimited"))
     );

@@ -1,14 +1,4 @@
 #!/usr/bin/env bun
-/**
- * slack-ask — ask the person who asked, and wait for the answer.
- *
- * Posts a question with buttons into the thread and BLOCKS until someone
- * clicks, so the answer can be read straight off stdout. Coordinates come from
- * the per-turn env the chat surface sets.
- *
- * Exits 0 with `unanswered` on stdout when nobody replies in time — a blocker
- * nobody answered is a decision to make, not a run to fail.
- */
 
 import type { AskChoice } from "./post-ask.ts";
 
@@ -35,10 +25,6 @@ for (let index = 0; index < args.length; index += 1) {
   words.push(arg);
 }
 
-// Dropping it silently posts a question missing the button the agent will
-// branch on, and the reader cannot supply it — the run then spends the whole
-// fifteen minutes finding that out. Worse, if it was the only choice, the
-// message goes up with an empty actions block and Slack refuses it outright.
 if (malformed.length > 0) {
   const listed = malformed.map((raw) => `"${raw}"`).join(", ");
   process.stderr.write(

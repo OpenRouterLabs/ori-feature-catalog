@@ -1,7 +1,5 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-// The parity check must read the skill's own constant, which lives outside
-// `src/`; `#skills/*` is this feature's package.json `imports` map.
 import { MAX_SPAWN_DEPTH as SKILL_MAX_SPAWN_DEPTH } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 import { MAX_SPAWN_DEPTH, isLoopback, parseDispatchBody } from "./dispatch.ts";
 
@@ -31,9 +29,6 @@ describe("parseDispatchBody empty fields", () => {
 
 describe("spawn depth parity", () => {
   test("the route and the skill agree on the ceiling", () => {
-    // They cannot share a module — the skill runs from the materialised
-    // feature dir — so this is the only thing keeping them honest. A drift
-    // here means either infinite spawn chains or silent rejections.
     expect(MAX_SPAWN_DEPTH).toBe(SKILL_MAX_SPAWN_DEPTH);
   });
 });
@@ -101,8 +96,6 @@ describe("parseDispatchBody", () => {
   });
 
   test("rejects a non-object body", () => {
-    // Wrapped rather than passed through test.each: a bare `undefined` case
-    // makes the runner read the parameter as a done callback and hang.
     for (const raw of [null, undefined, "a string", 42, []]) {
       expect(parseDispatchBody(raw).ok).toBe(false);
     }
@@ -125,8 +118,6 @@ describe("isLoopback", () => {
   );
 
   test("rejects an unknown remote address", () => {
-    // Fail closed: if the daemon could not tell us who called, assume it was
-    // not us. This route can start arbitrary agent turns.
     const unknownAddress: string | undefined = undefined;
     expect(isLoopback(unknownAddress)).toBe(false);
   });

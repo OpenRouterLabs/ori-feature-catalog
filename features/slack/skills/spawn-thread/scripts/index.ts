@@ -1,21 +1,5 @@
 #!/usr/bin/env bun
 
-/**
- * spawn-thread CLI entry — fire-and-forget thread dispatcher for the ori
- * Slack chat surface.
- *
- * This file is the thin shebanged shell: it snapshots argv/env, prints usage,
- * and maps `Result` failures to exit codes. Parsing and loopback dispatch live
- * in ./spawn-thread.ts and the `new`-subcommand workflow in ./run-new.ts, so
- * tests can drive them without touching the platform.
- *
- * Two subcommands cover the two real workflows:
- *   new      — open a fresh top-level thread + dispatch atomically.
- *   continue — dispatch into an already-open thread.
- * A flag-only legacy form (no subcommand) is preserved and treated as
- * `continue`.
- */
-
 import { Result } from "effect";
 
 import { parseThreads, runFork } from "./run-fork.ts";
@@ -112,11 +96,6 @@ const runContinueCommand = async (
   process.exit(0);
 };
 
-/**
- * `fork` parses its own argv rather than going through `parseArgs`: `--opener`
- * and `--prompt` each consume the rest of the line there, which is exactly
- * what a multi-thread request cannot express.
- */
 const readFlag = (argv: readonly string[], flag: string): string | undefined => {
   const at = argv.indexOf(flag);
   return at === -1 ? undefined : argv[at + 1];
@@ -151,8 +130,6 @@ const runForkCommand = async (
       ...report,
     })}\n`
   );
-  // A partial fork-out is not a success: the caller has to know which threads
-  // it can actually refer to.
   process.exit(report.failed.length === 0 ? 0 : 1);
 };
 
@@ -160,7 +137,6 @@ const runSpawnThreadCli = async (
   argv: string[],
   env: Record<string, string | undefined>
 ): Promise<void> => {
-  // The depth error message already carries its own "spawn-thread:" prefix.
   const depthResult = checkDepth(env.SPAWN_THREAD_DEPTH);
   if (Result.isFailure(depthResult)) {
     process.stderr.write(`${depthResult.failure.message}\n`);

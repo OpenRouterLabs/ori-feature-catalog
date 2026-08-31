@@ -1,12 +1,3 @@
-/**
- * carry-route.test.ts — the refusals.
- *
- * `carry.test.ts` covers what a successful carry does to the store. What is
- * left here is the two ways it must decline, both of which would otherwise
- * corrupt something quietly: carrying a thread mid-turn, and carrying a thread
- * that has no session behind it.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { CarryResult } from "../carry.ts";
@@ -56,8 +47,6 @@ describe("carrying over HTTP", () => {
   });
 
   test("a thread mid-turn is refused rather than rebound underneath", async () => {
-    // The origin's turn is still writing to that session; handing it to
-    // another thread now is how two turns end up interleaved in one context.
     const response = await route({ isBusy: true })(post(VALID));
 
     expect(response.status).toBe(409);

@@ -17,8 +17,6 @@ describe("the thread ref the status skill needs", () => {
   });
 
   test("omits the team rather than printing an empty one", () => {
-    // A dispatched turn can reach here before `auth.test` resolved the team,
-    // and `team: ` on its own line reads as a value the model should send.
     const block = toolContextBlock({
       channelId: "C123",
       teamId: "",

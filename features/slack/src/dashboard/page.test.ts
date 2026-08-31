@@ -1,12 +1,3 @@
-/**
- * page.test.ts — the operator's page.
- *
- * The page exists to answer questions the per-thread state could not: which
- * threads is the bot following, and which has somebody muted and forgotten.
- * So the tests are about whether those answers survive rendering, not about
- * markup for its own sake.
- */
-
 import type { ThreadRow } from "../state/store.ts";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -15,7 +6,6 @@ import { InterruptMode } from "../state/settings.ts";
 import { UNSEEN_THREAD } from "../turn/listening/listen.ts";
 import { ago, renderDashboard as render } from "./page.ts";
 
-/** Most cases do not care about the mode; the ones that do pass it. */
 const renderDashboard = (
   rows: Parameters<typeof render>[0],
   now: number,
@@ -47,8 +37,6 @@ describe("ago", () => {
   });
 
   test("a clock that went backwards does not render a negative age", () => {
-    // Two machines and a store: a startedAt slightly in the future is a
-    // clock difference, not a reason to print "-2m ago" at somebody.
     expect(ago(NOW + MINUTE, NOW)).toBe("just now");
   });
 });
@@ -117,8 +105,6 @@ describe("what the page reports", () => {
   });
 
   test("participants are counted, not listed", () => {
-    // The page is for an operator, and naming who is in a thread is more than
-    // they need to answer "is this one busy".
     const html = renderDashboard(
       [
         thread({
@@ -133,8 +119,6 @@ describe("what the page reports", () => {
   });
 
   test("a thread id carrying markup cannot escape its cell", () => {
-    // Ids come from the workspace, and this is the one place they become
-    // markup. Rendering one unescaped would be stored XSS on the operator.
     const html = renderDashboard(
       [thread({ instanceId: "<script>alert(1)</script>" })],
       NOW
@@ -145,8 +129,6 @@ describe("what the page reports", () => {
   });
 
   test("the page does not auto-refresh, because it carries a form", () => {
-    // A meta refresh would wipe a half-made radio selection every few
-    // seconds, which is worse than a stale table.
     expect(renderDashboard([], NOW)).not.toContain("http-equiv");
   });
 

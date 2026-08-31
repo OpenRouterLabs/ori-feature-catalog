@@ -1,10 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- modules inside this feature import siblings relatively, and the recorded args are `unknown` */
-/**
- * responded-in.test.ts — the answer's small print says how long the turn took.
- *
- * Whole minutes only. The number is a receipt a reader glances at, not a
- * measurement, so a decimal would claim a precision it does not have.
- */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
@@ -17,7 +11,6 @@ import { settle } from "./settle.ts";
 const MINUTE = 60_000;
 const STARTED = 1_000_000;
 
-/** The `context` block under the answer, which is where the small print lives. */
 const smallPrintOf = Effect.fn("test.smallPrintOf")(function* (
   elapsedMs: number
 ) {
@@ -43,8 +36,6 @@ const smallPrintOf = Effect.fn("test.smallPrintOf")(function* (
       ),
     Effect.provide(fake.layer)
   );
-  // The context block's text, not the whole payload: `thread_ts` is a decimal
-  // and would satisfy a naive "contains no decimal" assertion by accident.
   const args = fake.calls.at(-1)?.args as
     | {
         readonly blocks?: readonly {
@@ -72,7 +63,6 @@ describe("how long the turn took, in the answer's small print", () => {
     })
   );
 
-  // `0m` reads as a timer that never started; `<1m` reads as "fast".
   test.effect("says <1m under a minute rather than 0m", () =>
     Effect.gen(function* () {
       const printed = yield* smallPrintOf(42_000);

@@ -36,12 +36,6 @@ interface Harness {
   readonly updates: UpdateCall[];
 }
 
-/**
- * A Slack that hands back a ts for every post. `tsFor` lets a test decide what
- * each successive post returns, which is how the anchor and the opener are
- * told apart.
- */
-/** What the boundary-decoded postMessage hands back: `None` = Slack sent no ts. */
 type PostReply = Result.Result<Option.Option<PostMessageResponse>, Error>;
 
 const harness = (
@@ -80,8 +74,6 @@ const backlinkUrl = (blocks: readonly KnownBlock[]): string | undefined => {
 
 describe("buildOpenerBlocks", () => {
   test("is a bare section when there is no originating thread", () => {
-    // A spawn started from a cron run or the CLI has nothing to link back to,
-    // and a button to nowhere is worse than no button.
     const blocks = buildOpenerBlocks({
       opener: "Looking at the outage",
       originChannel: undefined,
@@ -124,8 +116,6 @@ describe("buildOpenerBlocks", () => {
   });
 
   test("treats the literal string \"undefined\" as no origin at all", () => {
-    // An unset env var expanded by a shell arrives as the four-letter word,
-    // and a link built from it 404s.
     expect(
       buildOpenerBlocks({
         opener: "hi",
@@ -138,8 +128,6 @@ describe("buildOpenerBlocks", () => {
 
 describe("runNew", () => {
   test("anchors the origin thread before opening the new one", async () => {
-    // Order matters: the anchor's ts is what the opener's backlink points at,
-    // so it has to exist before the opener is built.
     const slack = harness([
       Result.succeed(Option.some({ ts: "1750.9" })),
       Result.succeed(Option.some({ ts: NEW_TS })),
@@ -202,8 +190,6 @@ describe("runNew", () => {
   });
 
   test("opens the thread anyway when the anchor could not be posted", async () => {
-    // The anchor is a courtesy; losing it must not cost the run. The opener
-    // then falls back to a root-ts backlink.
     const slack = harness([
       Result.fail(new Error("ratelimited")),
       Result.succeed(Option.some({ ts: NEW_TS })),
@@ -268,8 +254,6 @@ describe("runNew", () => {
   });
 
   test("refuses to dispatch when Slack returned no ts to dispatch into", async () => {
-    // Dispatching with an empty thread_ts would enqueue a turn against a
-    // thread that does not exist, and the run would vanish.
     const slack = harness([Result.succeed(Option.none())]);
 
     const result = await runNew({
@@ -289,8 +273,6 @@ describe("runNew", () => {
   });
 
   test("says so in the channel when the opener is live but nothing will run", async () => {
-    // The thread is already visible to everyone in the channel. Failing
-    // silently leaves an opener nobody is working on.
     const slack = harness([Result.succeed(Option.some({ ts: NEW_TS }))]);
 
     const result = await runNew({

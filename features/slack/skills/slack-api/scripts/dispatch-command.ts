@@ -1,13 +1,3 @@
-/**
- * dispatch-command.ts — command table and flag-to-options dispatch for the
- * slack-api skill CLI.
- *
- * Split out of slack.ts so the shebanged entry stays a thin shell: this module
- * is pure command routing (no direct platform access) and maps parsed CLI flags
- * onto the typed option objects of the per-command modules. Each command group
- * has its own handler to keep routing functions small.
- */
-
 import { Option, Result } from "effect";
 
 import { fetchChannelHistory } from "./get-history.ts";
@@ -30,24 +20,15 @@ type Command = (typeof COMMANDS)[number];
 export const isCommand = (value: string): value is Command =>
   (COMMANDS as readonly string[]).includes(value);
 
-/** One-screen usage text listing every supported command. */
 export const usageText = (): string => {
   const commandLines = COMMANDS.map((command) => `  ${command}`).join("\n");
   return `Usage: slack.ts <command> [--flags ...]\n\nCommands:\n${commandLines}\n`;
 };
 
 type Flags = Record<string, string>;
-/** Threaded from the entrypoint so a command is not pinned to the real `Bun.env`. */
 type Env = Record<string, string | undefined>;
 type CommandResult = Promise<Result.Result<unknown, Error>>;
 
-/**
- * Parse a positive-integer flag, or fail if present but invalid.
- *
- * Takes the absence as an `Option` rather than `undefined` so "the flag was
- * not passed" is the same shape going in as it is coming out; the caller
- * crosses from the raw `Flags` record with `Option.fromNullable` once.
- */
 const parseIntFlag = (
   raw: Option.Option<string>,
   name: string,
@@ -141,7 +122,6 @@ const handleOpenDm = async (flags: Flags, env: Env): CommandResult => {
   });
 };
 
-/** Route a validated command plus parsed flags to its handler. */
 export const dispatchCommand = (
   command: Command,
   flags: Flags,

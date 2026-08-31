@@ -1,10 +1,3 @@
-/**
- * `openDm` is a two-line passthrough, so what is worth pinning is the shape of
- * the call it makes and the fact that nothing gets called at all without a
- * token. The client is injected and typed to the one method reached
- * (`conversations.open`), cast once at the seam.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -65,8 +58,6 @@ describe("openDm", () => {
   });
 
   test("passes a multi-user list through verbatim", async () => {
-    // Slack's own contract is a comma-joined id list; splitting or reordering
-    // it here would open a different conversation than the caller asked for.
     const calls: OpenArgs[] = [];
     await openDm({
       client: clientRecording(calls),
@@ -86,8 +77,6 @@ describe("openDm", () => {
   });
 
   test("skips the token check entirely when a client is injected", async () => {
-    // The seam is what makes this module testable at all: an injected client
-    // is already authenticated, so an empty env must not veto the call.
     const calls: OpenArgs[] = [];
     const result = await openDm({
       client: clientRecording(calls),

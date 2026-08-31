@@ -13,7 +13,6 @@ const silentLogger = {
   warn: () => {},
 };
 
-/** Sign exactly as Slack does: v0:timestamp:rawBody, HMAC-SHA256. */
 const sign = (body: string, timestamp: number): string =>
   `v0=${createHmac("sha256", SIGNING_SECRET)
     .update(`v0:${timestamp}:${body}`)
@@ -62,7 +61,6 @@ const eventBody = (eventId: string, text = "hi"): string =>
     type: "event_callback",
   });
 
-/** A receiver wired to a fake App that records what Bolt would have seen. */
 const makeReceiver = (): {
   readonly receiver: SlackReceiver;
   readonly seen: ReceiverEvent[];
@@ -92,7 +90,6 @@ const startedReceiver = async (): Promise<ReturnType<typeof makeReceiver>> => {
 };
 
 afterEach(async () => {
-  // The prune timer would otherwise keep the test process alive.
   await Promise.all(started.splice(0).map((r) => r.stop()));
 });
 
@@ -110,7 +107,6 @@ describe("deduplication", () => {
     );
 
     expect(first.status).toBe(200);
-    // 200 so Slack stops retrying — a non-2xx would make it try again.
     expect(retry.status).toBe(200);
     expect(seen).toHaveLength(1);
   });
@@ -131,14 +127,10 @@ describe("deduplication", () => {
     await receiver.handleRequest(request({ body }));
     await receiver.handleRequest(request({ body }));
 
-    // No id means no dedup key; dropping would silently lose real events.
     expect(seen).toHaveLength(2);
   });
 
   test("a failed dispatch lets Slack retry rather than losing the message", async () => {
-    // The id is claimed before dispatch so concurrent duplicates collapse.
-    // Keeping it claimed after a failure would make the retry a no-op and the
-    // user would simply never get an answer.
     const seen: ReceiverEvent[] = [];
     let attempts = 0;
     const receiver = new SlackReceiver({
@@ -267,10 +259,6 @@ describe("lifecycle", () => {
   });
 
   test("a stopped receiver refuses new events so Slack redelivers them", async () => {
-    // Shutdown stops the receiver before draining. Accepting an event here
-    // would ack it 200 and then abandon it when the process goes away, so the
-    // sender sees progress and then silence forever. 503 makes Slack redeliver
-    // to the restarted instance instead.
     let processed = 0;
     const receiver = new SlackReceiver({
       logger: silentLogger,
@@ -294,8 +282,6 @@ describe("lifecycle", () => {
   });
 
   test("a throwing listener still acknowledges Slack", async () => {
-    // Slack retries anything non-2xx. A listener bug must not turn one bad
-    // turn into an endless retry storm.
     const receiver = new SlackReceiver({
       logger: silentLogger,
       signingSecret: SIGNING_SECRET,

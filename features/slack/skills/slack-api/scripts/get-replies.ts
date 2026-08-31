@@ -1,18 +1,3 @@
-/**
- * get-replies.ts — conversations.replies
- *
- * Fetch all messages in a thread, up to a total cap, via cursor pagination.
- * Returns `{ messages, hasMore }` — `hasMore` is true when the cap was reached
- * and Slack still had more pages, so callers can detect silent truncation.
- *
- * Usage:
- *   bun features/slack/skills/slack-api/scripts/slack.ts conversations.replies \
- *     --channel C123 --ts TS [--limit 50]
- *
- * NOTE: non-Marketplace Slack apps may be capped at 15 messages/request and
- * 1 req/min, so large threads can require several sequential requests.
- */
-
 import type { WebClient } from "@slack/web-api";
 
 import { Result } from "effect";
@@ -27,13 +12,10 @@ export interface GetRepliesOpts {
   channel: string;
   ts: string;
   limit?: number | undefined;
-  /** Env map for SLACK_* configuration; defaults to Bun.env. */
   env?: Record<string, string | undefined> | undefined;
-  /** Injected Slack client; defaults to one built from `env`. */
   client?: WebClient | undefined;
 }
 
-/** Fetch thread replies up to `opts.limit` total messages. */
 export const getThreadReplies = async (
   opts: GetRepliesOpts
 ): Promise<Result.Result<unknown, Error>> => {

@@ -1,38 +1,9 @@
-/**
- * generate.ts — an image from a prompt, via OpenRouter.
- *
- * For the answer a chart cannot draw: a logo, a mock-up, an illustration of a
- * concept. The chart helpers own anything with numbers in it; this owns the
- * rest, and neither should be reached for when prose would do.
- *
- * The model returns a data URL rather than a link, so nothing here fetches a
- * second host and no image outlives the turn that made it.
- */
-
 import { Effect, Option, Schema } from "effect";
 
-/**
- * Any image-capable model on OpenRouter; overridable per workspace with
- * `SLACK_IMAGE_MODEL`.
- *
- * This was `google/gemini-2.5-flash-image-preview`, which OpenRouter no longer
- * lists — the preview was folded into `google/gemini-2.5-flash-image` and the
- * old id stopped resolving, so every generation failed the same way a bad
- * prompt would. Pinning a `-preview` id is what made that a silent break.
- *
- * The alternatives, if this needs revisiting: `google/gemini-3-pro-image`
- * (Nano Banana Pro) is the quality option at 4x the per-image price, and
- * `google/gemini-3.1-flash-image` (Nano Banana 2) sits between the two.
- */
 const DEFAULT_MODEL = "openai/gpt-5.4-image-2";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-/**
- * Generous, because a generation is slower than a chat completion and the
- * caller is a skill the agent is blocked on — but bounded, because a hung
- * request would hold the turn.
- */
 const REQUEST_TIMEOUT_MS = 90_000;
 
 const ImageUrl = Schema.Struct({
@@ -51,8 +22,6 @@ const Body = Schema.Struct({
 const decodeBody = Schema.decodeUnknownOption(Body);
 
 export interface GeneratedImage {
-  /** A Blob rather than bytes: it is what the upload path takes, and it
-   * sidesteps the ArrayBufferLike/ArrayBuffer mismatch at that boundary. */
   readonly content: Blob;
   readonly contentType: string;
 }
@@ -61,13 +30,6 @@ export type GenerateOutcome =
   | { readonly ok: true; readonly image: GeneratedImage }
   | { readonly ok: false; readonly error: string };
 
-/**
- * Decode a `data:` URL into bytes.
- *
- * Only `base64` is accepted: a percent-encoded payload would be a different
- * decode, and a remote URL is not a data URL at all — treating one as an
- * image would mean fetching whatever host the model named.
- */
 export const decodeDataUrl = (url: string): GeneratedImage | undefined => {
   const match = /^data:(?<type>image\/[\w+.-]+);base64,(?<data>.+)$/su.exec(
     url
@@ -99,10 +61,8 @@ const firstImage = (payload: unknown): GeneratedImage | undefined =>
     },
   });
 
-/** Named so the autofixer cannot strip a bare `undefined` and widen this. */
 const NO_RESPONSE: Response | undefined = undefined;
 
-/** The call itself. `undefined` when it could not be made at all. */
 const request = (input: {
   readonly apiKey: string;
   readonly fetch: typeof globalThis.fetch;
@@ -177,11 +137,6 @@ export const generateImage = Effect.fn("Slack.imagesAi.generate")(
       } as const;
     }
 
-    /**
-     * A body that is not JSON reads the same as a body with no image in it:
-     * the model owed us a picture and there is none. Recovering here keeps
-     * that an outcome the caller can print, rather than a failed turn.
-     */
     const payload: unknown = yield* Effect.tryPromise({
       catch: (cause) => new Error(String(cause)),
       try: (): Promise<unknown> => response.json(),

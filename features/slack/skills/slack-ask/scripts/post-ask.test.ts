@@ -83,8 +83,6 @@ describe("postAsk", () => {
   });
 
   test("nobody answering is an outcome, not a failure", async () => {
-    // The agent is told to decide for itself. Failing the run here would cost
-    // the whole turn because a reader stepped away.
     const outcome = await postAsk({
       choices: [],
       env,
@@ -135,7 +133,6 @@ describe("postAsk", () => {
   });
 
   test("a 200 carrying no answer is an error, not an empty answer", async () => {
-    // Returning "" here would have the agent act on a decision nobody made.
     const outcome = await postAsk({
       choices: [],
       env,

@@ -22,7 +22,6 @@ interface Call {
   readonly url: string;
 }
 
-/** A daemon that accepts everything and records what it was sent. */
 const recording = (
   calls: Call[],
   reply: () => Response = () => Response.json({ ok: true })
@@ -61,9 +60,6 @@ describe("the spec the model wrote", () => {
   });
 
   test("cannot redirect the chart by naming a channel of its own", async () => {
-    // The coordinates are the env's, not the model's: a spec key of the same
-    // name is written over rather than honoured, so a chart can only ever land
-    // in the thread the turn is running in.
     const calls: Call[] = [];
 
     await postChart({
@@ -118,8 +114,6 @@ describe("what it refuses before calling anything", () => {
   });
 
   test("JSON that is not an object cannot carry a chart", async () => {
-    // `JSON.parse("3")` succeeds, and spreading a number produces an empty
-    // body the route would have to reject with a much worse message.
     const outcome = await postChart({
       env: THREAD,
       fetch: refusing(() => Response.json({ ok: true })),
@@ -133,7 +127,6 @@ describe("what it refuses before calling anything", () => {
   });
 
   test("no thread in scope names the variables that are missing", async () => {
-    // A harness expanding a variable it does not have hands over a blank.
     const outcome = await postChart({
       env: {
         SLACK_CHANNEL_ID: "C1",
@@ -152,8 +145,6 @@ describe("what it refuses before calling anything", () => {
 
 describe("what the daemon said when it refused", () => {
   test("is reported in the route's own words, not as a bare status", async () => {
-    // "slack-chart: 400" sends the agent to the logs. The route already
-    // explains itself, so that explanation is what the agent gets.
     const outcome = await postChart({
       env: THREAD,
       fetch: refusing(() =>

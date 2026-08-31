@@ -1,11 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- modules inside this feature import siblings relatively, and the recorded args are `unknown` */
-/**
- * never-silent.test.ts — a turn always leaves the reader something.
- *
- * A steered turn posts nothing, on the reading that its replacement answers.
- * With no replacement that is just silence: the status line comes up, goes
- * down, and the thread has no reply and no way to tell it from a crash.
- */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
@@ -49,7 +42,6 @@ describe("a steered turn", () => {
   );
 
   test.effect("answers anyway when nothing is", () =>
-    // Otherwise the reader is left with a status line that came and went.
     Effect.gen(function* () {
       expect(yield* posted(false)).toContain("chat.postMessage");
     })

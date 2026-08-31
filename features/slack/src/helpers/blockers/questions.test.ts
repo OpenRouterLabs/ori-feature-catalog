@@ -30,12 +30,10 @@ describe("the form a batched ask becomes", () => {
       ],
     });
 
-    // The intro plus one block each.
     expect(modal.blocks).toHaveLength(3);
     expect(asJson(modal.blocks)).toContain(blockIdFor("colour"));
     expect(asJson(modal.blocks)).toContain(blockIdFor("notes"));
     expect(modal.callbackId).toBe(callbackFor("a1"));
-    // Without a submit label Slack renders no Submit button at all.
     expect(modal.submitLabel).toBe("Send");
   });
 
@@ -110,9 +108,6 @@ describe("the ids that survive Slack's round trip", () => {
   });
 
   test("a separator inside the id survives, because the id is the model's", () => {
-    // Splitting on every separator truncated this to `scope`, the lookup in
-    // `questions-handler.ts` missed, and the answer the person typed was
-    // dropped without starting a turn.
     expect(blockIdFor("scope|deep")).toBe("ori_q|scope|deep");
     expect(questionIdFromBlock(blockIdFor("scope|deep"))).toBe("scope|deep");
   });
@@ -122,7 +117,6 @@ describe("the ids that survive Slack's round trip", () => {
   });
 
   test("somebody else's ids are not ours", () => {
-    // The blocker modal and the App Home publish through the same dispatcher.
     expect(questionIdFromBlock("ori_blocker_answer")).toBeUndefined();
     expect(
       askIdFromQuestionsCallback("ori_blocker_freeform|a1")
@@ -132,10 +126,6 @@ describe("the ids that survive Slack's round trip", () => {
 
 describe("model-authored text reaches Slack in Slack's dialect", () => {
   test("a GFM intro is converted, not printed with its asterisks showing", () => {
-    // The answer goes out through a `markdown` block, so the prompt teaches
-    // the model GFM. A `section` is `mrkdwn`, which has neither `**bold**`
-    // nor `[label](url)` — so an unconverted intro opened a form reading
-    // literally `**Two things** … [PR #12](https://…)`.
     const blocks = questionsBlocks({
       askId: "a1",
       count: 1,
@@ -149,8 +139,6 @@ describe("model-authored text reaches Slack in Slack's dialect", () => {
   });
 
   test("a broadcast in model text is escaped, not sent", () => {
-    // `<!channel>` in a body pings the workspace, and this text can quote a
-    // message the run just read.
     const rendered = JSON.stringify(
       questionsBlocks({
         askId: "a1",

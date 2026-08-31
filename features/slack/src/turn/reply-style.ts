@@ -1,36 +1,3 @@
-/**
- * reply-style.ts — the house style, sent with every turn.
- *
- * Split from `handler.ts` so that file stays about the shape of a turn. This
- * is a long constant that changes for its own reasons, and every line in it
- * was added because a real reply went wrong without it.
- */
-
-/**
- * How a reply should read in Slack.
- *
- * The surface cannot shorten an answer faithfully — only the model can decide
- * what to leave out — so brevity has to be asked for rather than enforced by
- * truncation. Sent on the FIRST turn of a session; later turns carry
- * {@link SLACK_STYLE_REMINDER} instead.
- *
- * A thread is not a document: a wall of headings and bullets is harder to read
- * on a phone than three sentences, and the detail is a follow-up question away.
- *
- * It leads by separating reporting from working. A bare "be brief" reads as
- * "do less", and one Slack message is a whole assignment — the surface's most
- * valuable property is that a single request runs to completion rather than
- * stopping to ask whether to carry on.
- *
- * The status cadence is spelled out here rather than left to the SKILL.md it
- * duplicates. Deferring it saved a few tokens a turn and cost twenty minutes
- * of silence: a model already deep in a task does not go and read a skill it
- * has not decided to use, so the instruction has to arrive before the work.
- *
- * It closes on the offer because that is the difference between a colleague
- * and a report generator: naming the adjacent thing the work turned up, and
- * asking. The blocking ask above it is a different move and stays rare.
- */
 export const SLACK_REPLY_STYLE = [
   "<slack_reply_style>",
   "This governs how you REPORT, never how much work you do.",
@@ -230,12 +197,6 @@ export const SLACK_REPLY_STYLE = [
   "</slack_reply_style>",
 ].join("\n");
 
-/**
- * The house style on a later turn, when turn one's copy is still in context.
- *
- * Only behaviour that decays deep in a long task repeats — formatting is needed
- * when a reply is composed, and by then the full block is already above.
- */
 export const SLACK_STYLE_REMINDER = [
   "<slack_reply_style>",
   "Still Slack. Finish the ask, not the codebase — work nobody asked for is",

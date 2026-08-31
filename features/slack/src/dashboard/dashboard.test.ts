@@ -1,11 +1,3 @@
-/**
- * dashboard.test.ts — the route around the page.
- *
- * The rendering is pinned in page.test.ts. What is left here is the HTTP
- * envelope and the one behaviour that matters when things are going wrong: a
- * store that cannot answer must still produce a page.
- */
-
 import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -73,9 +65,6 @@ describe("the dashboard route", () => {
 
   test.effect("still serves a page when the store cannot answer", () =>
     Effect.gen(function* () {
-      // The durable store swallows its own failures and answers with an empty
-      // list, so this is the shape a real outage takes. An operator opening a
-      // dashboard mid-incident should get an empty table, not a stack trace.
       const broken: StateStoreShape = {
         clearSession: () => Effect.void,
         getInterruptMode: () => Effect.succeed(InterruptMode.Steer),
@@ -110,8 +99,6 @@ describe("saving the setting", () => {
 
   test.effect("it redirects back to the page rather than answering with one", () =>
     Effect.gen(function* () {
-      // Post/redirect/get: without it, refreshing the page after a save
-      // re-submits the form.
       const store = yield* StateStoreMemory;
 
       const response = yield* dashboardResponse(
@@ -140,8 +127,6 @@ describe("saving the setting", () => {
 
   test.effect("a junk value falls back to the default instead of failing", () =>
     Effect.gen(function* () {
-      // The field is a radio with two values, so anything else is a malformed
-      // request rather than a decision.
       const store = yield* StateStoreMemory;
       yield* store.putInterruptMode(InterruptMode.Queue);
 

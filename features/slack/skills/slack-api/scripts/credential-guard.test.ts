@@ -1,10 +1,3 @@
-/**
- * Every read command builds its own client from the env it is handed. This
- * pins the one behaviour they all share: with no token they fail with the name
- * of the missing variable and never open a socket — which is also what keeps
- * the rest of this skill's tests hermetic.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -75,8 +68,6 @@ describe("a run with no bot token", () => {
   }
 
   test("users.mention reports the client failure rather than no-such-user", async () => {
-    // It resolves names by listing the workspace, so a token problem arrives
-    // as a lookup that found nobody unless the failure is passed through.
     const result = await resolveUserMention({
       env: NO_TOKEN,
       name: "lab",

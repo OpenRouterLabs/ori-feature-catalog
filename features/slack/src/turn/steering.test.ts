@@ -15,8 +15,6 @@ const settle = (): Promise<void> =>
 
 describe("steering a live turn", () => {
   test("interrupts it and hands back the ask and the work", async () => {
-    // Queueing meant a correction landed only after the run it was correcting
-    // had finished — the one moment it was worth nothing.
     resetRegistry();
     let reason: unknown;
     const running = enqueue(
@@ -41,14 +39,11 @@ describe("steering a live turn", () => {
     await running;
 
     expect(steered?.partial).toBe("found the conflict in the lockfile");
-    // Without the ask, the correction that follows reads as the whole
-    // assignment rather than as an amendment to this.
     expect(steered?.ask).toBe("fix the failing build");
     expect(reason).toBe(TURN_STEER_REASON);
   });
 
   test("reports nothing when the thread is idle", async () => {
-    // Which is the caller's signal to start a turn normally instead.
     resetRegistry();
 
     expect(steerThread("T1:C1:nothing-here")).toBeUndefined();
@@ -56,8 +51,6 @@ describe("steering a live turn", () => {
   });
 
   test("a turn that never streamed steers with nothing to carry", async () => {
-    // The partial reader is only replaced once the turn is running, so a steer
-    // moments after arrival must still work rather than throw.
     resetRegistry();
     const running = enqueue(
       "T1:C1:2",

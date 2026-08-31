@@ -1,27 +1,6 @@
-/**
- * post-status.ts — putting something in the thread that is worth keeping.
- *
- * This used to drive Slack's live indicator as well, on a rule that the first
- * update of a turn always posts. Both halves failed in the same week: a
- * greeting had "I'll say hello back" posted permanently, because the model
- * narrated before it knew anything and the rule made that the record; and a
- * four-minute run showed nothing at all, because the model never called this
- * and nothing else was keeping the indicator alive.
- *
- * The indicator is the surface's job now — `status-beat.ts` renders it from
- * the tool calls the daemon is already folding, so it is true whether or not
- * the agent speaks. What is left here is the half only the agent can judge:
- * whether something is worth interrupting a person for.
- *
- * So every call posts a message. There is no free channel any more, which is
- * the point — "call it often, it is free" is what produced the noise.
- */
-
 import { Effect } from "effect";
 
-/** The indicator is one line Slack never folds. */
 const MAX_LINE_CHARS = 120;
-/** A message carries detail, and detail is still one short paragraph. */
 const MAX_MESSAGE_CHARS = 300;
 
 export type PostStatusOutcome =
@@ -32,7 +11,6 @@ export type PostStatusOutcome =
     }
   | { readonly kind: "error"; readonly message: string };
 
-/** Structural so `Bun.env` passes straight through. */
 export type StatusEnv = Readonly<Record<string, string | undefined>>;
 
 export interface StatusPane {
@@ -40,12 +18,6 @@ export interface StatusPane {
   readonly threadTs: string;
 }
 
-/**
- * Treat the literal string "undefined" and the empty string as absent.
- *
- * A harness that expands a variable it does not have hands over a blank rather
- * than leaving it unset, and `??` does not catch a blank.
- */
 const present = (raw: string | undefined): string | undefined =>
   raw !== undefined && raw !== "" && raw !== "undefined" ? raw : undefined;
 
@@ -60,11 +32,6 @@ const threadFrom = (env: StatusEnv): StatusPane | undefined => {
       };
 };
 
-/**
- * Rejected rather than clipped: slicing threw away words nobody could recover
- * and cut mid-token, and the caller is a model that can shorten and try again
- * — which it can only do if it is told.
- */
 const overCap = (text: string, notify: boolean): string | undefined => {
   const cap = notify ? MAX_MESSAGE_CHARS : MAX_LINE_CHARS;
   if (text.length <= cap) {
@@ -82,7 +49,6 @@ export const postStatus = async (input: {
     readonly pane: StatusPane;
     readonly text: string;
   }) => Promise<void>;
-  /** Put the line on the indicator, and leave it where the beat can find it. */
   readonly setLine: (input: {
     readonly pane: StatusPane;
     readonly text: string;
@@ -116,9 +82,6 @@ export const postStatus = async (input: {
 
   return await Effect.runPromise(
     Effect.tryPromise(async () => {
-      // The message goes FIRST: Slack clears the indicator whenever the app
-      // posts to the thread, so setting the line first would set it and then
-      // immediately wipe it.
       if (input.notify) {
         await input.postMessage({
           pane: thread,

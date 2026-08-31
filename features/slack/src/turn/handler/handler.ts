@@ -1,23 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * handler.ts — one Slack message becomes one agent turn.
- *
- * This is the seam the rest of the feature exists to serve:
- *
- *   Slack event -> gates -> thread ref -> session lookup -> chat.sendMessage
- *              -> consume AgentRuntimeEvent stream -> MessageStream -> Slack
- *
- * Two decisions from the RFC are enforced here rather than downstream.
- *
- * The prompt carries ONLY the new Slack input. Prior turns live in the agent
- * session, not in a replayed transcript — `ThreadContext.build` returns a
- * context block only on a cold start, when no session exists yet.
- *
- * Slack coordinates are threaded to the agent as ENV, not as prompt text, so
- * the `slack-api` skill can act on the current thread without the model having
- * to copy ids out of its context — and without those ids being something a
- * prompt injection can rewrite.
- */
 
 import type { AgentRuntimeEvent, Chat } from "ori";
 
@@ -61,12 +42,6 @@ import { AgentStreamEnded, applyEvent, handleRunEvent } from "../run-events.ts";
 import { beatStatus } from "../status-beat.ts";
 import { turnEnv } from "../turn-input.ts";
 
-/**
- * Retire any approval still on screen.
- *
- * Without this a cancelled or failed turn leaves live-looking buttons pointing
- * at a correlation id nothing will ever resolve.
- */
 const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   pending: PendingApprovals,
   reply: MessageReplyShape
@@ -86,14 +61,6 @@ const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   }
 });
 
-/**
- * How a run ended, from its signal.
- *
- * A timed-out run and a user-cancelled run both surface as an aborted signal,
- * but telling someone their work was "cancelled" when nobody cancelled it
- * sends them looking for who did. This now lands on the reply itself, since
- * the Cancel affordance that used to carry it is removed when the turn ends.
- */
 const endedPhase = (signal: AbortSignal): RunPhase => {
   if (!signal.aborted) {
     return RunPhase.Failed;
@@ -109,14 +76,6 @@ const endedPhase = (signal: AbortSignal): RunPhase => {
     : RunPhase.Cancelled;
 };
 
-/**
- * Consume the agent's event stream to completion and return the state the run
- * ended in.
- *
- * The stream IS the turn: it ends when the run reaches a terminal event.
- * Anything that escapes without one is caught here and rendered as an ending,
- * so the thread never keeps a live-looking message for a run that is over.
- */
 const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
   readonly apply: (
     change: (state: RunState) => RunState
@@ -129,9 +88,6 @@ const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
   readonly store: StateStoreShape;
   readonly turn: IncomingTurn;
 }): Effect.fn.Return<void> {
-  // A stream because the agent's iterable is genuinely async — but pulled one
-  // event at a time, so the work below stays inside the same Effect rather
-  // than being run per event at a boundary the turn cannot be interrupted at.
   const events = Stream.fromAsyncIterable(
     input.events,
     (cause) => new AgentStreamEnded({ cause })
@@ -153,20 +109,12 @@ const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
         )
       )
   ).pipe(
-    // A stream that rejects ended the run, one way or another: aborted is a
-    // cancel or a timeout, anything else is a failure. `endedPhase` tells them
-    // apart from the signal.
     Effect.catchCause(() =>
       input.apply((state) => ({
         ...state,
         phase: endedPhase(input.signal),
       }))
     ),
-    // Lazy, and it has to be: built eagerly this would read the state as it
-    // was before the run started, so the ending just computed would never be
-    // rendered. An aborted signal decides the ending even when the stream
-    // drained without rejecting — otherwise a turn cancelled just as it
-    // finished reports success, the one thing the canceller knows is wrong.
     Effect.andThen(() =>
       input.apply((state) =>
         input.signal.aborted
@@ -180,14 +128,6 @@ const consumeRun = Effect.fn("Slack.turn.consumeRun")(function* (input: {
   );
 });
 
-/**
- * ONE state, two writers.
- *
- * The runtime event stream and the agent's own status route both change what
- * the thread shows. When each held its own copy, a posted status rendered and
- * was then overwritten by the next event folded onto a copy that had never
- * seen it — the status appeared and then vanished.
- */
 const makeApply = Effect.fn("Slack.turn.makeApply")(function* (
   advance: (next: RunState) => Effect.Effect<void>
 ): Effect.fn.Return<{
@@ -201,9 +141,6 @@ const makeApply = Effect.fn("Slack.turn.makeApply")(function* (
     phase: RunPhase.Running,
   });
   return {
-    // The ONE state write, so naming it here is what puts every writer in the
-    // trace: the event fold, the ending from a rejected stream, and the
-    // ending an aborted signal decides all pass through this.
     apply: (change: (state: RunState) => RunState): Effect.Effect<void> =>
       Ref.updateAndGet(stateRef, change).pipe(
         Effect.flatMap(advance),
@@ -213,28 +150,9 @@ const makeApply = Effect.fn("Slack.turn.makeApply")(function* (
   };
 });
 
-/**
- * What a turn has to hand its replacement: the prose it wrote, and the account
- * it gave of itself. Both, because the narration is often the more useful half
- * — it says what the run had established, not just what it was drafting.
- */
 const partialOf = (state: RunState): string =>
   [answerText(state), ...state.log].filter((part) => part !== "").join("\n");
 
-/**
- * Drive one run: open the agent stream, fold each event into what the thread
- * shows, and leave the thread in a terminal state whichever way it ends.
- *
- * Returned as a callback for `MessageStream.run`, which owns the pacing of the
- * edits this produces.
- */
-/**
- * Open the agent's event stream for this turn.
- *
- * `priorPartial` is what the turn this one replaced had produced: the runloop
- * composes a preamble from it, so a redirected run sees the work rather than
- * starting over (RFC 0005 run steering).
- */
 const openStream = (
   input: {
     readonly existing: { readonly sessionId: string } | undefined;
@@ -276,15 +194,9 @@ const driveRun = (input: {
 
     yield* apply((state) => state);
 
-    // Read at the moment this turn is interrupted, so a steer can hand the
-    // work to its replacement rather than throwing it away.
     live.readPartial = (): string => partialOf(Effect.runSync(peek));
-    // What it was asked, so a steer can hand the correction something to
-    // amend rather than a blank slate.
     live.readAsk = (): string => input.turn.text;
 
-    // The surface says the run is alive; the agent says what it found. This
-    // is the first half, and it needs nothing from the model.
     const beat = yield* beatStatus({
       assistant,
       peek,
@@ -294,9 +206,6 @@ const driveRun = (input: {
 
     const events = openStream(input, live.signal);
 
-    // Approval prompts posted this turn, so the message can be rewritten
-    // once answered. Scoped to the turn: a correlation id is only live while
-    // the run that raised it is.
     const pending: PendingApprovals = new Map();
     const session: SessionSlot = {
       current: input.existing?.sessionId,
@@ -322,14 +231,6 @@ const runOptions = (turn: IncomingTurn): RunOptions => ({
   ...(turn.userId === "" ? {} : { recipientUserId: turn.userId }),
 });
 
-/**
- * What the agent is handed.
- *
- * Order matters: the attachment warning must precede the message that carries
- * the attachments, so the data boundary is set before the model reads anything
- * describing them. The house style goes first, so a long pasted message cannot
- * bury it.
- */
 const promptFor = (input: {
   readonly context: string;
   readonly paneContext: PaneContext | undefined;
@@ -373,15 +274,6 @@ export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
     text: input.turn.text,
   });
 
-  // From here on the indicator is LIT, so from here on it has to be put out
-  // whatever happens. `openPane` set it, and everything below can defect —
-  // building the thread context, assembling the prompt, opening the stream.
-  // A defect there is caught and logged upstream without posting anything, so
-  // without this the pane sits on "is thinking…" forever next to a thread that
-  // never hears back. A run that dies must not look alive.
-  //
-  // Safe as a finalizer because neither call fails: both are best-effort and
-  // log, so a Slack blip here cannot mask the original error.
   const closeTurnOut = retireTurn({
     assistant,
     blockers,

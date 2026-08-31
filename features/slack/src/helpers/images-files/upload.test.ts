@@ -130,8 +130,6 @@ describe("uploadFile", () => {
 
   test.effect("fails when the reserve response is missing its fields", () =>
     Effect.gen(function* () {
-      // A decode failure here would otherwise surface as an undefined URL being
-      // POSTed to, several frames away.
       stubFetch(new Response("", { status: 200 }));
       const { result } = run({
         ...happyStubs,

@@ -67,8 +67,6 @@ describe("the prompt the model wrote", () => {
   });
 
   test("carries no title key at all when none was given", async () => {
-    // The route reads an absent title as "let the surface caption it"; an
-    // explicit null would be a caption the model never wrote.
     const calls: Call[] = [];
 
     await postImage({
@@ -98,8 +96,6 @@ describe("the prompt the model wrote", () => {
 
 describe("what it refuses before generating anything", () => {
   test("a blank prompt is a usage error, not an empty generation", async () => {
-    // Generation costs real money and real seconds, so a prompt that lost its
-    // words to quoting is stopped here rather than drawn.
     let called = false;
 
     const outcome = await postImage({
@@ -117,8 +113,6 @@ describe("what it refuses before generating anything", () => {
   });
 
   test("a missing prompt is reported before a missing thread", async () => {
-    // Both are wrong; the one the model can fix from the message it sees is
-    // the prompt, so that is the one it is told about.
     const outcome = await postImage({
       env: {},
       fetch: refusing(() => Response.json({ ok: true })),

@@ -1,12 +1,3 @@
-/**
- * Two seams, no network.
- *
- * `filterMembersBySearch` is pure and is tested directly. The rest —
- * who survives the bot/deleted/USLACKBOT cull, and how the cursor loop walks
- * pages — is driven through an injected client typed to the sliver of
- * `WebClient` this module actually calls (`users.list`), cast once at the seam.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -39,10 +30,6 @@ interface FakePage {
   };
 }
 
-/**
- * A Slack that serves the given pages in order. The cast is the seam: only
- * `users.list` is ever reached, so only `users.list` is modelled.
- */
 const clientServing = (
   pages: readonly FakePage[],
   calls: UsersListArgs[] = []
@@ -107,7 +94,6 @@ describe("filterMembersBySearch", () => {
   });
 
   test("treats a blank or whitespace search as no search", () => {
-    // `--search ""` from the CLI must not silently return an empty workspace.
     expect(filterMembersBySearch(roster, "")).toEqual(roster);
     expect(filterMembersBySearch(roster, "   ")).toEqual(roster);
   });
@@ -131,8 +117,6 @@ describe("filterMembersBySearch", () => {
 
 describe("listUsers — who gets filtered out", () => {
   test("drops bots, deleted accounts, and USLACKBOT", async () => {
-    // Any of these three in the roster is a name the agent could try to
-    // mention, and none of them can read a message.
     const result = await listUsers({
       client: clientServing([
         {
@@ -201,8 +185,6 @@ describe("listUsers — the fields it projects", () => {
   });
 
   test("uses empty strings rather than undefined for a nameless member", async () => {
-    // Downstream both fields get `.toLowerCase()` called on them, so an
-    // undefined that slipped through would throw at match time.
     const result = await listUsers({
       client: clientServing([{ members: [{ id: "U1" }] }]),
     });
@@ -260,8 +242,6 @@ describe("listUsers — cursor pagination", () => {
   });
 
   test("stops on the empty-string cursor Slack sends for the last page", async () => {
-    // Slack returns `next_cursor: ""` rather than omitting it, and treating
-    // that as a cursor would loop forever against the same page.
     const calls: UsersListArgs[] = [];
     const result = await listUsers({
       client: clientServing(

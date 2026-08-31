@@ -1,13 +1,3 @@
-/**
- * Routing and flag validation only.
- *
- * Every command in this skill builds its Slack client from the process env at
- * the point of use, so a test that got past validation would open a real
- * socket. These cases all stop at the argument check, and each one passes an
- * explicit `--channel` so no ambient SLACK_* variable can change the outcome.
- * The credential guard itself is covered end to end in ./end-to-end.test.ts.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -35,8 +25,6 @@ describe("isCommand", () => {
   });
 
   test("rejects the write commands this skill deliberately dropped", () => {
-    // Everything the agent says goes through the daemon, so a posting command
-    // must fail as unknown rather than be quietly routed somewhere.
     expect(isCommand("chat.postMessage")).toBe(false);
     expect(isCommand("chat.update")).toBe(false);
     expect(isCommand("reactions.add")).toBe(false);
@@ -75,8 +63,6 @@ describe("flags a command cannot run without", () => {
   });
 
   test("users.mention needs the name to resolve", async () => {
-    // Resolving nothing would return the first member of the workspace and
-    // notify a stranger.
     expect(await failureMessage(dispatchCommand("users.mention", {}))).toContain(
       "--name"
     );
@@ -85,8 +71,6 @@ describe("flags a command cannot run without", () => {
 
 describe("limits that are not limits", () => {
   test("a non-numeric limit is refused before the first page is fetched", async () => {
-    // Number("abc") is NaN, and NaN reaches Slack as an omitted limit — the
-    // caller would silently get the default page size instead of what it asked.
     expect(
       await failureMessage(
         dispatchCommand("conversations.replies", {
@@ -122,8 +106,6 @@ describe("limits that are not limits", () => {
   });
 
   test("history refuses a negative limit", async () => {
-    // Zero is meaningful for history (unlimited, up to the safety cap), so the
-    // two commands validate the same flag differently on purpose.
     expect(
       await failureMessage(
         dispatchCommand("conversations.history", {
@@ -135,9 +117,6 @@ describe("limits that are not limits", () => {
   });
 });
 
-// The env argument exists so a command is not pinned to the real `Bun.env`.
-// Both cases below are distinguishable only by which env was consulted: the
-// channel resolves from the injected map, or it does not resolve at all.
 describe("the env threaded into a command", () => {
   const noToken = { SLACK_CHANNEL_ID: "C-FROM-ENV" };
 
@@ -149,7 +128,6 @@ describe("the env threaded into a command", () => {
     );
     expect(Result.isFailure(result)).toBe(true);
     if (Result.isFailure(result)) {
-      // Past the channel check, so the channel came from the injected env.
       expect(result.failure.message).toContain("SLACK_BOT_TOKEN");
     }
   });

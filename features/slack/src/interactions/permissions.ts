@@ -1,23 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * permissions.ts — the approval round-trip.
- *
- * This is why the interactions layer exists. When the agent wants to run
- * something gated it emits `permission.requested` and then WAITS. Without a
- * surface that renders the options and answers, the turn hangs forever and the
- * thread shows progress that will never finish.
- *
- * The loop:
- *
- *   permission.requested  -> post buttons in the thread
- *   button click          -> bridge.respondInteraction(...)
- *   permission.resolved   -> rewrite the message to the outcome
- *
- * The correlation id travels in the button's `value`, not in its `action_id`.
- * Action ids are registered up front and a correlation id is only known at
- * request time, so encoding it in the id would mean registering a handler per
- * request and leaking them. `value` is what Slack provides for exactly this.
- */
 
 import type { PermissionOptionKind } from "ori";
 
@@ -34,11 +15,9 @@ import { actions, button, section } from "../helpers/block-kit/blocks.ts";
 export const PERMISSION_ACTION_ID = "ori_permission_select";
 export const ELICITATION_ACTION_ID = "ori_elicitation_select";
 
-/** Separator that cannot appear in a correlation id, option kind, or session id. */
 const FIELD_SEPARATOR = "|";
 
 interface PermissionRequest {
-  /** The Slack user whose turn this is — the only one who may answer it. */
   readonly askedBy: string;
   readonly correlationId: string;
   readonly operation: string;
@@ -46,7 +25,6 @@ interface PermissionRequest {
   readonly sessionId: string;
 }
 
-/** Human labels. The raw kinds are protocol tokens, not UI copy. */
 const OPTION_LABELS: Readonly<Record<PermissionOptionKind, string>> = {
   allow_always: "Always allow",
   allow_once: "Allow once",
@@ -88,12 +66,6 @@ const decode = (value: string | undefined): DecodedChoice | undefined => {
       };
 };
 
-/**
- * Buttons live in a channel, so everyone who can see the thread can click
- * them. Only the person whose turn raised the request may answer it —
- * otherwise any channel member can approve a command on someone else's
- * behalf, which defeats the point of asking.
- */
 const clickedByRequester = (
   decoded: DecodedChoice,
   clickedBy: string
@@ -102,7 +74,6 @@ const clickedByRequester = (
 const isPermissionOptionKind = (value: string): value is PermissionOptionKind =>
   value in OPTION_LABELS;
 
-/** Block Kit for one pending approval. */
 export const permissionBlocks = (
   request: PermissionRequest
 ): readonly SlackBlock[] => [
@@ -118,7 +89,6 @@ export const permissionBlocks = (
   ),
 ];
 
-/** What the message becomes once answered — buttons removed. */
 export const permissionResolvedBlocks = (
   request: Pick<PermissionRequest, "operation">,
   outcome: string
@@ -133,12 +103,6 @@ interface ElicitationRequest {
   readonly sessionId: string;
 }
 
-/**
- * Elicitation asks for structured input. Slack cannot collect arbitrary fields
- * from a message, so this surfaces the ask and offers the two answers that
- * unblock the turn without inventing content. Accepting with real field values
- * needs a modal, which is a separate piece of work.
- */
 export const elicitationBlocks = (
   request: ElicitationRequest
 ): readonly SlackBlock[] => [
@@ -179,11 +143,6 @@ interface RespondInteraction {
   ) => Promise<void>;
 }
 
-/**
- * Wire the two action ids to the bridge. Registered once at start, not per
- * request — the correlation id arrives in the click, so one handler serves
- * every pending approval.
- */
 export const registerPermissionHandlers = (
   interactions: InteractionsShape,
   bridge: RespondInteraction
@@ -245,10 +204,6 @@ export const registerPermissionHandlers = (
 
 const CANCEL_ACTION_ID = "ori_cancel_turn";
 
-/**
- * Wire the Cancel button to the live-turn registry. Registered once at start;
- * the turn id arrives in the click.
- */
 export const registerCancelHandler = (
   interactions: InteractionsShape,
   cancel: (turnId: string) => boolean
@@ -258,10 +213,7 @@ export const registerCancelHandler = (
       const [turnId, askedBy] = (payload.actions.at(0)?.value ?? "").split(
         FIELD_SEPARATOR
       );
-      // Same rule as approvals: only the person who started the run stops it.
       if (turnId !== undefined && askedBy === payload.userId) {
-        // A false return means the turn already finished — the button simply
-        // outlived its run, which is not an error worth surfacing.
         cancel(turnId);
       }
     }).pipe(Effect.withSpan("Slack.interactions.cancelTurn"))

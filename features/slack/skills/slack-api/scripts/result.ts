@@ -1,13 +1,5 @@
 import { Data, Effect, Result } from "effect";
 
-/**
- * Tagged error the `tryCatch*` wrappers put in the `Result` failure channel, so
- * it stays typed (`ThrownError`) instead of the opaque global `Error` the
- * language-service flags. It still `extends Error` (via `Data.TaggedError`), and
- * its `message`/`name` getters delegate to the original `cause` — preserving the
- * old "the failure channel is the thrown Error" contract that callers rely on
- * (e.g. `result.failure.name === "AbortError"`, `result.failure.message`).
- */
 class ThrownError extends Data.TaggedError("ThrownError")<{
   readonly cause: unknown;
 }> {
@@ -25,23 +17,12 @@ const toThrownError = (cause: unknown): ThrownError =>
     cause,
   });
 
-/**
- * Wrap a potentially-throwing synchronous call in a `Result`. Thin wrapper over
- * `Result.try` that wraps the thrown value in a tagged `ThrownError` (matching
- * the old `tryCatch` contract: the failure channel is always the thrown error).
- */
 export const tryCatch = <T>(fn: () => T): Result.Result<T, ThrownError> =>
   Result.try({
     try: fn,
     catch: toThrownError,
   });
 
-/**
- * Async counterpart of {@link tryCatch}. Effect has no one-line async `Result`
- * constructor, so this folds an `Effect.tryPromise` into a `Result` via
- * `Effect.match`. The folded Effect never fails, so `runPromise` never rejects —
- * preserving the "tryCatchAsync never rejects" contract.
- */
 export const tryCatchAsync = <T>(
   fn: () => Promise<T>
 ): Promise<Result.Result<T, ThrownError>> =>
@@ -58,22 +39,11 @@ export const tryCatchAsync = <T>(
     )
   );
 
-/**
- * `catch` handler for the loopback calls: a rejection becomes `undefined`, which
- * the caller reports as an outcome instead of throwing. A daemon that is down
- * and a body that will not parse are both ordinary paths, not broken invariants.
- */
 export const unreadable = (): undefined => undefined;
 
 export const isString = (val: unknown): val is string =>
   typeof val === "string";
 
-/**
- * Parse `--flag value`, `--flag=value`, and bare boolean `--flag` into a flat
- * record of strings. A bare flag (no following value, or followed by another
- * `--flag`) becomes `"true"`. Mirrors the inline parser in
- * features/clickhouse/scripts/cli.ts so the skill stays dependency-free.
- */
 export const parseFlags = (args: readonly string[]): Record<string, string> => {
   const flags: Record<string, string> = {};
   let i = 0;
