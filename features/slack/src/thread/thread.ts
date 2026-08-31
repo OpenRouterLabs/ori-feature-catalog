@@ -31,7 +31,7 @@ export interface ThreadRef {
  * neutralises all of them regardless of which caller is asking.
  */
 const FENCE_TAGS =
-  /<\s*\/?\s*(slack_thread|untrusted_file_content|amends_this_ask|slack_thread_ref)\s*>/giu;
+  /<\s*\/?\s*(slack_thread|untrusted_file_content|interrupted_ask|slack_thread_ref)\s*>/giu;
 
 /**
  * Sanitise external text before it lands inside a prompt fence.
