@@ -17,6 +17,7 @@ export const RunPhase = {
   Failed: "failed",
   Queued: "queued",
   Running: "running",
+  Shutdown: "shutdown",
   Starting: "starting",
   Steered: "steered",
   TimedOut: "timed-out",
@@ -395,6 +396,9 @@ export const renderRunState = (
       // Not a cancel: nobody asked for the work to stop, they asked for it to
       // go somewhere else, and the next turn carries what this one had.
       return `${body}\n\n↪️ _Picking up your new message._${recap}`.trim();
+    }
+    case RunPhase.Shutdown: {
+      return `${body}\n\n🔁 _Restarting — here is where I got to. Ask me again and I will pick it up._${recap}`.trim();
     }
     case RunPhase.TimedOut: {
       // The surface stopped WATCHING; it did not stop the run, and saying so

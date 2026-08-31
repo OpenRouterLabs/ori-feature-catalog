@@ -12,6 +12,7 @@ import {
   isBusy,
   resetRegistry,
   threadCount,
+  TURN_SHUTDOWN_REASON,
   TURN_TIMEOUT_REASON,
 } from "./registry.ts";
 
@@ -337,7 +338,9 @@ describe("cancelAll", () => {
 
     expect(cancelAll()).toBe(1);
     await running;
-    expect(reasons).toEqual([TURN_TIMEOUT_REASON]);
+    // Not the deadline's token. Sharing one made a restart render as "still
+    // running — I will post if it lands", from a process that was going away.
+    expect(reasons).toEqual([TURN_SHUTDOWN_REASON]);
   });
 
   test("says nothing was running when nothing is", () => {
