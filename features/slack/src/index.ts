@@ -35,7 +35,7 @@ import type {
 } from "./interactions/interactions.ts";
 import type { SlackServices } from "./layers.ts";
 import type { ThreadRef } from "./thread/thread.ts";
-import type { IncomingMessage } from "./turn/gates.ts";
+import type { IncomingMessage } from "./turn/listening/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
 import { makeSurfaceEventHandlers, SlackClient } from "./client/index.ts";
