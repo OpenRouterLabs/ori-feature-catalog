@@ -1,11 +1,11 @@
 export { registerBlockerHandlers } from "./blocker-handler.ts";
 export type { BlockersShape } from "./blocker.ts";
 export { Blockers, BlockersMemory } from "./blocker.ts";
-export type { SlackButtonClick, SlackButtonHandler } from "./custom.ts";
-export { RESERVED_ACTION_PREFIX, onButton, registerCustomButtons, registeredButtonIds, resetCustomButtons } from "./custom.ts";
-export type { InteractionHandler, InteractionPayload, InteractionsShape, ViewSubmissionPayload } from "./interactions.ts";
+export type { SlackButtonHandler } from "./custom.ts";
+export { registerCustomButtons } from "./custom.ts";
+export type { InteractionPayload, InteractionsShape, ViewSubmissionPayload } from "./interactions.ts";
 export { Interactions, makeInteractions } from "./interactions.ts";
-export { ELICITATION_ACTION_ID, PERMISSION_ACTION_ID, elicitationBlocks, permissionBlocks, permissionResolvedBlocks, registerCancelHandler, registerPermissionHandlers } from "./permissions.ts";
-export type { PendingForm, QuestionnairesShape } from "./questionnaires.ts";
+export { elicitationBlocks, permissionBlocks, permissionResolvedBlocks, registerCancelHandler, registerPermissionHandlers } from "./permissions.ts";
+export type { QuestionnairesShape } from "./questionnaires.ts";
 export { Questionnaires, QuestionnairesMemory } from "./questionnaires.ts";
-export { answersPrompt, registerQuestionHandlers } from "./questions-handler.ts";
+export { registerQuestionHandlers } from "./questions-handler.ts";

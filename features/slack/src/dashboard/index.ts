@@ -1,2 +1,1 @@
-export { dashboardResponse, makeDashboardRoute } from "./dashboard.ts";
-export { ago, renderDashboard } from "./page.ts";
+export { makeDashboardRoute } from "./dashboard.ts";

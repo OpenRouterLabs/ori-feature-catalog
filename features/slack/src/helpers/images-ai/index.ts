@@ -1,2 +1,2 @@
-export type { GenerateOutcome, GeneratedImage } from "./generate.ts";
-export { decodeDataUrl, generateImage } from "./generate.ts";
+export type { GeneratedImage } from "./generate.ts";
+export { generateImage } from "./generate.ts";
