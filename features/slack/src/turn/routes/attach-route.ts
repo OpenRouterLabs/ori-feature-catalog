@@ -69,37 +69,33 @@ export const makeAttachRoute = (
 ): ((request: Request) => Promise<Response>) =>
   loopbackRoute<AttachRequest, { readonly permalink: string | undefined }>({
     capKiB: 8,
-    handle: async ({ ref, request }) => {
-      const content = await deps
-        .readFile(request.path)
-        .catch(() => undefined);
+    handle: Effect.fn("Slack.attach.handle")(function* ({ ref, request }) {
+      const content = yield* Effect.tryPromise(() =>
+        deps.readFile(request.path)
+      ).pipe(Effect.orElseSucceed(() => undefined));
       if (content === undefined) {
         return refuse(HTTP_UNPROCESSABLE, `cannot read ${request.path}`);
       }
 
-      const reply = await deps.replyFor(ref);
-      return Effect.runPromise(
-        reply
-          .attach(
-            {
-              content,
-              filename: basename(request.path),
-              ...(request.title === undefined ? {} : { title: request.title }),
-            },
-            request.comment
-          )
-          .pipe(
-            Effect.map((file) =>
-              Result.succeed({ permalink: file.permalink })
-            ),
-            Effect.catchCause((cause) =>
-              Effect.logError("[slack] could not attach the file", cause).pipe(
-                Effect.as(refuse(HTTP_BAD_GATEWAY, "Slack refused the upload"))
-              )
+      const reply = yield* Effect.promise(() => deps.replyFor(ref));
+      return yield* reply
+        .attach(
+          {
+            content,
+            filename: basename(request.path),
+            ...(request.title === undefined ? {} : { title: request.title }),
+          },
+          request.comment
+        )
+        .pipe(
+          Effect.map((file) => Result.succeed({ permalink: file.permalink })),
+          Effect.catchCause((cause) =>
+            Effect.logError("[slack] could not attach the file", cause).pipe(
+              Effect.as(refuse(HTTP_BAD_GATEWAY, "Slack refused the upload"))
             )
           )
-      );
-    },
+        );
+    }),
     parse,
     workspaceTeamId: deps.workspaceTeamId,
   });
