@@ -1,19 +1,3 @@
-/**
- * post-questions.ts — the loopback call behind the `slack-questions` skill.
- *
- * Posts a form and RETURNS. Nothing here waits: the turn ends, and the answers
- * arrive later as a NEW turn on the same thread, which resumes the same
- * session. That is the whole difference from `slack-ask`, which holds the run
- * for up to fifteen minutes.
- *
- * A question no longer costs a held run. A form left over a weekend costs what
- * an unread message costs, and the thread's queue is free the moment the turn
- * ends.
- *
- * Split from the CLI entry so it can be exercised without a daemon, and so the
- * entry stays a thin shell mapping outcomes to exit codes.
- */
-
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
@@ -30,15 +14,8 @@ type PostQuestionsOutcome =
   | { readonly kind: "asked" }
   | { readonly kind: "error"; readonly message: string };
 
-/** Structural so `Bun.env` passes straight through. */
 export type QuestionsEnv = Readonly<Record<string, string | undefined>>;
 
-/**
- * Treat the literal string "undefined" and the empty string as absent.
- *
- * A harness that expands a variable it does not have hands over a blank rather
- * than leaving it unset, and `??` does not catch a blank.
- */
 const present = (raw: string | undefined): string | undefined =>
   raw !== undefined && raw !== "" && raw !== "undefined" ? raw : undefined;
 
@@ -90,9 +67,6 @@ export const postQuestions = async (input: {
   if (response.ok) {
     return { kind: "asked" };
   }
-  // The route rejects rather than guessing, and its reason is written for a
-  // model to act on: hand it back verbatim so the next call can be corrected
-  // rather than the words being thrown away.
   const reason = await response.text().catch(unreadable);
   return {
     kind: "error",

@@ -17,8 +17,6 @@ import {
 
 describe("registry growth", () => {
   test("forgets a thread once nothing is queued for it", async () => {
-    // The cleanup path used to overwrite the entry rather than remove it, so
-    // every thread the process had ever seen kept a row forever.
     resetRegistry();
 
     for (let i = 0; i < 200; i += 1) {
@@ -63,10 +61,6 @@ describe("registry growth", () => {
 
 describe("cancellation reasons", () => {
   test("carries a caller-supplied reason through to the signal", async () => {
-    // A deadline and a person clicking Cancel both abort the run. The reason
-    // is what lets the surface tell someone which one happened, instead of
-    // claiming a timeout was a cancellation and sending them to look for who
-    // did it. The deadline itself is policy and lives at the composition root.
     let observed: unknown;
 
     await enqueue(
@@ -116,7 +110,6 @@ describe("turn registry", () => {
       }
     );
 
-    // Give `a` a tick to take the thread before `b` arrives.
     await Promise.resolve();
 
     const b = enqueue(
@@ -132,9 +125,6 @@ describe("turn registry", () => {
     first.resolve();
     await Promise.all([a, b]);
 
-    // The guarantees are that b was told it had to wait, and that it did not
-    // start until a finished. Whether "b:queued" lands before or after
-    // "a:start" is microtask scheduling, not a property worth pinning.
     expect(order).toContain("b:queued");
     expect(order.indexOf("a:end")).toBeLessThan(order.indexOf("b:start"));
   });
@@ -206,9 +196,6 @@ describe("turn registry", () => {
   });
 
   test("a throwing queued-notice does not wedge the thread forever", async () => {
-    // The claim (pending + tail) is taken before onQueued runs. If that throw
-    // escaped the try/finally, tail never resolved and every later turn in
-    // this thread waited on a promise that would never settle.
     const gate = deferred<void>();
     const first = enqueue(
       "T",
@@ -259,7 +246,6 @@ describe("turn registry", () => {
   });
 
   test("drain reports false rather than hanging on a wedged turn", async () => {
-    // A stuck turn must not hold the process open forever.
     const never = deferred<void>();
     const run = enqueue(
       "T",
@@ -277,8 +263,6 @@ describe("turn registry", () => {
   });
 
   test("resetRegistry frees threads a stopped run left claimed", async () => {
-    // The maps are module-global, so a stop/start cycle would otherwise leave
-    // the old run's threads busy and the next turn would queue forever.
     const never = deferred<void>();
     void enqueue(
       "T",
@@ -313,9 +297,6 @@ describe("turn registry", () => {
 
 describe("cancelAll", () => {
   test("tells every running turn to stop", async () => {
-    // Shutdown waited for turns and then walked away from the ones still
-    // going, stranding the message each one owned: no answer, no error, a
-    // card still spinning. Aborting lets them settle on the way out.
     resetRegistry();
     const gate = deferred<void>();
     const started = deferred<void>();
@@ -349,11 +330,6 @@ describe("cancelAll", () => {
 
 describe("turn ids", () => {
   test("carry a per-process nonce, not just a counter", async () => {
-    // They were `turn-${n}` from a counter that restarts at 1 on every boot,
-    // while anything keying durable state on them — the slack-status marker
-    // file — outlived the process. So the first turns after a deploy read as
-    // already-seen and silently lost the update that proves a run is alive.
-    // A bare counter cannot be told apart across two boots at any width.
     resetRegistry();
     const ids: string[] = [];
     const record = async (turn: LiveTurn): Promise<void> => {

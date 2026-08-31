@@ -1,22 +1,3 @@
-/**
- * index.ts — the Slack feature's composition root.
- *
- * Holds one rule, which is the point of the RFC:
- *
- *   The service graph is built HERE, once. thread.ts, message-reply/,
- *   message-stream/, interactions/ and turn/ carry their dependencies as
- *   requirements and receive them. Nothing downstream calls `Effect.provide`.
- *
- * That is what makes the surface extensible. A dependency is only overridable
- * at a scope that can still see it: provide `SlackClient` inside a handler and
- * an outer layer supplied by another feature is silently discarded, because
- * the innermost provide wins.
- *
- * The graph is materialised once into a `Context` held for the process
- * lifetime — `StateStore` carries the thread -> session mapping, so rebuilding
- * per turn would mint a new agent session for every message.
- */
-
 import type { App } from "@slack/bolt";
 import type { Chat, StateStore as OriStateStore } from "ori";
 
@@ -65,7 +46,6 @@ import {
 import { cancelTurn } from "./thread/registry.ts";
 import { makeTurnRoutes } from "./turn/turn-routes.ts";
 
-
 export interface SlackLogger {
   readonly error: (message: string, ...rest: readonly unknown[]) => void;
   readonly info: (message: string, ...rest: readonly unknown[]) => void;
@@ -74,32 +54,18 @@ export interface SlackLogger {
 
 export interface SlackRuntime {
   readonly handleAskRequest: (request: Request) => Promise<Response>;
-  /**
-   * The client this surface is running on.
-   *
-   * Published so `exports.ts` can hand `use("slack")` the SAME instance
-   * rather than building a second one. The Slack SDK's rate-limit queue is
-   * per client, so two instances are two queues that cannot see each other:
-   * each well-behaved alone, and Slack seeing the sum.
-   */
   readonly slack: SlackClientShape;
   readonly handleDispatchRequest: (request: Request) => Promise<Response>;
   readonly handleEventsRequest: (request: Request) => Promise<Response>;
-  /** Move a live session onto a thread the caller has just opened. */
   readonly handleCarryRequest: (request: Request) => Promise<Response>;
   readonly handleAttachRequest: (request: Request) => Promise<Response>;
   readonly handleChartRequest: (request: Request) => Promise<Response>;
-  /** The operator's read-only view of what this surface remembers. */
   readonly handleDashboardRequest: (request: Request) => Promise<Response>;
   readonly handleImageRequest: (request: Request) => Promise<Response>;
   readonly handleQuestionsRequest: (request: Request) => Promise<Response>;
   readonly stop: () => Promise<void>;
 }
 
-/**
- * Build the graph once, with any registered extensions folded over it, and
- * keep the resulting context and its scope for the process lifetime.
- */
 const buildContext = (input: {
   readonly botName: () => string;
   readonly isStopping: () => boolean;
@@ -122,7 +88,6 @@ const buildContext = (input: {
     }).pipe(Effect.withSpan("Slack.runtime.buildContext"))
   );
 
-/** Run an Effect against the graph built at start. */
 const runWith = <A>(
   context: Context.Context<SlackServices>,
   effect: Effect.Effect<A, never, SlackServices>
@@ -141,11 +106,8 @@ const messageOf = (event: RawSlackMessage): IncomingMessage => ({
   userId: event.user,
 });
 
-/** Who this bot is, as Slack sees it. */
 interface SlackIdentity {
-  /** Display name, for copy a reader sees. Falls back to a neutral noun. */
   readonly botName: string;
-  /** Bolt's `authorize` carries this so Bolt never authenticates on its own. */
   readonly botId: string | undefined;
   readonly botUserId: string | undefined;
   readonly teamId: string;
@@ -158,18 +120,6 @@ const UNKNOWN_IDENTITY: SlackIdentity = {
   teamId: "",
 };
 
-/**
- * Who and where this bot is, resolved once from a single `auth.test`.
- *
- * The team id matters most: without it the event path used `event.team` while
- * dispatch fell back to an env var that is not in the manifest, so the same
- * thread mapped to two different sessions depending on how the turn started.
- *
- * The user id is what lets auto-mute tell our own messages from another app's.
- * The name is only copy — the App Home tab tells a reader who to mention. Both
- * come from the same call, so asking for them costs nothing. An unreachable
- * `auth.test` degrades to placeholders rather than refusing to boot.
- */
 const resolveIdentity = (
   context: Context.Context<SlackServices>
 ): Promise<SlackIdentity> =>
@@ -189,13 +139,6 @@ const resolveIdentity = (
         };
       },
     }).pipe(
-      // Logged before it is discarded. Degrading to an unknown identity is
-      // right — the surface can still serve — but the REASON must not vanish:
-      // a revoked token or a missing scope leaves `botUserId` undefined, which
-      // silently degrades the crowd tally to counting no bots at all, while
-      // boot still reports the surface live. `config.ts` fails the boot outright
-      // for a missing env var; a token that exists and does not work was the
-      // quieter failure of the two.
       Effect.tapCause((cause) =>
         Effect.logError("[slack] could not resolve the bot identity", cause)
       ),
@@ -204,13 +147,6 @@ const resolveIdentity = (
     )
   );
 
-/**
- * Wire the approval buttons to the bridge.
- *
- * Approval buttons are only useful if we can answer with them, and the bridge
- * declares `respondInteraction` optionally — so feature-detect rather than
- * posting buttons that would go nowhere.
- */
 const registerInteractionHandlers = (input: {
   readonly bridge: Chat;
   readonly context: Context.Context<SlackServices>;
@@ -235,20 +171,12 @@ const registerInteractionHandlers = (input: {
 
   registerCancelHandler(input.interactions, cancelTurn);
 
-  // Anything a sibling feature registered with `onButton`. Named in the log
-  // because a button that silently failed to wire looks, from Slack, exactly
-  // like a button whose handler did nothing.
   const custom = registerCustomButtons(input.interactions);
   if (custom.length > 0) {
     input.logger.info(`[slack] custom buttons wired: ${custom.join(", ")}`);
   }
 };
 
-/**
- * The two Bolt listeners that route back into the graph. Ignored on failure:
- * a click that cannot be handled must not fault the listener Slack is waiting
- * on, and both paths already log their own causes.
- */
 const interactionDispatchers = (
   context: Context.Context<SlackServices>,
   interactions: InteractionsShape
@@ -262,10 +190,6 @@ const interactionDispatchers = (
     runWith(context, interactions.dispatchView(payload).pipe(bestEffort)),
 });
 
-/**
- * Everything the turn path needs, pulled out of the graph. Both entry points
- * — a Slack event and the loopback dispatch route — land in the same path.
- */
 const turnRouteDeps = (input: {
   readonly bridge: Chat;
   readonly config: SlackConfig;
@@ -286,8 +210,6 @@ const turnRouteDeps = (input: {
   isStopping: input.isStopping,
   logger: input.logger,
   messageOf,
-  // The notes are effects; `runWith` is the same single edge every other
-  // Promise-shaped handle on this record crosses, not a boundary of their own.
   postQueuedNotice: (ref: ThreadRef): Promise<void> =>
     runWith(input.context, postQueuedNotice(ref)),
   sayFailed: (ref: ThreadRef): Promise<void> =>
@@ -301,13 +223,6 @@ const turnRouteDeps = (input: {
   workspaceTeamId: input.identity.teamId,
 });
 
-/**
- * Register every handler and open the surface for traffic.
- *
- * The order is load-bearing: the interaction and event handlers have to be
- * registered BEFORE `app.start()`, or the first click after boot lands on a
- * router that has nothing for it.
- */
 const openForTraffic = async (input: {
   readonly bridge: Chat;
   readonly config: SlackConfig;
@@ -349,8 +264,6 @@ const openForTraffic = async (input: {
     })
   );
 
-  // After `makeTurnRoutes`, because answering a form STARTS a turn and only
-  // the routes know how.
   registerQuestionHandlers({
     continueTurn: (form, prompt) => {
       routes.runTurnSafely({
@@ -382,13 +295,6 @@ const openForTraffic = async (input: {
   };
 };
 
-/**
- * The handles `feature.ts` routes to, from the pieces that serve them.
- *
- * Mechanical, and separate for that reason: every route this surface exposes is
- * named in one place, so adding one is a single obvious edit rather than a line
- * buried in the boot sequence.
- */
 const runtimeOf = (input: {
   readonly receiver: SlackReceiver;
   readonly routes: TurnRoutes;
@@ -414,18 +320,11 @@ export const startSlackRuntime = async (input: {
   readonly bridge: Chat;
   readonly logger: SlackLogger;
 }): Promise<SlackRuntime> => {
-  // Decoded once, here. Nothing downstream reaches for `Bun.env` mid-turn.
   const config = readSlackConfig();
   setLoadingEmoji(config.loadingEmoji);
   const { token } = config;
 
-  /** Set by `stop()` so no new work is admitted while in-flight turns drain. */
   let stopping = false;
-  /**
-   * Resolved after the graph is built, because `auth.test` needs the client the
-   * graph provides. `Home` reads the name through a thunk for exactly this
-   * reason — it is published on demand, long after boot.
-   */
   let identity = UNKNOWN_IDENTITY;
 
   const { context, scope } = await buildContext({
@@ -447,9 +346,6 @@ export const startSlackRuntime = async (input: {
   });
 
   return runtimeOf({
-    // Read straight off the built graph, like the client above: the dashboard
-    // is a read of state the turn pipeline already owns, so it needs no route
-    // of its own inside it.
     dashboard: makeDashboardRoute(Context.get(context, StateStore)),
     receiver,
     routes,

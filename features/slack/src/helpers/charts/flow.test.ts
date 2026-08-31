@@ -44,7 +44,6 @@ const post = {
   title: "Why the run failed",
 };
 
-/** Every `y` a node box was drawn at, in document order. */
 const nodeRows = (svg: string): number[] =>
   [...svg.matchAll(/<rect x="\d+" y="(\d+)" width="\d+" height="52"/gu)].map(
     (match) => Number(match[1])
@@ -59,8 +58,6 @@ describe("flowChartSvg", () => {
   });
 
   test("branches sit side by side, on the same row", () => {
-    // Two arms out of one decision is the shape a plain ordered stack cannot
-    // draw, and the whole reason this renderer exists.
     const rows = nodeRows(flowChartSvg(post));
 
     expect(rows[2]).toBe(rows[3] ?? -1);
@@ -74,7 +71,6 @@ describe("flowChartSvg", () => {
   });
 
   test("colours a failure arm differently from a success", () => {
-    // So the shape reads at a glance rather than only on reading it.
     const svg = flowChartSvg(post);
 
     expect(svg).toContain("#3d2626");
@@ -82,7 +78,6 @@ describe("flowChartSvg", () => {
   });
 
   test("drops an edge naming a node that is not there", () => {
-    // A typo in an id would otherwise throw mid-render, losing the picture.
     const svg = flowChartSvg({
       ...post,
       edges: [
@@ -98,8 +93,6 @@ describe("flowChartSvg", () => {
   });
 
   test("a cycle renders rather than hanging", () => {
-    // Depth is iterated to a fixed point, so a graph that points back at
-    // itself must stop early instead of looping forever.
     const svg = flowChartSvg({
       edges: [
         {

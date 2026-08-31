@@ -1,10 +1,3 @@
-/**
- * chart-request.ts — the wire shape the chart skill posts.
- *
- * Decoded once here so the route never guesses at a malformed body, and so the
- * skill and the surface agree on one contract rather than two.
- */
-
 import { Result, Schema } from "effect";
 
 import type {
@@ -16,7 +9,6 @@ import { barChartSvg } from "./charts.ts";
 import { flowChartSvg, MAX_NODES, MAX_ROW_WIDTH, widestRow } from "./flow.ts";
 import { parseGraphSource } from "./graph-source.ts";
 
-/** Enough for any chart worth reading in a thread. */
 const MAX_ROWS = 24;
 
 const Row = Schema.Struct({
@@ -43,7 +35,6 @@ const FlowEdge = Schema.Struct({
 
 const ChartBody = Schema.Struct({
   channel: Schema.String,
-  /** Mermaid flowchart syntax — the model writes a diagram, not a schema. */
   graph: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   edges: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(FlowEdge))),
   kind: Schema.Literals(["bars", "flow"]),
@@ -87,12 +78,6 @@ type ChartParse =
   | { readonly ok: true; readonly request: ChartRequest }
   | { readonly ok: false; readonly error: string };
 
-/**
- * Decode a chart request and render it in one step.
- *
- * Rendering here rather than in the route keeps the only place that knows both
- * chart kinds next to the builders themselves.
- */
 export const parseChartBody = (raw: unknown): ChartParse =>
   Result.match(decodeBody(raw), {
     onFailure: (): ChartParse => ({
@@ -114,10 +99,6 @@ export const parseChartBody = (raw: unknown): ChartParse =>
         bars: rows.length,
         flow: nodes.length,
       };
-      // A wide fan-out is a table with the parent as its heading, and drawn
-      // as a flow its labels overlap into an unreadable smear. Refused rather
-      // than rendered, because the model can write the table instead and only
-      // will if it is told.
       if (decoded.kind === "flow") {
         if (nodes.length > MAX_NODES) {
           return {

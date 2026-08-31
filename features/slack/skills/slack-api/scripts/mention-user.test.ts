@@ -1,16 +1,3 @@
-/**
- * The refusal is the point of this module.
- *
- * `resolveUserMention` turns a human-typed name into a `<@USERID>` that Slack
- * will ping for real, so the case that matters most is the one where it
- * declines: a partial match with more than one candidate is refused rather
- * than resolved to whoever happened to sort first. These cases pin that, plus
- * the exact-match preference that lets an unambiguous name through.
- *
- * The lookup is injected via `listUsersImpl`, so nothing here reaches Slack;
- * the fakes stand for what `listUsers` returns for a given search.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -28,7 +15,6 @@ const member = (
   user_id,
 });
 
-/** A lookup that always hands back the same roster, recording what it was asked. */
 const lookupReturning = (
   members: readonly SlackMember[],
   searches: string[] = []
@@ -53,8 +39,6 @@ const successValue = (result: Result.Result<string, Error>): string =>
 
 describe("resolveUserMention — the ambiguity refusal", () => {
   test("refuses a partial match with more than one candidate", async () => {
-    // The whole reason this module exists: two people whose names both contain
-    // "chris" and neither is what was typed, so pinging either is a coin flip.
     const result = await resolveUserMention({
       listUsersImpl: lookupReturning([
         member("U1", "chrisp", "Chris Perry"),
@@ -81,8 +65,6 @@ describe("resolveUserMention — the ambiguity refusal", () => {
   });
 
   test("returns no mention at all when it refuses", async () => {
-    // A refusal that still leaked a `<@U…>` into the message would defeat the
-    // guard, since callers paste failure text into Slack.
     const result = await resolveUserMention({
       listUsersImpl: lookupReturning([
         member("U1", "chrisp", "Chris Perry"),
@@ -96,8 +78,6 @@ describe("resolveUserMention — the ambiguity refusal", () => {
   });
 
   test("does not refuse when one of the several candidates is an exact match", async () => {
-    // Ambiguity only blocks a *partial* match; typing someone's exact handle
-    // is an unambiguous instruction even in a crowd of near misses.
     const result = await resolveUserMention({
       listUsersImpl: lookupReturning([
         member("U1", "chrisp", "Chris Perry"),
@@ -137,8 +117,6 @@ describe("resolveUserMention — exact match preference", () => {
   });
 
   test("matches the exact name case-insensitively", async () => {
-    // Nobody types a handle with the same capitalisation Slack stores, and a
-    // case-sensitive compare would demote this to an ambiguous partial.
     const result = await resolveUserMention({
       listUsersImpl: lookupReturning([
         member("U1", "labrador", "Some Body"),
@@ -174,8 +152,6 @@ describe("resolveUserMention", () => {
   });
 
   test("outputs exactly the `<@USERID>` mention Slack expects", async () => {
-    // Slack renders the mention only for this literal shape — no spaces, no
-    // surrounding punctuation, no display name.
     const result = await resolveUserMention({
       listUsersImpl: lookupReturning([
         member("U05AJSRUVPT", "lab", "Lab Person"),
@@ -197,9 +173,6 @@ describe("resolveUserMention", () => {
   });
 
   test("propagates a lookup failure instead of reporting no user found", async () => {
-    // A revoked token or a rate limit is not the same answer as "that person
-    // does not exist", and reporting it as the latter sends callers hunting
-    // for a typo in a name that is spelled correctly.
     const result = await resolveUserMention({
       listUsersImpl: lookupFailing(new Error("ratelimited")),
       name: "lab",
@@ -221,8 +194,6 @@ describe("resolveUserMention", () => {
   });
 
   test("uses the real lookup when no impl is injected", async () => {
-    // The seam is additive: with it absent the module still builds its own
-    // client, which with no token fails before any socket is opened.
     const result = await resolveUserMention({
       env: {},
       name: "lab",

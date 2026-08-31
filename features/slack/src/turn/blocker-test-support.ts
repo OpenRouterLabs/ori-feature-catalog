@@ -1,13 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- siblings are imported relatively, and the recorded blocks are read back as the JSON they are */
-/**
- * blocker-test-support.ts — a blocking ask wired to everything but Slack.
- *
- * The route, the ask registry, the interaction dispatcher and the blocker
- * handler are the REAL ones; only the thread reply is recorded rather than
- * sent. That is what lets a case click a button by the value the route
- * actually encoded instead of inventing an ask id, which is the only way the
- * encode/decode wire between them gets exercised.
- */
 import { Effect } from "effect";
 
 import type { BlockersShape } from "../interactions/blocker.ts";
@@ -53,7 +44,6 @@ interface RecordedButton {
   readonly value: string;
 }
 
-/** The buttons a reader would actually see, read back out of the blocks. */
 export const buttonsOf = (
   blocks: readonly unknown[]
 ): readonly RecordedButton[] =>
@@ -86,8 +76,6 @@ const makeRecorder = (options: {
   const posted: RecordedBlocks[] = [];
   const updated: RecordedBlocks[] = [];
 
-  // Only what the route reaches for: a method it never calls, stubbed, reads
-  // as a claim that it might.
   const reply = {
     ref: {
       channelId: "C1",
@@ -128,7 +116,6 @@ const makeRecorder = (options: {
 
 export interface Wired {
   readonly blockers: BlockersShape;
-  /** Click a button exactly as Slack delivers it: by its recorded value. */
   readonly click: (value: string) => Promise<void>;
   readonly route: (request: Request) => Promise<Response>;
   readonly thread: (threadTs: string) => ThreadRecorder;
@@ -214,12 +201,6 @@ export const ask = (
     method: "POST",
   });
 
-/**
- * Wait until the route has registered its asks.
- *
- * The route decodes, resolves the reply and posts before the ask exists, so
- * clicking straight after calling it clicks at nothing.
- */
 const REGISTRATION_POLLS = 200;
 
 export const asksRegistered = async (

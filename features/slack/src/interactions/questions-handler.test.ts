@@ -39,7 +39,6 @@ const FORM: PendingForm = {
   ref: REF,
 };
 
-/** A surface with the form already posted and waiting. */
 const withForm = (posted: PendingForm = FORM) =>
   Effect.gen(function* () {
     const forms = yield* QuestionnairesMemory;
@@ -89,9 +88,6 @@ describe("answering a form starts the next turn", () => {
       );
 
       expect(surface.started).toHaveLength(1);
-      // Slack returns state.values in no guaranteed order; a list whose order
-      // drifts from the questions leaves reader and model reading different
-      // documents.
       const prompt = surface.started[0]?.prompt ?? "";
       expect(prompt.indexOf("Which link colour?")).toBeLessThan(
         prompt.indexOf("Anything else?")
@@ -130,7 +126,6 @@ describe("answering a form starts the next turn", () => {
 
   test.effect("everything optional left blank starts nothing", () =>
     Effect.gen(function* () {
-      // A turn that says nothing is worse than a thread that sits.
       const surface = yield* withForm();
 
       yield* surface.interactions.dispatchView(submit(new Map()));
@@ -158,10 +153,6 @@ describe("the prompt the next turn reads", () => {
 describe("an id Slack's round trip cannot carry", () => {
   test.effect("a separator in the id keeps the answer, because the id is the model's", () =>
     Effect.gen(function* () {
-      // `blockIdFor` joins with `|`, and splitting on every separator brought
-      // `scope|deep` back as `scope`, which matched no question: the person
-      // answered, the message retired with their answer gone, and the turn that
-      // would have read it never started.
       const surface = yield* withForm({
         ...FORM,
         questions: [

@@ -1,18 +1,3 @@
-/**
- * run-fork.ts — open several threads at once and put work in each.
- *
- * "Spin up 2 threads to talk about X with me" is one request, and answering it
- * by calling `new` twice made the two threads independent accidents: if the
- * second failed the user was told nothing, and the first was already live.
- *
- * Each thread still gets its own fresh session, exactly as `new` does — this
- * is the same operation, done N times with one report at the end.
- *
- * Sequential rather than concurrent, deliberately. Slack rate-limits per
- * channel, and the threads appear in the order the user named them, which is
- * the order they will refer to them in ("thread 1", "thread 2").
- */
-
 import { Result } from "effect";
 
 import type { FetchLike } from "./spawn-thread.ts";
@@ -22,16 +7,10 @@ import type { updateMessage } from "./update-message.ts";
 
 import { runNew } from "./run-new.ts";
 
-/**
- * More threads than this is not a request, it is a channel being flooded. The
- * real asks are two or three.
- */
 export const MAX_FORK = 5;
 
 export interface ForkThread {
-  /** The message that opens the thread — what a reader sees in the channel. */
   readonly opener: string;
-  /** The task the agent picks up inside it. */
   readonly prompt: string;
 }
 
@@ -40,13 +19,6 @@ export interface ForkReport {
   readonly failed: readonly { readonly opener: string; readonly reason: string }[];
 }
 
-/**
- * Parse `--threads` — a JSON array of `{opener, prompt}`.
- *
- * JSON rather than repeated flags because `--opener` and `--prompt` each
- * consume the rest of the line, so a repeated form cannot say where one thread
- * ends and the next begins.
- */
 export const parseThreads = (
   raw: string | undefined
 ): Result.Result<readonly ForkThread[], Error> => {
@@ -90,13 +62,6 @@ export const parseThreads = (
   return Result.succeed(threads);
 };
 
-/**
- * Open every thread, and report what happened to each.
- *
- * One failure does not stop the rest: the user asked for several threads, and
- * the useful answer is "these two opened, this one did not" rather than
- * abandoning the run halfway with nothing said about either.
- */
 export const runFork = async (opts: {
   readonly channel: string;
   readonly depth: number;

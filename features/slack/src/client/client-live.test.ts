@@ -15,7 +15,6 @@ import {
 } from "./client-live.ts";
 import { SlackApiError, SlackClient } from "./client.ts";
 
-/** A WebClient stub whose named methods can fail on demand. */
 const stubClient = (impl: Record<string, unknown>): WebClient =>
   impl as unknown as WebClient;
 
@@ -30,16 +29,12 @@ const platformError = (code: string): Error =>
 
 describe("makeConfiguredWebClient", () => {
   test("bounds retries and arms a per-attempt timeout", () => {
-    // The SDK default is tenRetriesInAboutThirtyMinutes with timeout 0, so a
-    // rate-limited call sleeps ~30 minutes and raises nothing.
     const client = makeConfiguredWebClient("xoxb-test") as unknown as {
       axios: { defaults: { timeout?: number } };
       retryConfig: unknown;
     };
 
     expect(client.retryConfig).toEqual(retryPolicies.fiveRetriesInFiveMinutes);
-    // The SDK stores the per-attempt timeout on its axios instance, not as a
-    // top-level field — asserting the real location keeps this honest.
     expect(client.axios.defaults.timeout).toBeGreaterThan(0);
   });
 });
@@ -59,7 +54,6 @@ describe("readSlackBotToken", () => {
       Effect.gen(function* () {
         const failure = yield* readSlackBotToken(env).pipe(Effect.flip);
 
-        // Names the variable, never its value.
         expect(failure.message).toContain("SLACK_BOT_TOKEN");
         expect(failure.op).toBe("config");
       })
@@ -96,8 +90,6 @@ describe("postMessage", () => {
 
   test.effect("tolerates a response missing channel", () =>
     Effect.gen(function* () {
-      // Edits address the message by ts against the thread ref channel, so a
-      // missing channel in the response costs nothing.
       const client = stubClient({
         chat: {
           postMessage: () =>
@@ -124,9 +116,6 @@ describe("postMessage", () => {
 
   test.effect("fails rather than handing back a message with no ts", () =>
     Effect.gen(function* () {
-      // Every later edit addresses the message by ts. Defaulting to "" returns
-      // a handle that silently fails on every update for the rest of the turn;
-      // failing here lets the caller fall back to posting anew.
       const client = stubClient({
         chat: { postMessage: () => Promise.resolve({ ok: true }) },
       });
@@ -240,7 +229,6 @@ describe("error classification", () => {
   test.each(["missing_scope", "invalid_auth", "channel_not_found"])(
     "%s is terminal",
     (code) => {
-      // Retrying these only burns the rate-limit budget.
       expect(
         new SlackApiError({
           cause: undefined,

@@ -1,21 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * reply-live.ts — a reply surface bound to one thread.
- *
- * Markdown is passed through as-is: Slack renders it natively via
- * `markdown_text`, so there is no conversion layer to keep in sync.
- *
- * `markdown_text` is mutually exclusive with `text`/`blocks` — Slack rejects
- * the call outright with `markdown_text_conflict` if both are present
- * (https://docs.slack.dev/reference/methods/chat.postMessage). `reply`/`update`
- * therefore send `markdown_text` alone; `replyBlocks`/`updateBlocks` send
- * `blocks` with a plain-text `fallback` in `text`, never `markdown_text`.
- *
- * Length is enforced HERE, at the boundary that actually talks to Slack, so no
- * caller can bypass it. Slack rejects an over-long message outright rather
- * than trimming it, which would turn a long agent answer into no answer at
- * all — the worst possible outcome for the user who asked.
- */
 
 import { Effect } from "effect";
 
@@ -32,7 +15,6 @@ import { SlackClient } from "../client/index.ts";
 import { capBlocks, withinSlackLimit } from "../helpers/block-kit/blocks.ts";
 import { uploadFile } from "../helpers/images-files/upload.ts";
 
-/** Liveness without a message, bound to the thread like the rest. */
 export const makeMessageReply = Effect.fn("Slack.reply.make")(function* (
   ref: ThreadRef
 ): Effect.fn.Return<MessageReplyShape, never, SlackClient> {

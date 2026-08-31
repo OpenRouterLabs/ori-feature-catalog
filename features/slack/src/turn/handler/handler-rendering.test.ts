@@ -54,7 +54,6 @@ const bridgeOf = (
     sendMessage: (input: ChatTurnInput): AsyncIterable<AgentRuntimeEvent> => {
       sent.push(input);
       return (async function* () {
-        // Fires once the turn is live, which is when a status could arrive.
         onRunning?.();
         if (holdMs !== undefined) {
           await new Promise((resolve) => {
@@ -89,13 +88,6 @@ const liveTurn = () => {
   };
 };
 
-/**
- * Drives one turn and hands back what it left behind.
- *
- * An Effect rather than a promise: the turn is the Effect under test, so the
- * case yields it and the harness owns the one exit — a defect inside the turn
- * arrives as a rendered cause instead of whatever the runtime threw.
- */
 const run = (input: {
   readonly events: readonly AgentRuntimeEvent[];
   readonly holdMs?: number;
@@ -155,10 +147,6 @@ const run = (input: {
     };
   });
 
-/**
- * The answer is an EDIT now: the opening "On it…" is posted first and then
- * rewritten into the reply, so reading only posts finds the placeholder.
- */
 const ANSWER_OPS: ReadonlySet<string> = new Set([
   "chat.update",
   "chat.postMessage",
@@ -168,8 +156,6 @@ const answered = (fake: ReturnType<typeof makeFakeSlackClient>): string =>
   fake.calls
     .filter((call) => ANSWER_OPS.has(call.op))
     .map((call) => {
-      // Blocks now, with the answer as the fallback text; markdown_text is
-      // still how the edited path carries it.
       const args = call.args as {
         markdown_text?: string;
         text?: string;
@@ -178,7 +164,6 @@ const answered = (fake: ReturnType<typeof makeFakeSlackClient>): string =>
     })
     .join("\n");
 
-/** Everything the run put on screen, whichever transport carried it. */
 const PROGRESS_OPS: ReadonlySet<string> = new Set([
   "chat.postMessage",
   "chat.update",
@@ -187,7 +172,6 @@ const PROGRESS_OPS: ReadonlySet<string> = new Set([
 const progress = (fake: ReturnType<typeof makeFakeSlackClient>): string =>
   JSON.stringify(fake.calls.filter((call) => PROGRESS_OPS.has(call.op)));
 
-/** Kept for assertions that do not care which message the text landed on. */
 const updated = (fake: ReturnType<typeof makeFakeSlackClient>): string[] => [
   answered(fake),
   progress(fake),
@@ -204,15 +188,11 @@ describe("handleTurn rendering", () => {
         ],
       });
 
-      // Not `.at(-1)`: the last edit is the cancel affordance being retired.
       expect(updated(fake).join("\n")).toContain("Hello world");
     }));
 
   test.effect("answers with what it SAID, never with its tool calls", () =>
     Effect.gen(function* () {
-      // A feed of bash, read, bash is spam that says nothing a person wants.
-      // The narration goes to the status line while the work happens; the
-      // answer is the answer.
       const { fake } = yield* run({
         events: [
           event("assistant.text.delta", {
@@ -224,17 +204,13 @@ describe("handleTurn rendering", () => {
         ],
       });
 
-      // `bash` appears in the footer's tool counts, never inside the prose.
       expect(answered(fake)).not.toContain("bash gh");
-      // And the narration never leaks into the answer, which is the last block.
       expect(answered(fake)).toContain("the answer");
       expect(answered(fake)).not.toContain("Checking CI");
     }));
 
   test.effect("renders a failed turn as failed", () =>
     Effect.gen(function* () {
-      // `AgentFailure.message` is the contract's display-safe summary; the
-      // payload carries a structured failure, not a bare error string.
       const { fake } = yield* run({
         events: [
           event("turn.failed", {
@@ -274,8 +250,6 @@ describe("handleTurn rendering", () => {
     "the agent's reading of the ask leads, work follows under it",
     () =>
       Effect.gen(function* () {
-        // Devin's shape: the acknowledgement lands on arrival, then the agent's
-        // own words, then the work as cards under them.
         const { fake } = yield* run({
           events: [
             event("assistant.text.delta", {
@@ -295,9 +269,6 @@ describe("handleTurn rendering", () => {
 
   test.effect("never reacts to the ask", () =>
     Effect.gen(function* () {
-      // The eye was the only sign of life before the first card, and it was only
-      // ever taken off at the end — so it accumulated against every message
-      // anyone had asked the bot anything in. The cards are the signal now.
       const { fake } = yield* run({ events: [event("turn.succeeded", {})] });
       const ops = fake.calls.map((call) => call.op);
 

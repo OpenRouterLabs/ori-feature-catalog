@@ -33,8 +33,6 @@ const recording = (
 
 describe("parseArgs", () => {
   test("reads the subcommand only from the first token", () => {
-    // `--prompt new` must stay a prompt: a subcommand read from anywhere would
-    // silently turn a continuation into a fresh thread.
     expect(parseArgs(["new", "--channel", "C1"]).subcommand).toBe(
       Subcommand.New
     );
@@ -53,8 +51,6 @@ describe("parseArgs", () => {
   });
 
   test("--prompt is terminal and keeps the whole task as one string", () => {
-    // The prompt is a sentence the shell may have split into a dozen tokens;
-    // rejoining only the first would dispatch a truncated task.
     expect(
       parseArgs(["--channel", "C1", "--prompt", "read", "the", "logs"]).prompt
     ).toBe("read the logs");
@@ -96,8 +92,6 @@ describe("parseArgs", () => {
   });
 
   test("a value flag with nothing after it is not treated as a value", () => {
-    // `--channel` at the end used to consume nothing and leave `channel`
-    // undefined; the CLI must fall through to usage rather than dispatch.
     expect(parseArgs(["--channel"]).channel).toBeUndefined();
     expect(parseArgs(["--channel", "--prompt", "hi"]).channel).toBeUndefined();
   });
@@ -115,8 +109,6 @@ describe("checkDepth", () => {
   });
 
   test("refuses at the maximum rather than one spawn past it", () => {
-    // The spawned child is depth+1, so a run already at MAX would create
-    // MAX+1 — the depth the dispatch route rejects.
     const result = checkDepth(String(MAX_SPAWN_DEPTH));
 
     expect(Result.isFailure(result)).toBe(true);
@@ -126,7 +118,6 @@ describe("checkDepth", () => {
   });
 
   test("a half-numeric depth is refused, not parsed as its prefix", () => {
-    // parseInt("2abc") is 2, which would let a corrupted env keep recursing.
     expect(Result.isFailure(checkDepth("2abc"))).toBe(true);
     expect(Result.isFailure(checkDepth("1.5"))).toBe(true);
     expect(Result.isFailure(checkDepth("-1"))).toBe(true);
@@ -144,8 +135,6 @@ describe("resolveHttpPort", () => {
   });
 
   test("falls back rather than building an unusable URL", () => {
-    // A junk port would produce a fetch that fails with a DNS-shaped error the
-    // agent cannot act on; the default at least reaches a running daemon.
     expect(resolveHttpPort({ ORI_RUNTIME_PORT: "abc" })).toBe(
       DEFAULT_HTTP_PORT
     );
@@ -184,8 +173,6 @@ describe("dispatchToRunloop", () => {
   });
 
   test("hands the child a depth one greater than its own", async () => {
-    // This is the counter the whole recursion guard rests on: sending the
-    // parent's depth would make the chain unbounded.
     const calls: Call[] = [];
 
     await dispatchToRunloop({
@@ -260,8 +247,6 @@ describe("dispatchToRunloop", () => {
   });
 
   test("an unreachable daemon is a failure, not a rejected promise", async () => {
-    // The CLI maps failures to exit 1; an escaping rejection would surface as
-    // an unhandled error with no "spawn-thread:" line for the agent to read.
     const result = await dispatchToRunloop({
       channel: "C1",
       depth: 0,

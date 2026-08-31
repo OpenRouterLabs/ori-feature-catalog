@@ -1,12 +1,6 @@
 import type { StateStore as OriStateStore } from "ori";
 
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- modules inside this feature import siblings relatively, and bun:sqlite's variadic params are `any` at the boundary */
-/**
- * store-durable.test.ts — thread state outlives the process.
- *
- * Against a real SQLite database, because the point of the change is what
- * survives a restart and an in-memory double would prove nothing.
- */
 import { Database } from "bun:sqlite";
 
 import {
@@ -32,7 +26,6 @@ import {
 import { InterruptMode } from "./settings.ts";
 import { StateStoreDurable } from "./store-durable.ts";
 
-/** Named so the autofixer cannot strip a bare `undefined` and widen it. */
 const NO_VALUE: string | undefined = undefined;
 
 const open = (): {
@@ -40,8 +33,6 @@ const open = (): {
   readonly store: OriStateStore;
 } => {
   const db = new Database(":memory:");
-  // The framework store's key-value side is a real map here rather than a
-  // stub: the setting persists through it, so a no-op would prove nothing.
   const kv = new Map<string, string>();
   return {
     close: () => {
@@ -68,7 +59,6 @@ const open = (): {
 
 let opened: ReturnType<typeof open> | undefined;
 
-/** The database the current test opened, as the next process would find it. */
 const sameDatabase = (): OriStateStore => {
   const current = opened;
   if (current === undefined) {
@@ -91,15 +81,12 @@ afterEach(() => {
 describe("state that survives a restart", () => {
   test.effect("a session is still there for the next process", () =>
     Effect.gen(function* () {
-      // The memory store lost every session on `ori start`, so a restart
-      // cold-started every conversation in the workspace.
       const first = yield* store();
       yield* first.putSession("C1:1700.1", {
         sessionId: "s-42",
         startedAt: 99,
       });
 
-      // A second store over the same database is what the next process sees.
       const reopened = yield* StateStoreDurable(sameDatabase());
       const next = yield* reopened.getSession("C1:1700.1");
 
@@ -121,8 +108,6 @@ describe("state that survives a restart", () => {
 
   test.effect("participants survive the round trip, Set and all", () =>
     Effect.gen(function* () {
-      // They are a Set, which does not survive JSON — so this is exactly the
-      // shape a naive serialisation loses.
       const state = yield* store();
       yield* state.updateListen("C1:1700.3", (s) =>
         withParticipant(withParticipant(s, "U1"), "U2")
@@ -157,8 +142,6 @@ describe("state that survives a restart", () => {
 
   test.effect("a store that throws costs a cold start, never the turn", () =>
     Effect.gen(function* () {
-      // Every call is best-effort: an unreachable store degrades to what the
-      // memory store did on every restart anyway.
       const broken: OriStateStore = {
         exec: () => Promise.reject(new Error("disk gone")),
         get: () => Promise.resolve(NO_VALUE),
@@ -178,9 +161,6 @@ describe("state that survives a restart", () => {
 describe("a crowded thread stays crowded", () => {
   test.effect("the people in it are still there after a restart", () =>
     Effect.gen(function* () {
-      // This is the whole reason participants are persisted. A busy thread had
-      // correctly stood the bot down; `ori start` forgot who was in it, so the
-      // count restarted at one and it answered plain replies in a room of five.
       const before = yield* store();
       yield* before.updateListen("C1:crowd", (s) =>
         mute(withParticipant(withParticipant(engage(s), "U_rob"), "U_jp"))
@@ -240,8 +220,6 @@ describe("listing every thread the database knows", () => {
 
   test.effect("finds a thread that was only ever listened to", () =>
     Effect.gen(function* () {
-      // The two tables are written independently, so neither one alone is the
-      // list. A thread muted before the bot ever answered lives only here.
       const state = yield* store();
       yield* state.updateListen("thread-b", mute);
 
@@ -256,8 +234,6 @@ describe("listing every thread the database knows", () => {
 
   test.effect("a thread in both tables is listed once, joined", () =>
     Effect.gen(function* () {
-      // What the UNION is for: the same instance id in both halves must not
-      // render as two rows.
       const state = yield* store();
       yield* state.putSession("thread-c", {
         sessionId: "sess-2",
@@ -303,8 +279,6 @@ describe("the interrupt setting", () => {
 
   test.effect("a saved setting is still there for the next process", () =>
     Effect.gen(function* () {
-      // The whole point of settling this in the store: an operator who turned
-      // steering off should not have it turned back on by a restart.
       const state = yield* store();
       yield* state.putInterruptMode(InterruptMode.Queue);
 

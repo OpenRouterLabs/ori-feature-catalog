@@ -7,7 +7,6 @@ import type { GateContext, IncomingMessage } from "./gates.ts";
 import { readSlackConfig } from "../config.ts";
 import { admitMessage, gateContextOf } from "./gates.ts";
 
-/** The gates as configured by an environment, end to end. */
 const readGateContext = (
   env: Readonly<Record<string, string | undefined>>
 ): ReturnType<typeof gateContextOf> =>
@@ -41,7 +40,6 @@ describe("admitMessage", () => {
 
   describe("loop protection", () => {
     test("rejects our own message", () => {
-      // Without this the bot answers itself and never stops.
       expect(admitMessage(message({ userId: "U_BOT" }), context())).toEqual({
         admit: false,
         reason: "self",
@@ -49,8 +47,6 @@ describe("admitMessage", () => {
     });
 
     test("rejects any other app", () => {
-      // Two agents in one channel would otherwise answer each other forever,
-      // and each exchange costs a model call.
       expect(
         admitMessage(
           message({
@@ -164,7 +160,6 @@ describe("admitMessage", () => {
     });
 
     test("rejects an anonymous message when an allowlist is set", () => {
-      // Fail closed: no user id cannot satisfy an allowlist.
       expect(
         admitMessage(
           message({ userId: undefined }),
@@ -229,7 +224,6 @@ describe("readGateContext", () => {
   });
 
   test("drops empty entries rather than creating a blank prefix", () => {
-    // A blank prefix would match every message and mute the bot entirely.
     const parsed = readGateContext({ SLACK_SKIP_PREFIXES: "//,,  ," });
 
     expect(parsed.skipPrefixes).toEqual(["//"]);

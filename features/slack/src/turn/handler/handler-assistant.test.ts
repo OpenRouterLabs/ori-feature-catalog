@@ -1,11 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/no-use-before-define unicorn/no-useless-undefined promise/avoid-new unicorn/consistent-function-scoping -- siblings are imported relatively; test doubles stand in for Slack SDK and runtime shapes, and a manually released barrier is how a case reaches the live-turn window */
-/**
- * handler-assistant.test.ts — what the assistant pane changes about a turn.
- *
- * Kept apart from `handler.test.ts` because these cases need a REMEMBERED pane
- * and that file's harness deliberately has none: the default is a channel, and
- * every pane-only call being a no-op there is itself the thing it pins.
- */
 
 import type { AgentRuntimeEvent, Chat } from "ori";
 
@@ -43,13 +36,6 @@ const event = (type: string, payload: unknown): AgentRuntimeEvent =>
     type,
   }) as unknown as AgentRuntimeEvent;
 
-/**
- * A bridge whose stream can be held open.
- *
- * `holdBefore` pauses the stream just before that event, which is how a case
- * reaches the window where a turn's status sink is registered — outside it
- * there is nothing to publish into.
- */
 const bridgeOf = (
   events: readonly AgentRuntimeEvent[],
   holdBefore?: { readonly index: number; readonly until: Promise<void> }
@@ -76,7 +62,6 @@ const bridgeOf = (
   };
 };
 
-/** A recording assistant service, so a case sees what the turn asked of it. */
 const recordingAssistant = (paneContext?: {
   readonly channelId: string | undefined;
 }): {
@@ -102,12 +87,6 @@ const recordingAssistant = (paneContext?: {
   };
 };
 
-/**
- * One pane turn, as an Effect.
- *
- * The store is threaded in rather than made here so a case can run two turns
- * against one memory — which is what "only the first message titles it" means.
- */
 const runTurn = (input: {
   readonly assistant: AssistantThreadsShape;
   readonly events?: readonly AgentRuntimeEvent[];
@@ -162,8 +141,6 @@ describe("a turn in an assistant pane", () => {
 
       yield* runTurn({ assistant: assistant.shape });
 
-      // Something true while a run is live, so the pane is never blank; replaced
-      // by the agent's own words as they land.
       expect(assistant.calls.at(0)).toBe("status:is thinking…");
     }));
 
@@ -173,8 +150,6 @@ describe("a turn in an assistant pane", () => {
 
       yield* runTurn({ assistant: assistant.shape });
 
-      // Slack shows it until cleared, so a run that ends without this leaves the
-      // pane thinking next to the answer it already posted.
       expect(assistant.calls.at(-1)).toBe("status:");
     }));
 
@@ -200,8 +175,6 @@ describe("a turn in an assistant pane", () => {
         text: "now do the second one",
       });
 
-      // The title names the whole conversation in the reader's history, so
-      // re-titling from every later message would keep renaming it.
       const titles = assistant.calls.filter((call) => call.startsWith("title:"));
       expect(titles).toEqual(["title:triage the open PRs please"]);
     }));
@@ -212,8 +185,6 @@ describe("a turn in an assistant pane", () => {
 
       const { prompts } = yield* runTurn({ assistant: assistant.shape });
 
-      // Without this "summarise this channel" in a pane has no referent but the
-      // question itself.
       expect(prompts.at(0)).toContain("<#C_BEHIND>");
       expect(prompts.at(0)).toContain("assistant pane");
     }));
@@ -224,14 +195,10 @@ describe("a turn in an assistant pane", () => {
 
       const { prompts } = yield* runTurn({ assistant: assistant.shape });
 
-      // A channel turn must not be told it is in a pane, and a pane opened from
-      // nowhere has nothing to point at.
       expect(prompts.at(0)).not.toContain("assistant pane");
     }));
 
   test("keys the pane by channel and thread, not by session id", () => {
-    // A pane only exists in the installed workspace, and the callers have a
-    // channel and a thread but not always a team.
     expect(keyOf(ref)).toBe(`${ref.channelId}:${ref.threadTs}`);
   });
 });

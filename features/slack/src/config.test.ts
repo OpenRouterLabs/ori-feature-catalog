@@ -35,8 +35,6 @@ describe("the secrets are the only thing worth refusing to boot over", () => {
 
 describe("a misconfigured value degrades rather than breaking the surface", () => {
   test("an empty optional reads as absent, not as an empty value", () => {
-    // `SLACK_LOADING_EMOJI=` in an env file would otherwise render nothing at
-    // all where the spinner should be.
     const config = readSlackConfig({
       ...secrets,
       SLACK_IMAGE_MODEL: "  ",
@@ -61,8 +59,6 @@ describe("a misconfigured value degrades rather than breaking the surface", () =
 
 describe("readBotToken", () => {
   test("degrades to undefined where readSlackConfig would throw", () => {
-    // The `use("slack")` api is reachable without the surface running, so an
-    // unconfigured workspace must get "not available", not a boot error.
     expect(readBotToken({})).toBeUndefined();
     expect(readBotToken({ SLACK_BOT_TOKEN: "xoxb-test" })).toBe("xoxb-test");
   });
@@ -70,7 +66,6 @@ describe("readBotToken", () => {
 
 describe("SLACK_ENV_VARS", () => {
   test("lists every name the config actually reads", () => {
-    // The list is the documentation; drift makes it a lie.
     const source = new Set(SLACK_ENV_VARS);
     const probe = Object.fromEntries(
       SLACK_ENV_VARS.map((name) => [name, "probe"])

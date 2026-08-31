@@ -1,12 +1,4 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the shell is generic over its body, and a test names one shape */
-/**
- * loopback-route.test.ts — the shell every loopback route shares.
- *
- * The cap is the reason this exists. Five routes each checked
- * `content-length` and then called `request.json()` unbounded, so a chunked
- * request — which carries no such header — walked straight past a ceiling
- * that read as enforced.
- */
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
@@ -59,7 +51,6 @@ const body = (note: string): string =>
     thread_ts: "1.2",
   });
 
-/** A body with no content-length, which is what a chunked POST looks like. */
 const chunked = (payload: string): Request =>
   new Request("http://127.0.0.1/slack/thread/x", {
     body: new ReadableStream({
@@ -87,8 +78,6 @@ describe("the cap holds however the body arrives", () => {
   });
 
   test("an UNDECLARED oversize body is refused too", async () => {
-    // The bug: no content-length, so the old guard compared against 0 and
-    // fell through to an unbounded json().
     const before = seen.refs.length;
 
     const response = await route(chunked(body("x".repeat(4096))));

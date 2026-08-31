@@ -1,19 +1,3 @@
-/**
- * conversations.history, driven through the `client` seam.
- *
- * The module builds a real `WebClient` unless one is handed to it, and that
- * client talks to Slack through axios' node adapter — so a stubbed
- * `globalThis.fetch` would not intercept anything, and `mock.module` would
- * patch the resolved path for every other test file in the run. Every case
- * here injects a hand-written client instead, and passes an empty `env` so a
- * regression that ignored the seam would fail on the missing token rather than
- * quietly reach the network.
- *
- * The pure page-shaping helpers are exercised directly: the argument the module
- * sends is the part that regresses silently, because a dropped window or a
- * dropped cursor still returns messages.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -41,10 +25,6 @@ interface FakeClient {
   readonly client: WebClient;
 }
 
-/**
- * A client narrowed to the single method this module calls. The cast is the
- * seam: nothing here implements the rest of WebClient, and nothing needs to.
- */
 const fakeHistoryClient = (pages: readonly HistoryPage[]): FakeClient => {
   const calls: HistoryArgs[] = [];
   let served = 0;
@@ -111,7 +91,6 @@ const stamped = (from: number, count: number): { readonly ts: string }[] =>
     ts: String(from + index),
   }));
 
-/** `count` full pages that always claim another page after them. */
 const endlessPages = (count: number, perPage: number): HistoryPage[] =>
   Array.from({ length: count }, (_, index) => ({
     messages: stamped(index * perPage, perPage),
@@ -126,8 +105,6 @@ const BASE = {
 
 describe("historyPageArgs", () => {
   test("asks for a full page and sends nothing it was not given", () => {
-    // No window means no `inclusive`, and no cursor key at all — Slack rejects
-    // an explicitly undefined cursor rather than ignoring it.
     expect(
       historyPageArgs({
         collected: 0,
@@ -175,8 +152,6 @@ describe("historyPageArgs", () => {
   });
 
   test("never asks Slack for zero messages", () => {
-    // limit 0 means "unlimited" to Slack, so an exhausted budget must not be
-    // sent as one.
     expect(
       historyPageArgs({
         collected: 200,
@@ -249,8 +224,6 @@ describe("capStateAfterPage", () => {
   });
 
   test("reports capped, not done, when unlimited mode hits 10k", () => {
-    // The distinction is the whole point: `capped` is what makes the caller
-    // report hasMore for a run that had no limit to exceed.
     expect(capStateAfterPage(0, 10_000)).toBe("capped");
   });
 });
@@ -304,8 +277,6 @@ describe("fetchChannelHistory", () => {
   });
 
   test("re-sends the oldest/latest window on every page", async () => {
-    // Slack cursors do not encode the window, so a page 2 without it walks
-    // straight out of the range the caller asked for.
     const fake = fakeHistoryClient([
       {
         messages: [{ ts: "1650" }],

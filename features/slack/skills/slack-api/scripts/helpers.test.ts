@@ -20,8 +20,6 @@ const failureMessage = (result: Result.Result<unknown, Error>): string =>
 
 describe("makeClient", () => {
   test("refuses to build a client with no token", async () => {
-    // Every command goes through this, so it is the single place that stops a
-    // token-less run before it opens a socket.
     const result = makeClient({});
 
     expect(Result.isFailure(result)).toBe(true);
@@ -44,8 +42,6 @@ describe("getThreadContext", () => {
   });
 
   test("treats a blank and the literal \"undefined\" as absent", () => {
-    // A harness that expands a variable it does not have hands over one of
-    // these two, and both would otherwise be sent to Slack as a channel id.
     expect(
       getThreadContext({
         SLACK_CHANNEL_ID: "undefined",
@@ -99,8 +95,6 @@ describe("resolveThreadTs", () => {
   });
 
   test("refuses a thread ts that contradicts the one in scope", () => {
-    // Same channel, different thread: almost always a ts the model carried
-    // over from earlier in its context, and posting there talks over strangers.
     const result = resolveThreadTs("C-HERE", {
       env: IN_THREAD,
       threadTs: "1600.9",
@@ -112,8 +106,6 @@ describe("resolveThreadTs", () => {
   });
 
   test("refuses a cross-channel post with no thread named", () => {
-    // Posting into a channel the turn is not in, at the top level, is how a
-    // spawned run interrupts a room nobody asked it to.
     const result = resolveThreadTs("C-ELSEWHERE", {
       env: IN_THREAD,
     });
@@ -133,8 +125,6 @@ describe("resolveThreadTs", () => {
   });
 
   test("noThread wins over the cross-channel guard", () => {
-    // Opening a top-level thread is spawn-thread's one legitimate write, and
-    // it says so explicitly rather than being caught by the guard.
     expect(
       resolveThreadTs("C-ELSEWHERE", {
         env: IN_THREAD,
@@ -154,8 +144,6 @@ describe("resolveThreadTs", () => {
   });
 
   test("with no thread in scope the flags are honoured verbatim", () => {
-    // Until the framework threads SLACK_* into the agent runtime, this is the
-    // ordinary case: nothing to guard against, so nothing is guarded.
     expect(
       resolveThreadTs("C-ELSEWHERE", {
         env: {},
@@ -194,7 +182,6 @@ describe("requireFlags", () => {
   });
 
   test("treats an empty value as missing", () => {
-    // `--ts=` parses to "", which Slack would reject with a far worse message.
     expect(
       Result.isFailure(requireFlags({ ts: "" }, "conversations.replies", "ts"))
     ).toBe(true);
@@ -203,8 +190,6 @@ describe("requireFlags", () => {
 
 describe("markdownToSlack", () => {
   test("rewrites markdown emphasis into Slack's own mrkdwn", () => {
-    // The converter also brackets emphasis with zero-width spaces, which is
-    // why this looks for the run rather than comparing the whole string.
     expect(markdownToSlack("**bold**")).toContain("*bold*");
   });
 

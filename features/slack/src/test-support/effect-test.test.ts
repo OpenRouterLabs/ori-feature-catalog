@@ -1,21 +1,7 @@
-/**
- * effect-test.test.ts — proving the harness fails.
- *
- * Every other suite in this feature runs through `test.effect`, so a harness
- * that swallowed a cause would report all 856 of them green, including any
- * test written to catch that. The one thing worth asserting here is the
- * decision `asThrowable` makes: given a cause, does something get thrown, and
- * is it the thing bun can render?
- *
- * These started as throwaway probes during the conversion. They are committed
- * because the property they check is the one the whole suite rests on.
- */
-
 import { Cause, Effect, Exit } from "effect";
 
 import { asThrowable, describe, expect, test } from "#src/test-support/effect-test.ts";
 
-/** The cause a real run would carry, rather than one built by hand. */
 const causeOf = async (effect: Effect.Effect<unknown, unknown>) => {
   const exit = await Effect.runPromiseExit(effect);
   if (Exit.isSuccess(exit)) throw new Error("expected the effect to fail");
@@ -24,9 +10,6 @@ const causeOf = async (effect: Effect.Effect<unknown, unknown>) => {
 
 describe("what the harness throws", () => {
   test("a lone Error is rethrown as itself, keeping its stack and matcherResult", async () => {
-    // This is what makes an `expect` diff inside `Effect.gen` still print as a
-    // diff: bun reads `matcherResult` off the thrown value, and wrapping it
-    // would leave only the message.
     const boom = new Error("the original");
     const thrown = asThrowable(await causeOf(Effect.fail(boom)));
 
@@ -49,9 +32,6 @@ describe("what the harness throws", () => {
   });
 
   test("an interrupt carries nothing, and still fails the test", async () => {
-    // The empty-cause branch: with no reason to render, a bare interrupt would
-    // otherwise throw an Error with an empty message, which reads as a passing
-    // test that printed nothing.
     const thrown = asThrowable(await causeOf(Effect.interrupt));
 
     expect(thrown).toBeInstanceOf(Error);
@@ -83,7 +63,6 @@ describe("what the harness provides", () => {
         })
       );
 
-      // The release runs when the harness closes the scope, after this body.
       expect(released).toEqual([]);
     })
   );

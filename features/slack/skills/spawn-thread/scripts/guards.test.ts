@@ -15,8 +15,6 @@ describe("buildSlackThreadUrl", () => {
   });
 
   test("uses a reply ts as the path anchor while still naming the root", () => {
-    // Slack only reliably opens the thread side-panel for a URL that points at
-    // a specific reply; the root alone lands the reader in the channel.
     const url = buildSlackThreadUrl({
       channel: "C1",
       messageTs: "1748900100.002000",

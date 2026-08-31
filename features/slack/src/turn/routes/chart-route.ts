@@ -1,16 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * chart-route.ts — the loopback route behind the `slack-chart` skill.
- *
- * Renders the SVG and uploads it into the thread. Unlike a status this does
- * not touch the progress message: a chart is part of the answer, and lands as
- * its own file so it survives the progress message being removed.
- *
- * An HTTP handler is a real edge, so the Effect is run exactly once — at the
- * bottom of this file, where the route hands Bun back a `Promise<Response>`.
- * Everything above that line stays in the Effect: rendering, uploading, and
- * the refusal each step can produce.
- */
 
 import { Effect, Result } from "effect";
 
@@ -27,25 +15,12 @@ import { loopbackRoute, refuse } from "./loopback-route.ts";
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_UNPROCESSABLE = 422;
 
-/** Long enough to recognise, short of any filesystem limit. */
 const MAX_FILENAME_CHARS = 48;
 
 type Rendered =
   | { readonly ok: false; readonly reason: string }
   | { readonly ok: true; readonly png: Blob };
 
-/**
- * Render, reporting failure instead of raising it.
- *
- * resvg happily produces a valid PNG with zero glyphs when it resolves no
- * font, so "it did not throw" is not "it drew something". A caller that hears
- * the reason can fall back to text; one that gets a blank image cannot.
- *
- * Every refusal the renderer has is in its error channel now, so this catches
- * a union it can name instead of flattening whatever was thrown. The three
- * tags — no font, no binding, this SVG — read the same to the person who
- * asked for the chart, and are one `catchTag` apart if that ever changes.
- */
 const render = Effect.fn("Slack.chart.render")(function* (
   svg: string
 ): Effect.fn.Return<Rendered> {
@@ -63,7 +38,6 @@ const render = Effect.fn("Slack.chart.render")(function* (
   );
 });
 
-/** Upload, logging Slack's refusal rather than failing the whole route. */
 const upload = Effect.fn("Slack.chart.upload")(function* (input: {
   readonly png: Blob;
   readonly reply: MessageReplyShape;
@@ -90,13 +64,6 @@ interface ChartRouteDeps {
   readonly workspaceTeamId: string;
 }
 
-/**
- * The whole request, in one fiber.
- *
- * `replyFor` stays a Promise: it is built outside this feature's Effect graph
- * and handed in, so it is taken in through `Effect.promise` rather than
- * reshaped from here.
- */
 const handleChart = Effect.fn("Slack.chart.handle")(function* (input: {
   readonly deps: ChartRouteDeps;
   readonly ref: ThreadRef;
@@ -106,8 +73,6 @@ const handleChart = Effect.fn("Slack.chart.handle")(function* (input: {
 
   const rendered = yield* render(input.request.svg);
   if (!rendered.ok) {
-    // 422 rather than 500: the renderer refused THIS spec, and the
-    // sentence says which part of it.
     return refuse(
       HTTP_UNPROCESSABLE,
       `could not render the chart: ${rendered.reason}`
@@ -129,11 +94,8 @@ export const makeChartRoute = (
   deps: ChartRouteDeps
 ): ((request: Request) => Promise<Response>) =>
   loopbackRoute<ChartRequest, Record<string, never>>({
-    // A mermaid source or 24 rows of data; anything larger is not a chart.
     capKiB: 64,
     handle: async ({ ref, request }) =>
-      // The one boundary the route owns: HTTP is a Promise, everything under
-      // it is not.
       Effect.runPromise(
         handleChart({
           deps,

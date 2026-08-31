@@ -40,8 +40,6 @@ describe("decodeDataUrl", () => {
   });
 
   test("refuses a remote URL — that is a fetch, not a decode", () => {
-    // Treating one as an image would mean requesting whatever host the model
-    // happened to name.
     expect(decodeDataUrl("https://example.com/logo.png")).toBeUndefined();
   });
 
@@ -86,8 +84,6 @@ describe("generateImage", () => {
   );
 
   test.effect("a text-only answer is reported, not treated as an image", () =>
-    // The model can decline, or answer in prose. Uploading nothing and
-    // claiming success would leave the thread with a caption and no picture.
     Effect.gen(function* () {
       const outcome = yield* run({
         fetch: answering({ choices: [{ message: {} }] }),

@@ -34,13 +34,10 @@ describe("barChartSvg", () => {
   });
 
   test("scales bars to the largest value, not a fixed axis", () => {
-    // The question a chart answers is almost always "which is biggest".
     const svg = barChartSvg({
       rows,
       title: "PR queue",
     });
-    // The bars only — not the card, the rule, or the full-width tracks behind
-    // them, all of which are rects too.
     const widths = [
       ...svg.matchAll(/<rect class="bar"[^>]*width="([\d.]+)"/gu),
     ].map((match) => Number(match[1]));
@@ -51,8 +48,6 @@ describe("barChartSvg", () => {
   });
 
   test("a label cannot close a tag it sits inside", () => {
-    // Labels come from whatever the agent measured, so they are not trusted
-    // markup — an unescaped one would break the image, or worse.
     const svg = barChartSvg({
       rows: [
         {
@@ -113,9 +108,6 @@ describe("barChartSvg", () => {
 });
 
 describe("a chart owns its own background", () => {
-  // Without a background rect the PNG is transparent, so Slack composites it
-  // against the reader's theme — grey-on-white in light mode. Every chart
-  // draws its card first.
   test.each([
     [
       "bars",
@@ -162,8 +154,6 @@ describe("a chart owns its own background", () => {
 
 describe("magnitude reads before the numbers do", () => {
   test("the biggest bar gets the brightest fill", () => {
-    // A single flat colour made every chart the same picture with different
-    // lengths; the ramp is what carries rank independently of bar length.
     const svg = barChartSvg({
       rows: [
         {
@@ -181,7 +171,6 @@ describe("magnitude reads before the numbers do", () => {
       ...svg.matchAll(/<rect class="bar"[^>]*fill="([^"]+)"/gu),
     ].map((match) => match[1]);
 
-    // Row order is preserved; the ramp is keyed on rank, not on position.
     expect(fills[1]).toBe("#5eb0ff");
     expect(fills[0]).not.toBe(fills[1]);
   });

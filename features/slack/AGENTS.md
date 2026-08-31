@@ -24,11 +24,15 @@ Four or fewer stays flat. A folder holding one module and its test earns nothing
 
 The turn path, registries, and routes stay out of it. If a file holds state or participates in the turn lifecycle it is not a helper.
 
-## Comments
+## No comments
 
-At the top of a file, or the top of a function longer than ~15 lines. Nowhere else, and never more than 3 lines.
+The source carries none. It reached 29% prose — 3,983 comment lines against 13,869 of code — and they were removed.
 
-A comment inside a function is usually a sign the function wants splitting. Say _why_ — a constraint, a rejected alternative, a bug this shape prevents. Never what the code does; the name carries that.
+Do not add them back. A name, a type or a smaller function says it; if none of those can, the shape is wrong and a paragraph will not fix it.
+
+The reasoning still gets written down, in the commit that makes the change. A commit message is dated, attributable, and `git log -S` finds it from the line it explains — none of which is true of a comment that outlives the code around it.
+
+Lint pragmas are not comments: `oxlint-disable`, `eslint-disable` and `@ts-` are instructions to a tool, and the lint run needs them. Nor is a shebang.
 
 ## Slack constraints that shaped the design
 
@@ -460,9 +464,8 @@ has no way to post a button of its own. Nothing in `onButton` changes that,
 and no skill exposes it.
 
 What it changes is the sibling feature. `interactions.on` always routed any
-action id — the comment at the top of `interactions.ts` says the service
-exists so a downstream feature can add an action — but nothing outside this
-feature could reach the service. It lives in the Effect graph, and the public
+action id — the service exists so a downstream feature can add an action — but
+nothing outside this feature could reach the service. It lives in the Effect graph, and the public
 surface was `postMessage` and `webClient`. So a feature could post a perfectly
 good button and the click went nowhere: `dispatch` looked the id up, found no
 handler, and returned. The button rendered and did nothing, silently.

@@ -1,10 +1,4 @@
 #!/usr/bin/env bun
-/**
- * slack-image — generate an image and post it into the thread.
- *
- * For the answer a chart cannot draw: a logo, a mock-up, an illustration of a
- * concept. Coordinates come from the per-turn env the chat surface sets.
- */
 
 import { postImage } from "./post-image.ts";
 

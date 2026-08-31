@@ -1,14 +1,3 @@
-/**
- * run-new.ts — the `new` subcommand workflow for the spawn-thread skill:
- * open a fresh top-level thread and dispatch into it atomically.
- *
- * Adapted for the ori Slack chat surface: no ori-monorepo egg /
- * skill-slack-render packages. Results use Effect's native `Result`;
- * buildSlackThreadUrl is vendored in ./guards.ts; the anchor + opener posts
- * reuse its own postMessage/updateMessage (moved here when slack-api became
- * read-only). The loopback dispatch itself lives in ./spawn-thread.ts.
- */
-
 import { Option, Result } from "effect";
 
 import type { KnownBlock } from "@slack/types";
@@ -37,7 +26,6 @@ interface RunNewOpts {
 const buildAnchorFinalText = (newThreadUrl: string): string =>
   `:link: <${newThreadUrl}|spawned thread>`;
 
-/** Non-empty string that isn't the literal "undefined" env placeholder. */
 const isPresentEnvValue = (value: unknown): value is string =>
   isString(value) && value.length > 0 && value !== "undefined";
 
@@ -84,9 +72,6 @@ export const buildOpenerBlocks = ({
     return [sectionBlock];
   }
 
-  // When an anchor ts is supplied, use it as the message-level target so Slack
-  // resolves the URL to "this reply inside this thread" — the form that
-  // reliably triggers in-app thread-panel navigation.
   const backlinkUrl = buildSlackThreadUrl({
     channel: originChannel,
     threadTs: originTs,
@@ -116,7 +101,6 @@ interface OriginThread {
   readonly threadTs: string;
 }
 
-/** Read the originating thread from env, treating "undefined" as absent. */
 const resolveOriginThread = (
   env: Record<string, string | undefined>
 ): OriginThread | undefined => {
@@ -138,10 +122,6 @@ interface PostOpenerArgs {
   readonly blocks: readonly KnownBlock[];
 }
 
-/**
- * Post the top-level opener message. `text` is the notification fallback; the
- * visual rendering is driven by `blocks`. Returns the new thread's ts.
- */
 const postOpener = async (
   args: PostOpenerArgs
 ): Promise<Result.Result<string, Error>> => {
@@ -172,11 +152,6 @@ interface RewriteAnchorArgs {
   readonly newThreadTs: string;
 }
 
-/**
- * Rewrite the anchor placeholder to link forward to the new thread, making the
- * link bidirectional. Best-effort: the caller swallows a failed update so it
- * never blocks the dispatch.
- */
 const rewriteAnchorToNewThread = async (
   args: RewriteAnchorArgs
 ): Promise<void> => {
@@ -202,13 +177,6 @@ interface DispatchNewThreadArgs {
   readonly newTs: string;
 }
 
-/**
- * Dispatch into the freshly opened thread. On failure the opener is already
- * live in Slack but no agent run will happen there, so post a top-level
- * failure notice in the target channel to make the abandonment visible.
- * Best-effort — any notice-post error is swallowed so the caller still sees
- * the original dispatch error.
- */
 const dispatchNewThread = async (
   args: DispatchNewThreadArgs
 ): Promise<Result.Result<void, Error>> => {
@@ -230,12 +198,6 @@ const dispatchNewThread = async (
   return dispatchResult;
 };
 
-/**
- * Open a fresh top-level thread and return its ts: anchor reply in the
- * originating thread, opener with a back-link button, then the anchor
- * rewritten to point forward. Everything except what happens IN the new
- * thread, which is what separates `new` from `carry`.
- */
 export const openThread = async (opts: {
   channel: string;
   opener: string;
