@@ -30,7 +30,6 @@ describe("StateStoreMemory", () => {
 
   test.effect("keeps threads independent", () =>
     Effect.gen(function* () {
-      // A shared entry would let two conversations resume each other's session.
       const state = yield* StateStoreMemory;
 
       yield* state.putSession("thread-a", {
@@ -94,9 +93,6 @@ describe("StateStoreMemory", () => {
 
   test.effect("forgets the oldest thread rather than growing forever", () =>
     Effect.gen(function* () {
-      // Nothing calls clearSession in normal operation, so an unbounded map
-      // would hold one entry per thread the daemon has ever seen. Evicting the
-      // oldest degrades to a cold start, which is the graceful failure.
       const state = yield* StateStoreMemory;
 
       for (let i = 0; i < 5010; i += 1) {
@@ -152,8 +148,6 @@ describe("StateStoreMemory", () => {
 
   test.effect("lists a thread that is only being listened to", () =>
     Effect.gen(function* () {
-      // The half that would be missed by listing sessions alone, and the one
-      // an operator is most likely asking about: watched, never answered.
       const state = yield* StateStoreMemory;
       yield* state.updateListen("thread-b", (listen) => ({
         ...listen,

@@ -16,10 +16,6 @@ import { makeUserDirectory } from "./users/users.ts";
 
 describe("section", () => {
   test("takes the same markdown every other block takes", () => {
-    // GitHub-flavoured in, Slack `mrkdwn` out. `**bold**` reaching a section
-    // unconverted is what printed the asterisks in a live form.
-    // The zero-width spaces around it are slackify's own, to keep bold from
-    // fusing with an adjacent character; the contract is the single asterisk.
     expect(section("**hi**").text.text.replaceAll("\u200b", "")).toBe("*hi*");
   });
 
@@ -30,14 +26,10 @@ describe("section", () => {
   });
 
   test("escapes a broadcast in text the model wrote", () => {
-    // The reason the conversion cannot be left to the caller: `<!channel>` in
-    // a quoted message pings the workspace, and the escape rides with the
-    // conversion. Forgetting it was never only cosmetic.
     expect(section("<!channel> ship it").text.text).not.toContain("<!channel>");
   });
 
   test("truncates past Slack's section ceiling rather than being rejected", () => {
-    // Slack rejects an over-long block outright, losing the whole message.
     const rendered = section("x".repeat(LIMITS.sectionText + 500));
 
     expect(rendered.text.text.length).toBeLessThanOrEqual(LIMITS.sectionText);
@@ -190,7 +182,6 @@ describe("makeUserDirectory", () => {
 
   test.effect("caches so a repeated lookup does not re-hit Slack", () =>
     Effect.gen(function* () {
-      // users.info is a per-message call on the reply path.
       let calls = 0;
       const users = yield* build(() => {
         calls += 1;
@@ -206,7 +197,6 @@ describe("makeUserDirectory", () => {
 
   test.effect("falls back to the raw id when the lookup fails", () =>
     Effect.gen(function* () {
-      // A cosmetic label must never fail a turn.
       const users = yield* build(
         () => Effect.fail(new Error("missing_scope")) as never
       );

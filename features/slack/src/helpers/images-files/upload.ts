@@ -1,19 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * upload.ts — sending files and images into a thread.
- *
- * `files.upload` was retired on 2025-11-12. The replacement is a three-call
- * sequence, which is exactly what a caller assembles wrong, so the builtin
- * owns it:
- *
- *   1. `files.getUploadURLExternal` — reserve an upload URL and a file id.
- *   2. POST the bytes to that URL (plain HTTP, not a Web API method).
- *   3. `files.completeUploadExternal` — share it into a channel/thread.
- *
- * Neither Slack method is on `SlackClientShape`, so this goes through `raw`.
- * That is the intended use of the escape hatch: it still carries the
- * configured retry policy and timeout.
- */
 
 import { Effect, Schema } from "effect";
 
@@ -21,11 +6,9 @@ import type { SlackClientShape } from "../../client/index.ts";
 
 import { SlackApiError, SlackClient } from "../../client/index.ts";
 
-/** A file to send. `content` is any `BlobPart`: string, Blob, or byte view. */
 export interface FileUpload {
   readonly filename: string;
   readonly content: BlobPart;
-  /** Shown as the file's title. Defaults to `filename`. */
   readonly title?: string | undefined;
 }
 
@@ -53,7 +36,6 @@ const decodeComplete = Schema.decodeUnknownEffect(CompleteResponse);
 
 const SECONDS_PER_MINUTE = 60;
 const MS_PER_SECOND = 1000;
-/** Generous enough for a large artifact on a slow link, short of forever. */
 const UPLOAD_TIMEOUT_MS = 2 * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 const apiError = (op: string, cause: unknown): SlackApiError =>
@@ -63,7 +45,6 @@ const apiError = (op: string, cause: unknown): SlackApiError =>
     op,
   });
 
-/** Ask Slack where to put the bytes, and for the id to complete against. */
 const reserveUpload = (
   slack: SlackClientShape,
   filename: string,
@@ -91,15 +72,10 @@ export const uploadFile = Effect.fn("Slack.imagesFiles.upload")(function* (
   }
 ) {
   const slack = yield* SlackClient;
-  // Slack reserves by byte length up front, so the content is materialised
-  // here — the external upload API has no streaming path.
   const blob = new Blob([input.file.content]);
 
   const reserved = yield* reserveUpload(slack, input.file.filename, blob.size);
 
-  // The configured retry and timeout policy lives on the WebClient, and this
-  // leg does not go through it — it is a raw POST to a Slack-supplied URL. A
-  // stalled connection here would otherwise hang the turn holding the thread.
   yield* Effect.tryPromise({
     catch: (cause) => apiError("files.upload.post", cause),
     try: () =>

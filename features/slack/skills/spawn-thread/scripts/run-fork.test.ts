@@ -1,11 +1,4 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- test doubles stand in for Slack SDK and fetch shapes */
-/**
- * run-fork.test.ts — several threads from one request.
- *
- * The cases that matter are the ones a loop over `new` got wrong: a request
- * that asks for more threads than a channel should absorb, and a partial
- * fork-out where the caller is told everything worked.
- */
 
 import { Option, Result } from "effect";
 
@@ -76,8 +69,6 @@ describe("parsing a fork request", () => {
   });
 
   test("more threads than the cap is refused, naming the cap", () => {
-    // A channel is a shared room. "Spin up 40 threads" is not a request that
-    // should be honoured just because it parses.
     const many = Array.from({ length: MAX_FORK + 1 }, (_, index) => ({
       opener: `Thread ${index}`,
       prompt: "go",
@@ -111,7 +102,6 @@ describe("opening them", () => {
   });
 
   test("they are opened in the order they were asked for", async () => {
-    // The user will refer to them as "thread 1" and "thread 2".
     const harness = bench();
 
     await runFork({
@@ -147,8 +137,6 @@ describe("opening them", () => {
   });
 
   test("a partial fork-out names the thread that failed", async () => {
-    // Reporting "2 threads opened" when one did not is the failure this
-    // replaces — the user goes looking for a thread that is not there.
     const harness = bench({ failOpeners: ["Thread 2"] });
 
     const report = await runFork({

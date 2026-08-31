@@ -1,11 +1,4 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion eslint/max-lines-per-function -- the recorded bodies are read as the form data they are, and each case reads better whole */
-/**
- * end-to-end.test.ts — the real process, against a Slack that records.
- *
- * Every other test here injects a fake at a module boundary, so the file that
- * builds the client and reads argv never runs. Both bugs this skill shipped
- * with lived exactly there.
- */
 
 import { afterAll, describe, expect, test } from "#src/test-support/effect-test.ts";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -106,8 +99,6 @@ describe("the line the model is told to keep current", () => {
   });
 
   test("--notify posts the message first, then sets the line", async () => {
-    // Slack clears the indicator on every message the app posts, so the
-    // reverse order sets the line and immediately wipes it.
     await withSlack(async ({ calls, run }) => {
       await run(["--notify", "It is not the code"]);
 
@@ -177,8 +168,6 @@ describe("what Slack is actually handed", () => {
   });
 
   test("a broadcast in model-authored text is defused", async () => {
-    // Reachable innocently by quoting a message the run just read, and
-    // reachable by injection through the untrusted-content path.
     await withSlack(async ({ calls, run }) => {
       await run(["--notify", "ping <!channel> about the timeout"]);
 

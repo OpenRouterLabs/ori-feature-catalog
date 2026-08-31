@@ -1,30 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-/**
- * page.ts — the one setting, and the threads it applies to.
- *
- * Steering was never a choice: a second message in a busy thread interrupted
- * the running turn, always, and the only way to get queueing was for there to
- * be no live turn to interrupt. That is right for a thread where one person is
- * correcting a run, and wrong for a room where several people talk at once and
- * every aside cancels work nobody asked to stop. So it is a setting now, and
- * this is where it is set.
- *
- * The thread table under it is context for that decision — which threads are
- * live, which are muted — and the answer to the question the per-thread state
- * could not be asked: which thread did somebody mute and forget.
- *
- * The page deliberately does NOT auto-refresh. It carries a form, and a meta
- * refresh would wipe a half-made selection every few seconds.
- *
- * Rendered as a string rather than through a view library on purpose. This
- * feature is linked into other people's workspaces, so every dependency it
- * declares is installed by every consumer of it; a table is not worth putting
- * React into all of them. The ori dashboard scaffold renders with React
- * because it is a standalone feature that costs nobody else anything.
- *
- * Pure, and separated from the route for it: the interesting failure is
- * markup, not HTTP, and this way a test asserts on the markup directly.
- */
 
 import type { InterruptMode } from "../state/settings.ts";
 import type { ThreadRow } from "../state/store.ts";
@@ -35,13 +9,6 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-/**
- * Everything interpolated goes through this.
- *
- * Slack ids are tame, but they are not this feature's to vouch for: a channel
- * name reaches the store from the workspace, and the one place it is rendered
- * as markup is the one place that matters.
- */
 const escapeHtml = (raw: string): string =>
   raw
     .replaceAll("&", "&amp;")
@@ -50,12 +17,6 @@ const escapeHtml = (raw: string): string =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-/**
- * Age in the largest unit that still says something true.
- *
- * "4320m" is technically the answer and tells a reader nothing; three days is
- * the fact they are looking for.
- */
 export const ago = (from: number, now: number): string => {
   const elapsed = Math.max(0, now - from);
   if (elapsed < MINUTE_MS) {
@@ -70,12 +31,6 @@ export const ago = (from: number, now: number): string => {
   return `${Math.floor(elapsed / DAY_MS)}d ago`;
 };
 
-/**
- * The labels a thread carries, in the order an operator scans for them.
- *
- * `muted` first because it is the one that explains silence, which is the
- * question that brings someone to this page.
- */
 const badgesOf = (row: ThreadRow): readonly string[] => {
   const badges: string[] = [];
   if (row.listen.muted) {
@@ -90,12 +45,6 @@ const badgesOf = (row: ThreadRow): readonly string[] => {
   return badges;
 };
 
-/**
- * Newest first, and threads with no session last.
- *
- * A thread the bot has never answered has no `startedAt` to sort by, and
- * putting it at the top would push live conversations off the first screen.
- */
 const byRecency = (left: ThreadRow, right: ThreadRow): number =>
   (right.session?.startedAt ?? 0) - (left.session?.startedAt ?? 0);
 
@@ -152,12 +101,6 @@ const STYLE = `
            border: 1px solid var(--line); background: var(--chip); color: var(--fg); cursor: pointer; }
 `;
 
-/**
- * The control, and the sentence explaining what it costs either way.
- *
- * Both modes are defensible, so the page says what each one does rather than
- * implying one is the safe choice. The operator picking it knows their room.
- */
 const configMarkup = (mode: InterruptMode): string => {
   const option = (
     value: InterruptMode,
@@ -186,12 +129,6 @@ const configMarkup = (mode: InterruptMode): string => {
     </form>`;
 };
 
-/**
- * The whole page.
- *
- * `now` is passed rather than read so the test that pins the ages is not a
- * test of the clock.
- */
 export const renderDashboard = (
   rows: readonly ThreadRow[],
   now: number,

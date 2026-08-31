@@ -1,12 +1,3 @@
-/**
- * carry.test.ts — moving a conversation without losing it.
- *
- * Carry is a rebinding, so every case here is about what the store looks like
- * afterwards. The two that matter are the ones that are silently wrong rather
- * than loudly broken: a binding that got copied instead of moved, and an old
- * thread left able to answer with nothing behind it.
- */
-
 import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -41,10 +32,6 @@ const seeded = Effect.fn("test.seeded")(function* () {
   return store;
 });
 
-/**
- * `carrySession` asks the graph for its store, so a test provides one — the
- * same store it then asserts against.
- */
 const carrying = (
   store: StateStoreShape,
   input: { readonly from: ThreadRef; readonly to: ThreadRef }
@@ -68,8 +55,6 @@ describe("carrying a session", () => {
 
   test.effect("the origin thread stops owning it — moved, not copied", () =>
     Effect.gen(function* () {
-      // Two threads bound to one session would each get their own turn queue,
-      // and two turns would interleave writes into one agent context.
       const store = yield* seeded();
 
       yield* carrying(store, {
@@ -83,8 +68,6 @@ describe("carrying a session", () => {
 
   test.effect("the origin thread is muted, not merely released", () =>
     Effect.gen(function* () {
-      // Released but still engaged, the next reply there cold-starts a fresh
-      // session and the bot reads as having amnesia rather than having moved.
       const store = yield* seeded();
 
       yield* carrying(store, {
@@ -98,8 +81,6 @@ describe("carrying a session", () => {
 
   test.effect("the destination is engaged, so replies reach the agent", () =>
     Effect.gen(function* () {
-      // The bot opened the thread and named someone in it. Requiring a mention
-      // to continue a conversation the bot itself moved would be absurd.
       const store = yield* seeded();
 
       yield* carrying(store, {
@@ -113,8 +94,6 @@ describe("carrying a session", () => {
 
   test.effect("the conversation keeps its age", () =>
     Effect.gen(function* () {
-      // `startedAt` records when the conversation began, not when it last
-      // changed address — the dashboard sorts on it.
       const store = yield* seeded();
 
       yield* carrying(store, {
@@ -143,8 +122,6 @@ describe("carrying a session", () => {
 
   test.effect("a failed carry leaves the origin alone", () =>
     Effect.gen(function* () {
-      // Nothing to carry must not mute the origin on its way out: the thread
-      // is still live, it simply has not run yet.
       const store = yield* StateStoreMemory;
 
       yield* carrying(store, {

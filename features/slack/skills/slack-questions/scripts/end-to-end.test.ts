@@ -1,16 +1,4 @@
 /* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- cases read better whole than split */
-/**
- * end-to-end.test.ts — the real CLI, as a real process, against a real route.
- *
- * `post-questions.test.ts` injects a fetch, so the composition root — argv, the
- * stdin fallback, `JSON.parse`, the exit codes, the END YOUR TURN line the
- * whole skill exists to print — had never run. Neither had the wire between the
- * skill and the route that refuses it.
- *
- * So this spawns `index.ts` for real and answers it either with a recording
- * stub or with `makeQuestionsRoute` itself, which is the only way to see the
- * words a refusal actually puts in front of the model.
- */
 
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 
@@ -52,7 +40,6 @@ afterEach(async () => {
   }
 });
 
-/** A daemon that records what the skill sent and answers however told to. */
 const daemon = (
   answer: (request: Request) => Response | Promise<Response> = () =>
     Response.json({
@@ -86,7 +73,6 @@ const daemon = (
   };
 };
 
-/** The same daemon, but answering with the route the skill really talks to. */
 const routeDaemon = (options: { live?: boolean } = {}): Daemon => {
   const forms = Effect.runSync(QuestionnairesMemory);
   const route = makeQuestionsRoute({
@@ -105,7 +91,6 @@ interface RunResult {
   readonly stdout: string;
 }
 
-/** Spawn the skill exactly as the harness does. */
 const run = async (input: {
   readonly args?: readonly string[];
   readonly daemon: Daemon;
@@ -141,9 +126,6 @@ const run = async (input: {
 
 describe("the questions reach the thread", () => {
   test("a heredoc keeps an apostrophe intact, which a quoted argument cannot", async () => {
-    // The one case the SKILL.md exists to steer around: `Delete Ahmed's
-    // branch?` ends a single-quoted shell argument, so the JSON has to be able
-    // to arrive on stdin instead.
     const fake = daemon();
     const prompt = "Delete Ahmed's branch?";
 
@@ -269,7 +251,6 @@ describe("what the model is told when nothing was asked", () => {
 
 describe("a refusal from the route", () => {
   test("reaches the model verbatim, because it is written for the model", async () => {
-    // The route's words are the only thing that can make the next call right.
     const twice = [
       {
         id: "strategy",
@@ -320,8 +301,6 @@ describe("a refusal from the route", () => {
   });
 
   test("an oversized batch is refused by the route's own cap", async () => {
-    // fetch sets content-length for a string body, so the guard fires on the
-    // real wire even though a hand-built Request carries no length at all.
     const huge = Array.from({ length: 4 }, (_value, index) => ({
       id: `q${index}`,
       prompt: "Which of these should I do first? ".repeat(300),
@@ -362,8 +341,6 @@ describe("a form the route accepted", () => {
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    // The model must be told to STOP; a turn that carries on has moved past
-    // the fork by the time anyone answers.
     expect(result.stdout).toBe(END_YOUR_TURN);
     expect(result.stdout).toContain("END YOUR TURN");
   });

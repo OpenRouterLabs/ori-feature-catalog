@@ -1,17 +1,3 @@
-/**
- * end-to-end.test.ts — the real CLI, as a real process, against a fake daemon.
- *
- * `post-ask.test.ts` injects a `fetch`, so the composition root — argv parsing,
- * the env it reads, the exit code each outcome maps to — had never run. That is
- * the half the agent actually depends on: it reads the answer off stdout and
- * branches on the exit code, so a `--choice` silently dropped or an
- * `unanswered` reported as a failure is a wrong decision, not a wrong log line.
- *
- * So this spawns `index.ts` for real and asserts on the request the daemon
- * would have received. The only concession is `ORI_RUNTIME_PORT`, which points
- * the loopback call at a local server.
- */
-
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 import { join } from "node:path";
 
@@ -69,7 +55,6 @@ const fakeDaemon = (
   };
 };
 
-/** A port nothing is listening on: bound, read, and released. */
 const deadPort = async (): Promise<string> => {
   const server = Bun.serve({
     fetch: () => new Response("no"),
@@ -86,7 +71,6 @@ interface RunResult {
   readonly stdout: string;
 }
 
-/** Spawn the skill exactly as the agent does: one process, one answer. */
 const run = async (input: {
   readonly args: readonly string[];
   readonly env?: Readonly<Record<string, string | undefined>>;
@@ -129,8 +113,6 @@ const ASKED = [
 
 describe("an answered blocker", () => {
   test("prints the id to stdout and nothing else", async () => {
-    // The agent reads this straight into a variable, so a stray line of
-    // reassurance on stdout becomes part of the answer it branches on.
     const daemon = fakeDaemon();
 
     const result = await run({
@@ -171,8 +153,6 @@ describe("an answered blocker", () => {
   });
 
   test("takes the question from the words around the flags", async () => {
-    // `--choice` consumes the word after it; everything else is the sentence,
-    // wherever the flags happen to sit.
     const daemon = fakeDaemon();
 
     const result = await run({
@@ -189,8 +169,6 @@ describe("an answered blocker", () => {
 
 describe("a blocker nobody answered", () => {
   test("is an outcome on stdout and a zero exit, not a failed run", async () => {
-    // Failing here would cost the whole turn because a reader stepped away.
-    // The agent is told to decide for itself and say what it assumed.
     const daemon = fakeDaemon(() =>
       Response.json({ error: "nobody answered" }, { status: HTTP_TIMEOUT })
     );
@@ -208,10 +186,6 @@ describe("a blocker nobody answered", () => {
 
 describe("a blocker the run cannot ask", () => {
   test("with a malformed --choice stops rather than dropping a button", async () => {
-    // The buttons are the only way to answer this. A choice the agent meant to
-    // offer and the parser threw away is a question the reader cannot answer
-    // the way the agent will branch on — and it costs the full timeout to
-    // find out.
     const daemon = fakeDaemon();
 
     const result = await run({
@@ -280,8 +254,6 @@ describe("a blocker the run cannot ask", () => {
 
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
-    // The route's own words, not the status: "slack-ask: 502" tells the agent
-    // nothing it can act on.
     expect(result.stderr).toContain("could not be posted");
   });
 });

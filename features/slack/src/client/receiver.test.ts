@@ -13,7 +13,6 @@ const silentLogger = {
   warn: () => {},
 };
 
-/** Sign exactly as Slack does: v0:timestamp:rawBody, HMAC-SHA256. */
 const sign = (body: string, timestamp: number): string =>
   `v0=${createHmac("sha256", SIGNING_SECRET)
     .update(`v0:${timestamp}:${body}`)
@@ -62,7 +61,6 @@ const eventBody = (eventId: string, text = "hi"): string =>
     type: "event_callback",
   });
 
-/** A receiver wired to a fake App that records what Bolt would have seen. */
 const makeReceiver = (): {
   readonly receiver: SlackReceiver;
   readonly seen: ReceiverEvent[];
@@ -92,7 +90,6 @@ const startedReceiver = async (): Promise<ReturnType<typeof makeReceiver>> => {
 };
 
 afterEach(async () => {
-  // The prune timer would otherwise keep the test process alive.
   await Promise.all(started.splice(0).map((r) => r.stop()));
 });
 
@@ -112,7 +109,6 @@ describe("signature verification", () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = sign(eventBody("Ev1"), timestamp);
 
-    // Same signature, different body — the exact-bytes property.
     const response = await receiver.handleRequest(
       request({
         body: eventBody("Ev1", "tampered"),
@@ -142,7 +138,6 @@ describe("signature verification", () => {
   test("rejects a stale timestamp outside Slack's replay window", async () => {
     const { receiver, seen } = await startedReceiver();
     const body = eventBody("Ev1");
-    // Six minutes old — beyond the five-minute window.
     const timestamp = Math.floor(Date.now() / 1000) - 360;
 
     const response = await receiver.handleRequest(

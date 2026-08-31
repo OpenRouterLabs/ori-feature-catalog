@@ -1,13 +1,3 @@
-/**
- * post-ask.ts — the loopback call behind the `slack-ask` skill.
- *
- * Split from the CLI entry so it can be exercised without a daemon, and so the
- * entry stays a thin shell that maps outcomes to exit codes.
- *
- * This call BLOCKS. The route holds the response until someone clicks, which is
- * what lets the agent treat a blocker as a function that returns an answer.
- */
-
 import { Option, Schema } from "effect";
 
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
@@ -25,22 +15,13 @@ type PostAskOutcome =
   | { readonly kind: "unanswered" }
   | { readonly kind: "error"; readonly message: string };
 
-/** Structural so `Bun.env` passes straight through. */
 type PostAskEnv = Readonly<Record<string, string | undefined>>;
 
-/**
- * Parse `id=Label` pairs into choices.
- *
- * The id is what comes back to the agent, and the label is what the reader
- * sees. A bare word is both, so `rebase` and `rebase=Rebase them` both work.
- */
 export const parseChoice = (raw: string): AskChoice | undefined => {
   const trimmed = raw.trim();
   if (trimmed === "") {
     return undefined;
   }
-  // -1 is "no separator, so the word is both". 0 is "=Label", which names no
-  // id at all and would post a button whose answer means nothing.
   const split = trimmed.indexOf("=");
   if (split === -1) {
     return {
@@ -122,17 +103,12 @@ export const postAsk = async (input: {
       message: "could not reach the ori daemon",
     };
   }
-  // Nobody answered in time. The agent is told to decide for itself, which is
-  // better than hanging and better than silently guessing.
   if (response.status === HTTP_TIMEOUT) {
     return { kind: "unanswered" };
   }
   if (response.ok) {
     return await readAnswer(response);
   }
-  // The route writes its reason for a model to act on — "a blocker needs at
-  // least one choice", "more than Slack lays out in a row". Reporting the bare
-  // status threw that away and left the agent with `slack-ask: 502`.
   const reason = await response.text().catch(() => "");
   return {
     kind: "error",

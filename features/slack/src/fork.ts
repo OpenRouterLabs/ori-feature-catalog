@@ -1,12 +1,3 @@
-/**
- * fork.ts — running something and forgetting it, without losing the failure.
- *
- * `void somePromise()` turns a DEFECT into an unhandled rejection at the
- * process level, which in Bun can take the daemon down and at best vanishes.
- * Forking keeps it inside the Effect runtime, where it is logged and the
- * surface carries on.
- */
-
 import type { Context } from "effect";
 
 import { Effect } from "effect";

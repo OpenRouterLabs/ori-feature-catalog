@@ -45,12 +45,6 @@ const recorder = (options: { failPost?: boolean } = {}) => {
   };
 };
 
-/**
- * The ask id the route actually minted, read off the button it posted.
- *
- * Never hardcoded: ids carry a per-process nonce so a stale button cannot
- * answer a later question, which means a literal `ask-1` is not a thing.
- */
 const askIdFrom = (posted: readonly string[]): string => {
   const value = /"value":"([^"]+)"/u.exec(posted.at(-1) ?? "")?.at(1) ?? "";
   return decodeChoice(value)?.askId ?? "";
@@ -63,12 +57,6 @@ const ask = (body: unknown): Request =>
     method: "POST",
   });
 
-/**
- * Wait until the route has registered its ask.
- *
- * The route decodes, resolves the reply and posts before the ask exists, so
- * answering straight after calling it answers nothing.
- */
 const askRegistered = (blockers: {
   readonly count: () => Effect.Effect<number>;
 }): Effect.Effect<void> =>
@@ -110,8 +98,6 @@ describe("parseAskBody", () => {
   });
 
   test("a blocker with no choices is refused, not posted unanswerable", () => {
-    // The buttons are the only way to answer one. An empty actions block is
-    // rejected by Slack outright, and there is no freeform escape any more.
     const parsed = parseAskBody({
       channel: "C1",
       question: "What now?",
@@ -126,8 +112,6 @@ describe("parseAskBody", () => {
 describe("the ask route", () => {
   test.effect("holds the response until someone answers, then returns the answer", () =>
     Effect.gen(function* () {
-      // This is what makes the skill a blocking call: the agent reads the answer
-      // off stdout, so the route cannot return before there is one.
       const rec = recorder();
       const blockers = yield* BlockersMemory;
       const route = makeBlockerRoute({
@@ -140,7 +124,6 @@ describe("the ask route", () => {
       const pending = route(ask(question));
       yield* askRegistered(blockers);
 
-      // Nothing has answered yet, so nothing may have resolved.
       const raced = yield* Effect.promise(() =>
         Promise.race([
           pending.then(() => "returned"),
@@ -163,8 +146,6 @@ describe("the ask route", () => {
 
   test.effect("retires the buttons once answered", () =>
     Effect.gen(function* () {
-      // Buttons on a closed question invite a second answer to something that
-      // is already decided.
       const rec = recorder();
       const blockers = yield* BlockersMemory;
       const route = makeBlockerRoute({
@@ -179,7 +160,6 @@ describe("the ask route", () => {
       yield* blockers.answer(askIdFrom(rec.posted), "rebase");
       yield* Effect.promise(() => pending);
 
-      // The reader sees the label they clicked, not the id the agent gets.
       expect(rec.updated.join("\n")).toContain("Rebase them");
       expect(rec.updated.join("\n")).not.toContain("actions");
     }));
@@ -198,14 +178,11 @@ describe("the ask route", () => {
       const response = yield* Effect.promise(() => route(ask(question)));
 
       expect(response.status).toBe(408);
-      // And says so in the thread, rather than leaving a live-looking question.
       expect(rec.updated.join("\n")).toContain("No answer");
     }));
 
   test.effect("a blocker Slack refused is a bad gateway, not a timeout", () =>
     Effect.gen(function* () {
-      // Nothing is on screen, so nobody could have answered it — reporting a
-      // timeout would send the agent looking for a reader who never saw it.
       const rec = recorder({ failPost: true });
       const route = makeBlockerRoute({
         blockers: yield* BlockersMemory,
@@ -222,10 +199,6 @@ describe("the ask route", () => {
 
   test.effect("an oversized body is refused even when it declares no length", () =>
     Effect.gen(function* () {
-      // The cap used to read `content-length` and nothing else, so a chunked
-      // POST — which carries none — went straight through to an unbounded
-      // `json()`. The blocker holds its response for fifteen minutes, which
-      // made it the worst route to be able to flood.
       const rec = recorder();
       const route = makeBlockerRoute({
         blockers: yield* BlockersMemory,

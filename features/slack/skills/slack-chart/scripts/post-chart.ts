@@ -1,17 +1,9 @@
-/**
- * post-chart.ts — the loopback call behind the `slack-chart` skill.
- *
- * Split from the CLI entry so it can be exercised without a daemon, and so the
- * entry stays a thin shell that maps outcomes to exit codes.
- */
-
 import { Effect, Option } from "effect";
 
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 
-/** The route's own explanation, when it left one that can be parsed. */
 const readErrorDetail = async (
   response: Response
 ): Promise<string | undefined> => {
@@ -47,8 +39,6 @@ export const postChart = async (input: {
   const parsed = Effect.runSync(
     Effect.try((): unknown => JSON.parse(input.spec)).pipe(
       Effect.map((value) => Option.some(value)),
-      // `None` is "not JSON at all"; the object check below is a separate
-      // answer, so the two failures keep their own messages.
       Effect.orElseSucceed(() => Option.none<unknown>())
     )
   );
@@ -90,8 +80,6 @@ export const postChart = async (input: {
     return { kind: "posted" };
   }
 
-  // A bare status code sends the caller to the logs to find out what broke.
-  // The route already says why in its body, so that is what gets reported.
   const detail = await readErrorDetail(response);
   return {
     kind: "error",

@@ -1,17 +1,3 @@
-/**
- * conversations.replies, driven through the `client` seam.
- *
- * Same reason as ./get-history.test.ts: the real client goes out through axios'
- * node adapter, so there is no fetch to stub and `mock.module` would leak into
- * every other file in the run. Each case injects a hand-written client and
- * passes an empty `env`, so a regression that ignored the seam would fail on
- * the missing token instead of reaching Slack.
- *
- * Replies deliberately does less than history — no dedup, and no "unlimited"
- * mode — so the tests that pin those differences are the ones that stop the two
- * modules from being "helpfully" unified later.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result } from "effect";
 
@@ -33,7 +19,6 @@ interface FakeClient {
   readonly client: WebClient;
 }
 
-/** A client narrowed to the one method this module calls; the cast is the seam. */
 const fakeRepliesClient = (pages: readonly RepliesPage[]): FakeClient => {
   const calls: RepliesArgs[] = [];
   let served = 0;
@@ -105,8 +90,6 @@ const stamped = (from: number, count: number): { readonly ts: string }[] =>
 
 describe("getThreadReplies", () => {
   test("names the thread on page 1 and threads the cursor onto page 2", async () => {
-    // The thread `ts` is re-sent with the cursor: it identifies which thread the
-    // cursor belongs to, so dropping it turns page 2 into a different call.
     const fake = fakeRepliesClient([
       {
         messages: [{ ts: "1" }, { ts: "2" }],
@@ -144,8 +127,6 @@ describe("getThreadReplies", () => {
   });
 
   test("keeps a message repeated across pages, unlike history", async () => {
-    // conversations.history dedups by ts; replies does not. Pinned so the
-    // difference is a decision rather than a surprise.
     const fake = fakeRepliesClient([
       {
         messages: [{ ts: "1" }, { ts: "2" }],
@@ -187,7 +168,6 @@ describe("getThreadReplies", () => {
   });
 
   test("reports hasMore false when the cap lands on the end of the thread", async () => {
-    // Reaching the cap is not truncation on its own; only a surviving cursor is.
     const fake = fakeRepliesClient([
       {
         messages: [{ ts: "1" }, { ts: "2" }],
@@ -272,7 +252,6 @@ describe("getThreadReplies", () => {
   });
 
   test("treats limit 0 as one message, not as unlimited", async () => {
-    // history reads 0 as "unlimited, capped at 10k"; replies floors it at 1.
     const fake = fakeRepliesClient([
       {
         messages: [{ ts: "1" }, { ts: "2" }, { ts: "3" }],

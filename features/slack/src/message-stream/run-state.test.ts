@@ -12,12 +12,6 @@ import {
   appendLine,
 } from "./run-state.ts";
 
-/**
- * Put a line in the work log, as a run event does.
- *
- * `withStatus` used to do this and set the agent's own status alongside it.
- * Progress is the `slack-status` skill now, so the log is the only half left.
- */
 const logged = (state: RunState, line: string, now?: number): RunState => ({
   ...state,
   ...appendLine(state, line, now),
@@ -25,7 +19,6 @@ const logged = (state: RunState, line: string, now?: number): RunState => ({
 
 const MINUTE = 60_000;
 
-/** Fold prose in the way `applyEvent` does, so the tests exercise the real path. */
 const withProse = (
   state: ReturnType<typeof initialRunState>,
   prose: string
@@ -36,8 +29,6 @@ const withProse = (
 
 describe("the answer is the last thing the agent said", () => {
   test("interstitial narration between tool calls is not the answer", () => {
-    // An agent narrates before each tool call. Concatenating all of it replayed
-    // a long run as a wall of "now let me check…" in place of the answer.
     let state = initialRunState(0);
     state = withProse(state, "Let me look at the PR queue.");
     state = withTool(state, "bash");
@@ -56,8 +47,6 @@ describe("the answer is the last thing the agent said", () => {
   });
 
   test("a run whose last act was a tool call still answers", () => {
-    // Uploading a chart or posting a status is a tool call after the prose.
-    // Dropping the open block unconditionally would leave an empty answer.
     let state = initialRunState(0);
     state = withProse(state, "Here is the queue.");
     state = withTool(state, "slack-chart");
@@ -99,9 +88,6 @@ describe("the progress line proves the run is alive", () => {
   });
 
   test("a run that never says anything is still flagged as quiet", () => {
-    // The identical-render guard skips a flush that changes nothing, so
-    // without something that moves, a wedged run and a busy one look alike.
-    // Silence is measured from the start when no status has ever arrived.
     const state = {
       ...initialRunState(0),
       phase: RunPhase.Running,
@@ -126,8 +112,6 @@ describe("the progress line proves the run is alive", () => {
 
     expect(renderStatusLine(state, 3 * MINUTE)).not.toContain("quiet for");
     expect(renderStatusLine(state, 9 * MINUTE)).toContain("quiet for 8m");
-    // The status text itself belongs to the work log below, not up here —
-    // printing it in both places read as a stutter.
     expect(renderStatusLine(state, 9 * MINUTE)).not.toContain(
       "Reviewing the 45 open PRs"
     );
@@ -147,8 +131,6 @@ describe("the progress line proves the run is alive", () => {
   });
 
   test("a run that has not reported yet says it is starting, not queued", () => {
-    // Queued means waiting on another run in the thread. Saying it when
-    // nothing is queued sends the reader looking for work that is not there.
     const rendered = renderStatusLine(initialRunState(0), 0);
 
     expect(rendered).toContain("Starting up");
@@ -164,8 +146,6 @@ describe("timed out", () => {
       text: "partial",
     });
 
-    // The surface stopped WATCHING. Saying the run stopped would be a lie —
-    // nothing here kills a run — and "cancelled" sends them hunting for who did.
     expect(rendered).toContain("Still running");
     expect(rendered).not.toContain("Cancelled");
     expect(rendered).not.toContain("Stopped waiting");
@@ -182,8 +162,6 @@ describe("renderRunState never renders nothing", () => {
     RunPhase.Running,
     RunPhase.TimedOut,
   ])("%s produces text Slack will accept", (phase) => {
-    // Slack rejects an empty message, so an empty render means the final edit
-    // fails and the thread keeps showing the loader for a finished run.
     const rendered = renderRunState({
       ...initialRunState(),
       phase,
@@ -213,7 +191,6 @@ describe("initialRunState", () => {
   });
 
   test("returns a fresh map each time", () => {
-    // A shared map would leak one turn's tool counts into the next.
     const first = initialRunState();
     withTool(first, "bash");
 
@@ -261,8 +238,6 @@ describe("renderRunState", () => {
   });
 
   test("running never names the tools it ran", () => {
-    // A long run renders "bash ×36", which is noise to the person who asked
-    // and says nothing about progress.
     const rendered = renderRunState({
       ...withTool(withTool(initialRunState(), "bash"), "read"),
       phase: RunPhase.Running,
@@ -330,8 +305,6 @@ describe("renderRunState", () => {
   });
 
   test("failed without a reason still reads as an ending, not progress", () => {
-    // The whole point of the terminal state: a wedged turn must never keep
-    // rendering as though it is still working.
     const rendered = renderRunState({
       ...initialRunState(),
       phase: RunPhase.Failed,
@@ -344,8 +317,6 @@ describe("renderRunState", () => {
 
 describe("the footer names what ran the turn", () => {
   test("the harness leads, the model follows", () => {
-    // The harness says WHAT ran it; the model says what it ran on. Reading
-    // "pi · claude-opus" in that order matches how the two nest.
     const rendered = renderRunState({
       ...initialRunState(),
       harness: "pi",
@@ -372,8 +343,6 @@ describe("the footer names what ran the turn", () => {
 
 describe("the small print under an answer", () => {
   test("names what ran it, and not how many times a shell did", () => {
-    // "bash ×23" is a fact about the machinery, not the answer. It sat under
-    // every reply like a receipt nobody asked for.
     const rendered = renderRunState({
       ...initialRunState(),
       harness: "pi",

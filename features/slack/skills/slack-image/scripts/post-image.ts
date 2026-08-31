@@ -1,10 +1,3 @@
-/**
- * post-image.ts — the loopback call behind the `slack-image` skill.
- *
- * Split from the CLI entry so it can be exercised without a daemon, and so the
- * entry stays a thin shell that maps outcomes to exit codes.
- */
-
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
@@ -13,7 +6,6 @@ type PostImageOutcome =
   | { readonly kind: "posted" }
   | { readonly kind: "error"; readonly message: string };
 
-/** Structural so `Bun.env` passes straight through. */
 export type PostImageEnv = Readonly<Record<string, string | undefined>>;
 
 export const postImage = async (input: {

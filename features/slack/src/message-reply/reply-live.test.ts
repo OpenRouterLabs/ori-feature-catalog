@@ -50,8 +50,6 @@ describe("makeMessageReply", () => {
 
   test.effect("markdown passes through untouched via markdown_text", () =>
     Effect.gen(function* () {
-      // Slack renders markdown natively, so there is no conversion layer to
-      // keep in sync — the text arrives exactly as the agent produced it.
       const { fake, reply } = yield* build();
       const body = "**bold** and `code`\n- a list";
 
@@ -76,8 +74,6 @@ describe("makeMessageReply", () => {
 
   test.effect("truncates rather than letting Slack reject a long answer", () =>
     Effect.gen(function* () {
-      // Slack refuses an over-long message outright, so an uncapped reply turns
-      // a long answer into no answer at all.
       const { fake, reply } = yield* build();
 
       yield* reply.reply("x".repeat(60_000));
@@ -190,8 +186,6 @@ describe("makeMessageReply", () => {
           }),
         }
       );
-      // The upload PUTs to the URL Slack hands back, so the swap has to be a
-      // resource: the scope restores the real fetch however the test ends.
       yield* Effect.acquireRelease(
         Effect.sync(() => {
           const originalFetch = globalThis.fetch;

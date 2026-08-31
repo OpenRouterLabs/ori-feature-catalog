@@ -115,10 +115,6 @@ describe("an engaged thread", () => {
 describe("auto-mute", () => {
   test.effect("a second person makes the bot step back, silently", () =>
     Effect.gen(function* () {
-      // The note was posted the moment a second person spoke — often an aside
-      // mid-run, often not addressed to the bot at all — so a conversation
-      // between colleagues collected surface chatter neither had asked for.
-      // Two agents in one thread each posted their own.
       const h = harness();
       yield* send(h, {}, true);
       expect(yield* send(h, { userId: "U0OTHER0" })).toBe("drop");
@@ -237,8 +233,6 @@ describe("what does not count as somebody joining", () => {
 describe("a message addressed to someone else", () => {
   test.effect("is not answered, even in a thread the bot is following", () =>
     Effect.gen(function* () {
-      // "cc @lab to review too" is addressed to lab. Answering it anyway is the
-      // bot deciding that anything said near it is said to it.
       const h = harness();
       yield* send(h, {}, true);
 
@@ -253,7 +247,6 @@ describe("a message addressed to someone else", () => {
       yield* send(h, {}, true);
       yield* send(h, { text: "cc <@U0LAB000> to review too" });
 
-      // Not muted — the crowd heuristic is left armed. Just no longer following.
       expect(h.state().engaged).toBe(false);
       expect(h.state().muted).toBe(false);
       expect(h.notes).toHaveLength(0);
@@ -291,8 +284,6 @@ describe("a message addressed to someone else", () => {
 
   test.effect("with our own id unknown, nothing stands the thread down", () =>
     Effect.gen(function* () {
-      // Every mention would read as someone else's, including ours, so the bot
-      // would stand down on being addressed.
       const h = harness({ botUserId: undefined });
       yield* send(h, {}, true);
 
@@ -351,8 +342,6 @@ describe("unmute", () => {
 
       expect(yield* send(h, { text: "unmute" })).toBe("drop");
       expect(h.state().muted).toBe(false);
-      // Muting says nothing; unmuting confirms, because that answers a request
-      // somebody actually made.
       expect(h.notes).toHaveLength(1);
 
       expect(yield* send(h, { text: "carry on then" })).toBe("run");

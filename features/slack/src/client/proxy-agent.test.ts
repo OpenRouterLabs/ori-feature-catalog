@@ -84,8 +84,6 @@ describe("makeConfiguredWebClient", () => {
       const client = makeConfiguredWebClient(PLACEHOLDER, {
         HTTPS_PROXY: proxy.url,
       });
-      /* Not awaited: the stub answers 502 and the client's bounded retry
-         policy would outlive the test. The first CONNECT is the assertion. */
       void client.auth.test().catch(() => undefined);
       for (let wait = 0; wait < 100 && proxy.requestLines.length === 0; wait++) {
         await Bun.sleep(20);
@@ -105,12 +103,6 @@ describe("makeConfiguredWebClient", () => {
 
 describe("makeBoltApp", () => {
   test("routes Bolt's OWN client through the sidecar", async () => {
-    /*
-     * The regression this guards: Bolt builds its own WebClient and runs the
-     * authorization `auth.test` on it. Proxying only our client leaves that
-     * call direct, it answers `invalid_auth` against the placeholder token,
-     * and every incoming event is refused before a listener runs.
-     */
     const proxy = await startConnectProxy();
     try {
       makeBoltApp({
@@ -131,13 +123,6 @@ describe("makeBoltApp", () => {
 
 describe("makeBoltApp authorization", () => {
   test("makes no Slack call of its own when an identity is supplied", async () => {
-    /*
-     * The regression this guards: given a token, Bolt calls
-     * `auth.test({ token })` itself, and a per-call token rides the request
-     * BODY as well as the header. The vault substitutes the header only, so
-     * the body still carries the placeholder and Slack answers invalid_auth.
-     * With `authorize` there is no call to substitute.
-     */
     const proxy = await startConnectProxy();
     try {
       makeBoltApp({

@@ -10,7 +10,6 @@ import type { SlackClientShape, SlackApiError } from "./client.ts";
 import { SlackClientLive } from "./client-live.ts";
 import { SlackClient } from "./client.ts";
 
-/** A WebClient stub whose named methods can fail on demand. */
 const stubClient = (impl: Record<string, unknown>): WebClient =>
   impl as unknown as WebClient;
 
@@ -174,8 +173,6 @@ describe("getUserName", () => {
 describe("raw", () => {
   test.effect("is the same instance the typed methods use", () =>
     Effect.gen(function* () {
-      // The whole point of the escape hatch: a caller reaching past the typed
-      // surface still gets our configured client, not a bare one.
       const client = stubClient({ chat: {} });
 
       expect(

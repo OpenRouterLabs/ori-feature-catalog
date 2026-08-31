@@ -1,45 +1,13 @@
-/**
- * spawn-thread.ts — pure argument parsing and loopback dispatch logic for the
- * spawn-thread skill. The shebanged CLI entry (./index.ts) stays a thin shell
- * over these exports, and the `new`-subcommand workflow (anchor + opener
- * posts) lives in ./run-new.ts; everything here is side-effect free apart
- * from the injected fetch seam, so tests drive it directly.
- *
- * Calls the agent's dispatch endpoint POST /slack/thread/dispatch — served by the
- * ori daemon from the slack feature's api.routes (RFC 0002 api.md). The
- * runloop owns the full message pipeline for the target thread — the
- * "is thinking…" status, the agent run, the See-details reply — exactly as if
- * a user had @mentioned the bot there.
- *
- * The route's in-handler guard rejects any non-loopback caller, so only
- * processes on the same VM (this skill) can reach it regardless of the
- * daemon's bind address. There is no auth layer: loopback IS the boundary.
- *
- * Two subcommands cover the two real workflows:
- *   new      — open a fresh top-level thread + dispatch atomically.
- *   continue — dispatch into an already-open thread.
- * A flag-only legacy form (no subcommand) is preserved and treated as
- * `continue`.
- */
-
 import { Result } from "effect";
 
 import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
-// The daemon's default port (framework/runloop daemon-http-defaults.ts, 3141):
-// /slack/thread/dispatch is served by the daemon via the slack feature's api routes
-// (RFC 0002 api.md), not by a private slack HTTP server.
 export const DEFAULT_HTTP_PORT = 3141;
 const MAX_PORT = 65_535;
-// Must equal the dispatch route's MAX_SPAWN_DEPTH (interactions/dispatch.ts).
-// This script runs inside the materialized feature dir via relative imports,
-// so the pair cannot share one module; the spawn-depth parity test pins them
-// (and the off-by-one contract between checkDepth and the accepting schema).
 export const MAX_SPAWN_DEPTH = 3;
 
 export const Subcommand = {
   Continue: "continue",
-  /** Several threads in one request; see run-fork.ts. */
   Fork: "fork",
   New: "new",
 } as const;
@@ -53,11 +21,6 @@ interface ParsedArgs {
   opener?: string;
 }
 
-/**
- * Minimal fetch shape the dispatch call needs. Injecting this (rather than
- * `typeof fetch`, which also carries Bun's static members) lets tests supply a
- * plain closure without unsafe casts.
- */
 export type FetchLike = (
   input: string | URL | Request,
   init?: RequestInit
@@ -77,11 +40,6 @@ const hasFlagValue = (argv: readonly string[], index: number): boolean => {
   return Boolean(next) && !next.startsWith("-");
 };
 
-/**
- * Match a `--flag value` (or short-alias) pair at `index`. Returns the value
- * and the index of the consumed value token, or undefined when the token is
- * not this flag (or the flag has no usable value).
- */
 const readValueFlag = (
   argv: readonly string[],
   index: number,
@@ -96,18 +54,12 @@ const readValueFlag = (
   };
 };
 
-/** Whether the token at `index` is one of `names` with at least one token after it. */
 const isRestFlag = (
   argv: readonly string[],
   index: number,
   names: readonly string[]
 ): boolean => names.includes(argv[index]) && index + 1 < argv.length;
 
-/**
- * Consume tokens after --opener/-o until the next --prompt/-p flag (so
- * `--opener X --prompt Y` works). Returns the joined opener text and the loop
- * index to resume from.
- */
 const consumeOpener = (
   argv: readonly string[],
   flagIndex: number
@@ -124,8 +76,6 @@ const consumeOpener = (
   };
 };
 
-// --prompt is terminal: it consumes ALL remaining tokens (and must come after
-// --opener when both are used), signalled by returning past the end of argv.
 const consumeFlagAt = (
   argv: string[],
   i: number,
@@ -181,8 +131,6 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
 };
 
 export const checkDepth = (envValue?: string): Result.Result<number, Error> => {
-  // `Number()` (not `parseInt`) so partially-numeric values like "2abc" return
-  // NaN instead of silently parsing as 2.
   const depth = Number(envValue ?? "0");
   if (
     Number.isNaN(depth) ||
@@ -199,13 +147,6 @@ export const checkDepth = (envValue?: string): Result.Result<number, Error> => {
   return Result.succeed(depth);
 };
 
-/**
- * Resolve the daemon HTTP port serving /slack/thread/dispatch. The route lives on
- * the ori daemon (the slack feature's `api.routes`, RFC 0002 api.md), so this
- * mirrors the daemon's own `ORI_RUNTIME_PORT` (default 3141). The skill POSTs
- * to http://127.0.0.1:$port/slack/thread/dispatch; the route's in-handler loopback
- * guard keeps it same-VM only regardless of the daemon's bind address.
- */
 export const resolveHttpPort = (
   env: Record<string, string | undefined>
 ): number => {
@@ -228,12 +169,6 @@ interface DispatchOpts {
   fetchImpl?: FetchLike | undefined;
 }
 
-/**
- * POST to the agent's loopback /slack/thread/dispatch endpoint. The endpoint
- * enqueues a turn on the target thread's serial queue and returns immediately;
- * this skill does not wait for the agent run. Loopback (127.0.0.1) is the
- * trust boundary — there is no auth header.
- */
 export const dispatchToRunloop = async (
   opts: DispatchOpts
 ): Promise<Result.Result<void, Error>> => {

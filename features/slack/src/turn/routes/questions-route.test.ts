@@ -1,12 +1,4 @@
 /* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function import/no-relative-parent-imports -- typing every local helper buys nothing here, cases read better whole than split, and the services a route calls are siblings of this feature rather than of this directory */
-/**
- * questions-route.test.ts — what the route accepts, and what it promises.
- *
- * The skill maps a 2xx to "asked" and then tells the model to END ITS TURN, so
- * every answer this route gives is a promise about a message a person can see.
- * A body it cannot read has to be refused with words a model can act on, and a
- * form that never reached Slack must not come back as an ask.
- */
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
@@ -48,7 +40,6 @@ interface Posted {
   readonly fallback: string;
 }
 
-/** The route with every dependency recorded rather than real. */
 const routeWith = (options: { failPost?: boolean; live?: boolean } = {}) =>
   Effect.gen(function* () {
     const forms = yield* QuestionnairesMemory;
@@ -62,8 +53,6 @@ const routeWith = (options: { failPost?: boolean; live?: boolean } = {}) =>
         asks += 1;
         return `ask-${asks}`;
       },
-      // Exactly the contract `turn-routes.ts` implements: the ts of the posted
-      // message, or undefined when Slack refused it.
       post: (_ref, blocks, fallback) => {
         posts.push({
           blocks,
@@ -116,7 +105,6 @@ describe("parseAskBody", () => {
   });
 
   test("eleven questions is refused, and the count is in the refusal", () => {
-    // The model has to know how many it asked for to cut them down.
     const many = Array.from({ length: 11 }, (_value, index) => ({
       id: `q${index}`,
       prompt: `Question ${index}?`,
@@ -186,7 +174,6 @@ describe("parseAskBody", () => {
     for (const parsed of refusals) {
       expect(parsed.ok).toBe(false);
     }
-    // One message for every unreadable shape, and it names the shape wanted.
     expect(
       refusals.every(
         (parsed) => !parsed.ok && parsed.error.includes("questions")
@@ -195,8 +182,6 @@ describe("parseAskBody", () => {
   });
 
   test("an empty channel is accepted, which the blocker route refuses", () => {
-    // Documented rather than endorsed: `blocker-route.ts` rejects an empty
-    // channel or thread_ts, this one posts into a ref that cannot resolve.
     expect(
       parseAskBody(
         body({
@@ -208,8 +193,6 @@ describe("parseAskBody", () => {
   });
 
   test("an empty intro is accepted, and Slack refuses the block it becomes", () => {
-    // The skill refuses this before it calls, so only a direct caller gets
-    // here — and a section block with no text is `invalid_blocks`.
     const parsed = parseAskBody(body({ intro: "   " }));
 
     expect(parsed.ok).toBe(true);
@@ -230,7 +213,6 @@ describe("the questions route", () => {
         ok: true,
       });
       expect(surface.posts).toHaveLength(1);
-      // The button names the count, so a reader knows what answering costs.
       expect(JSON.stringify(surface.posts[0]?.blocks)).toContain(
         "Answer 1 question"
       );
@@ -316,8 +298,6 @@ describe("the questions route", () => {
 
   test.effect("no live turn in that thread is a 404, and nothing is posted", () =>
     Effect.gen(function* () {
-      // The answers resume a run by starting a NEW turn on the thread; with no
-      // run there, the form would be asked on behalf of nobody.
       const surface = yield* routeWith({ live: false });
 
       const response = yield* Effect.promise(() => surface.route(ask(body())));
@@ -329,9 +309,6 @@ describe("the questions route", () => {
     }));
 
   test("an id carrying the block-id separator is accepted, and the answer is lost", () => {
-    // `blockIdFor` joins with `|` and `questionIdFromBlock` splits on it, so
-    // `a|b` comes back as `a` and matches no question. See
-    // `questions.test.ts` and `questions-handler.test.ts` for the loss.
     expect(
       parseAskBody(
         body({
@@ -365,16 +342,6 @@ describe("the questions route", () => {
 describe("a form Slack never posted", () => {
   test.effect("is not an ask, and must not be reported as one", () =>
     Effect.gen(function* () {
-      // KNOWN DEFECT — this test fails today.
-      //
-      // On a rate limit or `invalid_blocks` the post is dropped
-      // (`turn-routes.ts` swallows it with `Effect.orElseSucceed`) and `post`
-      // resolves undefined. The route stores the form anyway and returns
-      // `{ ok: true }`, so the skill prints END YOUR TURN and the model finishes
-      // promising an answer that cannot arrive: there is no message and no
-      // button, and nothing will ever start the next turn.
-      //
-      // `blocker-route.ts` already answers 502 in exactly this situation.
       const surface = yield* routeWith({ failPost: true });
 
       const response = yield* Effect.promise(() => surface.route(ask(body())));

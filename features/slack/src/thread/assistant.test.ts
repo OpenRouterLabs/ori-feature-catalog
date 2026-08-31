@@ -38,16 +38,11 @@ describe("AssistantThreadsLive", () => {
 
       yield* assistant.setTitle(PANE, "a title");
 
-      // Slack answers `not_allowed` for these outside an assistant container, so
-      // the surface has to know it is in one rather than trying and ignoring.
       expect(opsOf(fake)).toEqual([]);
     })
   );
 
   test.effect("the status line is attempted everywhere, pane or not", () =>
-    // It is the only working indicator a channel agent gets — Devin renders
-    // exactly this under the composer of a channel thread. Refusal is a logged
-    // warning, so trying costs one call and nothing else.
     Effect.gen(function* () {
       const { assistant, fake } = yield* build();
 
@@ -82,15 +77,11 @@ describe("AssistantThreadsLive, continued", () => {
   test.effect("a failed Slack call is warned about, never raised", () =>
     Effect.gen(function* () {
       const { assistant } = yield* build({
-        // The port declares `SlackApiError`; a plain Error is enough to prove the
-        // failure is caught, and `orDie`-free typing keeps the double honest.
         setAssistantStatus: () => Effect.fail(new Error("not_allowed")) as never,
       });
 
       yield* assistant.remember(keyOf(PANE));
 
-      // These are decoration around a turn running regardless — failing the run
-      // here would trade the answer for a label.
       expect(yield* assistant.setStatus(PANE, "working")).toBeUndefined();
     })
   );
@@ -104,8 +95,6 @@ describe("AssistantThreadsLive, continued", () => {
         teamId: "T1",
       });
 
-      // The pane is its own conversation, so without this "summarise this" has
-      // no referent but the question itself.
       expect(yield* assistant.contextFor(keyOf(PANE))).toEqual({
         channelId: "C_BEHIND",
         teamId: "T1",
@@ -130,8 +119,6 @@ describe("AssistantThreadsLive, continued", () => {
 
         const current = yield* assistant.contextFor(keyOf(PANE));
         expect(current?.channelId).toBe("C_SECOND");
-        // Still a pane: membership is what makes the pane-only calls legal, and a
-        // context change must not revoke that.
         expect(yield* assistant.isPane(keyOf(PANE))).toBe(true);
       })
   );
@@ -156,15 +143,11 @@ describe("AssistantThreadsLive, continued", () => {
         yield* assistant.remember(keyOf(PANE));
         yield* assistant.setStatus(PANE, "");
 
-        // Slack shows the indicator until it is cleared, so a skipped clear leaves
-        // the pane thinking next to an answer that already arrived.
         expect(fake.calls.at(0)?.args).toMatchObject({ status: "" });
       })
   );
 
   test("the pane key does not carry a team id", () => {
-    // Panes only ever exist in the installed workspace, and the callers here
-    // have a channel and a thread but not always a team.
     expect(keyOf(PANE)).toBe(`${PANE.channelId}:${PANE.threadTs}`);
   });
 });
@@ -185,7 +168,6 @@ describe("titleFromMessage", () => {
 
     expect(title.endsWith("…")).toBe(true);
     expect(title).not.toContain("reposi…");
-    // Whole words only: the cut lands on a space, never inside one.
     expect(title.replace("…", "").endsWith(" ")).toBe(false);
   });
 

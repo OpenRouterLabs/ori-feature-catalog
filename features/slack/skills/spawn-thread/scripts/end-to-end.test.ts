@@ -1,18 +1,3 @@
-/**
- * end-to-end.test.ts — the real CLI, as a real process, against a fake daemon.
- *
- * `spawn-thread.test.ts` drives the parser and the dispatch call directly, so
- * the composition root — argv slicing, the depth read from env, which failure
- * prints usage and which prints a reason, and the exit code the agent branches
- * on — had never run. A spawn is fire-and-forget: the agent's only signal that
- * a thread was opened is the exit code, so a failure reported as success is a
- * task nobody is working on.
- *
- * Only the `continue` path reaches the daemon here; `new` posts to Slack first
- * and has no token in this environment, so it is exercised up to the argument
- * check it fails.
- */
-
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 import { join } from "node:path";
 
@@ -111,8 +96,6 @@ const CONTINUE = [
 
 describe("continuing an open thread", () => {
   test("enqueues the turn and exits zero without printing anything", async () => {
-    // Fire and forget: the skill does not wait for the run, so anything on
-    // stdout would be mistaken for the run's answer.
     const daemon = fakeDaemon();
 
     const result = await run({
@@ -179,8 +162,6 @@ describe("continuing an open thread", () => {
 
 describe("the recursion guard", () => {
   test("refuses at the maximum depth before any dispatch", async () => {
-    // A run that has already been spawned three deep is what a runaway looks
-    // like; the check happens before argv is even parsed.
     const daemon = fakeDaemon();
 
     const result = await run({
@@ -223,8 +204,6 @@ describe("arguments it cannot act on", () => {
   });
 
   test("a new thread with no opener prints usage before touching Slack", async () => {
-    // `new` posts the opener itself, so an argument check that ran after the
-    // post would leave a half-opened thread behind.
     const daemon = fakeDaemon();
 
     const result = await run({

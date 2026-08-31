@@ -1,15 +1,4 @@
 /* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes */
-/**
- * handler-test-support.ts — the turn harness shared by the handleTurn tests.
- *
- * `handler.test.ts` and `run-state.test.ts` drive the same turn path with the
- * same fake bridge, client and layer stack, so it is built once here. Extracted
- * when the case files split apart under the file-length budget.
- *
- * NOTE: `handler-rendering.test.ts` and `handler-assistant.test.ts` still carry
- * their own diverged copies of this harness (different `bridgeOf` options).
- * Unifying all four is a follow-up — it changes those cases, not these.
- */
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 import { Effect, Layer } from "effect";
@@ -92,13 +81,6 @@ export const liveTurn = () => {
   };
 };
 
-/**
- * The layer stack a turn needs, over a given fake client.
- *
- * Named rather than inlined into `run` because a test that drives `handleTurn`
- * directly — to run two turns against one store, say — needs the same stack;
- * two copies of it drift the moment a service is added.
- */
 export const servicesFor = (fake: ReturnType<typeof makeFakeSlackClient>) =>
   Layer.mergeAll(
     Layer.effect(ThreadContext)(ThreadContextLive),
@@ -110,7 +92,6 @@ export const servicesFor = (fake: ReturnType<typeof makeFakeSlackClient>) =>
   ).pipe(Layer.provideMerge(fake.layer));
 
 export const run = async (input: {
-  /** Runs before the event at that index, to interleave an out-of-band write. */
   readonly beforeEvent?: (index: number) => Promise<void>;
   readonly events: readonly AgentRuntimeEvent[];
   readonly failBlockPosts?: boolean;
@@ -160,7 +141,6 @@ export const run = async (input: {
   };
 };
 
-/** What the thread ends up showing as the ANSWER. A turn posts it once. */
 const ANSWER_OPS: ReadonlySet<string> = new Set(["chat.postMessage"]);
 
 export const answered = (
@@ -173,7 +153,6 @@ export const answered = (
     )
     .join("\n");
 
-/** Everything the run put on screen, whichever transport carried it. */
 const PROGRESS_OPS: ReadonlySet<string> = new Set([
   "chat.postMessage",
   "chat.update",
@@ -184,7 +163,6 @@ export const progress = (
 ): string =>
   JSON.stringify(fake.calls.filter((call) => PROGRESS_OPS.has(call.op)));
 
-/** Kept for assertions that do not care which message the text landed on. */
 export const updated = (
   fake: ReturnType<typeof makeFakeSlackClient>
 ): string[] => [answered(fake), progress(fake)];

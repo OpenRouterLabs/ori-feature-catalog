@@ -71,10 +71,6 @@ describe("permissionBlocks", () => {
   });
 
   test("every button carries its own action id, under one prefix", () => {
-    // Slack refuses a message whose elements share an action id, so they
-    // cannot be identical. The handler is registered on the prefix, and the
-    // correlation id still rides in the value — it only exists at request
-    // time, so it could never have lived in a registered id.
     const buttons = buttonsOf(permissionBlocks(request));
     const ids = buttons.map((b) => b.action_id);
 
@@ -131,8 +127,6 @@ describe("permissionResolvedBlocks", () => {
 
 describe("elicitationBlocks", () => {
   test("offers only the answers Slack can honestly collect", () => {
-    // Accepting with real field values needs a modal; declining and cancelling
-    // unblock the turn without inventing content.
     const buttons = buttonsOf(
       elicitationBlocks({
         askedBy: "U1",
@@ -164,16 +158,10 @@ describe("elicitationBlocks", () => {
 
 describe("registerPermissionHandlers", () => {
   test.effect("a failing handler does not abandon the other actions", () =>
-    // These handlers are how an approval reaches the waiting turn, so a
-    // swallowed failure looks like a button that did nothing and a run that
-    // hangs until its deadline, with no record of why.
     Effect.gen(function* () {
       const interactions = makeInteractions();
       let secondRan = false;
 
-      // Handlers are typed as never-failing, so a handler that breaks surfaces
-      // as a defect — which the previous Effect.ignore swallowed just as
-      // silently as a typed failure.
       interactions.on("first", () =>
         Effect.sync(() => {
           throw new Error("bridge down");
@@ -279,8 +267,6 @@ describe("registerPermissionHandlers", () => {
   test.effect.each([undefined, "", "only-one-field", "two|fields", "a|b|c"])(
     "a malformed value %p is ignored rather than answered wrongly",
     (value) =>
-      // Answering a permission with a guessed correlation id would resolve
-      // somebody else's request.
       Effect.gen(function* () {
         expect(yield* dispatchWith(PERMISSION_ACTION_ID, value)).toHaveLength(
           0
@@ -289,8 +275,6 @@ describe("registerPermissionHandlers", () => {
   );
 
   test.effect("a bystander cannot answer someone else's approval", () =>
-    // Buttons live in a channel, so everyone who can see the thread can click
-    // them. Approving a command on another user's behalf defeats the ask.
     Effect.gen(function* () {
       const value = buttonsOf(permissionBlocks(request))[0]?.value;
 

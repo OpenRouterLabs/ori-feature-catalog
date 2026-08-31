@@ -1,12 +1,4 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- test doubles stand in for Slack SDK and fetch shapes */
-/**
- * carry.test.ts — moving a conversation, from the skill's side.
- *
- * `carry.test.ts` in src pins what the move does to the store. These cover the
- * half the skill owns: refusing when there is nothing to carry, and — the case
- * that matters most — what the user is told when the move fails after the new
- * thread has already been posted.
- */
 
 import { Option, Result } from "effect";
 
@@ -86,8 +78,6 @@ describe("carrying from the skill", () => {
   });
 
   test("the old thread is told where the conversation went", async () => {
-    // It is muted from here on. A thread that simply stops answering reads as
-    // a broken bot, so the pointer is not decoration.
     const bench = harness();
 
     await runCarry({
@@ -108,8 +98,6 @@ describe("carrying from the skill", () => {
   });
 
   test("a refused carry reports into the thread the user is watching", async () => {
-    // The new thread is already posted at this point. Reporting into it would
-    // put the error somewhere nobody is looking.
     const bench = harness({ carryStatus: 409 });
 
     const result = await runCarry({

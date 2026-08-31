@@ -68,8 +68,6 @@ describe("blocker clicks", () => {
       yield* interactions.dispatch(click(""));
       yield* interactions.dispatch(click("no-separator"));
 
-      // `expect(true).toBe(true)` used to stand here, which would have passed
-      // just as happily if an unreadable click had answered the ask.
       expect(yield* blockers.count()).toBe(1);
       expect(yield* blockers.answer(askId, "rebase")).toBe(true);
     })

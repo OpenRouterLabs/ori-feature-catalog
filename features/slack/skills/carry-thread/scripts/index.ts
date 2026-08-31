@@ -1,13 +1,5 @@
 #!/usr/bin/env bun
 
-/**
- * carry-thread CLI entry.
- *
- * Thin shell: snapshot argv/env, print usage, map a `Result` failure to an
- * exit code. The workflow is in ./carry.ts so tests drive it without the
- * platform.
- */
-
 import { Result } from "effect";
 
 import { runCarry } from "./carry.ts";
@@ -24,7 +16,6 @@ const USAGE = [
   "",
 ].join("\n");
 
-/** `--opener` consumes the remaining tokens, so quoting is optional for callers. */
 const parseOpener = (argv: readonly string[]): string | undefined => {
   const at = argv.indexOf("--opener");
   if (at === -1) {

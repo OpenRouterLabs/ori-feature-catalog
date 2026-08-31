@@ -24,11 +24,13 @@ Four or fewer stays flat. A folder holding one module and its test earns nothing
 
 The turn path, registries, and routes stay out of it. If a file holds state or participates in the turn lifecycle it is not a helper.
 
-## Comments
+## No comments
 
-At the top of a file, or the top of a function longer than ~15 lines. Nowhere else, and never more than 3 lines.
+The source carries none. A name, a type, or a smaller function says it better, and a comment is the one part of a file nothing checks — it goes stale silently while the code around it moves.
 
-A comment inside a function is usually a sign the function wants splitting. Say _why_ — a constraint, a rejected alternative, a bug this shape prevents. Never what the code does; the name carries that.
+What a comment used to hold goes somewhere that stays true: a constraint or a rejected alternative belongs in this file, a bug a shape prevents belongs in the test that proves it, and the rest belongs in the commit message that made the change.
+
+Lint and compiler directives — `oxlint-disable`, `@ts-expect-error` — are not comments for this purpose. They change what the tools do, so they stay.
 
 ## Slack constraints that shaped the design
 
@@ -460,12 +462,12 @@ has no way to post a button of its own. Nothing in `onButton` changes that,
 and no skill exposes it.
 
 What it changes is the sibling feature. `interactions.on` always routed any
-action id — the comment at the top of `interactions.ts` says the service
-exists so a downstream feature can add an action — but nothing outside this
-feature could reach the service. It lives in the Effect graph, and the public
-surface was `postMessage` and `webClient`. So a feature could post a perfectly
-good button and the click went nowhere: `dispatch` looked the id up, found no
-handler, and returned. The button rendered and did nothing, silently.
+action id, and the service exists so a downstream feature can add one — but
+nothing outside this feature could reach the service. It lives in the Effect
+graph, and the public surface was `postMessage` and `webClient`. So a feature
+could post a perfectly good button and the click went nowhere: `dispatch`
+looked the id up, found no handler, and returned. The button rendered and did
+nothing, silently.
 
 Two constraints fall out of the design and are enforced rather than
 documented:

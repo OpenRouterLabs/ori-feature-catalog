@@ -18,9 +18,6 @@ import { handleTurn } from "./handler.ts";
 
 describe("handleTurn", () => {
   test("a run that dies mid-stream renders as failed, not as still working", async () => {
-    // The terminal render used to be built eagerly, capturing the state as it
-    // was BEFORE the run started, so the Failed phase computed when the stream
-    // died was never the thing rendered and the thread kept showing progress.
     const { fake } = await run({
       events: [event("assistant.text.delta", { delta: "partial" })],
       throwAfter: true,
@@ -32,9 +29,6 @@ describe("handleTurn", () => {
   });
 
   test("a progress message Slack refuses does not cost the turn", async () => {
-    // The post is forked off the hot path, so the agent no longer waits on it
-    // — and no longer depends on it. Losing the progress message costs the
-    // reader some progress; the answer is its own message and still arrives.
     const { sent } = await run({
       events: [event("turn.succeeded", {})],
       failBlockPosts: true,
@@ -46,8 +40,6 @@ describe("handleTurn", () => {
   });
 
   test("a timed-out run does not claim someone cancelled it", async () => {
-    // Both surface as an aborted signal, but telling someone their work was
-    // "cancelled" when nobody cancelled it sends them looking for who did.
     const controller = new AbortController();
     controller.abort(TURN_TIMEOUT_REASON);
     const { fake } = await run({
@@ -63,8 +55,6 @@ describe("handleTurn", () => {
       },
     });
 
-    // On the reply itself now: the Cancel affordance that used to carry this
-    // is removed when the turn ends, rather than left behind as "_Done._".
     expect(updated(fake).join("\n")).toContain("Still running");
     expect(updated(fake).join("\n")).not.toContain("Cancelled");
   });
@@ -99,9 +89,6 @@ describe("handleTurn", () => {
   });
 
   test("threads the spawn depth so the recursion cap actually engages", async () => {
-    // The spawn-thread skill reads SPAWN_THREAD_DEPTH and refuses to recurse
-    // past the cap. Unset, its guard reads Number(undefined ?? "0") — zero —
-    // so every spawned turn restarted the count and the cap never engaged.
     const { sent } = await run({
       events: [event("turn.succeeded", {})],
       spawnDepth: 2,
@@ -117,28 +104,16 @@ describe("handleTurn", () => {
   });
 
   test("asks for a thread-sized reply, every turn", async () => {
-    // The surface cannot shorten an answer faithfully — only the model can
-    // decide what to leave out — so brevity is asked for, not truncated. Sent
-    // every turn because a session spans many and it has to survive all of
-    // them.
     const { sent } = await run({ events: [event("turn.succeeded", {})] });
 
-    // The failure is density, not length: "about a paragraph" licensed the
-    // wall, but a hard sentence cap bought fragments instead of explanation.
     expect(sent[0]?.prompt).toContain("DENSITY");
     expect(sent[0]?.prompt).toContain("Write in prose");
     expect(sent[0]?.prompt).not.toContain("about a paragraph");
-    // Anything tabular goes to the chart helper rather than into the prose.
     expect(sent[0]?.prompt).toContain(
       "features/slack/skills/slack-chart/scripts/index.ts"
     );
     expect(sent[0]?.prompt).toContain("narrate your tool calls");
-    // The cadence and the tool are spelled out, not deferred to a tool
-    // description: a model deep in a task does not go looking for a tool it
-    // has not decided to use, and the result was twenty minutes of silence.
     expect(sent[0]?.prompt).toContain("slack-status ");
-    // The thread ref rides with it, because a shared MCP server cannot infer
-    // which thread the call belongs to.
     expect(sent[0]?.prompt).toContain("<slack_thread_ref>");
     expect(sent[0]?.prompt).toContain("POST WITHIN THE FIRST MINUTE");
   });
@@ -157,8 +132,6 @@ describe("handleTurn", () => {
   });
 
   test("threads Slack coordinates as env, not prompt text", async () => {
-    // The slack-api skill reads these, so the model never has to copy ids out
-    // of its context — and an injection cannot rewrite them.
     const { sent } = await run({ events: [event("turn.succeeded", {})] });
 
     expect(sent[0]?.env).toMatchObject({
@@ -204,8 +177,6 @@ describe("handleTurn", () => {
       ]);
       const second = bridgeOf([event("turn.succeeded", {})]);
 
-      // One `provide` around both turns, not one each: the store they share is
-      // the thing under test, and a layer per turn would hand each its own.
       yield* Effect.gen(function* () {
         yield* handleTurn({
           bridge: first.bridge,
@@ -229,7 +200,6 @@ describe("handleTurn", () => {
 
       expect(first.sent[0]?.sessionId).toBeUndefined();
       expect(second.sent[0]?.sessionId).toBe("sess-42");
-      // Second turn has a session, so no context block is replayed.
       expect(second.sent[0]?.prompt).not.toContain("<slack_thread>");
     }));
 });

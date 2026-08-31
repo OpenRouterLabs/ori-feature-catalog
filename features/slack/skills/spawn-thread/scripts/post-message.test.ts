@@ -1,14 +1,3 @@
-/**
- * post-message.ts and update-message.ts are the only writes in the feature
- * that do not go through the daemon, so the two things worth pinning are the
- * ones that happen before Slack is called at all: the credential check, and
- * that the cross-channel routing guard is actually wired into the poster
- * rather than only living in the helper it is tested from.
- *
- * The successful post needs a real workspace and is left to the daemon's own
- * integration path.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Option, Result } from "effect";
 
@@ -37,8 +26,6 @@ describe("postMessage", () => {
   });
 
   test("refuses a top-level post into a channel the turn is not in", async () => {
-    // The guard is the reason this write is safe to leave outside the daemon:
-    // a spawn can open a thread where it was told to, and nowhere else.
     const result = await postMessage({
       channel: "C-ELSEWHERE",
       env: IN_THREAD,
@@ -89,8 +76,6 @@ describe("decodePostMessageResponse", () => {
     expect(Option.isNone(decodePostMessageResponse({ ok: true }))).toBe(true);
   });
 
-  // The pre-existing contract treats an empty ts as absent rather than as a
-  // usable thread id, which is why the schema requires a NonEmptyString.
   test("is None for an empty ts rather than returning it", () => {
     expect(Option.isNone(decodePostMessageResponse({ ts: "" }))).toBe(true);
   });

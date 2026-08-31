@@ -26,7 +26,6 @@ describe("parseChartBody", () => {
   });
 
   test("refuses a kind with nothing to draw", () => {
-    // A chart of no rows is a blank image and a wasted upload.
     expect(
       parseChartBody({
         ...base,
@@ -69,9 +68,6 @@ describe("parseChartBody", () => {
 
 describe("tables are not drawn", () => {
   test("the chart request rejects the table kind", () => {
-    // Slack renders GitHub-flavoured tables natively now. Drawn as an image
-    // they came out as overlapping text nobody could read, next to a native
-    // table in the same reply that rendered perfectly.
     const parsed = parseChartBody({
       channel: "C1",
       cells: [["a", "b"]],
@@ -120,8 +116,6 @@ describe("a flow that would draw as a smear", () => {
   });
 
   test("nine are refused, and the reason names the table", () => {
-    // The chart that started this: nine checked surfaces fanned from one node,
-    // whose labels overlapped into "ack HMACaulttunnel proxykey-proxy allows".
     const parsed = parseChartBody(flowBody(fanOut(9)));
 
     expect(parsed.ok).toBe(false);
@@ -129,8 +123,6 @@ describe("a flow that would draw as a smear", () => {
   });
 
   test("a line break tag never reaches a label", () => {
-    // Labels are escaped for the SVG, so `<br/>` rendered as those four
-    // characters inside the box.
     const parsed = parseChartBody(
       flowBody(
         "flowchart TD\n  A(Untrusted surfaces<br/>and where they land) --> B[Next]"

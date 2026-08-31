@@ -32,8 +32,6 @@ describe("makePostMessage", () => {
   });
 
   test("trims text Slack would reject outright", async () => {
-    // Slack rejects an over-long message rather than trimming it, so an
-    // uncapped caller gets a hard failure where a trimmed post would do.
     const sent: Record<string, unknown>[] = [];
     const fake = withRaw(((args: Record<string, unknown>) => {
       sent.push(args);
@@ -79,8 +77,6 @@ describe("makePostMessage", () => {
   });
 
   test("reports a Slack failure as a result rather than throwing", async () => {
-    // A feature posting a courtesy notification must not have its own work
-    // fail because Slack was rate limited.
     const fake = withRaw(() => {
       throw new Error("ratelimited");
     });
@@ -135,7 +131,6 @@ describe("makePostMessage", () => {
   });
 
   test("omits thread_ts entirely for a top-level post", async () => {
-    // Sending `thread_ts: undefined` is not the same as omitting it.
     const fake = withRaw(() => ({
       channel: "C1",
       ok: true,
@@ -225,9 +220,6 @@ describe("postMessage", () => {
 
 describe("webClient", () => {
   test("is undefined rather than a throw when no token is in scope", () => {
-    // Reachable from any feature in any process, including a workspace that
-    // never configured Slack. An exception out of an accessor would fail a
-    // caller that was only checking whether Slack was available at all.
     const original = Bun.env.SLACK_BOT_TOKEN;
     delete Bun.env.SLACK_BOT_TOKEN;
 
@@ -241,9 +233,6 @@ describe("webClient", () => {
   });
 
   test("hands every caller the same instance", () => {
-    // The SDK's rate-limit queue is per WebClient. A fresh one per consumer
-    // would let two features stampede the same channel while each believed
-    // it was within the limit.
     const original = Bun.env.SLACK_BOT_TOKEN;
     Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
 
@@ -271,9 +260,6 @@ describe("one client, whoever asks", () => {
   };
 
   test("hands back the surface's own client while it is running", () => {
-    // The Slack SDK's rate-limit queue is per client instance, so building a
-    // second one meant a process running the surface held two queues that
-    // could not see each other — each polite alone, Slack seeing the sum.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an identity stub: the test asserts which object comes back, never calls it
     const raw = { marker: "the surface's" } as unknown as WebClient;
 
@@ -283,8 +269,6 @@ describe("one client, whoever asks", () => {
   });
 
   test("falls back to its own when no surface is running", () => {
-    // The independence that makes this reachable from a schedule or an API
-    // route in a process that never booted Slack.
     const original = Bun.env.SLACK_BOT_TOKEN;
     Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
     const before = globalThis.__oriSlackRuntime;

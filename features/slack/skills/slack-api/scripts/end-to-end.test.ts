@@ -1,18 +1,3 @@
-/**
- * end-to-end.test.ts — the real CLI, as a real process, with no credentials.
- *
- * `dispatch-command.test.ts` calls the router directly, so the composition
- * root — argv slicing, which stream each outcome is written to, and the exit
- * code the agent branches on — had never run. The agent parses stdout as JSON,
- * so an error printed there instead of on stderr is a parse failure, and a
- * failure that exits zero is an empty result read as "no messages".
- *
- * Every case here stops before Slack is contacted: either at argument
- * validation, or at the SLACK_BOT_TOKEN check. The env is built from scratch
- * (PATH only) so nothing on the developer's machine can turn one of these into
- * a real API call.
- */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { join } from "node:path";
 
@@ -66,8 +51,6 @@ describe("the command word", () => {
   });
 
   test("a write command is unknown, not silently accepted", async () => {
-    // This skill is read-only; posting goes through the daemon so that
-    // rationing and the one-answer-per-turn rule are not optional.
     const result = await run(["chat.postMessage", "--channel", "C1", "--text", "hi"]);
 
     expect(result.code).toBe(1);
@@ -77,8 +60,6 @@ describe("the command word", () => {
 
 describe("what it refuses to do without credentials", () => {
   test("a read that would need a token stops at the token check", async () => {
-    // The proof that nothing is attempted unauthenticated: with a channel and
-    // no token, the only thing that comes back is the name of the variable.
     const result = await run(["users.list"]);
 
     expect(result.code).toBe(1);
@@ -95,8 +76,6 @@ describe("what it refuses to do without credentials", () => {
   });
 
   test("a missing flag is reported before the token is even looked for", async () => {
-    // Argument errors are the agent's to fix; a token error is not, so the
-    // more actionable one has to win.
     const result = await run(["conversations.replies", "--channel", "C1"]);
 
     expect(result.code).toBe(1);
@@ -107,9 +86,6 @@ describe("what it refuses to do without credentials", () => {
 
 describe("where the channel comes from", () => {
   test("the env supplies it when the flag does not", async () => {
-    // Env-first is the whole point of the design: the model never restates
-    // coordinates it was not given. Reaching the token error proves the
-    // channel resolved.
     const result = await run(["conversations.history"], {
       SLACK_CHANNEL_ID: "C-FROM-ENV",
     });
@@ -118,7 +94,6 @@ describe("where the channel comes from", () => {
   });
 
   test("the literal string \"undefined\" is not a channel", async () => {
-    // A shell expanding a variable it does not have hands over this word.
     const result = await run(["conversations.history"], {
       SLACK_CHANNEL_ID: "undefined",
     });

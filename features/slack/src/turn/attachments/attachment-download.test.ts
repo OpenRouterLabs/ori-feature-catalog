@@ -73,8 +73,6 @@ describe("isAllowedFileUrl", () => {
     "not a url",
     "",
   ])("refuses %s", (url) =>
-    // url_private is attacker-influenced data on an inbound event. Following
-    // it blindly would turn the bot into an SSRF proxy with a bot token.
     Effect.gen(function* () {
       expect(yield* isAllowedFileUrl(url)).toBe(false);
     })
@@ -123,10 +121,6 @@ describe("attachmentDirFor", () => {
   });
 
   test("is unique per call, not per thread", () => {
-    // Downloads happen before the turn is enqueued, so two messages arriving
-    // together in one thread download concurrently even though their turns
-    // are serialised. A shared directory meant the first to finish deleted
-    // files the second was still naming.
     expect(attachmentDirFor("1700.0001")).not.toBe(
       attachmentDirFor("1700.0001")
     );
@@ -135,8 +129,6 @@ describe("attachmentDirFor", () => {
 
 describe("discardAttachments", () => {
   test.effect("removes the directory and everything in it", () =>
-    // This existed once and was silently dropped in a refactor, so other
-    // people's Slack files piled up in a shared tmpdir again. Pinned now.
     Effect.gen(function* () {
       const writeDir = yield* Effect.promise(scratch);
       const [downloaded] = yield* downloadAttachments([file()], {
@@ -153,8 +145,6 @@ describe("discardAttachments", () => {
 
       yield* discardAttachments(writeDir);
 
-      // `.rejects` is bun's own matcher, not a promise this can `yield*`: it
-      // hands back undefined and throws on its own. It stays inside the thunk.
       yield* Effect.promise(async () => {
         await expect(
           readFile(downloaded?.path ?? "", "utf-8")
@@ -214,8 +204,6 @@ describe("downloadAttachments", () => {
   );
 
   test.effect("bounds each download so a stall cannot cost the turn", () =>
-    // Downloads run before the turn is enqueued, so nothing else bounds them
-    // — not the turn deadline, not the client retry policy.
     Effect.gen(function* () {
       const writeDir = yield* Effect.promise(scratch);
       let signal: AbortSignal | undefined;

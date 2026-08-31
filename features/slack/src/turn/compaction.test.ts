@@ -1,16 +1,3 @@
-/**
- * compaction.test.ts — the pause the surface used to sit through silently.
- *
- * Compaction is a model call that summarises the conversation so the run can
- * keep going. It emits no tool events while it runs, and the indicator is
- * built from tool events — so before this the line froze on whatever tool had
- * last finished, minutes ticking up beside it, which reads as a run that
- * stopped rather than one that is working.
- *
- * These cover the state transitions and the line, because that is the whole
- * feature: the daemon knows something the thread was not being told.
- */
-
 import type { AgentRuntimeEvent } from "ori";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -32,9 +19,6 @@ describe("compaction reaches the state", () => {
   });
 
   test("a second start keeps the first stamp", () => {
-    // Elapsed should mean "since the pause began", not "since the last event
-    // about it" — otherwise a chatty harness resets the clock and the pause
-    // always looks new.
     let state = applyEvent(initialRunState(0), event("compaction.started"));
     const first = state.compactingSince;
     state = applyEvent(state, event("compaction.started"));
@@ -47,9 +31,6 @@ describe("compaction reaches the state", () => {
     ["compaction.failed"],
     ["compaction.cancelled"],
   ])("%s clears it", (ending) => {
-    // Every ending, not just the happy one: a failed compaction leaves the run
-    // working, and an indicator still claiming to compact is the stale line
-    // this surface keeps relearning not to leave behind.
     let state = applyEvent(initialRunState(0), event("compaction.started"));
     state = applyEvent(state, event(ending));
 
@@ -66,8 +47,6 @@ describe("what the thread is told", () => {
     const compacting = applyEvent(working, event("compaction.started"));
 
     expect(beatLine(compacting, MINUTE)).toContain("compacting the context");
-    // The tool summary is what the run did BEFORE the pause. Showing it while
-    // nothing is happening is what made a stalled run look busy.
     expect(beatLine(compacting, MINUTE)).not.toContain("bash");
   });
 
@@ -94,8 +73,6 @@ describe("what the thread is told", () => {
   });
 
   test("total elapsed survives the pause", () => {
-    // The turn's own age is the number a reader is actually waiting on; the
-    // compaction clock is additional, not a replacement.
     const state = {
       ...initialRunState(0),
       compactingSince: 2 * MINUTE,

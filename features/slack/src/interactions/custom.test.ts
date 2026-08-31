@@ -54,7 +54,6 @@ describe("custom buttons", () => {
   test.effect("registering after the surface is up still wires the button", () =>
     Effect.gen(function* () {
       const interactions = makeInteractions();
-      // Surface boots first, with nothing registered.
       expect(registerCustomButtons(interactions)).toEqual([]);
 
       const seen: string[] = [];
@@ -63,7 +62,6 @@ describe("custom buttons", () => {
       });
       yield* interactions.dispatch(click("late"));
 
-      // The alternative — silently dropping it — reads as a dead button.
       expect(seen).toEqual(["clicked"]);
     })
   );
@@ -78,8 +76,6 @@ describe("custom buttons", () => {
       registerCustomButtons(interactions);
       yield* interactions.dispatch(click("inspect"));
 
-      // These are seconds-lived provider capabilities. A consumer must not be
-      // able to capture one by accident.
       expect(keys).toEqual([
         "actionId",
         "channelId",
@@ -111,8 +107,6 @@ describe("custom buttons", () => {
   );
 
   test("a reserved action id is refused at registration", () => {
-    // `on` is last-registration-wins, so this would have taken over the
-    // surface's own cancel button rather than adding one.
     expect(() => onButton("ori_cancel_turn", () => {})).toThrow(/reserved/);
     expect(registeredButtonIds()).toEqual([]);
   });
@@ -143,8 +137,6 @@ describe("custom buttons", () => {
       const interactions = makeInteractions();
       registerCustomButtons(interactions);
 
-      // Nothing to assert past "this does not fail": the harness fails the
-      // test on any failure or defect, with the cause rendered.
       expect(
         yield* interactions.dispatch(click("never_registered"))
       ).toBeUndefined();
@@ -159,8 +151,6 @@ describe("custom buttons", () => {
       const interactions = makeInteractions();
       registerCustomButtons(interactions);
 
-      // `dispatch` catches the cause and logs it, so the listener Slack is
-      // waiting on still settles — but the failure is not swallowed here.
       expect(yield* interactions.dispatch(click("boom"))).toBeUndefined();
     })
   );
