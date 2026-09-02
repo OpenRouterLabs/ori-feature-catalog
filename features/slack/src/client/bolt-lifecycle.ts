@@ -100,6 +100,7 @@ export const goLive = async (input: {
   readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
   readonly logger: SlackLogger;
   readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
+  readonly receiptAt: (eventId: string) => number | undefined;
   readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
 }): Promise<void> => {
   registerListeners({
@@ -107,7 +108,9 @@ export const goLive = async (input: {
     changeAssistantContext: input.changeAssistantContext,
     dispatchInteraction: input.dispatchInteraction,
     dispatchView: input.dispatchView,
+    logger: input.logger,
     openAssistantThread: input.openAssistantThread,
+    receiptAt: input.receiptAt,
     startTurn: input.startTurn,
   });
   await input.app.start();

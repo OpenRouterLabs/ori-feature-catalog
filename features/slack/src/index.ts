@@ -285,6 +285,7 @@ const openForTraffic = async (input: {
       runWith: forkWith(input.context),
     }),
     logger: input.logger,
+    receiptAt: (eventId: string) => receiver.receiptAt(eventId),
     startTurn: routes.startTurnSafely,
   });
 

@@ -91,15 +91,51 @@ export const readViewSubmissionPayload = (
   };
 };
 
+interface DispatchLogger {
+  readonly info: (message: string, ...rest: readonly unknown[]) => void;
+}
+
+interface DispatchDeps {
+  readonly logger: DispatchLogger;
+  readonly receiptAt: (eventId: string) => number | undefined;
+}
+
+const noteDispatch =
+  (deps: DispatchDeps) =>
+  (body: unknown, addressed: boolean): void => {
+    const envelope = asRecord(body);
+    const eventId = readString(envelope.event_id);
+    const receivedAt =
+      eventId === undefined ? undefined : deps.receiptAt(eventId);
+
+    deps.logger.info("[slack] turn dispatched", {
+      addressed,
+      event_id: eventId,
+      event_type: readString(asRecord(envelope.event).type),
+      queue_ms:
+        receivedAt === undefined
+          ? undefined
+          : Math.round(performance.now() - receivedAt),
+    });
+  };
+
 export const registerListeners = (input: {
   readonly app: App;
   readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
   readonly dispatchInteraction: (payload: InteractionPayload) => Promise<void>;
   readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
+  readonly logger: DispatchLogger;
   readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
+  readonly receiptAt: (eventId: string) => number | undefined;
   readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
 }): void => {
-  input.app.event("app_mention", ({ event }) => {
+  const noted = noteDispatch({
+    logger: input.logger,
+    receiptAt: input.receiptAt,
+  });
+
+  input.app.event("app_mention", ({ body, event }) => {
+    noted(body, true);
     input.startTurn(event as RawSlackMessage, true);
     return Promise.resolve();
   });
@@ -114,13 +150,15 @@ export const registerListeners = (input: {
     return Promise.resolve();
   });
 
-  input.app.message(({ message }) => {
+  input.app.message(({ body, message }) => {
     const raw = message as RawSlackMessage;
     if (raw.channel_type === "im") {
+      noted(body, true);
       input.startTurn(raw, true);
       return Promise.resolve();
     }
     if (raw.thread_ts !== undefined) {
+      noted(body, false);
       input.startTurn(raw, false);
     }
     return Promise.resolve();

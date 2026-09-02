@@ -10,6 +10,7 @@ const SIGNING_SECRET = "test-signing-secret";
 
 const silentLogger = {
   error: () => {},
+  info: () => {},
   warn: () => {},
 };
 
