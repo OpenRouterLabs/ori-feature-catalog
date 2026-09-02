@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
@@ -28,31 +28,30 @@ const UrlVerificationSchema = Schema.Struct({
 
 type UrlVerification = typeof UrlVerificationSchema.Type;
 
+const decodeUrlVerification = Schema.decodeUnknownResult(UrlVerificationSchema);
+
 const isUrlVerification = (body: unknown): body is UrlVerification =>
-  typeof body === "object" &&
-  body !== null &&
-  (body as { type?: unknown }).type === "url_verification" &&
-  typeof (body as { challenge?: unknown }).challenge === "string";
+  Result.isSuccess(decodeUrlVerification(body));
+
+const EventEnvelopeSchema = Schema.Struct({
+  event_id: Schema.optionalKey(Schema.String),
+});
+
+const decodeEventEnvelope = Schema.decodeUnknownResult(EventEnvelopeSchema);
 
 const eventIdOf = (body: unknown): string | undefined => {
-  if (typeof body !== "object" || body === null) {
-    return undefined;
-  }
-  const id = (body as { event_id?: unknown }).event_id;
-  return typeof id === "string" ? id : undefined;
+  const decoded = decodeEventEnvelope(body);
+  return Result.isSuccess(decoded) ? decoded.success.event_id : undefined;
 };
 
-const readJsonObject = (text: string): Record<string, unknown> | undefined =>
-  Effect.runSync(
-    Effect.try((): unknown => JSON.parse(text)).pipe(
-      Effect.map((parsed) =>
-        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-          ? { ...parsed }
-          : undefined
-      ),
-      Effect.orElseSucceed(() => undefined)
-    )
-  );
+const decodeJsonObject = Schema.decodeUnknownResult(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
+);
+
+const readJsonObject = (text: string): Record<string, unknown> | undefined => {
+  const decoded = decodeJsonObject(text);
+  return Result.isFailure(decoded) ? undefined : { ...decoded.success };
+};
 
 const parseBody = (raw: string): Record<string, unknown> | undefined => {
   const direct = readJsonObject(raw);
