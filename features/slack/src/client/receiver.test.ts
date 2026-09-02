@@ -104,6 +104,15 @@ describe("signature verification", () => {
     expect(seen).toHaveLength(1);
   });
 
+  test("a JSON array body is refused rather than treated as an event", async () => {
+    const { receiver, seen } = await startedReceiver();
+
+    const response = await receiver.handleRequest(request({ body: "[]" }));
+
+    expect(response.status).toBe(400);
+    expect(seen).toHaveLength(0);
+  });
+
   test("rejects a tampered body without dispatching", async () => {
     const { receiver, seen } = await startedReceiver();
     const timestamp = Math.floor(Date.now() / 1000);
