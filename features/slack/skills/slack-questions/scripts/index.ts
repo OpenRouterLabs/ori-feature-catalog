@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
-import { Effect } from "effect";
+import { Result, Schema } from "effect";
 
 import type { Question } from "./post-questions.ts";
 
-import { postQuestions } from "./post-questions.ts";
+import { postQuestions, QuestionSchema } from "./post-questions.ts";
 
 const usage = [
   "usage: slack-questions <intro> '<json>'",
@@ -17,15 +17,14 @@ const END_YOUR_TURN =
   "Asked. END YOUR TURN now — say what you are blocked on. You will be " +
   "started again on this thread with their answers when they reply.";
 
-const parseQuestions = (raw: string): readonly Question[] | undefined =>
-  Effect.runSync(
-    Effect.try((): readonly Question[] | undefined => {
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as readonly Question[]) : undefined;
-    }).pipe(
-      Effect.orElseSucceed(() => undefined)
-    )
-  );
+const decodeQuestions = Schema.decodeUnknownResult(
+  Schema.fromJsonString(Schema.Array(QuestionSchema))
+);
+
+const parseQuestions = (raw: string): readonly Question[] | undefined => {
+  const decoded = decodeQuestions(raw);
+  return Result.isSuccess(decoded) ? decoded.success : undefined;
+};
 
 if (import.meta.main) {
   const [intro, argvQuestions] = process.argv.slice(2);

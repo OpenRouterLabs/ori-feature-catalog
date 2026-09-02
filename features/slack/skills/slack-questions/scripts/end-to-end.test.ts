@@ -224,6 +224,33 @@ describe("what the model is told when nothing was asked", () => {
     expect(fake.bodies).toHaveLength(0);
   });
 
+  test("a question missing its prompt is refused, not forwarded", async () => {
+    const fake = daemon();
+
+    const result = await run({
+      args: [INTRO, JSON.stringify([{ id: "one" }])],
+      daemon: fake,
+    });
+
+    expect(result.code).toBe(1);
+    expect(fake.bodies).toHaveLength(0);
+  });
+
+  test("a question whose kind is not one Slack renders is refused", async () => {
+    const fake = daemon();
+
+    const result = await run({
+      args: [
+        INTRO,
+        JSON.stringify([{ id: "one", kind: "dropdown", prompt: "Which?" }]),
+      ],
+      daemon: fake,
+    });
+
+    expect(result.code).toBe(1);
+    expect(fake.bodies).toHaveLength(0);
+  });
+
   test("an empty array exits 1 before the daemon is called at all", async () => {
     const fake = daemon();
 

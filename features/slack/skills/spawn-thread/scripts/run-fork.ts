@@ -28,47 +28,47 @@ const ForkReportSchema = Schema.Struct({
 
 export type ForkReport = typeof ForkReportSchema.Type;
 
+const NonBlankString = Schema.String.check(
+  Schema.makeFilter((value) =>
+    value.trim().length === 0 ? "must not be blank" : undefined
+  )
+);
+
+const ForkThreadsFromJson = Schema.fromJsonString(
+  Schema.Array(
+    Schema.Struct({ opener: NonBlankString, prompt: NonBlankString })
+  )
+);
+
+const decodeThreads = Schema.decodeUnknownResult(ForkThreadsFromJson);
+
 export const parseThreads = (
   raw: string | undefined
 ): Result.Result<readonly ForkThread[], Error> => {
   if (raw === undefined || raw.trim().length === 0) {
     return Result.fail(new Error("--threads is required"));
   }
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch (cause) {
+  const decoded = decodeThreads(raw);
+  if (Result.isFailure(decoded)) {
     return Result.fail(
-      new Error(`--threads must be valid JSON: ${String(cause)}`)
+      new Error(
+        "--threads must be a JSON array of { opener, prompt }, both non-empty"
+      )
     );
   }
-  if (!Array.isArray(decoded) || decoded.length === 0) {
+  if (decoded.success.length === 0) {
     return Result.fail(
       new Error("--threads must be a non-empty JSON array of {opener, prompt}")
     );
   }
-  if (decoded.length > MAX_FORK) {
+  if (decoded.success.length > MAX_FORK) {
     return Result.fail(
       new Error(
-        `--threads asks for ${decoded.length} threads; the limit is ${MAX_FORK}`
+        `--threads asks for ${decoded.success.length} threads; the limit is ${MAX_FORK}`
       )
     );
   }
-  const threads: ForkThread[] = [];
-  for (const [index, entry] of decoded.entries()) {
-    const row = entry as { opener?: unknown; prompt?: unknown };
-    if (typeof row.opener !== "string" || row.opener.trim().length === 0) {
-      return Result.fail(new Error(`thread ${index + 1} has no opener`));
-    }
-    if (typeof row.prompt !== "string" || row.prompt.trim().length === 0) {
-      return Result.fail(new Error(`thread ${index + 1} has no prompt`));
-    }
-    threads.push({
-      opener: row.opener,
-      prompt: row.prompt,
-    });
-  }
-  return Result.succeed(threads);
+  return Result.succeed(decoded.success);
 };
 
 export const runFork = async (opts: {
