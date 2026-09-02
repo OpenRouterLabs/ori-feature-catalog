@@ -16,17 +16,9 @@ export type SlackButtonHandler = (
 
 export const RESERVED_ACTION_PREFIX = "ori_";
 
-declare global {
-  // oxlint-disable-next-line no-var -- required for global augmentation
-  var __oriSlackButtons: Map<string, SlackButtonHandler> | undefined;
-  // oxlint-disable-next-line no-var -- required for global augmentation
-  var __oriSlackInteractions: InteractionsShape | undefined;
-}
+const buttons = new Map<string, SlackButtonHandler>();
 
-const registry = (): Map<string, SlackButtonHandler> => {
-  globalThis.__oriSlackButtons ??= new Map<string, SlackButtonHandler>();
-  return globalThis.__oriSlackButtons;
-};
+let interactions: InteractionsShape | undefined;
 
 const adapt =
   (actionId: string, handler: SlackButtonHandler): InteractionHandler =>
@@ -56,26 +48,24 @@ export const onButton = (
       `[slack] action id "${actionId}" is reserved: "${RESERVED_ACTION_PREFIX}" belongs to the surface's own buttons`
     );
   }
-  registry().set(actionId, handler);
-  globalThis.__oriSlackInteractions?.on(actionId, adapt(actionId, handler));
+  buttons.set(actionId, handler);
+  interactions?.on(actionId, adapt(actionId, handler));
 };
 
-export const registeredButtonIds = (): readonly string[] => [
-  ...registry().keys(),
-];
+export const registeredButtonIds = (): readonly string[] => [...buttons.keys()];
 
 export const registerCustomButtons = (
-  interactions: InteractionsShape
+  next: InteractionsShape
 ): readonly string[] => {
-  globalThis.__oriSlackInteractions = interactions;
-  const ids = [...registry().entries()];
+  interactions = next;
+  const ids = [...buttons.entries()];
   for (const [actionId, handler] of ids) {
-    interactions.on(actionId, adapt(actionId, handler));
+    next.on(actionId, adapt(actionId, handler));
   }
   return ids.map(([actionId]) => actionId);
 };
 
 export const resetCustomButtons = (): void => {
-  globalThis.__oriSlackButtons = undefined;
-  globalThis.__oriSlackInteractions = undefined;
+  buttons.clear();
+  interactions = undefined;
 };

@@ -249,37 +249,15 @@ describe("webClient", () => {
 });
 
 describe("one client, whoever asks", () => {
-  const withRunningSurface = <A>(slack: unknown, run: () => A): A => {
-    const before = globalThis.__oriSlackRuntime;
-    globalThis.__oriSlackRuntime = { slack } as typeof before;
-    try {
-      return run();
-    } finally {
-      globalThis.__oriSlackRuntime = before;
-    }
-  };
-
-  test("hands back the surface's own client while it is running", () => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an identity stub: the test asserts which object comes back, never calls it
-    const raw = { marker: "the surface's" } as unknown as WebClient;
-
-    const got = withRunningSurface({ raw }, () => webClient());
-
-    expect(got).toBe(raw);
-  });
-
-  test("falls back to its own when no surface is running", () => {
+  test("builds and memoises its own when no surface is running", () => {
     const original = Bun.env.SLACK_BOT_TOKEN;
     Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
-    const before = globalThis.__oriSlackRuntime;
-    globalThis.__oriSlackRuntime = undefined;
 
     try {
       const first = webClient();
       expect(first).toBeDefined();
       expect(first).toBe(webClient());
     } finally {
-      globalThis.__oriSlackRuntime = before;
       if (original === undefined) {
         delete Bun.env.SLACK_BOT_TOKEN;
       } else {
