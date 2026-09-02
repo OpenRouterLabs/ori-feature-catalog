@@ -23,7 +23,7 @@ const CALL_BUDGET_MS = 90_000;
 
 export const makeConfiguredWebClient = (
   token: string,
-  env: Readonly<Record<string, string | undefined>> = Bun.env
+  env: Readonly<Record<string, string | undefined>>
 ): WebClient => {
   return new WebClient(undefined, {
     agent: resolveSlackProxyAgent(env),
@@ -161,11 +161,13 @@ const makeSlackClient = (client: WebClient): SlackClientShape => ({
 export const SlackClientLive = (client: WebClient): Layer.Layer<SlackClient> =>
   Layer.succeed(SlackClient)(SlackClient.of(makeSlackClient(client)));
 
-export const makeSlackClientFromToken = (token: string): SlackClientShape =>
-  makeSlackClient(makeConfiguredWebClient(token));
+export const makeSlackClientFromToken = (
+  token: string,
+  env: Readonly<Record<string, string | undefined>>
+): SlackClientShape => makeSlackClient(makeConfiguredWebClient(token, env));
 
 export const readSlackBotToken = (
-  env: Readonly<Record<string, string | undefined>> = Bun.env
+  env: Readonly<Record<string, string | undefined>>
 ): Effect.Effect<string, SlackConfigError> =>
   Effect.suspend(() => {
     const token = env.SLACK_BOT_TOKEN;

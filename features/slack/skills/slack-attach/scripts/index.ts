@@ -81,5 +81,5 @@ export const runAttachCli = async (
 };
 
 if (import.meta.main) {
-  await runAttachCli(process.argv.slice(2), Bun.env);
+  await runAttachCli(process.argv.slice(2), process.env);
 }

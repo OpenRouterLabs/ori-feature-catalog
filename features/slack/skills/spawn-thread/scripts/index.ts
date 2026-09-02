@@ -157,5 +157,5 @@ const runSpawnThreadCli = async (
 };
 
 if (import.meta.main) {
-  await runSpawnThreadCli(process.argv.slice(2), Bun.env);
+  await runSpawnThreadCli(process.argv.slice(2), process.env);
 }

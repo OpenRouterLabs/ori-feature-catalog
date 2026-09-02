@@ -5,7 +5,7 @@ import { slackifyMarkdown } from "slackify-markdown";
 import { isString } from "./result.ts";
 
 export const makeClient = (
-  env: Record<string, string | undefined> = Bun.env
+  env: Record<string, string | undefined> = process.env
 ): Result.Result<WebClient, Error> => {
   const token = env.SLACK_BOT_TOKEN;
   if (!token) {
@@ -20,7 +20,7 @@ const presentEnv = (raw: string | undefined): string | undefined =>
   raw && raw !== "undefined" ? raw : undefined;
 
 export const getThreadContext = (
-  env: Record<string, string | undefined> = Bun.env
+  env: Record<string, string | undefined> = process.env
 ): {
   channel: string | undefined;
   threadTs: string | undefined;
@@ -102,7 +102,7 @@ export const resolveThreadTs = (
 
 export const resolveChannel = (
   flagChannel: string | undefined,
-  env: Record<string, string | undefined> = Bun.env
+  env: Record<string, string | undefined> = process.env
 ): Result.Result<string, Error> => {
   const channel = flagChannel ?? getThreadContext(env).channel;
   if (!channel) {

@@ -104,6 +104,15 @@
         "typescript/await-thenable": "off",
         "typescript/no-unsafe-argument": "off"
       }
+    },
+    {
+      "files": [
+        "features/*/feature.ts",
+        "features/*/skills/**/scripts/**/*.ts"
+      ],
+      "rules": {
+        "node/no-process-env": "off"
+      }
     }
   ]
 }

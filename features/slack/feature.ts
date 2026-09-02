@@ -22,9 +22,11 @@ type Answer = Promise<Response> | Response;
 
 type StartRuntime = (bridge: Chat) => Promise<SlackRuntime>;
 
+const hostEnv = (): Readonly<Record<string, string | undefined>> => process.env;
+
 const startFromModule: StartRuntime = async (bridge) => {
   const { startSlackRuntime } = await import("./src/index.ts");
-  return startSlackRuntime({ bridge, logger: console });
+  return startSlackRuntime({ bridge, env: hostEnv(), logger: console });
 };
 
 export const makeSlackFeature = (start: StartRuntime = startFromModule) => {
@@ -73,13 +75,15 @@ export const makeSlackFeature = (start: StartRuntime = startFromModule) => {
       ): Promise<SlackPostMessageResult> =>
         import("./src/exports.ts").then(({ makePostMessage, postMessage }) =>
           active === undefined
-            ? postMessage(input)
+            ? postMessage(input, hostEnv())
             : makePostMessage(active.slack)(input)
         ),
 
       webClient: (): Promise<WebClient | undefined> =>
         active === undefined
-          ? import("./src/exports.ts").then(({ webClient }) => webClient())
+          ? import("./src/exports.ts").then(({ webClient }) =>
+              webClient(hostEnv())
+            )
           : Promise.resolve(active.slack.raw),
 
       onButton: (
