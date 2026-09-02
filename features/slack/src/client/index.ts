@@ -1,9 +1,9 @@
-export type { PostedMessage, SlackClientShape } from "./client.ts";
-export { SlackApiError, SlackClient, SlackConfigError } from "./client.ts";
-export {
-  makeConfiguredWebClient,
-  makeSlackClientFromToken,
-  readSlackBotToken,
-  SlackClientLive,
-} from "./client-live.ts";
-export { makeSurfaceEventHandlers } from "./surface-events.ts";
+import { Layer } from "effect";
+
+import { makeSlackClientFromToken } from "./client-live.ts";
+import { SlackClient } from "./client.ts";
+
+export type ClientServices = SlackClient;
+
+export const SlackClientLayer = (token: string): Layer.Layer<ClientServices> =>
+  Layer.sync(SlackClient)(() => SlackClient.of(makeSlackClientFromToken(token)));

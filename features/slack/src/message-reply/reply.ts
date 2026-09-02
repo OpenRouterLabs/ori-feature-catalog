@@ -2,7 +2,7 @@ import type { Effect } from "effect";
 
 import { Schema } from "effect";
 
-import type { PostedMessage, SlackApiError } from "#src/client/index.ts";
+import type { PostedMessage, SlackApiError } from "#src/client/client.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
   FileUpload,

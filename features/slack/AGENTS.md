@@ -22,6 +22,26 @@ Everything downstream goes through the Effect context the runtime carries. `onBu
 
 `src/feature-state.test.ts` builds the module twice, the way the loader does, and asserts the state crosses. Against a module-level binding it fails -- that is the shape #31 shipped, and it took the surface down on every intern.
 
+## A directory index is a composition root
+
+`index.ts` builds the subsystem its directory owns and hands back the layer. Read one and you know what that directory provides, what it needs to be built, and in what order the pieces go together, because the wiring is the file:
+
+```ts
+export type ThreadServices = AssistantThreads | ThreadContext;
+
+export const ThreadLayer: Layer.Layer<ThreadServices, never, SlackClient> =
+  Layer.mergeAll(
+    Layer.effect(ThreadContext)(ThreadContextLive),
+    Layer.effect(AssistantThreads)(AssistantThreadsLive())
+  );
+```
+
+`SlackDefaultLayers` then composes roots rather than reaching past them for individual services, so adding a service to a subsystem touches one file instead of two.
+
+It is not a re-export file. Callers still import the module that owns a name; a directory index that only forwards names is a second place for every name to live, and two of them that reference each other form an import cycle -- `client/index.ts` was that, twice.
+
+A directory earns one when it has something to compose. `registry.ts` is module-level state behind plain functions, so `thread`'s root does not present it, and directories that are only pure helpers do not have one at all.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.
