@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/explicit-function-return-type typescript/no-unsafe-type-assertion vitest/prefer-each -- a route-table double: the context stub carries only the two fields the handlers read, and the per-route cases are generated from one table so each route gets its own named test */
 /**
  * feature.test.ts — every runtime handler is reachable over HTTP.
  *
@@ -56,7 +55,6 @@ const contextFrom = (remoteAddress: string | undefined): ApiRouteContext =>
       warn: () => {},
     },
     remoteAddress,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the two fields the handlers read are needed
   }) as unknown as ApiRouteContext;
 
 /**
@@ -173,7 +171,6 @@ describe("slack route table", () => {
         },
       },
       remoteAddress: "203.0.113.7",
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the two fields the handlers read are needed
     } as unknown as ApiRouteContext;
 
     await routes["POST /slack/thread/dispatch"](

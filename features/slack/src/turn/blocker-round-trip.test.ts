@@ -1,5 +1,3 @@
-/* oxlint-disable eslint/max-lines-per-function -- these cases read better whole than split */
-
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";

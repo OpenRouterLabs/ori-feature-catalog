@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/no-use-before-define unicorn/no-useless-undefined promise/avoid-new unicorn/consistent-function-scoping -- test doubles stand in for Slack SDK and runtime shapes, and a manually released barrier is how a case reaches the live-turn window */
-
 import type { AgentRuntimeEvent, Chat } from "ori";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";

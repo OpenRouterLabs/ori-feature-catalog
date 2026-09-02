@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- cases read better whole than split */
-
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";

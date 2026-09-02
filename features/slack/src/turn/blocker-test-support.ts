@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- the recorded blocks are read back as the JSON they are */
 import { Effect } from "effect";
 
 import type { BlockersShape } from "#src/interactions/blocker.ts";

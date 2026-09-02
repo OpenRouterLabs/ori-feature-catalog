@@ -1,4 +1,3 @@
-/* oxlint-disable promise/avoid-new eslint/prefer-destructuring -- a manually settled barrier is how a test holds a turn open, and the recorded reason reads clearer as a member access */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import {

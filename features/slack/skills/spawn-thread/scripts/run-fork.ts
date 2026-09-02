@@ -75,7 +75,6 @@ export const runFork = async (opts: {
   const failed: { opener: string; reason: string }[] = [];
 
   for (const thread of opts.threads) {
-    // eslint-disable-next-line no-await-in-loop -- sequential on purpose; see the header
     const result = await runNew({
       channel: opts.channel,
       depth: opts.depth,

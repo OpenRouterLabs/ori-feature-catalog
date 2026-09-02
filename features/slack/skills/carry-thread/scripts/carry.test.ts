@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion -- test doubles stand in for Slack SDK and fetch shapes */
-
 import { Option, Result } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";

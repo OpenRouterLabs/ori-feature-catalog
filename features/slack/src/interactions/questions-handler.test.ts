@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/explicit-function-return-type -- a test reaches across the feature for its fixtures, and typing every local helper buys nothing here */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";

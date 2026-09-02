@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion unicorn/no-useless-undefined unicorn/no-array-sort -- the Bolt stand-in narrows App deliberately, and an explicit undefined is what a payload without that field carries */
 import type { App } from "@slack/bolt";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
