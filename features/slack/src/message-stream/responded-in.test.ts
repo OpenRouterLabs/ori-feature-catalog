@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion -- the recorded args are `unknown` */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";

@@ -1,6 +1,5 @@
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
-/* oxlint-disable typescript/no-unsafe-type-assertion -- the bridge fake stands in for the Chat surface */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Layer } from "effect";

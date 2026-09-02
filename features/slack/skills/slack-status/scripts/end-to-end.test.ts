@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion eslint/max-lines-per-function -- the recorded bodies are read as the form data they are, and each case reads better whole */
-
 import { afterAll, describe, expect, test } from "#src/test-support/effect-test.ts";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

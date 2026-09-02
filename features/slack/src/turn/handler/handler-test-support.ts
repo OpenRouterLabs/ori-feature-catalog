@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes */
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 import { Effect, Layer } from "effect";
@@ -48,7 +47,6 @@ export const bridgeOf = (
     sendMessage: (input: ChatTurnInput): AsyncIterable<AgentRuntimeEvent> => {
       sent.push(input);
       return (async function* () {
-        // oxlint-disable-next-line vitest/prefer-each -- this is a generator feeding the turn, not a table of cases
         for (let index = 0; index < events.length; index += 1) {
           await beforeEach?.(index);
           const item = events[index];

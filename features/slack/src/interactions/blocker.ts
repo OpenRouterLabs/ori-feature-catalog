@@ -100,7 +100,6 @@ export const BlockersMemory = Effect.sync(() => {
         sequence += 1;
         const askId = `ask-${bootId}-${sequence}`;
         let resolve!: (value: string) => void;
-        // oxlint-disable-next-line promise/avoid-new -- a manually settled barrier is the point: the turn waits here until someone clicks
         const answered = new Promise<string>((_resolve) => {
           resolve = _resolve;
         });

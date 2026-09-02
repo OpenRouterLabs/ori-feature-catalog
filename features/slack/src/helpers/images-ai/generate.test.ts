@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion -- fetch stubs stand in for the platform type */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";

@@ -1,5 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type typescript/no-invalid-void-type eslint/require-await -- test doubles stand in for the composition root's service graph, and a queue barrier has nothing to await */
-
 import {
   beforeEach,
   describe,

@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion -- block payloads are typed `unknown[]` at the seam and are inspected as the Block Kit they are */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { KnownBlock } from "@slack/types";

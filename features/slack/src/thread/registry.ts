@@ -91,7 +91,6 @@ const claimThread = (threadKey: string): ThreadClaim => {
   const mustWait = (existing?.pending ?? 0) > 0;
 
   let release!: () => void;
-  // oxlint-disable-next-line promise/avoid-new -- a manually released barrier is the point: the next arrival awaits this until the current turn finishes
   const tail = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -212,7 +211,6 @@ const deadline = (timeoutMs: number): Effect.Effect<boolean> =>
   Effect.acquireUseRelease(
     Effect.sync((): Deadline => {
       let fire!: () => void;
-      // oxlint-disable-next-line promise/avoid-new -- racing a timer against the in-flight tails is exactly what a bounded drain is
       const expired = new Promise<void>((resolve) => {
         fire = resolve;
       });

@@ -1,6 +1,5 @@
 import type { StateStore as OriStateStore } from "ori";
 
-/* oxlint-disable typescript/no-unsafe-type-assertion -- bun:sqlite's variadic params are `any` at the boundary */
 import { Database } from "bun:sqlite";
 
 import {

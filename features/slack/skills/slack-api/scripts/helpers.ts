@@ -79,7 +79,6 @@ export const resolveThreadTs = (
   });
 
   if (opts.noThread) {
-    // oxlint-disable-next-line unicorn/no-useless-undefined -- Result.succeed needs an explicit arg to infer Result<string | undefined, Error>
     return Result.succeed(undefined);
   }
   if (blindCrossChannelPost) {
