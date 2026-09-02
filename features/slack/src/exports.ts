@@ -25,6 +25,10 @@ export type SlackPostMessageResult =
 let client: SlackClientShape | undefined;
 
 const resolveClient = (): SlackClientShape | undefined => {
+  const running = globalThis.__oriSlackRuntime?.slack;
+  if (running !== undefined) {
+    return running;
+  }
   if (client !== undefined) {
     return client;
   }

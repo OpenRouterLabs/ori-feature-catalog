@@ -10,12 +10,6 @@ A module global is shorter and makes that capability the one thing nobody can ex
 
 Pure functions do not need this. A chart takes numbers and returns a string — there is nothing to inject, and a layer would be ceremony.
 
-## The contribution entry stashes nothing
-
-`feature.ts` builds `chat` and `api` from one factory so they close over the same runtime handle, and hands `src/exports.ts` the client as an argument.
-
-Module scope cannot hold it. The entry is loaded eagerly while the runtime arrives through a dynamic `import()`, and the two resolve as separate module graphs, so a module-level binding exists twice: `start` writes one copy, a route handler reads the other, and every request answers 503 while boot reports the surface live. Three `globalThis` singletons were the first fix for that and had to be removed. A closure the two contributions share cannot split, and an argument crosses a module boundary whatever the graph looks like.
-
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.
