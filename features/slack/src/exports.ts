@@ -7,6 +7,7 @@ import type { SlackClientShape } from "./client/index.ts";
 
 import { makeSlackClientFromToken } from "./client/index.ts";
 import { readBotToken } from "./config.ts";
+import { slackRuntime } from "./runtime-handle.ts";
 import { capBlocks, withinSlackLimit } from "./helpers/block-kit/blocks.ts";
 
 export interface SlackPostMessageInput {
@@ -25,7 +26,7 @@ export type SlackPostMessageResult =
 let client: SlackClientShape | undefined;
 
 const resolveClient = (): SlackClientShape | undefined => {
-  const running = globalThis.__oriSlackRuntime?.slack;
+  const running = slackRuntime.read()?.slack;
   if (running !== undefined) {
     return running;
   }

@@ -2,6 +2,8 @@ import { Effect } from "effect";
 
 import type { InteractionHandler, InteractionsShape } from "./interactions.ts";
 
+import { globalSlot } from "#src/global-slot.ts";
+
 export interface SlackButtonClick {
   readonly actionId: string;
   readonly channelId: string;
@@ -16,16 +18,20 @@ export type SlackButtonHandler = (
 
 export const RESERVED_ACTION_PREFIX = "ori_";
 
-declare global {
-  // oxlint-disable-next-line no-var -- required for global augmentation
-  var __oriSlackButtons: Map<string, SlackButtonHandler> | undefined;
-  // oxlint-disable-next-line no-var -- required for global augmentation
-  var __oriSlackInteractions: InteractionsShape | undefined;
-}
+const buttons = globalSlot<Map<string, SlackButtonHandler>>(
+  "ori.slack.buttons"
+);
+
+const interactions = globalSlot<InteractionsShape>("ori.slack.interactions");
 
 const registry = (): Map<string, SlackButtonHandler> => {
-  globalThis.__oriSlackButtons ??= new Map<string, SlackButtonHandler>();
-  return globalThis.__oriSlackButtons;
+  const held = buttons.read();
+  if (held !== undefined) {
+    return held;
+  }
+  const created = new Map<string, SlackButtonHandler>();
+  buttons.install(created);
+  return created;
 };
 
 const adapt =
@@ -57,7 +63,7 @@ export const onButton = (
     );
   }
   registry().set(actionId, handler);
-  globalThis.__oriSlackInteractions?.on(actionId, adapt(actionId, handler));
+  interactions.read()?.on(actionId, adapt(actionId, handler));
 };
 
 export const registeredButtonIds = (): readonly string[] => [
@@ -65,17 +71,17 @@ export const registeredButtonIds = (): readonly string[] => [
 ];
 
 export const registerCustomButtons = (
-  interactions: InteractionsShape
+  next: InteractionsShape
 ): readonly string[] => {
-  globalThis.__oriSlackInteractions = interactions;
+  interactions.install(next);
   const ids = [...registry().entries()];
   for (const [actionId, handler] of ids) {
-    interactions.on(actionId, adapt(actionId, handler));
+    next.on(actionId, adapt(actionId, handler));
   }
   return ids.map(([actionId]) => actionId);
 };
 
 export const resetCustomButtons = (): void => {
-  globalThis.__oriSlackButtons = undefined;
-  globalThis.__oriSlackInteractions = undefined;
+  buttons.clear();
+  interactions.clear();
 };

@@ -10,6 +10,18 @@ A module global is shorter and makes that capability the one thing nobody can ex
 
 Pure functions do not need this. A chart takes numbers and returns a string — there is nothing to inject, and a layer would be ceremony.
 
+## State shared between contributions lives in a global slot
+
+Ori does not import `feature.ts`, it rebuilds it. `importFreshModule` runs `Bun.build` into a fresh temp directory and imports the output, so every load is a new file URL and a new module graph -- that is how edit mode reloads a feature without restarting. The build bundles the feature's own files together, so `feature.ts`, `src/` and everything they import are re-evaluated as one fresh copy each time. `discoverFeatures` is called from the harness loader, the skill contributions, feature boot and the CLI, and the module cache is only consulted under an import scope that edit mode sets, so in ordinary operation every one of those callers gets its own copy.
+
+For a feature, module scope is per-load, not per-process.
+
+Anything the `chat` and `api` contributions both touch therefore cannot live in module scope. A module-level binding, a closure shared by both, a leaf module holding a cell -- all of them duplicate, `chat.start` writes one copy, the `/slack/events` route reads `undefined` in another, and every request answers 503 while boot reports the surface live. That shipped in #31 and took the surface down on every intern until it was reverted.
+
+Use `globalSlot` from `src/global-slot.ts`. It keys a `globalThis` property by `Symbol.for`, so the value survives re-evaluation while the accessors around it are free to duplicate -- they hold no state. `src/global-slot.test.ts` pins this by importing the module twice and asserting the value crosses while a module-level one does not; that test fails against every shape listed above.
+
+Per-contribution state is different and stays in a closure. The runtime `chat.start` created is stopped by the same `chat.stop`, so it belongs to that closure, and only the handle the routes read goes in the slot.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.

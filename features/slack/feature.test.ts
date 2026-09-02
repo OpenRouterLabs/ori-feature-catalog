@@ -19,6 +19,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { SlackRuntime } from "./src/index.ts";
 
+import { slackRuntime } from "./src/runtime-handle.ts";
+
 import { api } from "./feature.ts";
 
 const HTTP_FORBIDDEN = 403;
@@ -86,7 +88,7 @@ const withRuntime = async (
     return Promise.resolve(new Response("ok"));
   };
 
-  globalThis.__oriSlackRuntime = {
+  const uninstall = slackRuntime.install({
     handleAskRequest: handler("handleAskRequest"),
     handleCarryRequest: handler("handleCarryRequest"),
     handleAttachRequest: handler("handleAttachRequest"),
@@ -100,7 +102,7 @@ const withRuntime = async (
     // for `use("slack")` is exercised in exports.test.ts.
     slack: undefined as unknown as SlackRuntime["slack"],
     stop: () => Promise.resolve(),
-  };
+  });
 
   try {
     const response = await routes[route](
@@ -112,7 +114,7 @@ const withRuntime = async (
       response,
     };
   } finally {
-    globalThis.__oriSlackRuntime = undefined;
+    uninstall();
   }
 };
 
@@ -137,7 +139,7 @@ describe("slack route table", () => {
     });
 
     test(`${route} answers 503 before the surface is up`, async () => {
-      globalThis.__oriSlackRuntime = undefined;
+      slackRuntime.clear();
       const response = await routes[route](
         requestFor(route),
         contextFrom("127.0.0.1")
