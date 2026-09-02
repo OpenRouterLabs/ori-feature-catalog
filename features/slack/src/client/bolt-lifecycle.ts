@@ -1,21 +1,19 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { AuthorizeResult } from "@slack/bolt";
 
 import { App, LogLevel } from "@slack/bolt";
 import { Effect, Exit, Option, Scope } from "effect";
 
-import type { SlackLogger } from "../index.ts";
+import type { SlackLogger } from "#src/index.ts";
 import type {
   InteractionPayload,
   ViewSubmissionPayload,
-} from "../interactions/interactions.ts";
+} from "#src/interactions/interactions.ts";
 import type {
   RawAssistantThreadStarted,
   RawSlackMessage,
 } from "./listeners.ts";
 
-import { cancelAll, drain, resetRegistry } from "../thread/registry.ts";
+import { cancelAll, drain, resetRegistry } from "#src/thread/registry.ts";
 import { registerListeners } from "./listeners.ts";
 import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 import { SlackReceiver } from "./receiver.ts";

@@ -1,8 +1,7 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
 import { Effect, Result, Schema } from "effect";
 
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Addressed } from "./loopback-route.ts";
 
 import { loopbackRoute, refuse } from "./loopback-route.ts";

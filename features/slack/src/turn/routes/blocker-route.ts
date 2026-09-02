@@ -1,18 +1,16 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Result, Schema } from "effect";
 
-import { bestEffort } from "../../helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/best-effort.ts";
 
-import type { SlackBlock } from "../../helpers/block-kit/blocks.ts";
-import type { BlockersShape } from "../../interactions/blocker.ts";
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { BlockersShape } from "#src/interactions/blocker.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
 import {
   blockerAnsweredBlocks,
   blockerBlocks,
-} from "../../helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/blockers.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_ASK_BODY_KIB = 16;

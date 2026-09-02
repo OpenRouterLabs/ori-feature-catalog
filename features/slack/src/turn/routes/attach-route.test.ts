@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 
 import { makeAttachRoute } from "./attach-route.ts";
 

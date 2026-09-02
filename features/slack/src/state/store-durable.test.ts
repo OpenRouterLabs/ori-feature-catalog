@@ -1,6 +1,6 @@
 import type { StateStore as OriStateStore } from "ori";
 
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- modules inside this feature import siblings relatively, and bun:sqlite's variadic params are `any` at the boundary */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- bun:sqlite's variadic params are `any` at the boundary */
 import { Database } from "bun:sqlite";
 
 import {
@@ -22,7 +22,7 @@ import {
   UNSEEN_THREAD,
   unmute,
   withParticipant,
-} from "../turn/listening/listen.ts";
+} from "#src/turn/listening/listen.ts";
 import { InterruptMode } from "./settings.ts";
 import { StateStoreDurable } from "./store-durable.ts";
 

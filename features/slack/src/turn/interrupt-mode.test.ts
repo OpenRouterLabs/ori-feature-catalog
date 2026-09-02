@@ -1,6 +1,6 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { DEFAULT_INTERRUPT_MODE, InterruptMode, interruptModeFrom } from "../state/settings.ts";
+import { DEFAULT_INTERRUPT_MODE, InterruptMode, interruptModeFrom } from "#src/state/settings.ts";
 import { shouldSteer } from "./turn-routes.ts";
 
 describe("what the setting changes", () => {

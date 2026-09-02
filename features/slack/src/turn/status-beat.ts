@@ -1,13 +1,11 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Fiber } from "effect";
 
-import type { RunState } from "../message-stream/run-state.ts";
-import type { AssistantThreadsShape } from "../thread/assistant.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { RunState } from "#src/message-stream/run-state.ts";
+import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
-import { clampToWord } from "../clamp.ts";
-import { toolSummary } from "../message-stream/run-state.ts";
+import { clampToWord } from "#src/clamp.ts";
+import { toolSummary } from "#src/message-stream/run-state.ts";
 import { paneOf } from "./context/pane-context.ts";
 import { readLine } from "./live-line.ts";
 

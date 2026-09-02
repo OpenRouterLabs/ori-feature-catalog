@@ -1,11 +1,9 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import type { ThreadRef } from "../thread/thread.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
-import { StateStore } from "../state/store.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { StateStore } from "#src/state/store.ts";
+import { threadInstanceId } from "#src/thread/thread.ts";
 import { engage, mute } from "./listening/listen.ts";
 
 export const CarryOutcome = {

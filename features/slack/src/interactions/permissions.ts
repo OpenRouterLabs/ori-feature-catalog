@@ -1,16 +1,14 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { PermissionOptionKind } from "ori";
 
 import { Effect } from "effect";
 
-import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
   InteractionPayload,
   InteractionsShape,
 } from "./interactions.ts";
 
-import { actions, button, section } from "../helpers/block-kit/blocks.ts";
+import { actions, button, section } from "#src/helpers/block-kit/blocks.ts";
 
 export const PERMISSION_ACTION_ID = "ori_permission_select";
 export const ELICITATION_ACTION_ID = "ori_elicitation_select";

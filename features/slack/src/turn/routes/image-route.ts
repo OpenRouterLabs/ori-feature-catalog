@@ -1,13 +1,11 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Result, Schema } from "effect";
 
-import type { GeneratedImage } from "../../helpers/images-ai/generate.ts";
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { GeneratedImage } from "#src/helpers/images-ai/generate.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
-import { generateImage } from "../../helpers/images-ai/generate.ts";
+import { generateImage } from "#src/helpers/images-ai/generate.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_PROMPT_CHARS = 1000;

@@ -1,46 +1,44 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { AgentRuntimeEvent, Chat } from "ori";
 
 import { Effect, Ref, Stream } from "effect";
 
-import { bestEffort } from "../../helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/best-effort.ts";
 
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { RunState } from "../../message-stream/run-state.ts";
-import type { RunOptions } from "../../message-stream/stream.ts";
-import type { StateStoreShape } from "../../state/store.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { RunState } from "#src/message-stream/run-state.ts";
+import type { RunOptions } from "#src/message-stream/stream.ts";
+import type { StateStoreShape } from "#src/state/store.ts";
 import type {
   AssistantThreadsShape,
   PaneContext,
-} from "../../thread/assistant.ts";
-import type { LiveTurn } from "../../thread/registry.ts";
-import type { PendingApprovals, SessionSlot } from "../run-events.ts";
-import type { IncomingTurn } from "../turn-input.ts";
+} from "#src/thread/assistant.ts";
+import type { LiveTurn } from "#src/thread/registry.ts";
+import type { PendingApprovals, SessionSlot } from "#src/turn/run-events.ts";
+import type { IncomingTurn } from "#src/turn/turn-input.ts";
 
-import { Blockers } from "../../interactions/blocker.ts";
-import { permissionResolvedBlocks } from "../../interactions/permissions.ts";
-import { makeMessageReply } from "../../message-reply/reply-live.ts";
-import { answerText } from "../../message-stream/answer-text.ts";
-import { RunPhase, initialRunState } from "../../message-stream/run-state.ts";
-import { MessageStream } from "../../message-stream/stream.ts";
-import { StateStore } from "../../state/store.ts";
-import { AssistantThreads } from "../../thread/assistant.ts";
+import { Blockers } from "#src/interactions/blocker.ts";
+import { permissionResolvedBlocks } from "#src/interactions/permissions.ts";
+import { makeMessageReply } from "#src/message-reply/reply-live.ts";
+import { answerText } from "#src/message-stream/answer-text.ts";
+import { RunPhase, initialRunState } from "#src/message-stream/run-state.ts";
+import { MessageStream } from "#src/message-stream/stream.ts";
+import { StateStore } from "#src/state/store.ts";
+import { AssistantThreads } from "#src/thread/assistant.ts";
 import {
   hasSuccessor,
   TURN_STEER_REASON,
   TURN_SHUTDOWN_REASON,
   TURN_TIMEOUT_REASON,
-} from "../../thread/registry.ts";
-import { threadInstanceId, ThreadContext } from "../../thread/thread.ts";
-import { openPane, paneContextBlock } from "../context/pane-context.ts";
-import { steerContextBlock } from "../context/steer-context.ts";
-import { toolContextBlock } from "../context/tool-context.ts";
-import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "../reply-style.ts";
-import { retireTurn } from "../retire-turn.ts";
-import { AgentStreamEnded, applyEvent, handleRunEvent } from "../run-events.ts";
-import { beatStatus } from "../status-beat.ts";
-import { turnEnv } from "../turn-input.ts";
+} from "#src/thread/registry.ts";
+import { threadInstanceId, ThreadContext } from "#src/thread/thread.ts";
+import { openPane, paneContextBlock } from "#src/turn/context/pane-context.ts";
+import { steerContextBlock } from "#src/turn/context/steer-context.ts";
+import { toolContextBlock } from "#src/turn/context/tool-context.ts";
+import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "#src/turn/reply-style.ts";
+import { retireTurn } from "#src/turn/retire-turn.ts";
+import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
+import { beatStatus } from "#src/turn/status-beat.ts";
+import { turnEnv } from "#src/turn/turn-input.ts";
 
 const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   pending: PendingApprovals,

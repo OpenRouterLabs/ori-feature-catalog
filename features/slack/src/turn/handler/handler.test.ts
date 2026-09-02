@@ -1,10 +1,10 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining import/no-relative-parent-imports -- modules inside this feature import siblings relatively; test doubles assert on recorded `unknown` args; cases read better whole than split */
+/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining -- test doubles assert on recorded `unknown` args; cases read better whole than split */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import { makeFakeSlackClient } from "../../client/client-test-support.ts";
-import { TURN_TIMEOUT_REASON } from "../../thread/registry.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { TURN_TIMEOUT_REASON } from "#src/thread/registry.ts";
 import {
   bridgeOf,
   event,

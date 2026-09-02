@@ -1,9 +1,7 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Context, Effect, Schema } from "effect";
 
-import { clampToWord } from "../clamp.ts";
-import { SlackClient } from "../client/index.ts";
+import { clampToWord } from "#src/clamp.ts";
+import { SlackClient } from "#src/client/index.ts";
 
 export interface ThreadRef {
   readonly channelId: string;

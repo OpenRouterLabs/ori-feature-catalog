@@ -1,14 +1,12 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
 import type {
   AssistantThreadsShape,
   PaneContext,
-} from "../../thread/assistant.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+} from "#src/thread/assistant.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
-import { keyOf, titleFromMessage } from "../../thread/assistant.ts";
+import { keyOf, titleFromMessage } from "#src/thread/assistant.ts";
 
 export const paneOf = (
   ref: ThreadRef

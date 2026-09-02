@@ -1,9 +1,7 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Schema } from "effect";
 
-import type { SlackBlock } from "../block-kit/blocks.ts";
-import type { ModalView } from "../modals/modals.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { ModalView } from "#src/helpers/modals/modals.ts";
 
 import {
   actions,
@@ -11,7 +9,7 @@ import {
   choiceInput,
   inputBlock,
   section,
-} from "../block-kit/blocks.ts";
+} from "#src/helpers/block-kit/blocks.ts";
 
 export const QUESTIONS_ACTION_ID = "ori_questions_open";
 export const QUESTIONS_MODAL_CALLBACK = "ori_questions_form";

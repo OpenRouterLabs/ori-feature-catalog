@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
@@ -9,7 +8,7 @@ import {
   decodeChoice,
   encodeChoice,
   blockerBlocks,
-} from "../helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/blockers.ts";
 import { BlockersMemory } from "./blocker.ts";
 
 const blockers = (): Effect.Effect<BlockersShape> => BlockersMemory;

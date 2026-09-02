@@ -1,4 +1,4 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/no-use-before-define unicorn/no-useless-undefined promise/avoid-new unicorn/consistent-function-scoping -- siblings are imported relatively; test doubles stand in for Slack SDK and runtime shapes, and a manually released barrier is how a case reaches the live-turn window */
+/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/no-use-before-define unicorn/no-useless-undefined promise/avoid-new unicorn/consistent-function-scoping -- test doubles stand in for Slack SDK and runtime shapes, and a manually released barrier is how a case reaches the live-turn window */
 
 import type { AgentRuntimeEvent, Chat } from "ori";
 
@@ -6,22 +6,22 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Layer } from "effect";
 
-import type { StateStoreShape } from "../../state/store.ts";
-import type { AssistantThreadsShape } from "../../thread/assistant.ts";
+import type { StateStoreShape } from "#src/state/store.ts";
+import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
 
-import { makeFakeSlackClient } from "../../client/client-test-support.ts";
-import { Blockers, BlockersMemory } from "../../interactions/blocker.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
 import {
   Interactions,
   makeInteractions,
-} from "../../interactions/interactions.ts";
+} from "#src/interactions/interactions.ts";
 import {
   MessageStream,
   MessageStreamLive,
-} from "../../message-stream/stream.ts";
-import { StateStore, StateStoreMemory } from "../../state/store.ts";
-import { AssistantThreads, keyOf } from "../../thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "../../thread/thread.ts";
+} from "#src/message-stream/stream.ts";
+import { StateStore, StateStoreMemory } from "#src/state/store.ts";
+import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
+import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
 import { handleTurn } from "./handler.ts";
 
 const ref = {

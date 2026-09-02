@@ -1,8 +1,6 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import type { SlackClientShape } from "../client/index.ts";
+import type { SlackClientShape } from "#src/client/index.ts";
 import type {
   InteractionPayload,
   InteractionsShape,
@@ -17,8 +15,8 @@ import {
   questionIdFromBlock,
   questionsAnsweredBlocks,
   questionsModal,
-} from "../helpers/blockers/questions.ts";
-import { openModal } from "../helpers/modals/modals.ts";
+} from "#src/helpers/blockers/questions.ts";
+import { openModal } from "#src/helpers/modals/modals.ts";
 
 interface Answered {
   readonly answer: string;

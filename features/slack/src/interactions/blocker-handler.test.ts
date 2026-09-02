@@ -1,4 +1,4 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- siblings are imported relatively, and the fake stands in for the Slack SDK shape */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the fake stands in for the Slack SDK shape */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
@@ -6,11 +6,11 @@ import { Effect } from "effect";
 import type { BlockersShape } from "./blocker.ts";
 import type { InteractionPayload } from "./interactions.ts";
 
-import { makeFakeSlackClient } from "../client/client-test-support.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import {
   BLOCKER_ACTION_ID,
   encodeChoice,
-} from "../helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/blockers.ts";
 import { registerBlockerHandlers } from "./blocker-handler.ts";
 import { BlockersMemory } from "./blocker.ts";
 import { makeInteractions } from "./interactions.ts";

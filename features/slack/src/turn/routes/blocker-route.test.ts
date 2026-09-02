@@ -1,12 +1,12 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function -- test doubles stand in for Slack SDK shapes and cases read better whole than split */
+/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function -- test doubles stand in for Slack SDK shapes and cases read better whole than split */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 
-import { decodeChoice } from "../../helpers/blockers/blockers.ts";
-import { BlockersMemory } from "../../interactions/blocker.ts";
+import { decodeChoice } from "#src/helpers/blockers/blockers.ts";
+import { BlockersMemory } from "#src/interactions/blocker.ts";
 import { makeBlockerRoute, parseAskBody } from "./blocker-route.ts";
 
 const recorder = (options: { failPost?: boolean } = {}) => {

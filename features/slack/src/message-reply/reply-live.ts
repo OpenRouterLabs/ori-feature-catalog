@@ -1,19 +1,17 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import type { PostedMessage, SlackApiError } from "../client/index.ts";
-import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
+import type { PostedMessage, SlackApiError } from "#src/client/index.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
   FileUpload,
   UploadedFile,
-} from "../helpers/images-files/upload.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+} from "#src/helpers/images-files/upload.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { MessageReplyShape } from "./reply.ts";
 
-import { SlackClient } from "../client/index.ts";
-import { capBlocks, withinSlackLimit } from "../helpers/block-kit/blocks.ts";
-import { uploadFile } from "../helpers/images-files/upload.ts";
+import { SlackClient } from "#src/client/index.ts";
+import { capBlocks, withinSlackLimit } from "#src/helpers/block-kit/blocks.ts";
+import { uploadFile } from "#src/helpers/images-files/upload.ts";
 
 export const makeMessageReply = Effect.fn("Slack.reply.make")(function* (
   ref: ThreadRef

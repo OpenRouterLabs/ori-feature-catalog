@@ -1,10 +1,8 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Schema } from "effect";
 
-import type { SlackClientShape } from "../../client/index.ts";
+import type { SlackClientShape } from "#src/client/index.ts";
 
-import { SlackApiError, SlackClient } from "../../client/index.ts";
+import { SlackApiError, SlackClient } from "#src/client/index.ts";
 
 export interface FileUpload {
   readonly filename: string;

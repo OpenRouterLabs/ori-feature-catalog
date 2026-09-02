@@ -1,9 +1,9 @@
-import type { ThreadRow } from "../state/store.ts";
+import type { ThreadRow } from "#src/state/store.ts";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { InterruptMode } from "../state/settings.ts";
-import { UNSEEN_THREAD } from "../turn/listening/listen.ts";
+import { InterruptMode } from "#src/state/settings.ts";
+import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
 import { ago, renderDashboard as render } from "./page.ts";
 
 const renderDashboard = (

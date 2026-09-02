@@ -1,15 +1,13 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Result } from "effect";
 
-import type { ChartRequest } from "../../helpers/charts/chart-request.ts";
-import type { ChartRenderFailure } from "../../helpers/charts/rasterise.ts";
-import type { MessageReplyShape } from "../../message-reply/reply.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { ChartRequest } from "#src/helpers/charts/chart-request.ts";
+import type { ChartRenderFailure } from "#src/helpers/charts/rasterise.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
-import { parseChartBody } from "../../helpers/charts/chart-request.ts";
-import { svgToPng } from "../../helpers/charts/rasterise.ts";
+import { parseChartBody } from "#src/helpers/charts/chart-request.ts";
+import { svgToPng } from "#src/helpers/charts/rasterise.ts";
 import { loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;

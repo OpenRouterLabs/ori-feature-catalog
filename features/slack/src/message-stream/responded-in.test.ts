@@ -1,10 +1,10 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- modules inside this feature import siblings relatively, and the recorded args are `unknown` */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the recorded args are `unknown` */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import { makeFakeSlackClient } from "../client/client-test-support.ts";
-import { makeMessageReply } from "../message-reply/reply-live.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { makeMessageReply } from "#src/message-reply/reply-live.ts";
 import { initialRunState, RunPhase } from "./run-state.ts";
 import { settle } from "./settle.ts";
 

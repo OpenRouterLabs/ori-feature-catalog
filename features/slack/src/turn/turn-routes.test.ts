@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type typescript/no-invalid-void-type eslint/require-await -- test doubles stand in for the composition root's service graph, and a queue barrier has nothing to await */
 
 import {
@@ -10,14 +9,14 @@ import {
 
 import { Effect } from "effect";
 
-import type { SlackServices } from "../layers.ts";
+import type { SlackServices } from "#src/layers.ts";
 import type { TurnRouteDeps } from "./turn-routes.ts";
 
-import { makeFakeSlackClient } from "../client/client-test-support.ts";
-import { QuestionnairesMemory } from "../interactions/questionnaires.ts";
-import { deferred } from "../thread/registry-test-support.ts";
-import { enqueue, resetRegistry } from "../thread/registry.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
+import { deferred } from "#src/thread/registry-test-support.ts";
+import { enqueue, resetRegistry } from "#src/thread/registry.ts";
+import { threadInstanceId } from "#src/thread/thread.ts";
 import { makeTurnRoutes } from "./turn-routes.ts";
 
 const REF = {

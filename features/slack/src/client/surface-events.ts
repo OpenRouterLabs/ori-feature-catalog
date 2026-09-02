@@ -1,12 +1,10 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Context, Effect } from "effect";
 
-import type { SlackServices } from "../layers.ts";
-import type { PaneContext } from "../thread/assistant.ts";
+import type { SlackServices } from "#src/layers.ts";
+import type { PaneContext } from "#src/thread/assistant.ts";
 import type { RawAssistantThreadStarted } from "./listeners.ts";
 
-import { AssistantThreads, keyOf } from "../thread/assistant.ts";
+import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
 
 interface Pane {
   readonly key: string;
