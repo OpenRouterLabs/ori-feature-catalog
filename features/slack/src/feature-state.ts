@@ -1,12 +1,22 @@
+import { Schema } from "effect";
+
 import type { SlackRuntime } from "./index.ts";
 import type { SlackButtonHandler } from "./interactions/custom.ts";
 
+import { opaqueSchema } from "./schema-support.ts";
+
 const KEY = Symbol.for("ori.slack.feature-state");
 
-export interface SlackFeatureState {
-  readonly buttons: Map<string, SlackButtonHandler>;
-  runtime: SlackRuntime | undefined;
-}
+export const SlackFeatureStateSchema = Schema.Struct({
+  buttons: opaqueSchema<Map<string, SlackButtonHandler>>(
+    "SlackFeatureState.buttons"
+  ),
+  runtime: Schema.mutableKey(
+    Schema.UndefinedOr(opaqueSchema<SlackRuntime>("SlackFeatureState.runtime"))
+  ),
+});
+
+export type SlackFeatureState = typeof SlackFeatureStateSchema.Type;
 
 type StateHolder = { [KEY]?: SlackFeatureState };
 

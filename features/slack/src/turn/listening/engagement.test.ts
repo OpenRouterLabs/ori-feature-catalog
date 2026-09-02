@@ -1,13 +1,14 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { EngagementDeps, EngagementInput } from "./engagement.ts";
+import type { EngagementInput } from "./engagement.ts";
 import type { GateContext, IncomingMessage } from "./gates.ts";
 import type { ThreadListen } from "./listen.ts";
 
-import { considerTurn } from "./engagement.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { considerTurn, EngagementDepsSchema } from "./engagement.ts";
 import { UNSEEN_THREAD } from "./listen.ts";
 
 const BOT = "U0SELF00";
@@ -33,12 +34,14 @@ const messageWith = (over: Partial<IncomingMessage> = {}): IncomingMessage => ({
   ...over,
 });
 
-interface Harness {
-  readonly deps: EngagementDeps;
-  readonly stopped: string[];
-  readonly notes: string[];
-  readonly state: () => ThreadListen;
-}
+const HarnessSchema = Schema.Struct({
+  deps: EngagementDepsSchema,
+  stopped: Schema.mutable(Schema.Array(Schema.String)),
+  notes: Schema.mutable(Schema.Array(Schema.String)),
+  state: functionSchema<() => ThreadListen>("Harness.state"),
+});
+
+type Harness = typeof HarnessSchema.Type;
 
 const harness = (over: Partial<GateContext> = {}): Harness => {
   const notes: string[] = [];

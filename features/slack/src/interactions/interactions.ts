@@ -1,5 +1,7 @@
 import { Context, Effect, Schema } from "effect";
 
+import { functionSchema } from "#src/schema-support.ts";
+
 const InteractionActionSchema = Schema.Struct({
   actionId: Schema.String,
   value: Schema.UndefinedOr(Schema.String),
@@ -31,18 +33,30 @@ type ViewHandler = (
   payload: ViewSubmissionPayload
 ) => Effect.Effect<void>;
 
-export interface InteractionsShape {
-  readonly dispatch: (payload: InteractionPayload) => Effect.Effect<void>;
-  readonly dispatchView: (
-    payload: ViewSubmissionPayload
-  ) => Effect.Effect<void>;
-  readonly on: (actionId: string, handler: InteractionHandler) => void;
-  readonly onPrefix: (
-    actionPrefix: string,
-    handler: InteractionHandler
-  ) => void;
-  readonly onView: (callbackPrefix: string, handler: ViewHandler) => void;
-}
+export const InteractionsShapeSchema = Schema.Struct({
+  dispatch:
+    functionSchema<(payload: InteractionPayload) => Effect.Effect<void>>(
+      "InteractionsShape.dispatch"
+    ),
+  dispatchView:
+    functionSchema<(payload: ViewSubmissionPayload) => Effect.Effect<void>>(
+      "InteractionsShape.dispatchView"
+    ),
+  on:
+    functionSchema<(actionId: string, handler: InteractionHandler) => void>(
+      "InteractionsShape.on"
+    ),
+  onPrefix:
+    functionSchema<
+      (actionPrefix: string, handler: InteractionHandler) => void
+    >("InteractionsShape.onPrefix"),
+  onView:
+    functionSchema<(callbackPrefix: string, handler: ViewHandler) => void>(
+      "InteractionsShape.onView"
+    ),
+});
+
+export type InteractionsShape = typeof InteractionsShapeSchema.Type;
 
 export class Interactions extends Context.Service<
   Interactions,

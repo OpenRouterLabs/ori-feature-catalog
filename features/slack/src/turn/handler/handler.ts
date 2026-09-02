@@ -1,8 +1,9 @@
 import type { AgentRuntimeEvent, Chat } from "ori";
 
-import { Effect, Ref, Stream } from "effect";
+import { Effect, Ref, Schema, Stream } from "effect";
 
 import { bestEffort } from "#src/helpers/best-effort.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { RunState } from "#src/message-stream/run-state.ts";
@@ -38,7 +39,7 @@ import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "#src/turn/reply-style.t
 import { retireTurn } from "#src/turn/retire-turn.ts";
 import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
 import { beatStatus } from "#src/turn/status-beat.ts";
-import { turnEnv } from "#src/turn/turn-input.ts";
+import { IncomingTurnSchema, turnEnv } from "#src/turn/turn-input.ts";
 
 const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   pending: PendingApprovals,
@@ -247,11 +248,13 @@ const promptFor = (input: {
     .filter((part) => part !== "")
     .join("\n\n");
 
-interface HandleTurnInput {
-  readonly bridge: Chat;
-  readonly live: LiveTurn;
-  readonly turn: IncomingTurn;
-}
+const HandleTurnInputSchema = Schema.Struct({
+  bridge: opaqueSchema<Chat>("HandleTurnInput.bridge"),
+  live: opaqueSchema<LiveTurn>("HandleTurnInput.live"),
+  turn: IncomingTurnSchema,
+});
+
+type HandleTurnInput = typeof HandleTurnInputSchema.Type;
 
 export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
   input: HandleTurnInput

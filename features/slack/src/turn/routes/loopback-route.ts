@@ -2,6 +2,8 @@ import { Effect, Result, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
 
+import { functionSchema } from "#src/schema-support.ts";
+
 const BYTES_PER_KIB = 1024;
 
 const HTTP_BAD_REQUEST = 400;
@@ -79,18 +81,28 @@ const readCapped = Effect.fn("Slack.loopback.readBody")(function* (
   return Result.succeed(jsonOrNull(raw));
 });
 
-interface LoopbackSpec<
+const loopbackSpecSchema = <
   TRequest extends Addressed,
   TOutput extends object,
-> {
-  readonly capKiB: number;
-  readonly handle: (input: {
-    readonly ref: ThreadRef;
-    readonly request: TRequest;
-  }) => Effect.Effect<Result.Result<TOutput, Refusal>>;
-  readonly parse: (raw: unknown) => Result.Result<TRequest, string>;
-  readonly workspaceTeamId: string;
-}
+>() =>
+  Schema.Struct({
+    capKiB: Schema.Number,
+    handle: functionSchema<
+      (input: {
+        readonly ref: ThreadRef;
+        readonly request: TRequest;
+      }) => Effect.Effect<Result.Result<TOutput, Refusal>>
+    >("LoopbackSpec.handle"),
+    parse: functionSchema<(raw: unknown) => Result.Result<TRequest, string>>(
+      "LoopbackSpec.parse"
+    ),
+    workspaceTeamId: Schema.String,
+  });
+
+type LoopbackSpec<
+  TRequest extends Addressed,
+  TOutput extends object,
+> = ReturnType<typeof loopbackSpecSchema<TRequest, TOutput>>["Type"];
 
 const refusalResponse = (refusal: Refusal): Response =>
   Response.json({ error: refusal.error }, { status: refusal.status });

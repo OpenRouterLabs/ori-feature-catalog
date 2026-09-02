@@ -1,6 +1,6 @@
 import type { StateStore as OriStateStore } from "ori";
 
-import { Layer } from "effect";
+import { Layer, Schema } from "effect";
 
 import { makeSlackClientFromToken, SlackClient } from "./client/index.ts";
 import { Blockers, BlockersMemory } from "./interactions/blocker.ts";
@@ -10,6 +10,7 @@ import {
   QuestionnairesMemory,
 } from "./interactions/questionnaires.ts";
 import { MessageStream, MessageStreamLive } from "./message-stream/stream.ts";
+import { opaqueSchema } from "./schema-support.ts";
 import { StateStoreDurable } from "./state/store-durable.ts";
 import { StateStore, StateStoreMemory } from "./state/store.ts";
 import { AssistantThreads, AssistantThreadsLive } from "./thread/assistant.ts";
@@ -30,10 +31,14 @@ const SlackClientLayer = (token: string): Layer.Layer<SlackClient> =>
     SlackClient.of(makeSlackClientFromToken(token))
   );
 
-interface SlackGraphInput {
-  readonly store?: OriStateStore | undefined;
-  readonly token: string;
-}
+const SlackGraphInputSchema = Schema.Struct({
+  store: Schema.optionalKey(
+    Schema.UndefinedOr(opaqueSchema<OriStateStore>("SlackGraphInput.store"))
+  ),
+  token: Schema.String,
+});
+
+type SlackGraphInput = typeof SlackGraphInputSchema.Type;
 
 export const SlackDefaultLayers = (
   input: SlackGraphInput

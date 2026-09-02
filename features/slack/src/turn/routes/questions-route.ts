@@ -8,6 +8,7 @@ import {
   QuestionsSchema,
   questionsBlocks,
 } from "#src/helpers/blockers/questions.ts";
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
@@ -76,17 +77,23 @@ export const parseAskBody = (raw: unknown): AskParse =>
     },
   });
 
-interface QuestionsRouteDeps {
-  readonly forms: QuestionnairesShape;
-  readonly newAskId: () => string;
-  readonly post: (
-    ref: ThreadRef,
-    blocks: readonly unknown[],
-    fallback: string
-  ) => Promise<string | undefined>;
-  readonly isLive: (ref: ThreadRef) => Promise<boolean>;
-  readonly workspaceTeamId: string;
-}
+const QuestionsRouteDepsSchema = Schema.Struct({
+  forms: opaqueSchema<QuestionnairesShape>("QuestionsRouteDeps.forms"),
+  newAskId: functionSchema<() => string>("QuestionsRouteDeps.newAskId"),
+  post: functionSchema<
+    (
+      ref: ThreadRef,
+      blocks: readonly unknown[],
+      fallback: string
+    ) => Promise<string | undefined>
+  >("QuestionsRouteDeps.post"),
+  isLive: functionSchema<(ref: ThreadRef) => Promise<boolean>>(
+    "QuestionsRouteDeps.isLive"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+type QuestionsRouteDeps = typeof QuestionsRouteDepsSchema.Type;
 
 const askQuestions = Effect.fn("Slack.questions.ask")(function* (input: {
   readonly deps: QuestionsRouteDeps;

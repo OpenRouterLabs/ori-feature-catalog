@@ -1,5 +1,7 @@
 import { Effect, Option, Schema } from "effect";
 
+import { opaqueSchema } from "#src/schema-support.ts";
+
 const DEFAULT_MODEL = "openai/gpt-5.4-image-2";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -21,10 +23,12 @@ const Body = Schema.Struct({
 });
 const decodeBody = Schema.decodeUnknownOption(Body);
 
-export interface GeneratedImage {
-  readonly content: Blob;
-  readonly contentType: string;
-}
+const GeneratedImageSchema = Schema.Struct({
+  content: opaqueSchema<Blob>("GeneratedImage.content"),
+  contentType: Schema.String,
+});
+
+export type GeneratedImage = typeof GeneratedImageSchema.Type;
 
 export type GenerateOutcome =
   | { readonly ok: true; readonly image: GeneratedImage }

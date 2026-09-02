@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Block, KnownBlock } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
@@ -9,15 +9,22 @@ import { makeSlackClientFromToken } from "./client/index.ts";
 import { readBotToken } from "./config.ts";
 import { featureState } from "./feature-state.ts";
 import { capBlocks, withinSlackLimit } from "./helpers/block-kit/blocks.ts";
+import { opaqueSchema } from "./schema-support.ts";
 
-export interface SlackPostMessageInput {
-  readonly channel: string;
-  readonly text: string;
-  readonly threadTs?: string;
-  readonly blocks?: readonly (Block | KnownBlock)[];
-  readonly unfurlLinks?: boolean;
-  readonly unfurlMedia?: boolean;
-}
+const SlackPostMessageInputSchema = Schema.Struct({
+  channel: Schema.String,
+  text: Schema.String,
+  threadTs: Schema.optionalKey(Schema.String),
+  blocks: Schema.optionalKey(
+    Schema.Array(
+      opaqueSchema<Block | KnownBlock>("SlackPostMessageInput.blocks")
+    )
+  ),
+  unfurlLinks: Schema.optionalKey(Schema.Boolean),
+  unfurlMedia: Schema.optionalKey(Schema.Boolean),
+});
+
+export type SlackPostMessageInput = typeof SlackPostMessageInputSchema.Type;
 
 export type SlackPostMessageResult =
   | { readonly ok: true; readonly channel: string; readonly ts?: string }

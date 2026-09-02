@@ -1,12 +1,14 @@
 import { Schema } from "effect";
 
-export interface GateContext {
-  readonly botUserId: string | undefined;
-  readonly allowedUserIds: ReadonlySet<string>;
-  readonly skipPrefixes: readonly string[];
-}
+export const GateContextSchema = Schema.Struct({
+  botUserId: Schema.UndefinedOr(Schema.String),
+  allowedUserIds: Schema.ReadonlySet(Schema.String),
+  skipPrefixes: Schema.Array(Schema.String),
+});
 
-const IncomingMessageSchema = Schema.Struct({
+export type GateContext = typeof GateContextSchema.Type;
+
+export const IncomingMessageSchema = Schema.Struct({
   botId: Schema.UndefinedOr(Schema.String),
   subtype: Schema.UndefinedOr(Schema.String),
   text: Schema.String,

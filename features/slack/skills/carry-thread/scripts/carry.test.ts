@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- test doubles stand in for Slack SDK and fetch shapes */
 
-import { Option, Result } from "effect";
+import { Option, Result, Schema } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
@@ -12,11 +12,13 @@ const ENV = {
   SLACK_THREAD_TS: "1700.1",
 };
 
-interface Posted {
-  readonly channel: string;
-  readonly text: string;
-  readonly threadTs: string | undefined;
-}
+const PostedSchema = Schema.Struct({
+  channel: Schema.String,
+  text: Schema.String,
+  threadTs: Schema.UndefinedOr(Schema.String),
+});
+
+type Posted = typeof PostedSchema.Type;
 
 const harness = (
   options: { readonly carryStatus?: number } = {}

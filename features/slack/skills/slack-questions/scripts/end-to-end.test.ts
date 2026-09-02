@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { makeQuestionsRoute } from "#src/turn/routes/questions-route.ts";
@@ -27,10 +27,12 @@ const END_YOUR_TURN =
   "Asked. END YOUR TURN now — say what you are blocked on. You will be " +
   "started again on this thread with their answers when they reply.\n";
 
-interface Daemon {
-  readonly bodies: readonly unknown[];
-  readonly port: number;
-}
+const DaemonSchema = Schema.Struct({
+  bodies: Schema.Array(Schema.Unknown),
+  port: Schema.Number,
+});
+
+type Daemon = typeof DaemonSchema.Type;
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
 
@@ -85,11 +87,13 @@ const routeDaemon = (options: { live?: boolean } = {}): Daemon => {
   return daemon((request) => route(request));
 };
 
-interface RunResult {
-  readonly code: number;
-  readonly stderr: string;
-  readonly stdout: string;
-}
+const RunResultSchema = Schema.Struct({
+  code: Schema.Number,
+  stderr: Schema.String,
+  stdout: Schema.String,
+});
+
+type RunResult = typeof RunResultSchema.Type;
 
 const run = async (input: {
   readonly args?: readonly string[];

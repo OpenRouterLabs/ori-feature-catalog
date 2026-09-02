@@ -4,6 +4,7 @@ import type { SlackApiError, SlackClientShape } from "#src/client/client.ts";
 
 import { clampToWord } from "#src/clamp.ts";
 import { SlackClient } from "#src/client/client.ts";
+import { functionSchema } from "#src/schema-support.ts";
 
 export const PaneContextSchema = Schema.Struct({
   channelId: Schema.UndefinedOr(Schema.String),
@@ -14,11 +15,19 @@ export type PaneContext = typeof PaneContextSchema.Type;
 
 const MAX_TRACKED_PANES = 1000;
 
-interface PaneRegistry {
-  readonly contextFor: (key: string) => PaneContext | undefined;
-  readonly has: (key: string) => boolean;
-  readonly remember: (key: string, paneContext?: PaneContext) => void;
-}
+const PaneRegistrySchema = Schema.Struct({
+  contextFor:
+    functionSchema<(key: string) => PaneContext | undefined>(
+      "PaneRegistry.contextFor"
+    ),
+  has: functionSchema<(key: string) => boolean>("PaneRegistry.has"),
+  remember:
+    functionSchema<(key: string, paneContext?: PaneContext) => void>(
+      "PaneRegistry.remember"
+    ),
+});
+
+type PaneRegistry = typeof PaneRegistrySchema.Type;
 
 export const keyOf = (input: {
   readonly channelId: string;
@@ -51,25 +60,37 @@ const MAX_TITLE_CHARS = 250;
 
 const TITLE_WORD_BUDGET = 60;
 
-export interface AssistantThreadsShape {
-  readonly remember: (
-    threadKey: string,
-    paneContext?: PaneContext
-  ) => Effect.Effect<void>;
-  readonly isPane: (threadKey: string) => Effect.Effect<boolean>;
-  readonly contextFor: (
-    threadKey: string
-  ) => Effect.Effect<PaneContext | undefined>;
-  readonly setStatus: (
-    input: { readonly channelId: string; readonly threadTs: string },
-    status: string,
-    loading?: readonly string[]
-  ) => Effect.Effect<void>;
-  readonly setTitle: (
-    input: { readonly channelId: string; readonly threadTs: string },
-    title: string
-  ) => Effect.Effect<void>;
-}
+const AssistantThreadsShapeSchema = Schema.Struct({
+  remember:
+    functionSchema<
+      (threadKey: string, paneContext?: PaneContext) => Effect.Effect<void>
+    >("AssistantThreadsShape.remember"),
+  isPane:
+    functionSchema<(threadKey: string) => Effect.Effect<boolean>>(
+      "AssistantThreadsShape.isPane"
+    ),
+  contextFor:
+    functionSchema<
+      (threadKey: string) => Effect.Effect<PaneContext | undefined>
+    >("AssistantThreadsShape.contextFor"),
+  setStatus:
+    functionSchema<
+      (
+        input: { readonly channelId: string; readonly threadTs: string },
+        status: string,
+        loading?: readonly string[]
+      ) => Effect.Effect<void>
+    >("AssistantThreadsShape.setStatus"),
+  setTitle:
+    functionSchema<
+      (
+        input: { readonly channelId: string; readonly threadTs: string },
+        title: string
+      ) => Effect.Effect<void>
+    >("AssistantThreadsShape.setTitle"),
+});
+
+export type AssistantThreadsShape = typeof AssistantThreadsShapeSchema.Type;
 
 export class AssistantThreads extends Context.Service<
   AssistantThreads,

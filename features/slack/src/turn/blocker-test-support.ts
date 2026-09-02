@@ -10,6 +10,7 @@ import { BLOCKER_ACTION_ID } from "#src/helpers/blockers/blockers.ts";
 import { registerBlockerHandlers } from "#src/interactions/blocker-handler.ts";
 import { BlockersMemory } from "#src/interactions/blocker.ts";
 import { makeInteractions } from "#src/interactions/interactions.ts";
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 
 const TEAM = "T1";
@@ -28,16 +29,20 @@ const CHOICES = [
   },
 ] as const;
 
-export interface RecordedBlocks {
-  readonly blocks: readonly unknown[];
-  readonly fallback: string;
-}
+const RecordedBlocksSchema = Schema.Struct({
+  blocks: Schema.Array(Schema.Unknown),
+  fallback: Schema.String,
+});
 
-export interface ThreadRecorder {
-  readonly posted: RecordedBlocks[];
-  readonly reply: MessageReplyShape;
-  readonly updated: RecordedBlocks[];
-}
+export type RecordedBlocks = typeof RecordedBlocksSchema.Type;
+
+const ThreadRecorderSchema = Schema.Struct({
+  posted: Schema.mutable(Schema.Array(RecordedBlocksSchema)),
+  reply: opaqueSchema<MessageReplyShape>("ThreadRecorder.reply"),
+  updated: Schema.mutable(Schema.Array(RecordedBlocksSchema)),
+});
+
+export type ThreadRecorder = typeof ThreadRecorderSchema.Type;
 
 const RecordedButtonSchema = Schema.Struct({
   label: Schema.String,
@@ -116,12 +121,14 @@ const makeRecorder = (options: {
   };
 };
 
-export interface Wired {
-  readonly blockers: BlockersShape;
-  readonly click: (value: string) => Promise<void>;
-  readonly route: (request: Request) => Promise<Response>;
-  readonly thread: (threadTs: string) => ThreadRecorder;
-}
+const WiredSchema = Schema.Struct({
+  blockers: opaqueSchema<BlockersShape>("Wired.blockers"),
+  click: functionSchema<(value: string) => Promise<void>>("Wired.click"),
+  route: functionSchema<(request: Request) => Promise<Response>>("Wired.route"),
+  thread: functionSchema<(threadTs: string) => ThreadRecorder>("Wired.thread"),
+});
+
+export type Wired = typeof WiredSchema.Type;
 
 export const wired = (
   options: {

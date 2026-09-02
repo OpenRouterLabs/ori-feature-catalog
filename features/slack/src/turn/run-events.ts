@@ -191,10 +191,12 @@ const retireApproval = Effect.fn("Slack.runEvents.retireApproval")(
   }
 );
 
-export interface SessionSlot {
-  current: string | undefined;
-  readonly instanceId: string;
-}
+const SessionSlotSchema = Schema.Struct({
+  current: Schema.mutableKey(Schema.UndefinedOr(Schema.String)),
+  instanceId: Schema.String,
+});
+
+export type SessionSlot = typeof SessionSlotSchema.Type;
 
 const requestPermission = Effect.fn("Slack.runEvents.requestPermission")(
   function* (input: {

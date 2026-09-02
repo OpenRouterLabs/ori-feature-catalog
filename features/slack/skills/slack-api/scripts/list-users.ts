@@ -2,16 +2,32 @@ import type { WebClient } from "@slack/web-api";
 
 import { Result, Schema } from "effect";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import { makeClient } from "./helpers.ts";
 import { tryCatchAsync } from "./result.ts";
 
 const PER_PAGE = 200;
 
-export interface ListUsersOpts {
-  search?: string;
-  env?: Record<string, string | undefined> | undefined;
-  client?: WebClient | undefined;
-}
+const ListUsersOptsSchema = Schema.Struct({
+  search: Schema.mutableKey(Schema.optionalKey(Schema.String)),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+  client: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(opaqueSchema<WebClient>("ListUsersOpts.client"))
+    )
+  ),
+});
+
+export type ListUsersOpts = typeof ListUsersOptsSchema.Type;
 
 const SlackMemberSchema = Schema.Struct({
   user_id: Schema.String,

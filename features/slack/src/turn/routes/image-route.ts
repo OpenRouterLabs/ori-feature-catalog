@@ -6,6 +6,7 @@ import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import { generateImage } from "#src/helpers/images-ai/generate.ts";
+import { functionSchema } from "#src/schema-support.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_PROMPT_CHARS = 1000;
@@ -66,13 +67,19 @@ const parseImageBody = (raw: unknown): ImageParse =>
     },
   });
 
-interface ImageRouteDeps {
-  readonly apiKey: () => string;
-  readonly fetch?: typeof globalThis.fetch;
-  readonly model?: string | undefined;
-  readonly replyFor: (ref: ThreadRef) => Promise<MessageReplyShape>;
-  readonly workspaceTeamId: string;
-}
+const ImageRouteDepsSchema = Schema.Struct({
+  apiKey: functionSchema<() => string>("ImageRouteDeps.apiKey"),
+  fetch: Schema.optionalKey(
+    functionSchema<typeof globalThis.fetch>("ImageRouteDeps.fetch")
+  ),
+  model: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  replyFor: functionSchema<(ref: ThreadRef) => Promise<MessageReplyShape>>(
+    "ImageRouteDeps.replyFor"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+type ImageRouteDeps = typeof ImageRouteDepsSchema.Type;
 
 const upload = Effect.fn("Slack.image.upload")(function* (input: {
   readonly image: GeneratedImage;

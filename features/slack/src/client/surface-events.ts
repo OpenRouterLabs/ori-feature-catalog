@@ -3,6 +3,7 @@ import { Context, Effect, Schema } from "effect";
 import type { SlackServices } from "#src/layers.ts";
 import type { RawAssistantThreadStarted } from "./listeners.ts";
 
+import { functionSchema } from "#src/schema-support.ts";
 import {
   AssistantThreads,
   keyOf,
@@ -40,10 +41,18 @@ const paneOf = (event: RawAssistantThreadStarted): Pane | undefined => {
   };
 };
 
-interface SurfaceEventHandlers {
-  readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
-  readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
-}
+const SurfaceEventHandlersSchema = Schema.Struct({
+  changeAssistantContext:
+    functionSchema<(event: RawAssistantThreadStarted) => void>(
+      "SurfaceEventHandlers.changeAssistantContext"
+    ),
+  openAssistantThread:
+    functionSchema<(event: RawAssistantThreadStarted) => void>(
+      "SurfaceEventHandlers.openAssistantThread"
+    ),
+});
+
+type SurfaceEventHandlers = typeof SurfaceEventHandlersSchema.Type;
 
 export const makeSurfaceEventHandlers = (input: {
   readonly context: Context.Context<SlackServices>;

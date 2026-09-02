@@ -6,7 +6,9 @@ import { Effect, Layer, Schema } from "effect";
 
 import type { SlackClientShape } from "./client.ts";
 
-import { SlackClient } from "./client.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
+
+import { SlackClient, SlackClientShapeSchema } from "./client.ts";
 
 const RecordedCallSchema = Schema.Struct({
   args: Schema.Unknown,
@@ -15,11 +17,13 @@ const RecordedCallSchema = Schema.Struct({
 
 export type RecordedCall = typeof RecordedCallSchema.Type;
 
-export interface FakeSlackClient {
-  readonly calls: RecordedCall[];
-  readonly shape: SlackClientShape;
-  readonly layer: Layer.Layer<SlackClient>;
-}
+const FakeSlackClientSchema = Schema.Struct({
+  calls: opaqueSchema<RecordedCall[]>("FakeSlackClient.calls"),
+  shape: SlackClientShapeSchema,
+  layer: opaqueSchema<Layer.Layer<SlackClient>>("FakeSlackClient.layer"),
+});
+
+export type FakeSlackClient = typeof FakeSlackClientSchema.Type;
 
 export type RawStubs = Readonly<Record<string, (args: never) => unknown>>;
 

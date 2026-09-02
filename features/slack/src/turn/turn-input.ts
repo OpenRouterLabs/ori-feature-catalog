@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 import { ThreadRefSchema } from "#src/thread/thread.ts";
 
-const IncomingTurnSchema = Schema.Struct({
+export const IncomingTurnSchema = Schema.Struct({
   attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   priorPartial: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   priorAsk: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),

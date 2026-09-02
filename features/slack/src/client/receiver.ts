@@ -4,6 +4,8 @@ import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
 
+import { functionSchema } from "#src/schema-support.ts";
+
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const MS_PER_MINUTE = SECONDS_PER_MINUTE * MS_PER_SECOND;
@@ -62,13 +64,21 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
-interface SlackReceiverOptions {
-  readonly signingSecret: string;
-  readonly logger: {
-    readonly error: (message: string, ...rest: readonly unknown[]) => void;
-    readonly warn: (message: string, ...rest: readonly unknown[]) => void;
-  };
-}
+const SlackReceiverOptionsSchema = Schema.Struct({
+  signingSecret: Schema.String,
+  logger: Schema.Struct({
+    error:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.error"
+      ),
+    warn:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.warn"
+      ),
+  }),
+});
+
+type SlackReceiverOptions = typeof SlackReceiverOptionsSchema.Type;
 
 export class SlackReceiver implements Receiver {
   #app: App | undefined;

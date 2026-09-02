@@ -2,6 +2,7 @@ import { Context, Effect, Schema } from "effect";
 
 import { clampToWord } from "#src/clamp.ts";
 import { SlackClient } from "#src/client/index.ts";
+import { functionSchema } from "#src/schema-support.ts";
 
 export const ThreadRefSchema = Schema.Struct({
   channelId: Schema.String,
@@ -37,16 +38,22 @@ export const parseThreadInstanceId = (id: string): ThreadRef | undefined => {
       };
 };
 
-interface ThreadContextShape {
-  readonly build: (
-    input: ThreadRef & {
-      readonly hasSession: boolean;
-      readonly startsThread?: boolean | undefined;
-    }
-  ) => Effect.Effect<string>;
+const ThreadContextShapeSchema = Schema.Struct({
+  build:
+    functionSchema<
+      (
+        input: ThreadRef & {
+          readonly hasSession: boolean;
+          readonly startsThread?: boolean | undefined;
+        }
+      ) => Effect.Effect<string>
+    >("ThreadContextShape.build"),
 
-  readonly instanceId: (ref: ThreadRef) => string;
-}
+  instanceId:
+    functionSchema<(ref: ThreadRef) => string>("ThreadContextShape.instanceId"),
+});
+
+type ThreadContextShape = typeof ThreadContextShapeSchema.Type;
 
 export class ThreadContext extends Context.Service<
   ThreadContext,

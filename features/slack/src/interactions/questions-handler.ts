@@ -1,12 +1,15 @@
 import { Effect, Schema } from "effect";
 
-import type { SlackClientShape } from "#src/client/index.ts";
 import type {
   InteractionPayload,
-  InteractionsShape,
   ViewSubmissionPayload,
 } from "./interactions.ts";
-import type { PendingForm, QuestionnairesShape } from "./questionnaires.ts";
+import type { PendingForm } from "./questionnaires.ts";
+
+import { SlackClientShapeSchema } from "#src/client/client.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { InteractionsShapeSchema } from "./interactions.ts";
+import { QuestionnairesShapeSchema } from "./questionnaires.ts";
 
 import {
   askIdFromQuestionsCallback,
@@ -58,12 +61,17 @@ export const answersPrompt = (answers: readonly Answered[]): string =>
     "stopped.",
   ].join("\n");
 
-interface HandlerDeps {
-  readonly continueTurn: (form: PendingForm, prompt: string) => void;
-  readonly forms: QuestionnairesShape;
-  readonly interactions: InteractionsShape;
-  readonly slack: SlackClientShape;
-}
+const HandlerDepsSchema = Schema.Struct({
+  continueTurn:
+    functionSchema<(form: PendingForm, prompt: string) => void>(
+      "HandlerDeps.continueTurn"
+    ),
+  forms: QuestionnairesShapeSchema,
+  interactions: InteractionsShapeSchema,
+  slack: SlackClientShapeSchema,
+});
+
+type HandlerDeps = typeof HandlerDepsSchema.Type;
 
 const onOpenClicked = (input: HandlerDeps): void => {
   input.interactions.on(

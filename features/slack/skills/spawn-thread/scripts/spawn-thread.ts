@@ -1,5 +1,6 @@
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
+import { functionSchema } from "#src/schema-support.ts";
 import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
 export const DEFAULT_HTTP_PORT = 3141;
@@ -13,13 +14,19 @@ export const Subcommand = {
 } as const;
 export type Subcommand = (typeof Subcommand)[keyof typeof Subcommand];
 
-interface ParsedArgs {
-  subcommand?: Subcommand;
-  channel?: string;
-  threadTs?: string;
-  prompt?: string;
-  opener?: string;
-}
+const ParsedArgsSchema = Schema.Struct({
+  subcommand: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.Literals([Subcommand.Continue, Subcommand.Fork, Subcommand.New])
+    )
+  ),
+  channel: Schema.mutableKey(Schema.optionalKey(Schema.String)),
+  threadTs: Schema.mutableKey(Schema.optionalKey(Schema.String)),
+  prompt: Schema.mutableKey(Schema.optionalKey(Schema.String)),
+  opener: Schema.mutableKey(Schema.optionalKey(Schema.String)),
+});
+
+type ParsedArgs = typeof ParsedArgsSchema.Type;
 
 export type FetchLike = (
   input: string | URL | Request,
@@ -160,14 +167,25 @@ export const resolveHttpPort = (
     : DEFAULT_HTTP_PORT;
 };
 
-interface DispatchOpts {
-  channel: string;
-  threadTs: string;
-  message: string;
-  depth: number;
-  env: Record<string, string | undefined>;
-  fetchImpl?: FetchLike | undefined;
-}
+const DispatchOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  threadTs: Schema.mutableKey(Schema.String),
+  message: Schema.mutableKey(Schema.String),
+  depth: Schema.mutableKey(Schema.Number),
+  env: Schema.mutableKey(
+    Schema.Record(
+      Schema.String,
+      Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+    )
+  ),
+  fetchImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(functionSchema<FetchLike>("DispatchOpts.fetchImpl"))
+    )
+  ),
+});
+
+type DispatchOpts = typeof DispatchOptsSchema.Type;
 
 export const dispatchToRunloop = async (
   opts: DispatchOpts
@@ -212,14 +230,25 @@ export const dispatchToRunloop = async (
   return Result.void;
 };
 
-interface RunContinueOpts {
-  channel: string;
-  threadTs: string;
-  prompt: string;
-  depth: number;
-  env: Record<string, string | undefined>;
-  fetchImpl?: FetchLike | undefined;
-}
+const RunContinueOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  threadTs: Schema.mutableKey(Schema.String),
+  prompt: Schema.mutableKey(Schema.String),
+  depth: Schema.mutableKey(Schema.Number),
+  env: Schema.mutableKey(
+    Schema.Record(
+      Schema.String,
+      Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+    )
+  ),
+  fetchImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(functionSchema<FetchLike>("RunContinueOpts.fetchImpl"))
+    )
+  ),
+});
+
+type RunContinueOpts = typeof RunContinueOptsSchema.Type;
 
 export const runContinue = async (
   opts: RunContinueOpts

@@ -25,22 +25,34 @@ const gistOf = (line: string): string =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9 ]/gu, "");
 
-export interface RunState {
-  readonly compactingSince: number | undefined;
-  readonly phase: RunPhase;
-  readonly lastLineAt: number | undefined;
-  readonly startedAt: number;
-  readonly text: string;
-  readonly priorText: string;
-  readonly tools: ReadonlyMap<string, number>;
-  readonly alive: number;
-  readonly openTools: number;
-  readonly log: readonly string[];
-  readonly logged: number;
-  readonly model: string | undefined;
-  readonly harness: string | undefined;
-  readonly error: string | undefined;
-}
+const RunStateSchema = Schema.Struct({
+  compactingSince: Schema.UndefinedOr(Schema.Number),
+  phase: Schema.Literals([
+    RunPhase.Cancelled,
+    RunPhase.Done,
+    RunPhase.Failed,
+    RunPhase.Queued,
+    RunPhase.Running,
+    RunPhase.Shutdown,
+    RunPhase.Starting,
+    RunPhase.Steered,
+    RunPhase.TimedOut,
+  ]),
+  lastLineAt: Schema.UndefinedOr(Schema.Number),
+  startedAt: Schema.Number,
+  text: Schema.String,
+  priorText: Schema.String,
+  tools: Schema.ReadonlyMap(Schema.String, Schema.Number),
+  alive: Schema.Number,
+  openTools: Schema.Number,
+  log: Schema.Array(Schema.String),
+  logged: Schema.Number,
+  model: Schema.UndefinedOr(Schema.String),
+  harness: Schema.UndefinedOr(Schema.String),
+  error: Schema.UndefinedOr(Schema.String),
+});
+
+export type RunState = typeof RunStateSchema.Type;
 
 export const initialRunState = (now: number = Date.now()): RunState => ({
   compactingSince: undefined,

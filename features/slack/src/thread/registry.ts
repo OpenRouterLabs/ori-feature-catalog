@@ -1,18 +1,28 @@
 import { Effect, Schema } from "effect";
 
-export interface LiveTurn {
-  readonly abort: (reason?: unknown) => void;
-  readPartial: () => string;
-  readAsk: () => string;
-  readonly signal: AbortSignal;
-  readonly turnId: string;
-}
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
-interface ThreadEntry {
-  live: LiveTurn | undefined;
-  pending: number;
-  tail: Promise<void>;
-}
+const LiveTurnSchema = Schema.Struct({
+  abort: functionSchema<(reason?: unknown) => void>("LiveTurn.abort"),
+  readPartial: Schema.mutableKey(
+    functionSchema<() => string>("LiveTurn.readPartial")
+  ),
+  readAsk: Schema.mutableKey(
+    functionSchema<() => string>("LiveTurn.readAsk")
+  ),
+  signal: opaqueSchema<AbortSignal>("LiveTurn.signal"),
+  turnId: Schema.String,
+});
+
+export type LiveTurn = typeof LiveTurnSchema.Type;
+
+const ThreadEntrySchema = Schema.Struct({
+  live: Schema.mutableKey(Schema.UndefinedOr(LiveTurnSchema)),
+  pending: Schema.mutableKey(Schema.Number),
+  tail: Schema.mutableKey(opaqueSchema<Promise<void>>("ThreadEntry.tail")),
+});
+
+type ThreadEntry = typeof ThreadEntrySchema.Type;
 
 const ignoreRejection = (): void => undefined;
 
@@ -79,13 +89,15 @@ const releaseThread = (threadKey: string, turn: LiveTurn): void => {
   });
 };
 
-interface ThreadClaim {
-  readonly mustWait: boolean;
-  readonly previous: Promise<void>;
-  readonly release: () => void;
-  readonly tail: Promise<void>;
-  readonly turn: LiveTurn;
-}
+const ThreadClaimSchema = Schema.Struct({
+  mustWait: Schema.Boolean,
+  previous: opaqueSchema<Promise<void>>("ThreadClaim.previous"),
+  release: functionSchema<() => void>("ThreadClaim.release"),
+  tail: opaqueSchema<Promise<void>>("ThreadClaim.tail"),
+  turn: LiveTurnSchema,
+});
+
+type ThreadClaim = typeof ThreadClaimSchema.Type;
 
 const claimThread = (threadKey: string): ThreadClaim => {
   const existing = threads.get(threadKey);
@@ -205,10 +217,12 @@ export const cancelAll = (): number => {
   return told;
 };
 
-interface Deadline {
-  readonly expired: Promise<void>;
-  readonly timer: ReturnType<typeof setTimeout>;
-}
+const DeadlineSchema = Schema.Struct({
+  expired: opaqueSchema<Promise<void>>("Deadline.expired"),
+  timer: opaqueSchema<ReturnType<typeof setTimeout>>("Deadline.timer"),
+});
+
+type Deadline = typeof DeadlineSchema.Type;
 
 const deadline = (timeoutMs: number): Effect.Effect<boolean> =>
   Effect.acquireUseRelease(
