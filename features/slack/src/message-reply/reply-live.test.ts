@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/no-unsafe-optional-chaining -- an optional chain is cast and dereferenced in one step, so a case that recorded nothing throws here instead of passing on `undefined` */
 import type { ChatPostMessageArguments } from "@slack/web-api";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -68,7 +67,7 @@ describe("makeMessageReply", () => {
 
         yield* reply.reply("hello");
 
-        expect((fake.calls[0]?.args as { text?: string }).text).toBeUndefined();
+        expect((fake.calls[0].args as { text?: string }).text).toBeUndefined();
       })
   );
 
@@ -95,7 +94,7 @@ describe("makeMessageReply", () => {
       yield* reply.reply("a normal answer");
 
       expect(
-        (fake.calls[0]?.args as { markdown_text?: string }).markdown_text
+        (fake.calls[0].args as { markdown_text?: string }).markdown_text
       ).toBe("a normal answer");
     })
   );
@@ -108,7 +107,7 @@ describe("makeMessageReply", () => {
       yield* reply.replyBlocks(many, "fallback");
 
       expect(
-        (fake.calls[0]?.args as { blocks?: readonly unknown[] }).blocks
+        (fake.calls[0].args as { blocks?: readonly unknown[] }).blocks
       ).toHaveLength(50);
     })
   );
@@ -216,13 +215,14 @@ describe("makeMessageReply", () => {
       const complete = fake.calls.find(
         (call) => call.op === "files.completeUploadExternal"
       );
-      expect((complete?.args as { channel_id?: string }).channel_id).toBe("C1");
-      expect((complete?.args as { thread_ts?: string }).thread_ts).toBe(
-        "1700.0001"
-      );
-      expect(
-        (complete?.args as { initial_comment?: string }).initial_comment
-      ).toBe("see this");
+      const completed = (complete?.args ?? {}) as {
+        channel_id?: string;
+        initial_comment?: string;
+        thread_ts?: string;
+      };
+      expect(completed.channel_id).toBe("C1");
+      expect(completed.thread_ts).toBe("1700.0001");
+      expect(completed.initial_comment).toBe("see this");
     })
   );
 });

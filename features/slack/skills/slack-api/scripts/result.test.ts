@@ -63,10 +63,13 @@ describe("tryCatch", () => {
   });
 
   test("describes a thrown non-error rather than printing [object Object]", () => {
-    const result = tryCatch(() => {
-// oxlint-disable-next-line typescript/only-throw-error -- a library that throws a string is exactly what this guards
-      throw "boom";
-    });
+    const throwing =
+      (thrown: unknown) =>
+      (): never => {
+        throw thrown;
+      };
+
+    const result = tryCatch(throwing("boom"));
 
     expect(Result.isFailure(result) && result.failure.message).toBe("boom");
     expect(Result.isFailure(result) && result.failure.name).toBe("ThrownError");

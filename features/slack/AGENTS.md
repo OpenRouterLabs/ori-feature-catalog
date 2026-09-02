@@ -36,7 +36,13 @@ The source carries none. A name, a type, or a smaller function says it better, a
 
 What a comment used to hold goes somewhere that stays true: a constraint or a rejected alternative belongs in this file, a bug a shape prevents belongs in the test that proves it, and the rest belongs in the commit message that made the change.
 
-Lint and compiler directives — `oxlint-disable`, `@ts-expect-error` — are not comments for this purpose. They change what the tools do, so they stay.
+## A rule that fires is a rule to satisfy
+
+This feature carries no `oxlint-disable` and no `eslint-disable`. It had sixty-three; every one of them turned out to be a resolver nobody configured, a rule that reported nothing, or a fix worth making.
+
+A suppression is a claim that the rule is wrong here, and that claim ages badly: it is written once, applies to the whole file for as long as the file exists, and covers code nobody has written yet. If a rule genuinely does not fit this repo, say so once in `.oxlintrc.json` where it can be read and argued with, not in a comment at the top of one file.
+
+`@ts-expect-error` is the same bargain and gets the same answer.
 
 ## Slack constraints that shaped the design
 

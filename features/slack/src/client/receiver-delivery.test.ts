@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/no-unsafe-optional-chaining -- an optional chain is cast and dereferenced in one step, so a case that recorded nothing throws here instead of passing on `undefined` */
 import type { App, ReceiverEvent } from "@slack/bolt";
 
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
@@ -205,7 +204,7 @@ describe("payload handling", () => {
 
     expect(response.status).toBe(200);
     expect(seen).toHaveLength(1);
-    expect((seen[0]?.body as { type?: string }).type).toBe("block_actions");
+    expect((seen[0].body as { type?: string }).type).toBe("block_actions");
   });
 
   test("rejects an unparseable body", async () => {

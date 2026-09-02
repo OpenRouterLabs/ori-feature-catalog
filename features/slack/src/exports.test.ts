@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/no-unsafe-optional-chaining -- an optional chain is cast and dereferenced in one step, so a case that recorded nothing throws here instead of passing on `undefined` */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { makeFakeSlackClient } from "./client/client-test-support.ts";
@@ -71,7 +70,7 @@ describe("makePostMessage", () => {
       text: "hi",
     });
 
-    expect((sent[0]?.blocks as unknown[]).length).toBeLessThanOrEqual(50);
+    expect((sent[0].blocks as unknown[]).length).toBeLessThanOrEqual(50);
   });
 
   test("reports a Slack failure as a result rather than throwing", async () => {
@@ -140,7 +139,7 @@ describe("makePostMessage", () => {
       text: "x",
     });
 
-    expect(Object.keys(fake.calls[0]?.args as object)).not.toContain(
+    expect(Object.keys(fake.calls[0].args as object)).not.toContain(
       "thread_ts"
     );
   });
@@ -175,7 +174,7 @@ describe("makePostMessage", () => {
       text: "x",
     });
 
-    expect((fake.calls[0]?.args as { blocks?: unknown[] }).blocks).toEqual([
+    expect((fake.calls[0].args as { blocks?: unknown[] }).blocks).toEqual([
       { type: "section" },
     ]);
   });

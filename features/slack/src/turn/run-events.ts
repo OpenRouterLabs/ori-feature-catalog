@@ -74,6 +74,27 @@ const failureText = (failure: AgentFailure): string =>
     ? failure.message
     : `${failure.message} — ${failure.remediation}`;
 
+const RENDERED_EVENTS = [
+  Tag.AssistantTextDelta,
+  Tag.CompactionCancelled,
+  Tag.CompactionCompleted,
+  Tag.CompactionFailed,
+  Tag.CompactionStarted,
+  Tag.SessionFailed,
+  Tag.ToolFailed,
+  Tag.ToolOutputDelta,
+  Tag.ToolProgress,
+  Tag.ToolStarted,
+  Tag.ToolSucceeded,
+  Tag.TurnFailed,
+  Tag.TurnSucceeded,
+] as const;
+
+const isRenderedEvent = (
+  type: AgentRuntimeEvent["type"]
+): type is (typeof RENDERED_EVENTS)[number] =>
+  (RENDERED_EVENTS as readonly string[]).includes(type);
+
 export const applyEvent = (
   state: RunState,
   event: AgentRuntimeEvent
@@ -92,7 +113,11 @@ export const applyEvent = (
           harness: event.harness,
         }
       : named;
-  // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- the runtime emits far more than a thread needs to show; the default arm is the point
+
+  if (!isRenderedEvent(event.type)) {
+    return withModel;
+  }
+
   switch (event.type) {
     case Tag.AssistantTextDelta: {
       return {
@@ -137,9 +162,6 @@ export const applyEvent = (
         error: failureText(event.payload.failure),
         phase: RunPhase.Failed,
       };
-    }
-    default: {
-      return withModel;
     }
   }
 };
@@ -263,6 +285,19 @@ const requestElicitation = Effect.fn("Slack.runEvents.requestElicitation")(
   }
 );
 
+const HANDLED_INTERACTIONS = [
+  Tag.ElicitationRequested,
+  Tag.ElicitationResolved,
+  Tag.PermissionRequested,
+  Tag.PermissionResolved,
+  Tag.SessionStarted,
+] as const;
+
+const isHandledInteraction = (
+  type: AgentRuntimeEvent["type"]
+): type is (typeof HANDLED_INTERACTIONS)[number] =>
+  (HANDLED_INTERACTIONS as readonly string[]).includes(type);
+
 export const handleRunEvent = Effect.fn("Slack.runEvents.handle")(
   function* (input: {
     readonly event: AgentRuntimeEvent;
@@ -273,8 +308,10 @@ export const handleRunEvent = Effect.fn("Slack.runEvents.handle")(
     readonly turn: IncomingTurn;
   }): Effect.fn.Return<void, SlackApiError> {
     const { event, pending, reply, session, store, turn } = input;
+    if (!isHandledInteraction(event.type)) {
+      return;
+    }
 
-    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- as above: only the events that change what the thread shows are handled here
     switch (event.type) {
       case Tag.SessionStarted: {
         const { sessionId } = event.payload;
@@ -309,9 +346,6 @@ export const handleRunEvent = Effect.fn("Slack.runEvents.handle")(
         break;
       }
 
-      default: {
-        break;
-      }
     }
   }
 );
