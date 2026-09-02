@@ -1,4 +1,4 @@
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { ChartRequest } from "#src/helpers/charts/chart-request.ts";
 import type { ChartRenderFailure } from "#src/helpers/charts/rasterise.ts";
@@ -7,6 +7,7 @@ import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import { parseChartBody } from "#src/helpers/charts/chart-request.ts";
+import { functionSchema } from "#src/schema-support.ts";
 import { svgToPng } from "#src/helpers/charts/rasterise.ts";
 import { loopbackRoute, refuse } from "./loopback-route.ts";
 
@@ -57,10 +58,14 @@ const upload = Effect.fn("Slack.chart.upload")(function* (input: {
     );
 });
 
-interface ChartRouteDeps {
-  readonly replyFor: (ref: ThreadRef) => Promise<MessageReplyShape>;
-  readonly workspaceTeamId: string;
-}
+const ChartRouteDepsSchema = Schema.Struct({
+  replyFor: functionSchema<(ref: ThreadRef) => Promise<MessageReplyShape>>(
+    "ChartRouteDeps.replyFor"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+type ChartRouteDeps = typeof ChartRouteDepsSchema.Type;
 
 const handleChart = Effect.fn("Slack.chart.handle")(function* (input: {
   readonly deps: ChartRouteDeps;

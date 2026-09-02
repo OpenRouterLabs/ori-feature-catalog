@@ -1,23 +1,32 @@
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
 import type { FetchLike } from "./spawn-thread.ts";
 import type { postMessage } from "./post-message.ts";
 import type { SpawnedThread } from "./run-new.ts";
 import type { updateMessage } from "./update-message.ts";
 
-import { runNew } from "./run-new.ts";
+import { runNew, SpawnedThreadSchema } from "./run-new.ts";
 
 export const MAX_FORK = 5;
 
-export interface ForkThread {
-  readonly opener: string;
-  readonly prompt: string;
-}
+const ForkThreadSchema = Schema.Struct({
+  opener: Schema.String,
+  prompt: Schema.String,
+});
 
-export interface ForkReport {
-  readonly created: readonly SpawnedThread[];
-  readonly failed: readonly { readonly opener: string; readonly reason: string }[];
-}
+export type ForkThread = typeof ForkThreadSchema.Type;
+
+const ForkReportSchema = Schema.Struct({
+  created: Schema.Array(SpawnedThreadSchema),
+  failed: Schema.Array(
+    Schema.Struct({
+      opener: Schema.String,
+      reason: Schema.String,
+    })
+  ),
+});
+
+export type ForkReport = typeof ForkReportSchema.Type;
 
 export const parseThreads = (
   raw: string | undefined

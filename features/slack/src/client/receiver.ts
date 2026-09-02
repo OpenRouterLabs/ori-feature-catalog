@@ -1,8 +1,10 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
+
+import { functionSchema } from "#src/schema-support.ts";
 
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
@@ -19,10 +21,12 @@ const HTTP_UNAUTHORIZED = 401;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-interface UrlVerification {
-  readonly challenge: string;
-  readonly type: "url_verification";
-}
+const UrlVerificationSchema = Schema.Struct({
+  challenge: Schema.String,
+  type: Schema.Literals(["url_verification"]),
+});
+
+type UrlVerification = typeof UrlVerificationSchema.Type;
 
 const isUrlVerification = (body: unknown): body is UrlVerification =>
   typeof body === "object" &&
@@ -60,13 +64,21 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
-interface SlackReceiverOptions {
-  readonly signingSecret: string;
-  readonly logger: {
-    readonly error: (message: string, ...rest: readonly unknown[]) => void;
-    readonly warn: (message: string, ...rest: readonly unknown[]) => void;
-  };
-}
+const SlackReceiverOptionsSchema = Schema.Struct({
+  signingSecret: Schema.String,
+  logger: Schema.Struct({
+    error:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.error"
+      ),
+    warn:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.warn"
+      ),
+  }),
+});
+
+type SlackReceiverOptions = typeof SlackReceiverOptionsSchema.Type;
 
 export class SlackReceiver implements Receiver {
   #app: App | undefined;

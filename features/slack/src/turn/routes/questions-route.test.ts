@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { makeQuestionsRoute, parseAskBody } from "./questions-route.ts";
@@ -35,10 +35,12 @@ const ask = (raw: unknown, headers: Record<string, string> = {}): Request =>
     method: "POST",
   });
 
-interface Posted {
-  readonly blocks: readonly unknown[];
-  readonly fallback: string;
-}
+const PostedSchema = Schema.Struct({
+  blocks: Schema.Array(Schema.Unknown),
+  fallback: Schema.String,
+});
+
+type Posted = typeof PostedSchema.Type;
 
 const routeWith = (options: { failPost?: boolean; live?: boolean } = {}) =>
   Effect.gen(function* () {

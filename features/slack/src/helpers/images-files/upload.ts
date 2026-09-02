@@ -3,17 +3,22 @@ import { Effect, Schema } from "effect";
 import type { SlackClientShape } from "#src/client/index.ts";
 
 import { SlackApiError, SlackClient } from "#src/client/index.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 
-export interface FileUpload {
-  readonly filename: string;
-  readonly content: BlobPart;
-  readonly title?: string | undefined;
-}
+const FileUploadSchema = Schema.Struct({
+  content: opaqueSchema<BlobPart>("FileUpload.content"),
+  filename: Schema.String,
+  title: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+});
 
-export interface UploadedFile {
-  readonly fileId: string;
-  readonly permalink: string | undefined;
-}
+export type FileUpload = typeof FileUploadSchema.Type;
+
+const UploadedFileSchema = Schema.Struct({
+  fileId: Schema.String,
+  permalink: Schema.UndefinedOr(Schema.String),
+});
+
+export type UploadedFile = typeof UploadedFileSchema.Type;
 
 const UploadUrlResponse = Schema.Struct({
   file_id: Schema.String,

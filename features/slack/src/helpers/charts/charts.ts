@@ -37,10 +37,14 @@ const rampAt = (index: number, total: number): string => {
 
 import { escape, truncate } from "./text.ts";
 
-interface ChartRow {
-  readonly label: string;
-  readonly value: number;
-}
+import { Schema } from "effect";
+
+const ChartRowSchema = Schema.Struct({
+  label: Schema.String,
+  value: Schema.Number,
+});
+
+type ChartRow = typeof ChartRowSchema.Type;
 
 const cardHead = (title: string, width: number, height: number): string =>
   [

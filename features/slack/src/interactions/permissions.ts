@@ -1,6 +1,6 @@
 import type { PermissionOptionKind } from "ori";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
@@ -9,19 +9,24 @@ import type {
 } from "./interactions.ts";
 
 import { actions, button, section } from "#src/helpers/block-kit/blocks.ts";
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
 export const PERMISSION_ACTION_ID = "ori_permission_select";
 export const ELICITATION_ACTION_ID = "ori_elicitation_select";
 
 const FIELD_SEPARATOR = "|";
 
-interface PermissionRequest {
-  readonly askedBy: string;
-  readonly correlationId: string;
-  readonly operation: string;
-  readonly options: readonly PermissionOptionKind[];
-  readonly sessionId: string;
-}
+const PermissionRequestSchema = Schema.Struct({
+  askedBy: Schema.String,
+  correlationId: Schema.String,
+  operation: Schema.String,
+  options: Schema.Array(
+    opaqueSchema<PermissionOptionKind>("PermissionRequest.options")
+  ),
+  sessionId: Schema.String,
+});
+
+type PermissionRequest = typeof PermissionRequestSchema.Type;
 
 const OPTION_LABELS: Readonly<Record<PermissionOptionKind, string>> = {
   allow_always: "Always allow",
@@ -38,12 +43,14 @@ const encode = (
     FIELD_SEPARATOR
   );
 
-interface DecodedChoice {
-  readonly askedBy: string;
-  readonly choice: string;
-  readonly correlationId: string;
-  readonly sessionId: string;
-}
+const DecodedChoiceSchema = Schema.Struct({
+  askedBy: Schema.String,
+  choice: Schema.String,
+  correlationId: Schema.String,
+  sessionId: Schema.String,
+});
+
+type DecodedChoice = typeof DecodedChoiceSchema.Type;
 
 const decode = (value: string | undefined): DecodedChoice | undefined => {
   if (value === undefined) {
@@ -94,12 +101,14 @@ export const permissionResolvedBlocks = (
   section(`**Permission** — ${request.operation}\n_${outcome}_`),
 ];
 
-interface ElicitationRequest {
-  readonly askedBy: string;
-  readonly correlationId: string;
-  readonly message: string;
-  readonly sessionId: string;
-}
+const ElicitationRequestSchema = Schema.Struct({
+  askedBy: Schema.String,
+  correlationId: Schema.String,
+  message: Schema.String,
+  sessionId: Schema.String,
+});
+
+type ElicitationRequest = typeof ElicitationRequestSchema.Type;
 
 export const elicitationBlocks = (
   request: ElicitationRequest
@@ -116,30 +125,35 @@ export const elicitationBlocks = (
   ),
 ];
 
-interface RespondInteraction {
-  readonly respond: (
-    input:
-      | {
-          readonly correlationId: string;
-          readonly kind: "permission";
-          readonly response:
-            | { readonly outcome: "cancelled" }
-            | {
-                readonly optionKind: PermissionOptionKind;
-                readonly outcome: "selected";
-              };
-          readonly sessionId: string;
-        }
-      | {
-          readonly correlationId: string;
-          readonly kind: "elicitation";
-          readonly response:
-            | { readonly action: "cancel" }
-            | { readonly action: "decline" };
-          readonly sessionId: string;
-        }
-  ) => Promise<void>;
-}
+const RespondInteractionSchema = Schema.Struct({
+  respond:
+    functionSchema<
+      (
+        input:
+          | {
+              readonly correlationId: string;
+              readonly kind: "permission";
+              readonly response:
+                | { readonly outcome: "cancelled" }
+                | {
+                    readonly optionKind: PermissionOptionKind;
+                    readonly outcome: "selected";
+                  };
+              readonly sessionId: string;
+            }
+          | {
+              readonly correlationId: string;
+              readonly kind: "elicitation";
+              readonly response:
+                | { readonly action: "cancel" }
+                | { readonly action: "decline" };
+              readonly sessionId: string;
+            }
+      ) => Promise<void>
+    >("RespondInteraction.respond"),
+});
+
+type RespondInteraction = typeof RespondInteractionSchema.Type;
 
 export const registerPermissionHandlers = (
   interactions: InteractionsShape,

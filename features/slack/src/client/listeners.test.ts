@@ -1,7 +1,10 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion unicorn/no-useless-undefined unicorn/no-array-sort -- the Bolt stand-in narrows App deliberately, and an explicit undefined is what a payload without that field carries */
 import type { App } from "@slack/bolt";
 
+import { Schema } from "effect";
+
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 
 import type {
   RawAssistantThreadStarted,
@@ -12,12 +15,18 @@ import { registerListeners } from "./listeners.ts";
 
 type Handler = (args: { readonly event: unknown }) => Promise<void>;
 
-interface Recorded {
-  readonly assistantContexts: RawAssistantThreadStarted[];
-  readonly assistantStarts: RawAssistantThreadStarted[];
-  readonly events: Map<string, Handler>;
-  readonly turns: RawSlackMessage[];
-}
+const RecordedSchema = Schema.Struct({
+  assistantContexts: opaqueSchema<RawAssistantThreadStarted[]>(
+    "Recorded.assistantContexts"
+  ),
+  assistantStarts: opaqueSchema<RawAssistantThreadStarted[]>(
+    "Recorded.assistantStarts"
+  ),
+  events: opaqueSchema<Map<string, Handler>>("Recorded.events"),
+  turns: opaqueSchema<RawSlackMessage[]>("Recorded.turns"),
+});
+
+type Recorded = typeof RecordedSchema.Type;
 
 const harness = (): Recorded => {
   const events = new Map<string, Handler>();

@@ -2,18 +2,20 @@ import { Effect, Result, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
 import type { CarryResult } from "#src/turn/carry.ts";
-import type { Addressed } from "./loopback-route.ts";
 
 import { CarryOutcome } from "#src/turn/carry.ts";
-import { loopbackRoute, refuse } from "./loopback-route.ts";
+import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_CONFLICT = 409;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 const HTTP_UNPROCESSABLE = 422;
 
-interface CarryRequest extends Addressed {
-  readonly toThreadTs: string;
-}
+const CarryRequestSchema = Schema.Struct({
+  ...AddressedSchema.fields,
+  toThreadTs: Schema.String,
+});
+
+type CarryRequest = typeof CarryRequestSchema.Type;
 
 const CarryBodySchema = Schema.Struct({
   channel: Schema.String,

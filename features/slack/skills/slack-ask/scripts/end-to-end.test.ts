@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { Schema } from "effect";
 import { join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "index.ts");
@@ -12,15 +13,19 @@ const QUESTION = "Rebase or close the 7 conflicting PRs?";
 const HTTP_TIMEOUT = 408;
 const HTTP_BAD_GATEWAY = 502;
 
-interface AskCall {
-  readonly body: unknown;
-  readonly path: string;
-}
+const AskCallSchema = Schema.Struct({
+  body: Schema.Unknown,
+  path: Schema.String,
+});
 
-interface FakeDaemon {
-  readonly calls: readonly AskCall[];
-  readonly port: string;
-}
+type AskCall = typeof AskCallSchema.Type;
+
+const FakeDaemonSchema = Schema.Struct({
+  calls: Schema.Array(AskCallSchema),
+  port: Schema.String,
+});
+
+type FakeDaemon = typeof FakeDaemonSchema.Type;
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
 
@@ -65,11 +70,13 @@ const deadPort = async (): Promise<string> => {
   return port;
 };
 
-interface RunResult {
-  readonly code: number;
-  readonly stderr: string;
-  readonly stdout: string;
-}
+const RunResultSchema = Schema.Struct({
+  code: Schema.Number,
+  stderr: Schema.String,
+  stdout: Schema.String,
+});
+
+type RunResult = typeof RunResultSchema.Type;
 
 const run = async (input: {
   readonly args: readonly string[];

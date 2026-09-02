@@ -1,17 +1,19 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import type { InteractionHandler, InteractionsShape } from "./interactions.ts";
 
 import { featureState } from "#src/feature-state.ts";
 import { Interactions } from "./interactions.ts";
 
-export interface SlackButtonClick {
-  readonly actionId: string;
-  readonly channelId: string;
-  readonly threadTs: string | undefined;
-  readonly userId: string;
-  readonly value: string | undefined;
-}
+const SlackButtonClickSchema = Schema.Struct({
+  actionId: Schema.String,
+  channelId: Schema.String,
+  threadTs: Schema.UndefinedOr(Schema.String),
+  userId: Schema.String,
+  value: Schema.UndefinedOr(Schema.String),
+});
+
+export type SlackButtonClick = typeof SlackButtonClickSchema.Type;
 
 export type SlackButtonHandler = (
   click: SlackButtonClick

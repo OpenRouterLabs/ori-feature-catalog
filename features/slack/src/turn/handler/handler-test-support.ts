@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes */
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
@@ -13,6 +13,7 @@ import {
   MessageStream,
   MessageStreamLive,
 } from "#src/message-stream/stream.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 import { StateStore, StateStoreMemory } from "#src/state/store.ts";
 import {
   AssistantThreads,
@@ -33,10 +34,14 @@ export const event = (type: string, payload: unknown): AgentRuntimeEvent =>
     type,
   }) as unknown as AgentRuntimeEvent;
 
-interface Harness {
-  readonly sent: ChatTurnInput[];
-  readonly bridge: Chat;
-}
+const HarnessSchema = Schema.Struct({
+  sent: Schema.mutable(
+    Schema.Array(opaqueSchema<ChatTurnInput>("Harness.sent"))
+  ),
+  bridge: opaqueSchema<Chat>("Harness.bridge"),
+});
+
+type Harness = typeof HarnessSchema.Type;
 
 export const bridgeOf = (
   events: readonly AgentRuntimeEvent[],

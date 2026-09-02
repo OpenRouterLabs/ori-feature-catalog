@@ -10,6 +10,8 @@ import type { Effect } from "effect";
 
 import { Context, Schema } from "effect";
 
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
+
 const TRANSIENT_SLACK_CODES: ReadonlySet<string> = new Set([
   "fatal_error",
   "internal_error",
@@ -39,43 +41,62 @@ export class SlackConfigError extends Schema.TaggedErrorClass<SlackConfigError>(
   }
 ) {}
 
-export interface PostedMessage {
-  readonly channel: string;
-  readonly ts: string;
-}
+const PostedMessageSchema = Schema.Struct({
+  channel: Schema.String,
+  ts: Schema.String,
+});
 
-export interface SlackClientShape {
-  readonly postMessage: (
-    args: ChatPostMessageArguments
-  ) => Effect.Effect<PostedMessage, SlackApiError>;
+export type PostedMessage = typeof PostedMessageSchema.Type;
 
-  readonly deleteMessage: (args: {
-    readonly channel: string;
-    readonly ts: string;
-  }) => Effect.Effect<void, SlackApiError>;
+export const SlackClientShapeSchema = Schema.Struct({
+  postMessage:
+    functionSchema<
+      (
+        args: ChatPostMessageArguments
+      ) => Effect.Effect<PostedMessage, SlackApiError>
+    >("SlackClientShape.postMessage"),
 
-  readonly updateMessage: (
-    args: ChatUpdateArguments
-  ) => Effect.Effect<void, SlackApiError>;
+  deleteMessage:
+    functionSchema<
+      (args: {
+        readonly channel: string;
+        readonly ts: string;
+      }) => Effect.Effect<void, SlackApiError>
+    >("SlackClientShape.deleteMessage"),
 
-  readonly openView: (
-    args: ViewsOpenArguments
-  ) => Effect.Effect<void, SlackApiError>;
+  updateMessage:
+    functionSchema<
+      (args: ChatUpdateArguments) => Effect.Effect<void, SlackApiError>
+    >("SlackClientShape.updateMessage"),
 
-  readonly setAssistantStatus: (
-    args: AssistantThreadsSetStatusArguments
-  ) => Effect.Effect<void, SlackApiError>;
+  openView:
+    functionSchema<
+      (args: ViewsOpenArguments) => Effect.Effect<void, SlackApiError>
+    >("SlackClientShape.openView"),
 
-  readonly setAssistantTitle: (
-    args: AssistantThreadsSetTitleArguments
-  ) => Effect.Effect<void, SlackApiError>;
+  setAssistantStatus:
+    functionSchema<
+      (
+        args: AssistantThreadsSetStatusArguments
+      ) => Effect.Effect<void, SlackApiError>
+    >("SlackClientShape.setAssistantStatus"),
 
-  readonly getUserName: (
-    userId: string
-  ) => Effect.Effect<string, SlackApiError>;
+  setAssistantTitle:
+    functionSchema<
+      (
+        args: AssistantThreadsSetTitleArguments
+      ) => Effect.Effect<void, SlackApiError>
+    >("SlackClientShape.setAssistantTitle"),
 
-  readonly raw: WebClient;
-}
+  getUserName:
+    functionSchema<(userId: string) => Effect.Effect<string, SlackApiError>>(
+      "SlackClientShape.getUserName"
+    ),
+
+  raw: opaqueSchema<WebClient>("SlackClientShape.raw"),
+});
+
+export type SlackClientShape = typeof SlackClientShapeSchema.Type;
 
 export class SlackClient extends Context.Service<
   SlackClient,

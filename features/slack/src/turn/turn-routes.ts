@@ -1,6 +1,6 @@
 import type { Chat } from "ori";
 
-import { Cause, Context, Effect } from "effect";
+import { Cause, Context, Effect, Schema } from "effect";
 
 import type { PostedMessage, SlackClient } from "#src/client/index.ts";
 import type { RawSlackMessage } from "#src/client/listeners.ts";
@@ -16,12 +16,17 @@ import type { EngagementDeps } from "./listening/engagement.ts";
 import type { IncomingMessage } from "./listening/gates.ts";
 
 import { makeMessageReply } from "#src/message-reply/reply-live.ts";
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { InterruptMode } from "#src/state/settings.ts";
 import { StateStore } from "#src/state/store.ts";
 import { enqueue, isBusy, steerThread } from "#src/thread/registry.ts";
-import { threadInstanceId } from "#src/thread/thread.ts";
+import { ThreadRefSchema, threadInstanceId } from "#src/thread/thread.ts";
 import { withAttachments } from "./attachments/attachments.ts";
-import { claimStart, considerTurn } from "./listening/engagement.ts";
+import {
+  claimStart,
+  considerTurn,
+  EngagementDepsSchema,
+} from "./listening/engagement.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 import { carrySession } from "./carry.ts";
@@ -32,24 +37,29 @@ import { makeDispatchRoute } from "./routes/dispatch-route.ts";
 import { makeImageRoute } from "./routes/image-route.ts";
 import { makeQuestionsRoute } from "./routes/questions-route.ts";
 
-export interface TurnRoutes {
-  readonly handleAsk: (request: Request) => Promise<Response>;
-  readonly handleAttach: (request: Request) => Promise<Response>;
-  readonly handleCarry: (request: Request) => Promise<Response>;
-  readonly handleDispatch: (request: Request) => Promise<Response>;
-  readonly handleChart: (request: Request) => Promise<Response>;
-  readonly handleImage: (request: Request) => Promise<Response>;
-  readonly handleQuestions: (request: Request) => Promise<Response>;
-  readonly runTurnSafely: (turn: {
-    readonly ref: ThreadRef;
-    readonly text: string;
-    readonly userId: string;
-  }) => void;
-  readonly startTurnSafely: (
-    event: RawSlackMessage,
-    addressed: boolean
-  ) => void;
-}
+type RequestHandler = (request: Request) => Promise<Response>;
+
+const TurnRoutesSchema = Schema.Struct({
+  handleAsk: functionSchema<RequestHandler>("TurnRoutes.handleAsk"),
+  handleAttach: functionSchema<RequestHandler>("TurnRoutes.handleAttach"),
+  handleCarry: functionSchema<RequestHandler>("TurnRoutes.handleCarry"),
+  handleDispatch: functionSchema<RequestHandler>("TurnRoutes.handleDispatch"),
+  handleChart: functionSchema<RequestHandler>("TurnRoutes.handleChart"),
+  handleImage: functionSchema<RequestHandler>("TurnRoutes.handleImage"),
+  handleQuestions: functionSchema<RequestHandler>("TurnRoutes.handleQuestions"),
+  runTurnSafely: functionSchema<
+    (turn: {
+      readonly ref: ThreadRef;
+      readonly text: string;
+      readonly userId: string;
+    }) => void
+  >("TurnRoutes.runTurnSafely"),
+  startTurnSafely: functionSchema<
+    (event: RawSlackMessage, addressed: boolean) => void
+  >("TurnRoutes.startTurnSafely"),
+});
+
+export type TurnRoutes = typeof TurnRoutesSchema.Type;
 
 export const shouldSteer = (
   steerable: boolean | undefined,
@@ -83,25 +93,33 @@ const queuedNotice =
     }
   };
 
-interface RunTurnDeps {
-  readonly bridge: Chat;
-  readonly interruptMode: () => Effect.Effect<InterruptModeType>;
-  readonly logger: SlackLogger;
-  readonly postQueuedNotice: (ref: ThreadRef) => Promise<void>;
-  readonly runWith: <A>(
-    effect: Effect.Effect<A, never, SlackServices>
-  ) => Promise<A>;
-}
+const RunTurnDepsSchema = Schema.Struct({
+  bridge: opaqueSchema<Chat>("RunTurnDeps.bridge"),
+  interruptMode: functionSchema<() => Effect.Effect<InterruptModeType>>(
+    "RunTurnDeps.interruptMode"
+  ),
+  logger: opaqueSchema<SlackLogger>("RunTurnDeps.logger"),
+  postQueuedNotice: functionSchema<(ref: ThreadRef) => Promise<void>>(
+    "RunTurnDeps.postQueuedNotice"
+  ),
+  runWith: functionSchema<
+    <A>(effect: Effect.Effect<A, never, SlackServices>) => Promise<A>
+  >("RunTurnDeps.runWith"),
+});
 
-interface WorkerTurn {
-  readonly attachmentWarning?: string | undefined;
-  readonly steer?: boolean | undefined;
-  readonly ref: ThreadRef;
-  readonly spawnDepth?: number | undefined;
-  readonly startsThread?: boolean | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+type RunTurnDeps = typeof RunTurnDepsSchema.Type;
+
+const WorkerTurnSchema = Schema.Struct({
+  attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  steer: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  ref: ThreadRefSchema,
+  spawnDepth: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  startsThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type WorkerTurn = typeof WorkerTurnSchema.Type;
 
 const makeRunTurn = (deps: RunTurnDeps) =>
   Effect.fn("Slack.turn.run")(function* (
@@ -146,14 +164,16 @@ const makeRunTurn = (deps: RunTurnDeps) =>
     });
   });
 
-interface StartedTurn {
-  readonly attachmentWarning?: string | undefined;
-  readonly ref: ThreadRef;
-  readonly startsThread?: boolean | undefined;
-  readonly steer?: boolean | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+const StartedTurnSchema = Schema.Struct({
+  attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  ref: ThreadRefSchema,
+  startsThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  steer: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type StartedTurn = typeof StartedTurnSchema.Type;
 
 const runTheTurn = Effect.fn("Slack.turn.runWithAttachments")(function* (
   deps: {
@@ -234,12 +254,14 @@ const makeStartTurn = (deps: {
     );
   });
 
-interface LoopbackTurn {
-  readonly ref: ThreadRef;
-  readonly spawnDepth?: number | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+const LoopbackTurnSchema = Schema.Struct({
+  ref: ThreadRefSchema,
+  spawnDepth: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type LoopbackTurn = typeof LoopbackTurnSchema.Type;
 
 const postForm = Effect.fn("Slack.turn.postForm")(function* (input: {
   readonly blocks: readonly SlackBlock[];
@@ -317,25 +339,37 @@ const makeSideRoutes = (input: {
   };
 };
 
-export interface TurnRouteDeps {
-  readonly blockers: BlockersShape;
-  readonly config: SlackConfig;
-  readonly bridge: Chat;
-  readonly context: Context.Context<SlackServices>;
-  readonly engagement: EngagementDeps;
-  readonly isStopping: () => boolean;
-  readonly logger: SlackLogger;
-  readonly messageOf: (event: RawSlackMessage) => IncomingMessage;
-  readonly postQueuedNotice: (ref: ThreadRef) => Promise<void>;
-  readonly startStatus: (ref: ThreadRef) => Promise<void>;
-  readonly sayFailed: (ref: ThreadRef) => Promise<void>;
-  readonly runWith: <A>(
-    effect: Effect.Effect<A, never, SlackServices>
-  ) => Promise<A>;
-  readonly forms: QuestionnairesShape;
-  readonly token: string;
-  readonly workspaceTeamId: string;
-}
+const TurnRouteDepsSchema = Schema.Struct({
+  blockers: opaqueSchema<BlockersShape>("TurnRouteDeps.blockers"),
+  config: opaqueSchema<SlackConfig>("TurnRouteDeps.config"),
+  bridge: opaqueSchema<Chat>("TurnRouteDeps.bridge"),
+  context: opaqueSchema<Context.Context<SlackServices>>(
+    "TurnRouteDeps.context"
+  ),
+  engagement: EngagementDepsSchema,
+  isStopping: functionSchema<() => boolean>("TurnRouteDeps.isStopping"),
+  logger: opaqueSchema<SlackLogger>("TurnRouteDeps.logger"),
+  messageOf: functionSchema<(event: RawSlackMessage) => IncomingMessage>(
+    "TurnRouteDeps.messageOf"
+  ),
+  postQueuedNotice: functionSchema<(ref: ThreadRef) => Promise<void>>(
+    "TurnRouteDeps.postQueuedNotice"
+  ),
+  startStatus: functionSchema<(ref: ThreadRef) => Promise<void>>(
+    "TurnRouteDeps.startStatus"
+  ),
+  sayFailed: functionSchema<(ref: ThreadRef) => Promise<void>>(
+    "TurnRouteDeps.sayFailed"
+  ),
+  runWith: functionSchema<
+    <A>(effect: Effect.Effect<A, never, SlackServices>) => Promise<A>
+  >("TurnRouteDeps.runWith"),
+  forms: opaqueSchema<QuestionnairesShape>("TurnRouteDeps.forms"),
+  token: Schema.String,
+  workspaceTeamId: Schema.String,
+});
+
+export type TurnRouteDeps = typeof TurnRouteDepsSchema.Type;
 
 export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
   const runTurn = makeRunTurn({

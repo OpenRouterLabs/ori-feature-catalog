@@ -1,38 +1,59 @@
 import type { Effect } from "effect";
 
+import { Schema } from "effect";
+
 import type { PostedMessage, SlackApiError } from "#src/client/index.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
   FileUpload,
   UploadedFile,
 } from "#src/helpers/images-files/upload.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
 
-export interface MessageReplyShape {
-  readonly ref: ThreadRef;
+import { functionSchema } from "#src/schema-support.ts";
+import { ThreadRefSchema } from "#src/thread/thread.ts";
 
-  readonly reply: (text: string) => Effect.Effect<PostedMessage, SlackApiError>;
+const MessageReplyShapeSchema = Schema.Struct({
+  ref: ThreadRefSchema,
 
-  readonly update: (
-    ts: string,
-    text: string
-  ) => Effect.Effect<void, SlackApiError>;
+  reply:
+    functionSchema<
+      (text: string) => Effect.Effect<PostedMessage, SlackApiError>
+    >("MessageReplyShape.reply"),
 
-  readonly replyBlocks: (
-    blocks: readonly SlackBlock[],
-    fallback: string
-  ) => Effect.Effect<PostedMessage, SlackApiError>;
+  update:
+    functionSchema<
+      (ts: string, text: string) => Effect.Effect<void, SlackApiError>
+    >("MessageReplyShape.update"),
 
-  readonly remove: (ts: string) => Effect.Effect<void, SlackApiError>;
+  replyBlocks:
+    functionSchema<
+      (
+        blocks: readonly SlackBlock[],
+        fallback: string
+      ) => Effect.Effect<PostedMessage, SlackApiError>
+    >("MessageReplyShape.replyBlocks"),
 
-  readonly updateBlocks: (
-    ts: string,
-    blocks: readonly SlackBlock[],
-    fallback: string
-  ) => Effect.Effect<void, SlackApiError>;
+  remove:
+    functionSchema<(ts: string) => Effect.Effect<void, SlackApiError>>(
+      "MessageReplyShape.remove"
+    ),
 
-  readonly attach: (
-    file: FileUpload,
-    comment?: string
-  ) => Effect.Effect<UploadedFile, SlackApiError>;
-}
+  updateBlocks:
+    functionSchema<
+      (
+        ts: string,
+        blocks: readonly SlackBlock[],
+        fallback: string
+      ) => Effect.Effect<void, SlackApiError>
+    >("MessageReplyShape.updateBlocks"),
+
+  attach:
+    functionSchema<
+      (
+        file: FileUpload,
+        comment?: string
+      ) => Effect.Effect<UploadedFile, SlackApiError>
+    >("MessageReplyShape.attach"),
+});
+
+export type MessageReplyShape = typeof MessageReplyShapeSchema.Type;

@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/no-base-to-string -- fetch stubs stand in for the platform type, and request bodies are inspected as the JSON they are */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { Schema } from "effect";
 
 import type { PostImageEnv } from "./post-image.ts";
 
@@ -12,10 +13,12 @@ const THREAD: PostImageEnv = {
   SLACK_THREAD_TS: "1700.1",
 };
 
-interface Call {
-  readonly body: Record<string, unknown>;
-  readonly url: string;
-}
+const CallSchema = Schema.Struct({
+  body: Schema.Record(Schema.String, Schema.mutableKey(Schema.Unknown)),
+  url: Schema.String,
+});
+
+type Call = typeof CallSchema.Type;
 
 const recording = (
   calls: Call[],

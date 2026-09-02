@@ -1,6 +1,6 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
-import type { RawSlackMessage } from "#src/client/listeners.ts";
+import { RawSlackMessageSchema } from "#src/client/listeners.ts";
 
 import {
   attachmentDirFor,
@@ -9,16 +9,20 @@ import {
 } from "./attachment-download.ts";
 import { attachedFiles, untrustedFilesWarning } from "./untrusted-files.ts";
 
-interface TurnAttachments {
-  readonly dir: string;
-  readonly fetched: number;
-  readonly warning: string | undefined;
-}
+const TurnAttachmentsSchema = Schema.Struct({
+  dir: Schema.String,
+  fetched: Schema.Number,
+  warning: Schema.UndefinedOr(Schema.String),
+});
 
-interface IncomingEvent {
-  readonly event: RawSlackMessage;
-  readonly token: string;
-}
+type TurnAttachments = typeof TurnAttachmentsSchema.Type;
+
+const IncomingEventSchema = Schema.Struct({
+  event: RawSlackMessageSchema,
+  token: Schema.String,
+});
+
+type IncomingEvent = typeof IncomingEventSchema.Type;
 
 const gatherAttachments = Effect.fn("Slack.attachments.gather")(function* (
   input: IncomingEvent

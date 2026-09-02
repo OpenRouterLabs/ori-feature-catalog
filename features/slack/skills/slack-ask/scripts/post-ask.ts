@@ -5,10 +5,12 @@ import { unreadable } from "#skills/slack-api/scripts/result.ts";
 const DEFAULT_PORT = "3141";
 const HTTP_TIMEOUT = 408;
 
-export interface AskChoice {
-  readonly id: string;
-  readonly label: string;
-}
+const AskChoiceSchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+});
+
+export type AskChoice = typeof AskChoiceSchema.Type;
 
 type PostAskOutcome =
   | { readonly kind: "answered"; readonly answer: string }

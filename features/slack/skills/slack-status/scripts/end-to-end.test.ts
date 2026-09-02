@@ -1,16 +1,19 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion eslint/max-lines-per-function -- the recorded bodies are read as the form data they are, and each case reads better whole */
 
 import { afterAll, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { Schema } from "effect";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ENTRY = join(import.meta.dir, "index.ts");
 
-interface Call {
-  readonly body: Record<string, string>;
-  readonly method: string;
-}
+const CallSchema = Schema.Struct({
+  body: Schema.Record(Schema.String, Schema.mutableKey(Schema.String)),
+  method: Schema.String,
+});
+
+type Call = typeof CallSchema.Type;
 
 const homes: string[] = [];
 

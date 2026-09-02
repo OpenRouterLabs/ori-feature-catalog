@@ -1,15 +1,19 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { SlackApiError, SlackClientShape } from "#src/client/index.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 
-export interface ModalView {
-  readonly title: string;
-  readonly blocks: readonly SlackBlock[];
-  readonly closeLabel?: string;
-  readonly callbackId?: string | undefined;
-  readonly submitLabel?: string | undefined;
-}
+import { opaqueSchema } from "#src/schema-support.ts";
+
+const ModalViewSchema = Schema.Struct({
+  blocks: Schema.Array(opaqueSchema<SlackBlock>("ModalView.blocks")),
+  callbackId: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  closeLabel: Schema.optionalKey(Schema.String),
+  submitLabel: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  title: Schema.String,
+});
+
+export type ModalView = typeof ModalViewSchema.Type;
 
 export const openModal = (
   slack: SlackClientShape,

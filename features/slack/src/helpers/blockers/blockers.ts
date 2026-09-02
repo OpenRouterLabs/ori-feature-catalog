@@ -1,15 +1,19 @@
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 
+import { Schema } from "effect";
+
 import { actions, button, section } from "#src/helpers/block-kit/blocks.ts";
 
 export const BLOCKER_ACTION_ID = "ori_blocker_choice";
 
 const FIELD_SEPARATOR = "|";
 
-interface BlockerChoice {
-  readonly id: string;
-  readonly label: string;
-}
+const BlockerChoiceSchema = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+});
+
+type BlockerChoice = typeof BlockerChoiceSchema.Type;
 
 export const encodeChoice = (askId: string, choiceId: string): string =>
   [askId, choiceId].join(FIELD_SEPARATOR);

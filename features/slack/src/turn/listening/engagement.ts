@@ -1,10 +1,15 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { GateContext, IncomingMessage } from "./gates.ts";
 import type { ThreadListen } from "./listen.ts";
 
-import { admitMessage } from "./gates.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { ThreadRefSchema } from "#src/thread/thread.ts";
+import {
+  admitMessage,
+  GateContextSchema,
+  IncomingMessageSchema,
+} from "./gates.ts";
 import {
   addressesSomeoneElse,
   answersUnaddressed,
@@ -42,23 +47,33 @@ export const claimStart = (): ((ts: string | undefined) => boolean) => {
   };
 };
 
-export interface EngagementDeps {
-  readonly gates: GateContext;
-  readonly note: (ref: ThreadRef, text: string) => Effect.Effect<void>;
-  readonly readListen: (key: string) => Effect.Effect<ThreadListen>;
-  readonly stop: (key: string) => void;
-  readonly updateListen: (
-    key: string,
-    change: (state: ThreadListen) => ThreadListen
-  ) => Effect.Effect<ThreadListen>;
-}
+export const EngagementDepsSchema = Schema.Struct({
+  gates: GateContextSchema,
+  note: functionSchema<(ref: ThreadRef, text: string) => Effect.Effect<void>>(
+    "EngagementDeps.note"
+  ),
+  readListen: functionSchema<(key: string) => Effect.Effect<ThreadListen>>(
+    "EngagementDeps.readListen"
+  ),
+  stop: functionSchema<(key: string) => void>("EngagementDeps.stop"),
+  updateListen: functionSchema<
+    (
+      key: string,
+      change: (state: ThreadListen) => ThreadListen
+    ) => Effect.Effect<ThreadListen>
+  >("EngagementDeps.updateListen"),
+});
 
-export interface EngagementInput {
-  readonly addressed: boolean;
-  readonly key: string;
-  readonly message: IncomingMessage;
-  readonly ref: ThreadRef;
-}
+export type EngagementDeps = typeof EngagementDepsSchema.Type;
+
+const EngagementInputSchema = Schema.Struct({
+  addressed: Schema.Boolean,
+  key: Schema.String,
+  message: IncomingMessageSchema,
+  ref: ThreadRefSchema,
+});
+
+export type EngagementInput = typeof EngagementInputSchema.Type;
 
 const observe = Effect.fn("Slack.engagement.observe")(function* (
   deps: EngagementDeps,

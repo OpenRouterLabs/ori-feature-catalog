@@ -3,7 +3,7 @@ import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
@@ -15,6 +15,7 @@ import {
   MessageStream,
   MessageStreamLive,
 } from "#src/message-stream/stream.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 import { StateStore, StateStoreMemory } from "#src/state/store.ts";
 import {
   AssistantThreads,
@@ -35,10 +36,14 @@ const event = (type: string, payload: unknown): AgentRuntimeEvent =>
     type,
   }) as unknown as AgentRuntimeEvent;
 
-interface Harness {
-  readonly sent: ChatTurnInput[];
-  readonly bridge: Chat;
-}
+const HarnessSchema = Schema.Struct({
+  sent: Schema.mutable(
+    Schema.Array(opaqueSchema<ChatTurnInput>("Harness.sent"))
+  ),
+  bridge: opaqueSchema<Chat>("Harness.bridge"),
+});
+
+type Harness = typeof HarnessSchema.Type;
 
 const bridgeOf = (
   events: readonly AgentRuntimeEvent[],

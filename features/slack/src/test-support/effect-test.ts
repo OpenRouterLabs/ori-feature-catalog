@@ -1,7 +1,9 @@
 import type { TestOptions } from "bun:test";
 
-import { Cause, Effect, Exit, type Scope } from "effect";
+import { Cause, Effect, Exit, type Schema, type Scope } from "effect";
 import * as bt from "bun:test";
+
+import { functionSchema } from "#src/schema-support.ts";
 
 export {
   afterAll,
@@ -22,9 +24,21 @@ type EffectBody<Args extends readonly unknown[]> = (
   ...args: Args
 ) => Effect.Effect<unknown, unknown, Scope.Scope>;
 
-interface EffectTest<Args extends readonly unknown[]> {
-  (name: string, body: EffectBody<Args>, options?: number | TestOptions): void;
-}
+const effectTestSchema = <Args extends readonly unknown[]>(): Schema.declare<
+  (name: string, body: EffectBody<Args>, options?: number | TestOptions) => void,
+  (name: string, body: EffectBody<Args>, options?: number | TestOptions) => void
+> =>
+  functionSchema<
+    (
+      name: string,
+      body: EffectBody<Args>,
+      options?: number | TestOptions
+    ) => void
+  >("EffectTest");
+
+type EffectTest<Args extends readonly unknown[]> = ReturnType<
+  typeof effectTestSchema<Args>
+>["Type"];
 
 const carriedValues = (cause: Cause.Cause<unknown>): readonly unknown[] =>
   cause.reasons.flatMap((reason) => {
@@ -66,12 +80,14 @@ const register =
     );
   };
 
-interface EffectEach {
+const EffectEachSchema = functionSchema<{
   <const Row extends readonly unknown[]>(
     cases: readonly Row[]
   ): EffectTest<Row>;
   <const Case>(cases: readonly Case[]): EffectTest<[Case]>;
-}
+}>("EffectEach");
+
+type EffectEach = typeof EffectEachSchema.Type;
 
 const each: EffectEach = (cases: readonly unknown[]) =>
   register(bt.test.each(cases as unknown[]) as typeof bt.test);
