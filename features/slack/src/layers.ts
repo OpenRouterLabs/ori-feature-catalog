@@ -2,7 +2,8 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Layer, Schema } from "effect";
 
-import { makeSlackClientFromToken, SlackClient } from "./client/index.ts";
+import { makeSlackClientFromToken } from "./client/client-live.ts";
+import { SlackClient } from "./client/client.ts";
 import { Blockers, BlockersMemory } from "./interactions/blocker.ts";
 import { Interactions, makeInteractions } from "./interactions/interactions.ts";
 import {

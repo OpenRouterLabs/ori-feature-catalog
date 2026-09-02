@@ -22,6 +22,14 @@ Everything downstream goes through the Effect context the runtime carries. `onBu
 
 `src/feature-state.test.ts` builds the module twice, the way the loader does, and asserts the state crosses. Against a module-level binding it fails -- that is the shape #31 shipped, and it took the surface down on every intern.
 
+## An index is an entry point, not a re-export
+
+`src/index.ts` is the only index in the feature. It boots the surface; that is what makes it an index.
+
+Every directory used to have one, and 21 of the 22 were imported by nothing at all -- 813 imports name the concrete module against 24 that went through an index. The one that was used, `client/index.ts`, is where a dependency cycle came from: it re-exported `surface-events.ts`, which imports `thread/assistant.ts`, which imported back through the barrel.
+
+So import the module that owns the name. A directory does not need a front door, and a re-export file is a second place for a name to live and a second thing to keep in step. `src/index.test.ts` fails on any directory index that is only re-exports.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.

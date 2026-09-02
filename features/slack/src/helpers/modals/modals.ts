@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "#src/client/index.ts";
+import type { SlackApiError, SlackClientShape } from "#src/client/client.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 
 import { opaqueSchema } from "#src/schema-support.ts";

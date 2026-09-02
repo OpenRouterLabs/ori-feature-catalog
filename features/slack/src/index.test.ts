@@ -1,8 +1,8 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -20,37 +20,26 @@ const indexesUnder = (dir: string, found: string[] = []): string[] => {
   return found;
 };
 
-const indexes = indexesUnder(SRC);
+const isPureReExport = (file: string): boolean => {
+  const source = readFileSync(file, "utf8")
+    .replaceAll(/\/\*[\S\s]*?\*\//gu, "")
+    .replaceAll(/^\s*\/\/.*$/gmu, "");
+  const statements = source
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.length > 0);
+  return (
+    statements.length > 0 &&
+    statements.every((statement) => /^export\b[\S\s]* from "[^"]+"$/u.test(statement))
+  );
+};
 
-describe("every directory index", () => {
-  test("one exists for each directory", () => {
-    const directories = indexesUnder(SRC).map((file) => dirname(file));
-    const missing: string[] = [];
-    const visit = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-        const child = join(dir, entry.name);
-        if (!directories.includes(child)) {
-          missing.push(relative(SRC, child));
-        }
-        visit(child);
-      }
-    };
-    visit(SRC);
-    expect(missing).toEqual([]);
+describe("an index is an entry point", () => {
+  test("no directory index is only re-exports", () => {
+    const barrels = indexesUnder(SRC)
+      .filter(isPureReExport)
+      .map((file) => relative(SRC, dirname(file)));
+
+    expect(barrels).toEqual([]);
   });
-
-  for (const file of indexes) {
-    const name = relative(SRC, dirname(file));
-    test(`${name} links and re-exports live names`, async () => {
-      const loaded = (await import(file)) as Record<string, unknown>;
-      const names = Object.keys(loaded).filter((key) => key !== "default");
-      expect(names.length).toBeGreaterThan(0);
-      for (const exported of names) {
-        expect(loaded[exported]).toBeDefined();
-      }
-    });
-  }
 });
