@@ -42,6 +42,16 @@ It is not a re-export file. Callers still import the module that owns a name; a 
 
 A directory earns one when it has something to compose. `registry.ts` is module-level state behind plain functions, so `thread`'s root does not present it, and directories that are only pure helpers do not have one at all.
 
+## Every directory has an index.ts
+
+It scaffolds the directory: `export *` for each module, so `#src/turn/routes/index.ts` is the one place that says what `routes/` contains. Where a directory owns services it also builds them, and the layer sits above the re-exports -- `thread/index.ts` composes `ThreadContext` and `AssistantThreads`, and `SlackDefaultLayers` merges those roots rather than naming eight services itself.
+
+This only works because no two directories depend on each other. `client/` used to hold `bolt-lifecycle.ts`, `listeners.ts` and `surface-events.ts`, which wire Bolt to `thread` and `interactions` while the rest of `client/` is the SDK wrapper those two depend on. That is a cycle the moment both directories have an index, and it is why `client/index.ts` failed as a barrel twice. Those three moved to `src/surface/`, so `client/` is a leaf and the graph has no mutual pairs at all.
+
+Keep it that way: a directory that starts importing something that imports it back cannot have an index, and the fix is to move the file that crosses the layer, not to drop the index.
+
+`export *` also means two modules in one directory cannot export the same name. `blocker-route.ts` and `questions-route.ts` both had `AskRequest`, `AskParse` and `parseAskBody` with different shapes; the questions ones are `QuestionsRequest`, `QuestionsParse` and `parseQuestionsBody` now.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.

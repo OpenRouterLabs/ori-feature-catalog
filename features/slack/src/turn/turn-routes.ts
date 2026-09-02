@@ -3,7 +3,7 @@ import type { Chat } from "ori";
 import { Cause, Context, Effect, Schema } from "effect";
 
 import type { PostedMessage, SlackClient } from "#src/client/client.ts";
-import type { RawSlackMessage } from "#src/client/listeners.ts";
+import type { RawSlackMessage } from "#src/surface/listeners.ts";
 import type { SlackConfig } from "#src/config.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type { SlackLogger } from "#src/index.ts";

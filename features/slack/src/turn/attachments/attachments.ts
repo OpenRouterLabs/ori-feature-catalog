@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import { RawSlackMessageSchema } from "#src/client/listeners.ts";
+import { RawSlackMessageSchema } from "#src/surface/listeners.ts";
 
 import {
   attachmentDirFor,

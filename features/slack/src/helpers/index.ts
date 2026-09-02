@@ -1,1 +1,1 @@
-export { bestEffort } from "./best-effort.ts";
+export * from "./best-effort.ts";

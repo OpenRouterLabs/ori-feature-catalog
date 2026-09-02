@@ -15,8 +15,8 @@ import type {
 
 import { cancelAll, drain, resetRegistry } from "#src/thread/registry.ts";
 import { registerListeners } from "./listeners.ts";
-import { resolveSlackProxyAgent } from "./proxy-agent.ts";
-import { SlackReceiver } from "./receiver.ts";
+import { resolveSlackProxyAgent } from "#src/client/proxy-agent.ts";
+import { SlackReceiver } from "#src/client/receiver.ts";
 
 const SHUTDOWN_DRAIN_MS = 15_000;
 

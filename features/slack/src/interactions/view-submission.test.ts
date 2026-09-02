@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { readViewSubmissionPayload } from "#src/client/listeners.ts";
+import { readViewSubmissionPayload } from "#src/surface/listeners.ts";
 import { blockIdFor, callbackFor } from "#src/helpers/blockers/questions.ts";
 
 const submission = (askId: string, typed: string): unknown => ({

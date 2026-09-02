@@ -23,7 +23,7 @@ const AskBody = Schema.Struct({
 });
 const decodeBody = Schema.decodeUnknownResult(AskBody);
 
-export const AskRequestSchema = Schema.Struct({
+export const QuestionsRequestSchema = Schema.Struct({
   channel: Schema.String,
   intro: Schema.String,
   questions: QuestionsSchema,
@@ -31,20 +31,20 @@ export const AskRequestSchema = Schema.Struct({
   threadTs: Schema.String,
 });
 
-export type AskRequest = typeof AskRequestSchema.Type;
+export type QuestionsRequest = typeof QuestionsRequestSchema.Type;
 
-export type AskParse =
-  | { readonly ok: true; readonly request: AskRequest }
+export type QuestionsParse =
+  | { readonly ok: true; readonly request: QuestionsRequest }
   | { readonly ok: false; readonly error: string };
 
-export const parseAskBody = (raw: unknown): AskParse =>
+export const parseQuestionsBody = (raw: unknown): QuestionsParse =>
   Result.match(decodeBody(raw), {
-    onFailure: (): AskParse => ({
+    onFailure: (): QuestionsParse => ({
       error:
         "expected { channel, thread_ts, intro, questions: [{ id, prompt, kind?, choices?, optional? }] }",
       ok: false,
     }),
-    onSuccess: (decoded): AskParse => {
+    onSuccess: (decoded): QuestionsParse => {
       if (decoded.questions.length === 0) {
         return {
           error: "ask at least one question",
@@ -98,7 +98,7 @@ type QuestionsRouteDeps = typeof QuestionsRouteDepsSchema.Type;
 const askQuestions = Effect.fn("Slack.questions.ask")(function* (input: {
   readonly deps: QuestionsRouteDeps;
   readonly ref: ThreadRef;
-  readonly request: AskRequest;
+  readonly request: QuestionsRequest;
 }): Effect.fn.Return<Result.Result<{ readonly ask_id: string }, Refusal>> {
   const live = yield* Effect.promise(() => input.deps.isLive(input.ref));
   if (!live) {
@@ -136,7 +136,7 @@ const askQuestions = Effect.fn("Slack.questions.ask")(function* (input: {
 export const makeQuestionsRoute = (
   deps: QuestionsRouteDeps
 ): ((request: Request) => Promise<Response>) =>
-  loopbackRoute<AskRequest, { readonly ask_id: string }>({
+  loopbackRoute<QuestionsRequest, { readonly ask_id: string }>({
     capKiB: 32,
     handle: ({ ref, request }) =>
       askQuestions({
@@ -144,8 +144,8 @@ export const makeQuestionsRoute = (
         ref,
         request,
       }),
-    parse: (raw): Result.Result<AskRequest, string> => {
-      const parsed = parseAskBody(raw);
+    parse: (raw): Result.Result<QuestionsRequest, string> => {
+      const parsed = parseQuestionsBody(raw);
       return parsed.ok
         ? Result.succeed(parsed.request)
         : Result.fail(parsed.error);

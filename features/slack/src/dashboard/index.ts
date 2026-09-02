@@ -1,1 +1,2 @@
-export { makeDashboardRoute } from "./dashboard.ts";
+export * from "./dashboard.ts";
+export * from "./page.ts";

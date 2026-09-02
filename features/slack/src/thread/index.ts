@@ -12,3 +12,7 @@ export const ThreadLayer: Layer.Layer<ThreadServices, never, SlackClient> =
     Layer.effect(ThreadContext)(ThreadContextLive),
     Layer.effect(AssistantThreads)(AssistantThreadsLive())
   );
+
+export * from "./assistant.ts";
+export * from "./registry.ts";
+export * from "./thread.ts";

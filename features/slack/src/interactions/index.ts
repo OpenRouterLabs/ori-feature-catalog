@@ -12,3 +12,11 @@ export const InteractionsLayer: Layer.Layer<InteractionServices> =
     Layer.sync(Interactions)(makeInteractions),
     Layer.effect(Questionnaires)(QuestionnairesMemory)
   );
+
+export * from "./blocker.ts";
+export * from "./blocker-handler.ts";
+export * from "./custom.ts";
+export * from "./interactions.ts";
+export * from "./permissions.ts";
+export * from "./questionnaires.ts";
+export * from "./questions-handler.ts";

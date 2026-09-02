@@ -1,1 +1,1 @@
-export { afterAll, afterEach, beforeEach, describe, expect, test } from "./effect-test.ts";
+export * from "./effect-test.ts";

@@ -1,1 +1,1 @@
-export { makeUserDirectory } from "./users.ts";
+export * from "./users.ts";
