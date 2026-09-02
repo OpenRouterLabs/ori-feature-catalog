@@ -4,7 +4,10 @@ import type { WebClient } from "@slack/web-api";
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { makeFakeSlackClient } from "./client/client-test-support.ts";
+import type { SlackRuntime } from "./index.ts";
+
 import { makePostMessage, postMessage, webClient } from "./exports.ts";
+import { featureState } from "./feature-state.ts";
 
 const withRaw = (
   postMessageStub: (args: never) => unknown
@@ -250,12 +253,11 @@ describe("webClient", () => {
 
 describe("one client, whoever asks", () => {
   const withRunningSurface = <A>(slack: unknown, run: () => A): A => {
-    const before = globalThis.__oriSlackRuntime;
-    globalThis.__oriSlackRuntime = { slack } as typeof before;
+    featureState().runtime = { slack } as SlackRuntime;
     try {
       return run();
     } finally {
-      globalThis.__oriSlackRuntime = before;
+      featureState().runtime = undefined;
     }
   };
 
@@ -271,15 +273,13 @@ describe("one client, whoever asks", () => {
   test("falls back to its own when no surface is running", () => {
     const original = Bun.env.SLACK_BOT_TOKEN;
     Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
-    const before = globalThis.__oriSlackRuntime;
-    globalThis.__oriSlackRuntime = undefined;
+    featureState().runtime = undefined;
 
     try {
       const first = webClient();
       expect(first).toBeDefined();
       expect(first).toBe(webClient());
     } finally {
-      globalThis.__oriSlackRuntime = before;
       if (original === undefined) {
         delete Bun.env.SLACK_BOT_TOKEN;
       } else {

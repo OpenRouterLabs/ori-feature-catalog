@@ -10,6 +10,18 @@ A module global is shorter and makes that capability the one thing nobody can ex
 
 Pure functions do not need this. A chart takes numbers and returns a string — there is nothing to inject, and a layer would be ceremony.
 
+## One global slot, and DI for everything else
+
+Ori does not import `feature.ts`, it rebuilds it. `importFreshModule` runs `Bun.build` into a fresh temp directory and imports the output, so every load is a new file URL bundling the feature's own files together. `discoverFeatures` is called from the harness loader, the skill contributions, feature boot and the CLI, and the module cache beside it is only consulted under an import scope that edit mode sets, so in ordinary operation each caller gets its own build.
+
+For a feature, module scope is per-load, not per-process.
+
+That is a bootstrap problem, not a general one. Exactly one reference has to survive: `src/feature-state.ts` keys a `globalThis` property by `Symbol.for` and is the only file in the feature allowed to name `globalThis`. It holds the running `SlackRuntime` and the buttons registered before the surface came up -- nothing else.
+
+Everything downstream goes through the Effect context the runtime carries. `onButton` reaches `Interactions` with `Context.get(runtime.context, Interactions)` rather than keeping its own copy, which is how three `globalThis` singletons became one. Reach for the context first; the slot is only for what has to exist before the context does.
+
+`src/feature-state.test.ts` builds the module twice, the way the loader does, and asserts the state crosses. Against a module-level binding it fails -- that is the shape #31 shipped, and it took the surface down on every intern.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.

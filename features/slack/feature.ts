@@ -6,10 +6,14 @@
  * chat surface in every ori process, and an eager import would pull Bolt into
  * TUI sessions that never select it.
  *
- * The handle lives on `globalThis` because the eager module and the dynamic
- * `import()` resolve as two module graphs — a module-local `let` exists twice,
- * so `start` writes one copy while the route handler reads another and every
- * request answers 503 while boot reports the surface live.
+ * The handle lives in `src/feature-state.ts`, the feature's one `globalThis`
+ * slot. Ori rebuilds this feature per load — `importFreshModule` bundles it
+ * to a temp file and imports that — so module scope is per-load, and `start`
+ * would set a binding one copy owns while the route handler reads `undefined`
+ * in another. Every request then answers 503 while boot reports the surface
+ * live. That shipped once, in #31. Nothing inside the bundle can bridge it,
+ * so the runtime goes in the slot and everything else comes off the Effect
+ * context it carries.
  */
 
 import type { WebClient } from "@slack/web-api";
@@ -27,25 +31,23 @@ import type {
 } from "./src/exports.ts";
 import type { SlackRuntime } from "./src/index.ts";
 
+import { featureState } from "./src/feature-state.ts";
 import { isLoopback } from "./src/turn/routes/dispatch.ts";
 
 const HTTP_FORBIDDEN = 403;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-declare global {
-  // oxlint-disable-next-line no-var -- required for global augmentation
-  var __oriSlackRuntime: SlackRuntime | undefined;
-}
-
 type Answer = Promise<Response> | Response;
 
-const withRuntime = (reach: (runtime: SlackRuntime) => Answer): Answer =>
-  globalThis.__oriSlackRuntime === undefined
+const withRuntime = (reach: (runtime: SlackRuntime) => Answer): Answer => {
+  const { runtime } = featureState();
+  return runtime === undefined
     ? Response.json(
         { error: "slack chat surface is not running" },
         { status: HTTP_SERVICE_UNAVAILABLE }
       )
-    : reach(globalThis.__oriSlackRuntime);
+    : reach(runtime);
+};
 
 /**
  * A loopback-only entry.
@@ -70,22 +72,30 @@ const loopbackEntry =
     return withRuntime((runtime) => reach(runtime, request));
   };
 
-export const chat: ChatContribution = {
-  name: "slack",
+const makeLazySlackChat = (): ChatContribution => {
+  let active: SlackRuntime | undefined;
 
-  async start(bridge: Chat) {
-    const { startSlackRuntime } = await import("./src/index.ts");
-    globalThis.__oriSlackRuntime = await startSlackRuntime({
-      bridge,
-      logger: console,
-    });
-  },
+  return {
+    name: "slack",
 
-  async stop() {
-    await globalThis.__oriSlackRuntime?.stop();
-    globalThis.__oriSlackRuntime = undefined;
-  },
+    async start(bridge: Chat) {
+      const { startSlackRuntime } = await import("./src/index.ts");
+      active = await startSlackRuntime({ bridge, logger: console });
+      featureState().runtime = active;
+    },
+
+    async stop() {
+      await active?.stop();
+      const state = featureState();
+      if (state.runtime === active) {
+        state.runtime = undefined;
+      }
+      active = undefined;
+    },
+  };
 };
+
+export const chat: ChatContribution = makeLazySlackChat();
 
 export const api = {
   /**

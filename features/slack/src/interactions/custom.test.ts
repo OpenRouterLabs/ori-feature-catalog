@@ -5,9 +5,12 @@ import {
   test,
 } from "#src/test-support/effect-test.ts";
 
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 
+import type { SlackRuntime } from "#src/index.ts";
 import type { InteractionPayload } from "./interactions.ts";
+
+import { featureState } from "#src/feature-state.ts";
 
 import {
   onButton,
@@ -15,7 +18,7 @@ import {
   registeredButtonIds,
   resetCustomButtons,
 } from "./custom.ts";
-import { makeInteractions } from "./interactions.ts";
+import { Interactions, makeInteractions } from "./interactions.ts";
 
 const click = (
   actionId: string,
@@ -32,6 +35,7 @@ const click = (
 
 afterEach(() => {
   resetCustomButtons();
+  featureState().runtime = undefined;
 });
 
 describe("custom buttons", () => {
@@ -54,6 +58,10 @@ describe("custom buttons", () => {
     Effect.gen(function* () {
       const interactions = makeInteractions();
       expect(registerCustomButtons(interactions)).toEqual([]);
+
+      featureState().runtime = {
+        context: Context.make(Interactions, interactions),
+      } as SlackRuntime;
 
       const seen: string[] = [];
       onButton("late", () => {

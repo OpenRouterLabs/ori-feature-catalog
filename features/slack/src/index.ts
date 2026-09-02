@@ -53,6 +53,7 @@ export interface SlackLogger {
 }
 
 export interface SlackRuntime {
+  readonly context: Context.Context<SlackServices>;
   readonly handleAskRequest: (request: Request) => Promise<Response>;
   readonly slack: SlackClientShape;
   readonly handleDispatchRequest: (request: Request) => Promise<Response>;
@@ -296,12 +297,14 @@ const openForTraffic = async (input: {
 };
 
 const runtimeOf = (input: {
+  readonly context: Context.Context<SlackServices>;
   readonly receiver: SlackReceiver;
   readonly routes: TurnRoutes;
   readonly dashboard: (request: Request) => Promise<Response>;
   readonly slack: SlackClientShape;
   readonly stop: () => Promise<void>;
 }): SlackRuntime => ({
+  context: input.context,
   handleAskRequest: input.routes.handleAsk,
   handleCarryRequest: input.routes.handleCarry,
   handleAttachRequest: input.routes.handleAttach,
@@ -346,6 +349,7 @@ export const startSlackRuntime = async (input: {
   });
 
   return runtimeOf({
+    context,
     dashboard: makeDashboardRoute(Context.get(context, StateStore)),
     receiver,
     routes,
