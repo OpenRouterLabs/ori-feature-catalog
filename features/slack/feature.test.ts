@@ -13,13 +13,14 @@
  * thread.
  */
 
-import type { ApiRouteContext } from "ori";
+import type { WebClient } from "@slack/web-api";
+import type { ApiRouteContext, Chat } from "ori";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { SlackRuntime } from "./src/index.ts";
 
-import { api } from "./feature.ts";
+import { api, makeSlackFeature } from "./feature.ts";
 
 const HTTP_FORBIDDEN = 403;
 const HTTP_SERVICE_UNAVAILABLE = 503;
@@ -86,7 +87,7 @@ const withRuntime = async (
     return Promise.resolve(new Response("ok"));
   };
 
-  globalThis.__oriSlackRuntime = {
+  const runtime = {
     handleAskRequest: handler("handleAskRequest"),
     handleCarryRequest: handler("handleCarryRequest"),
     handleAttachRequest: handler("handleAttachRequest"),
@@ -102,8 +103,16 @@ const withRuntime = async (
     stop: () => Promise.resolve(),
   };
 
+  const feature = makeSlackFeature(() => Promise.resolve(runtime));
+  await feature.chat.start(undefined as unknown as Chat);
+
+  const started = feature.api.routes as Record<
+    string,
+    (request: Request, context: ApiRouteContext) => Promise<Response> | Response
+  >;
+
   try {
-    const response = await routes[route](
+    const response = await started[route](
       requestFor(route),
       contextFrom(remoteAddress)
     );
@@ -112,7 +121,7 @@ const withRuntime = async (
       response,
     };
   } finally {
-    globalThis.__oriSlackRuntime = undefined;
+    await feature.chat.stop();
   }
 };
 
@@ -137,7 +146,6 @@ describe("slack route table", () => {
     });
 
     test(`${route} answers 503 before the surface is up`, async () => {
-      globalThis.__oriSlackRuntime = undefined;
       const response = await routes[route](
         requestFor(route),
         contextFrom("127.0.0.1")
@@ -197,5 +205,22 @@ describe('the use("slack") surface', () => {
       "postMessage",
       "webClient",
     ]);
+  });
+
+  test("hands back the surface's own client while it is running", async () => {
+    const raw = { marker: "the surface's" } as unknown as WebClient;
+    const runtime = {
+      slack: { raw },
+      stop: () => Promise.resolve(),
+    } as unknown as SlackRuntime;
+
+    const feature = makeSlackFeature(() => Promise.resolve(runtime));
+    await feature.chat.start(undefined as unknown as Chat);
+
+    try {
+      expect(await feature.api.exports.webClient()).toBe(raw);
+    } finally {
+      await feature.chat.stop();
+    }
   });
 });
