@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-base-to-string -- fetch stubs stand in for the platform type, and request bodies are inspected as the JSON they are */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import type { PostChartEnv } from "./post-chart.ts";
@@ -27,8 +26,9 @@ const recording = (
   reply: () => Response = () => Response.json({ ok: true })
 ): typeof globalThis.fetch =>
   ((url: string, init?: RequestInit) => {
+    const body = init?.body;
     calls.push({
-      body: JSON.parse(String(init?.body)),
+      body: JSON.parse(typeof body === "string" ? body : ""),
       url,
     });
     return Promise.resolve(reply());

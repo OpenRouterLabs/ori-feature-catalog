@@ -1,0 +1,109 @@
+{
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "node",
+    "promise"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "eqeqeq": "error",
+    "array-callback-return": "error",
+    "no-fallthrough": "error",
+    "no-promise-executor-return": "error",
+    "no-self-compare": "error",
+    "no-constructor-return": "error",
+    "no-implied-eval": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "typescript/only-throw-error": "error",
+    "prefer-promise-reject-errors": "error",
+    "preserve-caught-error": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-misused-promises": [
+      "error",
+      {
+        "checksConditionals": true,
+        "checksSpreads": true,
+        "checksVoidReturn": {
+          "arguments": false,
+          "attributes": true
+        }
+      }
+    ],
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/restrict-plus-operands": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/ban-ts-comment": "error",
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "import/no-duplicates": "error",
+    "node/no-process-env": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-type-arguments": "error",
+    "typescript/no-unnecessary-template-expression": "error",
+    "typescript/no-import-type-side-effects": "error",
+    "typescript/prefer-ts-expect-error": "error",
+    "typescript/prefer-nullish-coalescing": "error",
+    "typescript/prefer-includes": "error",
+    "typescript/no-floating-promises": "off",
+    "prefer-object-has-own": "error",
+    "prefer-exponentiation-operator": "error",
+    "no-new-wrappers": "error",
+    "no-array-constructor": "error",
+    "unicorn/prefer-array-flat-map": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/prefer-string-slice": "error",
+    "unicorn/prefer-number-properties": "error",
+    "unicorn/throw-new-error": "error",
+    "unicorn/no-useless-promise-resolve-reject": "error",
+    "unicorn/no-instanceof-array": "error",
+    "radix": "error",
+    "no-unneeded-ternary": "error",
+    "no-nested-ternary": "error",
+    "unicorn/prefer-top-level-await": "error",
+    "typescript/unbound-method": "off",
+    "typescript/consistent-return": "off",
+    "typescript/no-confusing-void-expression": "off",
+    "typescript/strict-boolean-expressions": "off",
+    "typescript/promise-function-async": "off",
+    "promise/prefer-await-to-then": "off",
+    "promise/prefer-await-to-callbacks": "off",
+    "oxc/no-barrel-file": [
+      "off"
+    ],
+    "typescript/return-await": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "options": {
+    "typeAware": true
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".ori/**"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "rules": {
+        "typescript/await-thenable": "off",
+        "typescript/no-unsafe-argument": "off"
+      }
+    }
+  ]
+}

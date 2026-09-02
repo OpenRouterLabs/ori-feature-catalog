@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/no-unsafe-optional-chaining -- an optional chain is cast and dereferenced in one step, so a case that recorded nothing throws here instead of passing on `undefined` */
 import {
   afterEach,
   describe,
@@ -190,9 +189,8 @@ describe("downloadAttachments", () => {
 
         yield* downloadAttachments([file()], {
           fetch: ((_url: string, init?: RequestInit) => {
-            headers.push(
-              (init?.headers as Record<string, string>).authorization
-            );
+            const sent = (init?.headers ?? {}) as Record<string, string>;
+            headers.push(sent.authorization);
             return Promise.resolve(new Response("x", { status: 200 }));
           }) as unknown as typeof fetch,
           token: "xoxb-secret",
