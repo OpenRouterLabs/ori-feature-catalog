@@ -39,10 +39,12 @@ export class SlackConfigError extends Schema.TaggedErrorClass<SlackConfigError>(
   }
 ) {}
 
-export interface PostedMessage {
-  readonly channel: string;
-  readonly ts: string;
-}
+const PostedMessageSchema = Schema.Struct({
+  channel: Schema.String,
+  ts: Schema.String,
+});
+
+export type PostedMessage = typeof PostedMessageSchema.Type;
 
 export interface SlackClientShape {
   readonly postMessage: (

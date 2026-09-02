@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- the recorded blocks are read back as the JSON they are */
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { InteractionPayload } from "#src/interactions/interactions.ts";
@@ -39,10 +39,12 @@ export interface ThreadRecorder {
   readonly updated: RecordedBlocks[];
 }
 
-interface RecordedButton {
-  readonly label: string;
-  readonly value: string;
-}
+const RecordedButtonSchema = Schema.Struct({
+  label: Schema.String,
+  value: Schema.String,
+});
+
+type RecordedButton = typeof RecordedButtonSchema.Type;
 
 export const buttonsOf = (
   blocks: readonly unknown[]

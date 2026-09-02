@@ -1,6 +1,6 @@
 import type { Chat } from "ori";
 
-import { Cause, Context, Effect } from "effect";
+import { Cause, Context, Effect, Schema } from "effect";
 
 import type { PostedMessage, SlackClient } from "#src/client/index.ts";
 import type { RawSlackMessage } from "#src/client/listeners.ts";
@@ -19,7 +19,7 @@ import { makeMessageReply } from "#src/message-reply/reply-live.ts";
 import { InterruptMode } from "#src/state/settings.ts";
 import { StateStore } from "#src/state/store.ts";
 import { enqueue, isBusy, steerThread } from "#src/thread/registry.ts";
-import { threadInstanceId } from "#src/thread/thread.ts";
+import { ThreadRefSchema, threadInstanceId } from "#src/thread/thread.ts";
 import { withAttachments } from "./attachments/attachments.ts";
 import { claimStart, considerTurn } from "./listening/engagement.ts";
 import { handleTurn } from "./handler/handler.ts";
@@ -93,15 +93,17 @@ interface RunTurnDeps {
   ) => Promise<A>;
 }
 
-interface WorkerTurn {
-  readonly attachmentWarning?: string | undefined;
-  readonly steer?: boolean | undefined;
-  readonly ref: ThreadRef;
-  readonly spawnDepth?: number | undefined;
-  readonly startsThread?: boolean | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+const WorkerTurnSchema = Schema.Struct({
+  attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  steer: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  ref: ThreadRefSchema,
+  spawnDepth: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  startsThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type WorkerTurn = typeof WorkerTurnSchema.Type;
 
 const makeRunTurn = (deps: RunTurnDeps) =>
   Effect.fn("Slack.turn.run")(function* (
@@ -146,14 +148,16 @@ const makeRunTurn = (deps: RunTurnDeps) =>
     });
   });
 
-interface StartedTurn {
-  readonly attachmentWarning?: string | undefined;
-  readonly ref: ThreadRef;
-  readonly startsThread?: boolean | undefined;
-  readonly steer?: boolean | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+const StartedTurnSchema = Schema.Struct({
+  attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  ref: ThreadRefSchema,
+  startsThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  steer: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type StartedTurn = typeof StartedTurnSchema.Type;
 
 const runTheTurn = Effect.fn("Slack.turn.runWithAttachments")(function* (
   deps: {
@@ -234,12 +238,14 @@ const makeStartTurn = (deps: {
     );
   });
 
-interface LoopbackTurn {
-  readonly ref: ThreadRef;
-  readonly spawnDepth?: number | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+const LoopbackTurnSchema = Schema.Struct({
+  ref: ThreadRefSchema,
+  spawnDepth: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+type LoopbackTurn = typeof LoopbackTurnSchema.Type;
 
 const postForm = Effect.fn("Slack.turn.postForm")(function* (input: {
   readonly blocks: readonly SlackBlock[];

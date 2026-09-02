@@ -9,7 +9,7 @@ import type {
 
 const OptionalString = Schema.optional(Schema.String);
 
-export const RawAssistantThreadStartedSchema = Schema.Struct({
+const RawAssistantThreadStartedSchema = Schema.Struct({
   assistant_thread: Schema.optional(
     Schema.Struct({
       channel_id: OptionalString,

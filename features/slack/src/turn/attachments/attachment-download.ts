@@ -40,19 +40,23 @@ class AttachmentError extends Schema.TaggedErrorClass<AttachmentError>()(
   }
 }
 
-export interface DownloadableFile {
-  readonly filetype: string;
-  readonly id: string;
-  readonly label: string;
-  readonly urlPrivate: string;
-}
+const DownloadableFileSchema = Schema.Struct({
+  filetype: Schema.String,
+  id: Schema.String,
+  label: Schema.String,
+  urlPrivate: Schema.String,
+});
 
-interface DownloadedFile {
-  readonly bytes: number;
-  readonly id: string;
-  readonly label: string;
-  readonly path: string;
-}
+export type DownloadableFile = typeof DownloadableFileSchema.Type;
+
+const DownloadedFileSchema = Schema.Struct({
+  bytes: Schema.Number,
+  id: Schema.String,
+  label: Schema.String,
+  path: Schema.String,
+});
+
+type DownloadedFile = typeof DownloadedFileSchema.Type;
 
 export const safeFileName = (name: string, fileId: string): string => {
   const base = basename(name)

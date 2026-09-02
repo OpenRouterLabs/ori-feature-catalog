@@ -2,9 +2,8 @@ import { Effect, Result, Schema } from "effect";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Addressed } from "./loopback-route.ts";
 
-import { loopbackRoute, refuse } from "./loopback-route.ts";
+import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_UNPROCESSABLE = 422;
@@ -21,11 +20,14 @@ const AttachBodySchema = Schema.Struct({
 
 const decodeBody = Schema.decodeUnknownResult(AttachBodySchema);
 
-interface AttachRequest extends Addressed {
-  readonly comment: string | undefined;
-  readonly path: string;
-  readonly title: string | undefined;
-}
+const AttachRequestSchema = Schema.Struct({
+  ...AddressedSchema.fields,
+  comment: Schema.UndefinedOr(Schema.String),
+  path: Schema.String,
+  title: Schema.UndefinedOr(Schema.String),
+});
+
+type AttachRequest = typeof AttachRequestSchema.Type;
 
 const blank = (value: string): boolean => value.trim().length === 0;
 

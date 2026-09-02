@@ -10,10 +10,12 @@ export interface FileUpload {
   readonly title?: string | undefined;
 }
 
-export interface UploadedFile {
-  readonly fileId: string;
-  readonly permalink: string | undefined;
-}
+const UploadedFileSchema = Schema.Struct({
+  fileId: Schema.String,
+  permalink: Schema.UndefinedOr(Schema.String),
+});
+
+export type UploadedFile = typeof UploadedFileSchema.Type;
 
 const UploadUrlResponse = Schema.Struct({
   file_id: Schema.String,

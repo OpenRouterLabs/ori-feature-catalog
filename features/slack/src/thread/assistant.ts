@@ -1,14 +1,16 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import type { SlackApiError, SlackClientShape } from "#src/client/client.ts";
 
 import { clampToWord } from "#src/clamp.ts";
 import { SlackClient } from "#src/client/client.ts";
 
-export interface PaneContext {
-  readonly channelId: string | undefined;
-  readonly teamId: string | undefined;
-}
+export const PaneContextSchema = Schema.Struct({
+  channelId: Schema.UndefinedOr(Schema.String),
+  teamId: Schema.UndefinedOr(Schema.String),
+});
+
+export type PaneContext = typeof PaneContextSchema.Type;
 
 const MAX_TRACKED_PANES = 1000;
 

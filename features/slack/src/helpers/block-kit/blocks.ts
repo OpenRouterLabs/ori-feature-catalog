@@ -1,5 +1,7 @@
 import type { Block, KnownBlock, MarkdownBlock } from "@slack/types";
 
+import { Schema } from "effect";
+
 import { asMrkdwn } from "./mrkdwn.ts";
 
 export type SlackBlock = Block | KnownBlock;
@@ -17,10 +19,15 @@ export const LIMITS = {
 const truncate = (value: string, max: number): string =>
   value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 
-interface SectionBlock {
-  readonly text: { readonly text: string; readonly type: "mrkdwn" };
-  readonly type: "section";
-}
+const SectionBlockSchema = Schema.Struct({
+  text: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("mrkdwn"),
+  }),
+  type: Schema.Literal("section"),
+});
+
+type SectionBlock = typeof SectionBlockSchema.Type;
 
 export const markdown = (text: string): MarkdownBlock => ({
   text,
@@ -35,10 +42,15 @@ export const section = (text: string): SectionBlock => ({
   type: "section",
 });
 
-interface HeaderBlock {
-  readonly text: { readonly text: string; readonly type: "plain_text" };
-  readonly type: "header";
-}
+const HeaderBlockSchema = Schema.Struct({
+  text: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("plain_text"),
+  }),
+  type: Schema.Literal("header"),
+});
+
+type HeaderBlock = typeof HeaderBlockSchema.Type;
 
 export const header = (text: string): HeaderBlock => ({
   text: {
@@ -48,18 +60,25 @@ export const header = (text: string): HeaderBlock => ({
   type: "header",
 });
 
-interface DividerBlock {
-  readonly type: "divider";
-}
+const DividerBlockSchema = Schema.Struct({
+  type: Schema.Literal("divider"),
+});
+
+type DividerBlock = typeof DividerBlockSchema.Type;
 
 export const divider = (): DividerBlock => ({ type: "divider" });
 
-export interface ButtonElement {
-  readonly action_id: string;
-  readonly text: { readonly text: string; readonly type: "plain_text" };
-  readonly type: "button";
-  readonly value?: string;
-}
+const ButtonElementSchema = Schema.Struct({
+  action_id: Schema.String,
+  text: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("plain_text"),
+  }),
+  type: Schema.Literal("button"),
+  value: Schema.optionalKey(Schema.String),
+});
+
+export type ButtonElement = typeof ButtonElementSchema.Type;
 
 export const button = (input: {
   readonly actionId: string;
@@ -77,13 +96,17 @@ export const button = (input: {
     : { value: truncate(input.value, LIMITS.buttonValue) }),
 });
 
-interface ContextBlock {
-  readonly elements: readonly {
-    readonly text: string;
-    readonly type: "mrkdwn";
-  }[];
-  readonly type: "context";
-}
+const ContextBlockSchema = Schema.Struct({
+  elements: Schema.Array(
+    Schema.Struct({
+      text: Schema.String,
+      type: Schema.Literal("mrkdwn"),
+    })
+  ),
+  type: Schema.Literal("context"),
+});
+
+type ContextBlock = typeof ContextBlockSchema.Type;
 
 export const context = (text: string): ContextBlock => ({
   elements: [
@@ -95,20 +118,22 @@ export const context = (text: string): ContextBlock => ({
   type: "context",
 });
 
-interface InputBlock {
-  readonly block_id: string;
-  readonly element: {
-    readonly action_id: string;
-    readonly multiline?: boolean;
-    readonly type: "plain_text_input";
-  };
-  readonly label: {
-    readonly text: string;
-    readonly type: "plain_text";
-  };
-  readonly optional?: boolean;
-  readonly type: "input";
-}
+const InputBlockSchema = Schema.Struct({
+  block_id: Schema.String,
+  element: Schema.Struct({
+    action_id: Schema.String,
+    multiline: Schema.optionalKey(Schema.Boolean),
+    type: Schema.Literal("plain_text_input"),
+  }),
+  label: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("plain_text"),
+  }),
+  optional: Schema.optionalKey(Schema.Boolean),
+  type: Schema.Literal("input"),
+});
+
+type InputBlock = typeof InputBlockSchema.Type;
 
 export const inputBlock = (options: {
   readonly actionId: string;
@@ -133,10 +158,15 @@ export const inputBlock = (options: {
   ...(options.optional === undefined ? {} : { optional: options.optional }),
 });
 
-interface ChoiceOption {
-  readonly text: { readonly text: string; readonly type: "plain_text" };
-  readonly value: string;
-}
+const ChoiceOptionSchema = Schema.Struct({
+  text: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("plain_text"),
+  }),
+  value: Schema.String,
+});
+
+type ChoiceOption = typeof ChoiceOptionSchema.Type;
 
 const optionOf = (choice: {
   readonly label: string;
@@ -149,17 +179,22 @@ const optionOf = (choice: {
   value: choice.value,
 });
 
-interface ChoiceInputBlock {
-  readonly block_id: string;
-  readonly element: {
-    readonly action_id: string;
-    readonly options: readonly ChoiceOption[];
-    readonly type: "radio_buttons" | "checkboxes";
-  };
-  readonly label: { readonly text: string; readonly type: "plain_text" };
-  readonly optional?: boolean;
-  readonly type: "input";
-}
+const ChoiceInputBlockSchema = Schema.Struct({
+  block_id: Schema.String,
+  element: Schema.Struct({
+    action_id: Schema.String,
+    options: Schema.Array(ChoiceOptionSchema),
+    type: Schema.Literals(["radio_buttons", "checkboxes"]),
+  }),
+  label: Schema.Struct({
+    text: Schema.String,
+    type: Schema.Literal("plain_text"),
+  }),
+  optional: Schema.optionalKey(Schema.Boolean),
+  type: Schema.Literal("input"),
+});
+
+type ChoiceInputBlock = typeof ChoiceInputBlockSchema.Type;
 
 export const choiceInput = (options: {
   readonly actionId: string;

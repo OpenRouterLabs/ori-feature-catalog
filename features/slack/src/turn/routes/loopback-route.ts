@@ -7,10 +7,12 @@ const BYTES_PER_KIB = 1024;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 
-export interface Refusal {
-  readonly error: string;
-  readonly status: number;
-}
+const RefusalSchema = Schema.Struct({
+  error: Schema.String,
+  status: Schema.Number,
+});
+
+export type Refusal = typeof RefusalSchema.Type;
 
 export const refuse = (
   status: number,
@@ -27,11 +29,13 @@ export const threadFields = {
   thread_ts: Schema.String,
 } as const;
 
-export interface Addressed {
-  readonly channel: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-}
+export const AddressedSchema = Schema.Struct({
+  channel: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+});
+
+export type Addressed = typeof AddressedSchema.Type;
 
 const alreadyGone = (): undefined => undefined;
 

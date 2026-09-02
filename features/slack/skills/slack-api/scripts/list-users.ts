@@ -1,6 +1,6 @@
 import type { WebClient } from "@slack/web-api";
 
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
 import { makeClient } from "./helpers.ts";
 import { tryCatchAsync } from "./result.ts";
@@ -13,11 +13,13 @@ export interface ListUsersOpts {
   client?: WebClient | undefined;
 }
 
-export interface SlackMember {
-  user_id: string;
-  display_name: string;
-  real_name: string;
-}
+const SlackMemberSchema = Schema.Struct({
+  user_id: Schema.String,
+  display_name: Schema.String,
+  real_name: Schema.String,
+});
+
+export type SlackMember = typeof SlackMemberSchema.Type;
 
 const collectHumanMembers = async (
   client: WebClient

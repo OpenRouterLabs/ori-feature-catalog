@@ -1,7 +1,7 @@
 import type { App } from "@slack/bolt";
 import type { Chat, StateStore as OriStateStore } from "ori";
 
-import { Context, Effect, Layer, Scope } from "effect";
+import { Context, Effect, Layer, Schema, Scope } from "effect";
 
 import { bestEffort } from "./helpers/best-effort.ts";
 
@@ -107,12 +107,14 @@ const messageOf = (event: RawSlackMessage): IncomingMessage => ({
   userId: event.user,
 });
 
-interface SlackIdentity {
-  readonly botName: string;
-  readonly botId: string | undefined;
-  readonly botUserId: string | undefined;
-  readonly teamId: string;
-}
+const SlackIdentitySchema = Schema.Struct({
+  botName: Schema.String,
+  botId: Schema.UndefinedOr(Schema.String),
+  botUserId: Schema.UndefinedOr(Schema.String),
+  teamId: Schema.String,
+});
+
+type SlackIdentity = typeof SlackIdentitySchema.Type;
 
 const UNKNOWN_IDENTITY: SlackIdentity = {
   botName: "this bot",

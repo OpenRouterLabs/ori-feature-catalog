@@ -1,23 +1,27 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
-interface InteractionAction {
-  readonly actionId: string;
-  readonly value: string | undefined;
-}
+const InteractionActionSchema = Schema.Struct({
+  actionId: Schema.String,
+  value: Schema.UndefinedOr(Schema.String),
+});
 
-export interface InteractionPayload {
-  readonly actions: readonly InteractionAction[];
-  readonly channelId: string;
-  readonly threadTs: string | undefined;
-  readonly triggerId: string | undefined;
-  readonly userId: string;
-}
+const InteractionPayloadSchema = Schema.Struct({
+  actions: Schema.Array(InteractionActionSchema),
+  channelId: Schema.String,
+  threadTs: Schema.UndefinedOr(Schema.String),
+  triggerId: Schema.UndefinedOr(Schema.String),
+  userId: Schema.String,
+});
 
-export interface ViewSubmissionPayload {
-  readonly callbackId: string;
-  readonly userId: string;
-  readonly values: ReadonlyMap<string, string>;
-}
+export type InteractionPayload = typeof InteractionPayloadSchema.Type;
+
+const ViewSubmissionPayloadSchema = Schema.Struct({
+  callbackId: Schema.String,
+  userId: Schema.String,
+  values: Schema.ReadonlyMap(Schema.String, Schema.String),
+});
+
+export type ViewSubmissionPayload = typeof ViewSubmissionPayloadSchema.Type;
 
 export type InteractionHandler = (
   payload: InteractionPayload

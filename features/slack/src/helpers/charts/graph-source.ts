@@ -1,4 +1,8 @@
+import { Schema } from "effect";
+
 import type { FlowEdge, FlowNode } from "./flow.ts";
+
+import { FlowEdgeSchema, FlowNodeSchema } from "./flow.ts";
 
 const NODE = /^([A-Za-z0-9_.-]+)(?:(\[|\{|\()(.*?)(\]|\}|\)))?$/u;
 
@@ -18,10 +22,12 @@ const SHAPE_KIND: Readonly<Record<string, FlowNode["kind"]>> = {
   "(": "start",
 };
 
-interface Parsed {
-  readonly edges: readonly FlowEdge[];
-  readonly nodes: readonly FlowNode[];
-}
+const ParsedSchema = Schema.Struct({
+  edges: Schema.Array(FlowEdgeSchema),
+  nodes: Schema.Array(FlowNodeSchema),
+});
+
+type Parsed = typeof ParsedSchema.Type;
 
 const readNode = (
   raw: string,

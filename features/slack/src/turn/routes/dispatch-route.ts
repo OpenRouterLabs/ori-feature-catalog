@@ -1,18 +1,20 @@
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Addressed } from "./loopback-route.ts";
 
 import { parseDispatchBody } from "./dispatch.ts";
-import { loopbackRoute, refuse } from "./loopback-route.ts";
+import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-interface DispatchRequest extends Addressed {
-  readonly depth: number | undefined;
-  readonly message: string;
-  readonly userId: string | undefined;
-}
+const DispatchRequestSchema = Schema.Struct({
+  ...AddressedSchema.fields,
+  depth: Schema.UndefinedOr(Schema.Number),
+  message: Schema.String,
+  userId: Schema.UndefinedOr(Schema.String),
+});
+
+type DispatchRequest = typeof DispatchRequestSchema.Type;
 
 const parse = (raw: unknown): Result.Result<DispatchRequest, string> => {
   const parsed = parseDispatchBody(raw);

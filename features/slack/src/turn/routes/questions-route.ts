@@ -22,13 +22,15 @@ const AskBody = Schema.Struct({
 });
 const decodeBody = Schema.decodeUnknownResult(AskBody);
 
-export interface AskRequest {
-  readonly channel: string;
-  readonly intro: string;
-  readonly questions: typeof QuestionsSchema.Type;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-}
+export const AskRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  intro: Schema.String,
+  questions: QuestionsSchema,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+});
+
+export type AskRequest = typeof AskRequestSchema.Type;
 
 export type AskParse =
   | { readonly ok: true; readonly request: AskRequest }

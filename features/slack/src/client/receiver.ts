@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
@@ -19,10 +19,12 @@ const HTTP_UNAUTHORIZED = 401;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-interface UrlVerification {
-  readonly challenge: string;
-  readonly type: "url_verification";
-}
+const UrlVerificationSchema = Schema.Struct({
+  challenge: Schema.String,
+  type: Schema.Literals(["url_verification"]),
+});
+
+type UrlVerification = typeof UrlVerificationSchema.Type;
 
 const isUrlVerification = (body: unknown): body is UrlVerification =>
   typeof body === "object" &&

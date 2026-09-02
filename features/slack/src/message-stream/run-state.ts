@@ -1,5 +1,7 @@
 import { answerText } from "./answer-text.ts";
 
+import { Schema } from "effect";
+
 export const RunPhase = {
   Cancelled: "cancelled",
   Done: "done",
@@ -208,10 +210,12 @@ const soFar = (state: RunState): string => {
   return done === "" ? "" : `\n\n*What I got done:*\n${done}`;
 };
 
-interface RenderOptions {
-  readonly withModel?: boolean;
-  readonly withWorkLog?: boolean;
-}
+const RenderOptionsSchema = Schema.Struct({
+  withModel: Schema.optionalKey(Schema.Boolean),
+  withWorkLog: Schema.optionalKey(Schema.Boolean),
+});
+
+type RenderOptions = typeof RenderOptionsSchema.Type;
 export const renderRunState = (
   state: RunState,
   options: RenderOptions = {}

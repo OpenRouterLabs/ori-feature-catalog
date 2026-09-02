@@ -1,7 +1,7 @@
 import type { AuthorizeResult } from "@slack/bolt";
 
 import { App, LogLevel } from "@slack/bolt";
-import { Effect, Exit, Option, Scope } from "effect";
+import { Effect, Exit, Option, Schema, Scope } from "effect";
 
 import type { SlackLogger } from "#src/index.ts";
 import type {
@@ -49,10 +49,12 @@ export const makeStop =
     await Effect.runPromise(Scope.close(deps.scope, Exit.void));
   };
 
-interface BoltIdentity {
-  readonly botId: string | undefined;
-  readonly botUserId: string | undefined;
-}
+const BoltIdentitySchema = Schema.Struct({
+  botId: Schema.UndefinedOr(Schema.String),
+  botUserId: Schema.UndefinedOr(Schema.String),
+});
+
+type BoltIdentity = typeof BoltIdentitySchema.Type;
 
 type BoltAuthorization =
   | { readonly authorize: () => Promise<AuthorizeResult> }

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { SlackClientShape } from "#src/client/index.ts";
 import type {
@@ -18,10 +18,12 @@ import {
 } from "#src/helpers/blockers/questions.ts";
 import { openModal } from "#src/helpers/modals/modals.ts";
 
-interface Answered {
-  readonly answer: string;
-  readonly prompt: string;
-}
+const AnsweredSchema = Schema.Struct({
+  answer: Schema.String,
+  prompt: Schema.String,
+});
+
+type Answered = typeof AnsweredSchema.Type;
 
 const answersOf = (
   form: PendingForm,

@@ -12,13 +12,15 @@ const DispatchBodySchema = Schema.Struct({
 
 const decodeBody = Schema.decodeUnknownResult(DispatchBodySchema);
 
-export interface DispatchRequest {
-  readonly channel: string;
-  readonly depth: number;
-  readonly message: string;
-  readonly threadTs: string;
-  readonly userId: string | undefined;
-}
+export const DispatchRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  depth: Schema.Number,
+  message: Schema.String,
+  threadTs: Schema.String,
+  userId: Schema.UndefinedOr(Schema.String),
+});
+
+export type DispatchRequest = typeof DispatchRequestSchema.Type;
 
 type DispatchParse =
   | { readonly ok: true; readonly request: DispatchRequest }

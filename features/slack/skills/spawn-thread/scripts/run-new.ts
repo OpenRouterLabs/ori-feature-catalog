@@ -1,4 +1,4 @@
-import { Option, Result } from "effect";
+import { Option, Result, Schema } from "effect";
 
 import type { KnownBlock } from "@slack/types";
 
@@ -96,10 +96,12 @@ export const buildOpenerBlocks = ({
   return [sectionBlock, actionsBlock];
 };
 
-interface OriginThread {
-  readonly channel: string;
-  readonly threadTs: string;
-}
+const OriginThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  threadTs: Schema.String,
+});
+
+type OriginThread = typeof OriginThreadSchema.Type;
 
 const resolveOriginThread = (
   env: Record<string, string | undefined>
@@ -166,10 +168,12 @@ const rewriteAnchorToNewThread = async (
   });
 };
 
-export interface SpawnedThread {
-  readonly channel: string;
-  readonly thread_ts: string;
-}
+export const SpawnedThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  thread_ts: Schema.String,
+});
+
+export type SpawnedThread = typeof SpawnedThreadSchema.Type;
 
 interface DispatchNewThreadArgs {
   readonly postFn: typeof postMessage;

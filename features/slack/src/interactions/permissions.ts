@@ -1,6 +1,6 @@
 import type { PermissionOptionKind } from "ori";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
@@ -38,12 +38,14 @@ const encode = (
     FIELD_SEPARATOR
   );
 
-interface DecodedChoice {
-  readonly askedBy: string;
-  readonly choice: string;
-  readonly correlationId: string;
-  readonly sessionId: string;
-}
+const DecodedChoiceSchema = Schema.Struct({
+  askedBy: Schema.String,
+  choice: Schema.String,
+  correlationId: Schema.String,
+  sessionId: Schema.String,
+});
+
+type DecodedChoice = typeof DecodedChoiceSchema.Type;
 
 const decode = (value: string | undefined): DecodedChoice | undefined => {
   if (value === undefined) {
@@ -94,12 +96,14 @@ export const permissionResolvedBlocks = (
   section(`**Permission** — ${request.operation}\n_${outcome}_`),
 ];
 
-interface ElicitationRequest {
-  readonly askedBy: string;
-  readonly correlationId: string;
-  readonly message: string;
-  readonly sessionId: string;
-}
+const ElicitationRequestSchema = Schema.Struct({
+  askedBy: Schema.String,
+  correlationId: Schema.String,
+  message: Schema.String,
+  sessionId: Schema.String,
+});
+
+type ElicitationRequest = typeof ElicitationRequestSchema.Type;
 
 export const elicitationBlocks = (
   request: ElicitationRequest

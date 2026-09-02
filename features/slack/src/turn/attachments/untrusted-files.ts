@@ -12,13 +12,15 @@ const SlackFileSchema = Schema.Struct({
 
 const decodeFiles = Schema.decodeUnknownOption(Schema.Array(SlackFileSchema));
 
-export interface AttachedFile {
-  readonly filetype: string;
-  readonly id: string;
-  readonly label: string;
-  readonly path?: string | undefined;
-  readonly urlPrivate: string;
-}
+const AttachedFileSchema = Schema.Struct({
+  filetype: Schema.String,
+  id: Schema.String,
+  label: Schema.String,
+  path: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  urlPrivate: Schema.String,
+});
+
+export type AttachedFile = typeof AttachedFileSchema.Type;
 
 export const attachedFiles = (event: unknown): readonly AttachedFile[] => {
   if (typeof event !== "object" || event === null || !("files" in event)) {

@@ -1,4 +1,4 @@
-import { Context, Effect, Ref } from "effect";
+import { Context, Effect, Ref, Schema } from "effect";
 
 import type { ThreadListen } from "#src/turn/listening/listen.ts";
 import type { InterruptMode } from "./settings.ts";
@@ -6,10 +6,12 @@ import type { InterruptMode } from "./settings.ts";
 import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
 import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
-export interface ThreadSession {
-  readonly sessionId: string;
-  readonly startedAt: number;
-}
+const ThreadSessionSchema = Schema.Struct({
+  sessionId: Schema.String,
+  startedAt: Schema.Number,
+});
+
+export type ThreadSession = typeof ThreadSessionSchema.Type;
 
 export interface ThreadRow {
   readonly instanceId: string;

@@ -1,16 +1,24 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import type { SlackServices } from "#src/layers.ts";
-import type { PaneContext } from "#src/thread/assistant.ts";
 import type { RawAssistantThreadStarted } from "./listeners.ts";
 
-import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
+import {
+  AssistantThreads,
+  keyOf,
+  PaneContextSchema,
+} from "#src/thread/assistant.ts";
 
-interface Pane {
-  readonly key: string;
-  readonly paneContext: PaneContext;
-  readonly ref: { readonly channelId: string; readonly threadTs: string };
-}
+const PaneSchema = Schema.Struct({
+  key: Schema.String,
+  paneContext: PaneContextSchema,
+  ref: Schema.Struct({
+    channelId: Schema.String,
+    threadTs: Schema.String,
+  }),
+});
+
+type Pane = typeof PaneSchema.Type;
 
 const paneOf = (event: RawAssistantThreadStarted): Pane | undefined => {
   const channelId = event.assistant_thread?.channel_id;

@@ -25,13 +25,15 @@ const nonEmpty = (value: string | undefined): string | undefined => {
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
 };
 
-interface ImageRequest {
-  readonly channel: string;
-  readonly prompt: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-  readonly title: string;
-}
+const ImageRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  prompt: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+  title: Schema.String,
+});
+
+type ImageRequest = typeof ImageRequestSchema.Type;
 
 type ImageParse =
   | { readonly ok: true; readonly request: ImageRequest }

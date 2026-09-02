@@ -66,13 +66,15 @@ const render = (input: {
   });
 };
 
-export interface ChartRequest {
-  readonly channel: string;
-  readonly svg: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-  readonly title: string;
-}
+const ChartRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  svg: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+  title: Schema.String,
+});
+
+export type ChartRequest = typeof ChartRequestSchema.Type;
 
 type ChartParse =
   | { readonly ok: true; readonly request: ChartRequest }

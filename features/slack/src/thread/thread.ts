@@ -3,11 +3,13 @@ import { Context, Effect, Schema } from "effect";
 import { clampToWord } from "#src/clamp.ts";
 import { SlackClient } from "#src/client/index.ts";
 
-export interface ThreadRef {
-  readonly channelId: string;
-  readonly teamId: string;
-  readonly threadTs: string;
-}
+export const ThreadRefSchema = Schema.Struct({
+  channelId: Schema.String,
+  teamId: Schema.String,
+  threadTs: Schema.String,
+});
+
+export type ThreadRef = typeof ThreadRefSchema.Type;
 
 const FENCE_TAGS =
   /<\s*\/?\s*(slack_thread|untrusted_file_content|interrupted_ask|slack_thread_ref)\s*>/giu;

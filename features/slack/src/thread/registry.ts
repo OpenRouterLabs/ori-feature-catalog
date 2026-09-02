@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 export interface LiveTurn {
   readonly abort: (reason?: unknown) => void;
@@ -38,10 +38,12 @@ export const TURN_SHUTDOWN_REASON = "ori:turn-shutdown";
 
 export const TURN_STEER_REASON = "ori:turn-steer";
 
-interface SteeredWork {
-  readonly ask: string;
-  readonly partial: string;
-}
+const SteeredWorkSchema = Schema.Struct({
+  ask: Schema.String,
+  partial: Schema.String,
+});
+
+type SteeredWork = typeof SteeredWorkSchema.Type;
 
 export const steerThread = (threadKey: string): SteeredWork | undefined => {
   const live = threads.get(threadKey)?.live;
