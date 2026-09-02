@@ -1,5 +1,3 @@
-import { Context } from "effect";
-
 const DEFAULT_LOADING_EMOJI = ":braille-loader:";
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -67,8 +65,3 @@ export const SLACK_ENV_VARS = [
   "SLACK_SIGNING_SECRET",
   "SLACK_SKIP_PREFIXES",
 ] as const;
-
-class SlackConfigService extends Context.Service<
-  SlackConfigService,
-  SlackConfig
->()("ori/slack/SlackConfig") {}

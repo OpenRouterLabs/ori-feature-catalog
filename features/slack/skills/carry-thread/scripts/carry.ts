@@ -5,7 +5,7 @@ import type { FetchLike } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 import { postMessage } from "#skills/spawn-thread/scripts/post-message.ts";
 import { openThread } from "#skills/spawn-thread/scripts/run-new.ts";
 import { resolveHttpPort } from "#skills/spawn-thread/scripts/spawn-thread.ts";
-import { updateMessage } from "#skills/spawn-thread/scripts/update-message.ts";
+import type { updateMessage } from "#skills/spawn-thread/scripts/update-message.ts";
 
 export interface CarriedThread {
   readonly channel: string;

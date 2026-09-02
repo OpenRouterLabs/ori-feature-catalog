@@ -24,9 +24,12 @@ const recording = (
   reply: () => Response = () => new Response("", { status: 202 })
 ): FetchLike =>
   (url, init) => {
+    const body = init?.body;
     calls.push({
-      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
-      url: String(url),
+      body: JSON.parse(
+        typeof body === "string" ? body : ""
+      ) as Record<string, unknown>,
+      url: url instanceof Request ? url.url : url.toString(),
     });
     return Promise.resolve(reply());
   };

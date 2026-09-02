@@ -150,7 +150,7 @@ describe("binary files", () => {
     await route(post({ ...VALID, path: "/tmp/report.pdf" }));
 
     expect(sent[0]?.size).toBe(PDF_BYTES.length);
-    const round = new Uint8Array(await (sent[0] as Blob).arrayBuffer());
+    const round = new Uint8Array(await sent[0].arrayBuffer());
     expect([...round]).toEqual([...PDF_BYTES]);
   });
 
@@ -159,7 +159,7 @@ describe("binary files", () => {
 
     await route(post({ ...VALID, path: "/tmp/report.pdf" }));
 
-    const round = new Uint8Array(await (sent[0] as Blob).arrayBuffer());
+    const round = new Uint8Array(await sent[0].arrayBuffer());
     expect(round).toContain(0x00);
     expect(round).toContain(0xff);
   });

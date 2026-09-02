@@ -1,9 +1,9 @@
 import { Context, Effect } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "#src/client/index.ts";
+import type { SlackApiError, SlackClientShape } from "#src/client/client.ts";
 
 import { clampToWord } from "#src/clamp.ts";
-import { SlackClient } from "#src/client/index.ts";
+import { SlackClient } from "#src/client/client.ts";
 
 export interface PaneContext {
   readonly channelId: string | undefined;
