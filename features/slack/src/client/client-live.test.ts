@@ -28,7 +28,7 @@ const platformError = (code: string): Error =>
 
 describe("makeConfiguredWebClient", () => {
   test("bounds retries and arms a per-attempt timeout", () => {
-    const client = makeConfiguredWebClient("xoxb-test") as unknown as {
+    const client = makeConfiguredWebClient("xoxb-test", {}) as unknown as {
       axios: { defaults: { timeout?: number } };
       retryConfig: unknown;
     };

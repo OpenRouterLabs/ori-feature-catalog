@@ -24,19 +24,23 @@ export type SlackPostMessageResult =
 
 let client: SlackClientShape | undefined;
 
-const resolveClient = (): SlackClientShape | undefined => {
+const resolveClient = (
+  env: Readonly<Record<string, string | undefined>>
+): SlackClientShape | undefined => {
   if (client !== undefined) {
     return client;
   }
-  const token = readBotToken();
+  const token = readBotToken(env);
   if (token === undefined) {
     return undefined;
   }
-  client = makeSlackClientFromToken(token);
+  client = makeSlackClientFromToken(token, env);
   return client;
 };
 
-export const webClient = (): WebClient | undefined => resolveClient()?.raw;
+export const webClient = (
+  env: Readonly<Record<string, string | undefined>>
+): WebClient | undefined => resolveClient(env)?.raw;
 
 export const makePostMessage =
   (slack: SlackClientShape) =>
@@ -72,9 +76,10 @@ export const makePostMessage =
     );
 
 export const postMessage = (
-  input: SlackPostMessageInput
+  input: SlackPostMessageInput,
+  env: Readonly<Record<string, string | undefined>>
 ): Promise<SlackPostMessageResult> => {
-  const slack = resolveClient();
+  const slack = resolveClient(env);
   return slack === undefined
     ? Promise.resolve({
         error: "SLACK_BOT_TOKEN is not set",

@@ -35,7 +35,7 @@ if (malformed.length > 0) {
 
 const outcome = await postAsk({
   choices,
-  env: Bun.env,
+  env: process.env,
   fetch: globalThis.fetch,
   question: words.join(" "),
 });

@@ -2,7 +2,7 @@ import type { Resvg } from "@resvg/resvg-js";
 
 import { Effect, Schema } from "effect";
 
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { ChartFontOptions } from "./fonts.ts";
@@ -27,7 +27,7 @@ const listFontFiles = async (dir: string): Promise<readonly string[]> => {
 };
 
 const readFont = async (path: string): Promise<Uint8Array> =>
-  new Uint8Array(await Bun.file(path).arrayBuffer());
+  new Uint8Array(await readFile(path));
 
 const NO_FONTS: ChartFontOptions | undefined = undefined;
 

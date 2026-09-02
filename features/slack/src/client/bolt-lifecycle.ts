@@ -71,7 +71,7 @@ const boltAuthorization = (input: {
   });
 
 export const makeBoltApp = (input: {
-  readonly env?: Readonly<Record<string, string | undefined>> | undefined;
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly identity?: BoltIdentity | undefined;
   readonly logger: SlackLogger;
   readonly signingSecret: string;
@@ -81,7 +81,7 @@ export const makeBoltApp = (input: {
     logger: input.logger,
     signingSecret: input.signingSecret,
   });
-  const agent = resolveSlackProxyAgent(input.env ?? Bun.env);
+  const agent = resolveSlackProxyAgent(input.env);
   return {
     app: new App({
       agent,

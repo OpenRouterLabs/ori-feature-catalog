@@ -25,12 +25,16 @@ export type SlackServices =
   | StateStore
   | ThreadContext;
 
-const SlackClientLayer = (token: string): Layer.Layer<SlackClient> =>
+const SlackClientLayer = (
+  token: string,
+  env: Readonly<Record<string, string | undefined>>
+): Layer.Layer<SlackClient> =>
   Layer.sync(SlackClient)(() =>
-    SlackClient.of(makeSlackClientFromToken(token))
+    SlackClient.of(makeSlackClientFromToken(token, env))
   );
 
 interface SlackGraphInput {
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly store?: OriStateStore | undefined;
   readonly token: string;
 }
@@ -50,4 +54,4 @@ export const SlackDefaultLayers = (
     Layer.effect(Blockers)(BlockersMemory),
     Layer.sync(Interactions)(makeInteractions),
     Layer.effect(AssistantThreads)(AssistantThreadsLive())
-  ).pipe(Layer.provideMerge(SlackClientLayer(input.token)));
+  ).pipe(Layer.provideMerge(SlackClientLayer(input.token, input.env)));

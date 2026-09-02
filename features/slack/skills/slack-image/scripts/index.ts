@@ -16,7 +16,7 @@ for (let index = 0; index < args.length; index += 1) {
 }
 
 const outcome = await postImage({
-  env: Bun.env,
+  env: process.env,
   fetch: globalThis.fetch,
   prompt: words.join(" "),
   title,

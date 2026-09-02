@@ -125,7 +125,7 @@ const handleOpenDm = async (flags: Flags, env: Env): CommandResult => {
 export const dispatchCommand = (
   command: Command,
   flags: Flags,
-  env: Env = Bun.env
+  env: Env = process.env
 ): CommandResult => {
   switch (command) {
     case "conversations.replies":

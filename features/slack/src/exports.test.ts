@@ -196,70 +196,32 @@ describe("makePostMessage", () => {
 
 describe("postMessage", () => {
   test("reports a missing token as a result, not a throw", async () => {
-    const original = Bun.env.SLACK_BOT_TOKEN;
-    delete Bun.env.SLACK_BOT_TOKEN;
+    const result = await postMessage({ channel: "C1", text: "hi" }, {});
 
-    try {
-      const result = await postMessage({
-        channel: "C1",
-        text: "hi",
-      });
-
-      expect(result.ok).toBe(false);
-      expect(!result.ok && result.error).toContain("SLACK_BOT_TOKEN");
-    } finally {
-      if (original !== undefined) {
-        Bun.env.SLACK_BOT_TOKEN = original;
-      }
-    }
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain("SLACK_BOT_TOKEN");
   });
 });
 
 describe("webClient", () => {
   test("is undefined rather than a throw when no token is in scope", () => {
-    const original = Bun.env.SLACK_BOT_TOKEN;
-    delete Bun.env.SLACK_BOT_TOKEN;
-
-    try {
-      expect(webClient()).toBeUndefined();
-    } finally {
-      if (original !== undefined) {
-        Bun.env.SLACK_BOT_TOKEN = original;
-      }
-    }
+    expect(webClient({})).toBeUndefined();
   });
 
   test("hands every caller the same instance", () => {
-    const original = Bun.env.SLACK_BOT_TOKEN;
-    Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
+    const env = { SLACK_BOT_TOKEN: "xoxb-test-token" };
 
-    try {
-      expect(webClient()).toBe(webClient());
-    } finally {
-      if (original === undefined) {
-        delete Bun.env.SLACK_BOT_TOKEN;
-      } else {
-        Bun.env.SLACK_BOT_TOKEN = original;
-      }
-    }
+    expect(webClient(env)).toBe(webClient(env));
   });
 });
 
 describe("one client, whoever asks", () => {
   test("builds and memoises its own when no surface is running", () => {
-    const original = Bun.env.SLACK_BOT_TOKEN;
-    Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
+    const env = { SLACK_BOT_TOKEN: "xoxb-test-token" };
 
-    try {
-      const first = webClient();
-      expect(first).toBeDefined();
-      expect(first).toBe(webClient());
-    } finally {
-      if (original === undefined) {
-        delete Bun.env.SLACK_BOT_TOKEN;
-      } else {
-        Bun.env.SLACK_BOT_TOKEN = original;
-      }
-    }
+    const first = webClient(env);
+
+    expect(first).toBeDefined();
+    expect(first).toBe(webClient(env));
   });
 });

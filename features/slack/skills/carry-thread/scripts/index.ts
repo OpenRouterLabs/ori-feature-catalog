@@ -56,7 +56,7 @@ const runCarryCli = async (
 };
 
 if (import.meta.main) {
-  await runCarryCli(process.argv.slice(2), Bun.env);
+  await runCarryCli(process.argv.slice(2), process.env);
 }
 
 export { parseOpener, runCarryCli };

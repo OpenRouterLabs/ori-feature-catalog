@@ -40,7 +40,7 @@ const requireSecrets = (
   };
 };
 
-export const readSlackConfig = (env: Env = Bun.env): SlackConfig => ({
+export const readSlackConfig = (env: Env): SlackConfig => ({
   ...requireSecrets(env),
   allowedUserIds: new Set(splitList(env.SLACK_ALLOWED_USER_IDS)),
   botUserId: nonEmpty(env.SLACK_BOT_USER_ID),
@@ -51,7 +51,7 @@ export const readSlackConfig = (env: Env = Bun.env): SlackConfig => ({
   skipPrefixes: splitList(env.SLACK_SKIP_PREFIXES),
 });
 
-export const readBotToken = (env: Env = Bun.env): string | undefined =>
+export const readBotToken = (env: Env): string | undefined =>
   nonEmpty(env.SLACK_BOT_TOKEN);
 
 export const SLACK_ENV_VARS = [

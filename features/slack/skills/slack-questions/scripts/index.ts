@@ -27,9 +27,18 @@ const parseQuestions = (raw: string): readonly Question[] | undefined =>
     )
   );
 
+const readStdin = async (): Promise<string> => {
+  process.stdin.setEncoding("utf8");
+  let text = "";
+  for await (const chunk of process.stdin) {
+    text += chunk;
+  }
+  return text;
+};
+
 if (import.meta.main) {
   const [intro, argvQuestions] = process.argv.slice(2);
-  const piped = argvQuestions === undefined ? await Bun.stdin.text() : "";
+  const piped = argvQuestions === undefined ? await readStdin() : "";
   const rawQuestions = argvQuestions ?? piped.trim();
   if (intro === undefined || rawQuestions === "") {
     process.stderr.write(`${usage}\n`);
@@ -45,7 +54,7 @@ if (import.meta.main) {
   }
 
   const outcome = await postQuestions({
-    env: Bun.env,
+    env: process.env,
     fetch: globalThis.fetch,
     intro,
     questions,

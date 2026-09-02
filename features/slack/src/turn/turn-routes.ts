@@ -1,3 +1,5 @@
+import { readFile as readFileBytes } from "node:fs/promises";
+
 import type { Chat } from "ori";
 
 import { Cause, Context, Effect } from "effect";
@@ -279,7 +281,7 @@ const makeSideRoutes = (input: {
       workspaceTeamId: deps.workspaceTeamId,
     }),
     attach: makeAttachRoute({
-      readFile: async (path) => new Blob([await Bun.file(path).arrayBuffer()]),
+      readFile: async (path) => new Blob([await readFileBytes(path)]),
       replyFor: (ref) => deps.runWith(makeMessageReply(ref)),
       workspaceTeamId: deps.workspaceTeamId,
     }),

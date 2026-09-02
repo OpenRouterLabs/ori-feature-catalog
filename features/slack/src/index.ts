@@ -68,6 +68,7 @@ export interface SlackRuntime {
 
 const buildContext = (input: {
   readonly botName: () => string;
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly isStopping: () => boolean;
   readonly store?: OriStateStore | undefined;
   readonly token: string;
@@ -227,6 +228,7 @@ const openForTraffic = async (input: {
   readonly bridge: Chat;
   readonly config: SlackConfig;
   readonly context: Context.Context<SlackServices>;
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly identity: SlackIdentity;
   readonly isStopping: () => boolean;
   readonly logger: SlackLogger;
@@ -247,6 +249,7 @@ const openForTraffic = async (input: {
   });
 
   const { app, receiver } = makeBoltApp({
+    env: input.env,
     identity: input.identity,
     logger: input.logger,
     signingSecret: input.config.signingSecret,
@@ -318,9 +321,10 @@ const runtimeOf = (input: {
 
 export const startSlackRuntime = async (input: {
   readonly bridge: Chat;
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly logger: SlackLogger;
 }): Promise<SlackRuntime> => {
-  const config = readSlackConfig();
+  const config = readSlackConfig(input.env);
   setLoadingEmoji(config.loadingEmoji);
   const { token } = config;
 
@@ -329,6 +333,7 @@ export const startSlackRuntime = async (input: {
 
   const { context, scope } = await buildContext({
     botName: () => identity.botName,
+    env: input.env,
     isStopping: () => stopping,
     store: input.bridge.stores?.state,
     token,
@@ -340,6 +345,7 @@ export const startSlackRuntime = async (input: {
     bridge: input.bridge,
     config,
     context,
+    env: input.env,
     identity,
     isStopping: () => stopping,
     logger: input.logger,

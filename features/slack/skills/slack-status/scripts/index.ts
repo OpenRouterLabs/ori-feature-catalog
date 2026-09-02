@@ -36,23 +36,23 @@ if (import.meta.main) {
   }
   const text = args.slice(cursor).join(" ");
 
-  const token = Bun.env.SLACK_BOT_TOKEN;
+  const token = process.env.SLACK_BOT_TOKEN;
   if (token === undefined || token === "") {
     process.stderr.write("slack-status: SLACK_BOT_TOKEN is not set\n");
     process.exit(1);
   }
 
-  const apiUrl = localApiUrl(Bun.env.SLACK_API_URL);
+  const apiUrl = localApiUrl(process.env.SLACK_API_URL);
   const slack = new WebClient(token, {
     retryConfig: retryPolicies.fiveRetriesInFiveMinutes,
     timeout: REQUEST_TIMEOUT_MS,
     ...(apiUrl === undefined ? {} : { slackApiUrl: apiUrl }),
   });
 
-  const threadKey = `slack:${Bun.env.SLACK_TEAM_ID ?? ""}:${Bun.env.SLACK_CHANNEL_ID ?? ""}:${Bun.env.SLACK_THREAD_TS ?? ""}`;
+  const threadKey = `slack:${process.env.SLACK_TEAM_ID ?? ""}:${process.env.SLACK_CHANNEL_ID ?? ""}:${process.env.SLACK_THREAD_TS ?? ""}`;
 
   const outcome = await postStatus({
-    env: Bun.env,
+    env: process.env,
     notify,
     postMessage: async ({ pane, text: body }) => {
       await slack.chat.postMessage({

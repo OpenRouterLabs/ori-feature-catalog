@@ -37,7 +37,7 @@ const bypassesProxy = (host: string, noProxy: string | undefined): boolean =>
     .some((entry) => matchesNoProxyEntry(host, entry));
 
 export const resolveSlackProxyAgent = (
-  env: ProcessEnv = Bun.env
+  env: ProcessEnv
 ): HttpsProxyAgent<string> | undefined => {
   const proxyUrl = firstPresent(env, PROXY_ENV_KEYS);
   if (Predicate.isUndefined(proxyUrl)) {

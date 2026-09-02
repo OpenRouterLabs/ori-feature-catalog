@@ -2,9 +2,18 @@
 
 import { postChart } from "./post-chart.ts";
 
-const spec = process.argv.slice(2).join(" ").trim() || (await Bun.stdin.text());
+const readStdin = async (): Promise<string> => {
+  process.stdin.setEncoding("utf8");
+  let text = "";
+  for await (const chunk of process.stdin) {
+    text += chunk;
+  }
+  return text;
+};
+
+const spec = process.argv.slice(2).join(" ").trim() || (await readStdin());
 const outcome = await postChart({
-  env: Bun.env,
+  env: process.env,
   fetch: globalThis.fetch,
   spec,
 });
