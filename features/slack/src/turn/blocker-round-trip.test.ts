@@ -1,10 +1,10 @@
-/* oxlint-disable import/no-relative-parent-imports eslint/max-lines-per-function -- siblings are imported relatively, and these cases read better whole than split */
+/* oxlint-disable eslint/max-lines-per-function -- these cases read better whole than split */
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import { decodeChoice, encodeChoice } from "../helpers/blockers/blockers.ts";
+import { decodeChoice, encodeChoice } from "#src/helpers/blockers/blockers.ts";
 import {
   ask,
   asksRegistered,

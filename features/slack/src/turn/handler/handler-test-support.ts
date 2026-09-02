@@ -1,24 +1,24 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes */
+/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes */
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 import { Effect, Layer } from "effect";
 
-import { makeFakeSlackClient } from "../../client/client-test-support.ts";
-import { Blockers, BlockersMemory } from "../../interactions/blocker.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
 import {
   Interactions,
   makeInteractions,
-} from "../../interactions/interactions.ts";
+} from "#src/interactions/interactions.ts";
 import {
   MessageStream,
   MessageStreamLive,
-} from "../../message-stream/stream.ts";
-import { StateStore, StateStoreMemory } from "../../state/store.ts";
+} from "#src/message-stream/stream.ts";
+import { StateStore, StateStoreMemory } from "#src/state/store.ts";
 import {
   AssistantThreads,
   AssistantThreadsLive,
-} from "../../thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "../../thread/thread.ts";
+} from "#src/thread/assistant.ts";
+import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
 import { handleTurn } from "./handler.ts";
 
 export const ref = {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { CarryResult } from "../carry.ts";
+import type { CarryResult } from "#src/turn/carry.ts";
 
-import { CarryOutcome } from "../carry.ts";
+import { CarryOutcome } from "#src/turn/carry.ts";
 import { makeCarryRoute } from "./carry-route.ts";
 
 const CARRIED: CarryResult = {

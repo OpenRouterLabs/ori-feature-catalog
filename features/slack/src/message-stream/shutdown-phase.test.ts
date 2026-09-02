@@ -6,7 +6,7 @@ import {
   resetRegistry,
   TURN_SHUTDOWN_REASON,
   TURN_TIMEOUT_REASON,
-} from "../thread/registry.ts";
+} from "#src/thread/registry.ts";
 import { initialRunState, RunPhase, renderRunState } from "./run-state.ts";
 
 const rendered = (phase: RunPhase): string =>

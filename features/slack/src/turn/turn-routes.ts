@@ -1,27 +1,25 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { Chat } from "ori";
 
 import { Cause, Context, Effect } from "effect";
 
-import type { PostedMessage, SlackClient } from "../client/index.ts";
-import type { RawSlackMessage } from "../client/listeners.ts";
-import type { SlackConfig } from "../config.ts";
-import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
-import type { SlackLogger } from "../index.ts";
-import type { BlockersShape } from "../interactions/blocker.ts";
-import type { QuestionnairesShape } from "../interactions/questionnaires.ts";
-import type { SlackServices } from "../layers.ts";
-import type { InterruptMode as InterruptModeType } from "../state/settings.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { PostedMessage, SlackClient } from "#src/client/index.ts";
+import type { RawSlackMessage } from "#src/client/listeners.ts";
+import type { SlackConfig } from "#src/config.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackLogger } from "#src/index.ts";
+import type { BlockersShape } from "#src/interactions/blocker.ts";
+import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
+import type { SlackServices } from "#src/layers.ts";
+import type { InterruptMode as InterruptModeType } from "#src/state/settings.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { EngagementDeps } from "./listening/engagement.ts";
 import type { IncomingMessage } from "./listening/gates.ts";
 
-import { makeMessageReply } from "../message-reply/reply-live.ts";
-import { InterruptMode } from "../state/settings.ts";
-import { StateStore } from "../state/store.ts";
-import { enqueue, isBusy, steerThread } from "../thread/registry.ts";
-import { threadInstanceId } from "../thread/thread.ts";
+import { makeMessageReply } from "#src/message-reply/reply-live.ts";
+import { InterruptMode } from "#src/state/settings.ts";
+import { StateStore } from "#src/state/store.ts";
+import { enqueue, isBusy, steerThread } from "#src/thread/registry.ts";
+import { threadInstanceId } from "#src/thread/thread.ts";
 import { withAttachments } from "./attachments/attachments.ts";
 import { claimStart, considerTurn } from "./listening/engagement.ts";
 import { handleTurn } from "./handler/handler.ts";

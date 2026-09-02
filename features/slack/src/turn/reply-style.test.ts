@@ -1,22 +1,22 @@
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
-/* oxlint-disable typescript/no-unsafe-type-assertion import/no-relative-parent-imports -- the bridge fake stands in for the Chat surface, and modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the bridge fake stands in for the Chat surface */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Layer } from "effect";
 
-import type { StateStoreShape } from "../state/store.ts";
+import type { StateStoreShape } from "#src/state/store.ts";
 
-import { makeFakeSlackClient } from "../client/client-test-support.ts";
-import { Blockers, BlockersMemory } from "../interactions/blocker.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
 import {
   Interactions,
   makeInteractions,
-} from "../interactions/interactions.ts";
-import { MessageStream, MessageStreamLive } from "../message-stream/stream.ts";
-import { StateStore, StateStoreMemory } from "../state/store.ts";
-import { AssistantThreads, AssistantThreadsLive } from "../thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "../thread/thread.ts";
+} from "#src/interactions/interactions.ts";
+import { MessageStream, MessageStreamLive } from "#src/message-stream/stream.ts";
+import { StateStore, StateStoreMemory } from "#src/state/store.ts";
+import { AssistantThreads, AssistantThreadsLive } from "#src/thread/assistant.ts";
+import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "./reply-style.ts";
 

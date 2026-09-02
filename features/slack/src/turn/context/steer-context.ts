@@ -1,6 +1,4 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
-import { sanitizeThreadContent } from "../../thread/thread.ts";
+import { sanitizeThreadContent } from "#src/thread/thread.ts";
 
 export const steerContextBlock = (priorAsk?: string): string => {
   const ask = (priorAsk ?? "").trim();

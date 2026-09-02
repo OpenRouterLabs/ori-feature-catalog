@@ -1,11 +1,9 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { App } from "@slack/bolt";
 
 import type {
   InteractionPayload,
   ViewSubmissionPayload,
-} from "../interactions/interactions.ts";
+} from "#src/interactions/interactions.ts";
 
 export interface RawAssistantThreadStarted {
   readonly assistant_thread?: {

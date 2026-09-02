@@ -1,10 +1,10 @@
-/* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function import/no-relative-parent-imports -- typing every local helper buys nothing here, cases read better whole than split, and the services a route calls are siblings of this feature rather than of this directory */
+/* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- typing every local helper buys nothing here, and cases read better whole than split */
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import { QuestionnairesMemory } from "../../interactions/questionnaires.ts";
+import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { makeQuestionsRoute, parseAskBody } from "./questions-route.ts";
 
 const BYTES_PER_KIB = 1024;

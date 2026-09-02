@@ -1,15 +1,13 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Result, Schema } from "effect";
 
-import type { QuestionnairesShape } from "../../interactions/questionnaires.ts";
-import type { ThreadRef } from "../../thread/thread.ts";
+import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
 import {
   QuestionsSchema,
   questionsBlocks,
-} from "../../helpers/blockers/questions.ts";
+} from "#src/helpers/blockers/questions.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;

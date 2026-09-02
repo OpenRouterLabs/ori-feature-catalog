@@ -1,11 +1,9 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Context, Effect, Ref } from "effect";
 
-import type { ThreadListen } from "../turn/listening/listen.ts";
+import type { ThreadListen } from "#src/turn/listening/listen.ts";
 import type { InterruptMode } from "./settings.ts";
 
-import { UNSEEN_THREAD } from "../turn/listening/listen.ts";
+import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
 import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
 export interface ThreadSession {

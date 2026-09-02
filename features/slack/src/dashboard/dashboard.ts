@@ -1,10 +1,8 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import type { StateStoreShape } from "../state/store.ts";
+import type { StateStoreShape } from "#src/state/store.ts";
 
-import { interruptModeFrom } from "../state/settings.ts";
+import { interruptModeFrom } from "#src/state/settings.ts";
 import { renderDashboard } from "./page.ts";
 
 const PATH = "/slack/dashboard";

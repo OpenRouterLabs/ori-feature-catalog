@@ -1,15 +1,15 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- siblings are imported relatively, and the recorded blocks are read back as the JSON they are */
+/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- the recorded blocks are read back as the JSON they are */
 import { Effect } from "effect";
 
-import type { BlockersShape } from "../interactions/blocker.ts";
-import type { InteractionPayload } from "../interactions/interactions.ts";
-import type { MessageReplyShape } from "../message-reply/reply.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { BlockersShape } from "#src/interactions/blocker.ts";
+import type { InteractionPayload } from "#src/interactions/interactions.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
-import { BLOCKER_ACTION_ID } from "../helpers/blockers/blockers.ts";
-import { registerBlockerHandlers } from "../interactions/blocker-handler.ts";
-import { BlockersMemory } from "../interactions/blocker.ts";
-import { makeInteractions } from "../interactions/interactions.ts";
+import { BLOCKER_ACTION_ID } from "#src/helpers/blockers/blockers.ts";
+import { registerBlockerHandlers } from "#src/interactions/blocker-handler.ts";
+import { BlockersMemory } from "#src/interactions/blocker.ts";
+import { makeInteractions } from "#src/interactions/interactions.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 
 const TEAM = "T1";

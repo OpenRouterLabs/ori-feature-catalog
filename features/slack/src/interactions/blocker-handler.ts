@@ -1,5 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
 import type { BlockersShape } from "./blocker.ts";
@@ -11,7 +9,7 @@ import type {
 import {
   BLOCKER_ACTION_ID,
   decodeChoice,
-} from "../helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/blockers.ts";
 
 export const registerBlockerHandlers = (input: {
   readonly blockers: BlockersShape;

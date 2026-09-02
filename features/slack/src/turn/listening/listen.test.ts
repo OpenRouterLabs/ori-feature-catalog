@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { isStopRequest } from "./listen.ts";

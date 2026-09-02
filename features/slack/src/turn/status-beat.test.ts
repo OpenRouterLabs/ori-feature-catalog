@@ -1,7 +1,6 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { initialRunState, withTool } from "../message-stream/run-state.ts";
+import { initialRunState, withTool } from "#src/message-stream/run-state.ts";
 import { readLiveLine, recordLiveLine } from "./live-line.ts";
 import { beatLine, loadingListOf } from "./status-beat.ts";
 

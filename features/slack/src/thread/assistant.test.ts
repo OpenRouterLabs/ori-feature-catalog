@@ -1,12 +1,12 @@
-/* oxlint-disable import/no-relative-parent-imports typescript/no-unsafe-type-assertion -- siblings are imported relatively, and the fake stands in for the Slack SDK shape */
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the fake stands in for the Slack SDK shape */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
 import type { AssistantThreadsShape } from "./assistant.ts";
 
-import { makeFakeSlackClient, opsOf } from "../client/client-test-support.ts";
-import { SlackClient } from "../client/index.ts";
+import { makeFakeSlackClient, opsOf } from "#src/client/client-test-support.ts";
+import { SlackClient } from "#src/client/index.ts";
 import { AssistantThreadsLive, keyOf, titleFromMessage } from "./assistant.ts";
 
 const PANE = {

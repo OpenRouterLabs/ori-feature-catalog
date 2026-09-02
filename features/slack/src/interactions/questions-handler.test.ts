@@ -1,12 +1,12 @@
-/* oxlint-disable import/no-relative-parent-imports, typescript/explicit-function-return-type -- a test reaches across the feature for its fixtures, and typing every local helper buys nothing here */
+/* oxlint-disable typescript/explicit-function-return-type -- a test reaches across the feature for its fixtures, and typing every local helper buys nothing here */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
 import type { PendingForm } from "./questionnaires.ts";
 
-import { makeFakeSlackClient } from "../client/client-test-support.ts";
-import { blockIdFor, callbackFor } from "../helpers/blockers/questions.ts";
+import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
+import { blockIdFor, callbackFor } from "#src/helpers/blockers/questions.ts";
 import { makeInteractions } from "./interactions.ts";
 import { QuestionnairesMemory } from "./questionnaires.ts";
 import {

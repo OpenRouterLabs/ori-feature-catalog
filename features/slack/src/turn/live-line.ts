@@ -1,8 +1,6 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import { bestEffort } from "../helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/best-effort.ts";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,8 +1,6 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect } from "effect";
 
-import type { RawSlackMessage } from "../../client/listeners.ts";
+import type { RawSlackMessage } from "#src/client/listeners.ts";
 
 import {
   attachmentDirFor,

@@ -1,4 +1,3 @@
-/* oxlint-disable import/no-relative-parent-imports -- siblings are imported relatively */
 import {
   afterEach,
   describe,

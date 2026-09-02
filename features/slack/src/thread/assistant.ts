@@ -1,11 +1,9 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Context, Effect } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "../client/index.ts";
+import type { SlackApiError, SlackClientShape } from "#src/client/index.ts";
 
-import { clampToWord } from "../clamp.ts";
-import { SlackClient } from "../client/index.ts";
+import { clampToWord } from "#src/clamp.ts";
+import { SlackClient } from "#src/client/index.ts";
 
 export interface PaneContext {
   readonly channelId: string | undefined;

@@ -1,9 +1,7 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Context, Effect } from "effect";
 
-import type { Question } from "../helpers/blockers/questions.ts";
-import type { ThreadRef } from "../thread/thread.ts";
+import type { Question } from "#src/helpers/blockers/questions.ts";
+import type { ThreadRef } from "#src/thread/thread.ts";
 
 export interface PendingForm {
   readonly askId: string;

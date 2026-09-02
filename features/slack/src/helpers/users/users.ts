@@ -1,8 +1,6 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import { Effect, Ref } from "effect";
 
-import { SlackClient } from "../../client/index.ts";
+import { SlackClient } from "#src/client/index.ts";
 
 const MAX_CACHED_NAMES = 1000;
 

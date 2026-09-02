@@ -1,29 +1,27 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively — the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
-
 import type { AgentFailure, AgentRuntimeEvent } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import { bestEffort } from "../helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/best-effort.ts";
 
-import type { SlackApiError } from "../client/index.ts";
-import type { SlackBlock } from "../helpers/block-kit/blocks.ts";
-import type { MessageReplyShape } from "../message-reply/reply.ts";
-import type { RunState } from "../message-stream/run-state.ts";
-import type { StateStoreShape } from "../state/store.ts";
+import type { SlackApiError } from "#src/client/index.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { MessageReplyShape } from "#src/message-reply/reply.ts";
+import type { RunState } from "#src/message-stream/run-state.ts";
+import type { StateStoreShape } from "#src/state/store.ts";
 import type { IncomingTurn } from "./turn-input.ts";
 
 import {
   elicitationBlocks,
   permissionBlocks,
   permissionResolvedBlocks,
-} from "../interactions/permissions.ts";
-import { RunPhase } from "../message-stream/run-state.ts";
+} from "#src/interactions/permissions.ts";
+import { RunPhase } from "#src/message-stream/run-state.ts";
 import {
   finishedTool,
   startedTool,
   workingTool,
-} from "../message-stream/tool-liveness.ts";
+} from "#src/message-stream/tool-liveness.ts";
 
 export class AgentStreamEnded extends Schema.TaggedErrorClass<AgentStreamEnded>()(
   "AgentStreamEnded",

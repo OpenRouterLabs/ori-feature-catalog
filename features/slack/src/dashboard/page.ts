@@ -1,9 +1,7 @@
-/* oxlint-disable import/no-relative-parent-imports -- modules inside this feature import siblings relatively; the `@ori-monorepo/slack/*` self-specifier does not resolve for the linter */
+import type { InterruptMode } from "#src/state/settings.ts";
+import type { ThreadRow } from "#src/state/store.ts";
 
-import type { InterruptMode } from "../state/settings.ts";
-import type { ThreadRow } from "../state/store.ts";
-
-import { InterruptMode as Mode } from "../state/settings.ts";
+import { InterruptMode as Mode } from "#src/state/settings.ts";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
