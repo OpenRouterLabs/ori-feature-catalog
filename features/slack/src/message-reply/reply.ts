@@ -1,8 +1,7 @@
-import type { Effect } from "effect";
+import { type Effect, Schema } from "effect";
 
-import { Schema } from "effect";
 
-import type { PostedMessage, SlackApiError } from "#src/client/index.ts";
+import type { PostedMessage, SlackApiError } from "#src/client/client.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type {
   FileUpload,
@@ -10,7 +9,7 @@ import type {
 } from "#src/helpers/images-files/upload.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
-import { ThreadRefSchema } from "#src/thread/thread.ts";
+import { ThreadRefSchema } from "#src/thread/index.ts";
 
 const MessageReplyShapeSchema = Schema.Struct({
   ref: ThreadRefSchema,

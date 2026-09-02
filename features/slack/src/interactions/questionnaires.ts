@@ -2,7 +2,7 @@ import { Context, Effect, Schema } from "effect";
 
 import { QuestionsSchema } from "#src/helpers/blockers/questions.ts";
 import { functionSchema } from "#src/schema-support.ts";
-import { ThreadRefSchema } from "#src/thread/thread.ts";
+import { ThreadRefSchema } from "#src/thread/index.ts";
 
 const PendingFormSchema = Schema.Struct({
   askId: Schema.String,

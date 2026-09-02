@@ -5,7 +5,7 @@ import { bestEffort } from "#src/helpers/best-effort.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
 
 import {
   blockerAnsweredBlocks,

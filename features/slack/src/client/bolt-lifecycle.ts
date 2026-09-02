@@ -1,6 +1,5 @@
-import type { AuthorizeResult } from "@slack/bolt";
+import { App, type AuthorizeResult, LogLevel } from "@slack/bolt";
 
-import { App, LogLevel } from "@slack/bolt";
 import { Effect, Exit, Option, Schema, Scope } from "effect";
 
 import type { SlackLogger } from "#src/index.ts";
@@ -8,13 +7,9 @@ import type {
   InteractionPayload,
   ViewSubmissionPayload,
 } from "#src/interactions/interactions.ts";
-import type {
-  RawAssistantThreadStarted,
-  RawSlackMessage,
-} from "./listeners.ts";
+import { type RawAssistantThreadStarted, type RawSlackMessage, registerListeners } from "./listeners.ts";
 
-import { cancelAll, drain, resetRegistry } from "#src/thread/registry.ts";
-import { registerListeners } from "./listeners.ts";
+import { cancelAll, drain, resetRegistry } from "#src/thread/index.ts";
 import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 import { SlackReceiver } from "./receiver.ts";
 

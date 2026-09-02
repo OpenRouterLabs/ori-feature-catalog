@@ -1,12 +1,7 @@
 import { Effect } from "effect";
 
-import type {
-  AssistantThreadsShape,
-  PaneContext,
-} from "#src/thread/assistant.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { type AssistantThreadsShape, keyOf, type PaneContext, type ThreadRef, titleFromMessage } from "#src/thread/index.ts";
 
-import { keyOf, titleFromMessage } from "#src/thread/assistant.ts";
 
 export const paneOf = (
   ref: ThreadRef

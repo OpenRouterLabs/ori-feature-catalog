@@ -1,17 +1,9 @@
-import type {
-  AssistantThreadsSetStatusArguments,
-  AssistantThreadsSetTitleArguments,
-  ChatPostMessageArguments,
-  ChatUpdateArguments,
-  ViewsOpenArguments,
-} from "@slack/web-api";
+import { type AssistantThreadsSetStatusArguments, type AssistantThreadsSetTitleArguments, type ChatPostMessageArguments, type ChatUpdateArguments, retryPolicies, type ViewsOpenArguments, WebClient } from "@slack/web-api";
 
-import { retryPolicies, WebClient } from "@slack/web-api";
 import { Duration, Effect, Layer, Schedule, Schema } from "effect";
 
-import type { PostedMessage, SlackClientShape } from "./client.ts";
+import { type PostedMessage, SlackApiError, SlackClient, type SlackClientShape, SlackConfigError } from "./client.ts";
 
-import { SlackApiError, SlackClient, SlackConfigError } from "./client.ts";
 import { resolveSlackProxyAgent } from "./proxy-agent.ts";
 
 const REQUEST_TIMEOUT_MS = 15_000;

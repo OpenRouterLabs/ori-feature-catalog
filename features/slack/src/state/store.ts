@@ -1,11 +1,9 @@
 import { Context, Effect, Ref, Schema } from "effect";
 
-import type { ThreadListen } from "#src/turn/listening/listen.ts";
-import type { InterruptMode } from "./settings.ts";
+import { type ThreadListen, UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
+import { DEFAULT_INTERRUPT_MODE, type InterruptMode } from "./settings.ts";
 
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
-import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
-import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
 const ThreadSessionSchema = Schema.Struct({
   sessionId: Schema.String,

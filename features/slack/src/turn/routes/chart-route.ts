@@ -1,15 +1,12 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { ChartRequest } from "#src/helpers/charts/chart-request.ts";
-import type { ChartRenderFailure } from "#src/helpers/charts/rasterise.ts";
+import { type ChartRequest, parseChartBody } from "#src/helpers/charts/chart-request.ts";
+import { type ChartRenderFailure, svgToPng } from "#src/helpers/charts/rasterise.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Refusal } from "./loopback-route.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
+import { type Refusal, loopbackRoute, refuse } from "./loopback-route.ts";
 
-import { parseChartBody } from "#src/helpers/charts/chart-request.ts";
 import { functionSchema } from "#src/schema-support.ts";
-import { svgToPng } from "#src/helpers/charts/rasterise.ts";
-import { loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_UNPROCESSABLE = 422;

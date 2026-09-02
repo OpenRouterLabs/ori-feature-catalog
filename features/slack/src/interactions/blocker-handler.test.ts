@@ -3,8 +3,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import type { BlockersShape } from "./blocker.ts";
-import type { InteractionPayload } from "./interactions.ts";
+import { BlockersMemory, type BlockersShape } from "./blocker.ts";
+import { type InteractionPayload, makeInteractions } from "./interactions.ts";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import {
@@ -12,8 +12,6 @@ import {
   encodeChoice,
 } from "#src/helpers/blockers/blockers.ts";
 import { registerBlockerHandlers } from "./blocker-handler.ts";
-import { BlockersMemory } from "./blocker.ts";
-import { makeInteractions } from "./interactions.ts";
 
 const click = (value: string, triggerId?: string): InteractionPayload => ({
   actions: [

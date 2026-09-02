@@ -3,9 +3,8 @@ import { Context, Effect, Ref, Schema } from "effect";
 import { functionSchema } from "#src/schema-support.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { RunState } from "./run-state.ts";
+import { RunPhase, type RunState, initialRunState } from "./run-state.ts";
 
-import { initialRunState, RunPhase } from "./run-state.ts";
 import { settle } from "./settle.ts";
 
 const RunOptionsSchema = Schema.Struct({

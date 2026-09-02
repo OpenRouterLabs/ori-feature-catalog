@@ -1,9 +1,8 @@
 import { Context, Effect, Schema } from "effect";
 
-import type { SlackApiError, SlackClientShape } from "#src/client/client.ts";
+import { type SlackApiError, SlackClient, type SlackClientShape } from "#src/client/client.ts";
 
 import { clampToWord } from "#src/clamp.ts";
-import { SlackClient } from "#src/client/client.ts";
 import { functionSchema } from "#src/schema-support.ts";
 
 export const PaneContextSchema = Schema.Struct({

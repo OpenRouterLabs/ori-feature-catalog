@@ -2,9 +2,8 @@
 
 import { Result, Schema } from "effect";
 
-import type { Question } from "./post-questions.ts";
+import { type Question, QuestionSchema, postQuestions } from "./post-questions.ts";
 
-import { postQuestions, QuestionSchema } from "./post-questions.ts";
 
 const usage = [
   "usage: slack-questions <intro> '<json>'",

@@ -1,12 +1,10 @@
 import { Effect, Fiber, Schema } from "effect";
 
-import type { RunState } from "#src/message-stream/run-state.ts";
-import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { type RunState, toolSummary } from "#src/message-stream/run-state.ts";
+import type { AssistantThreadsShape, ThreadRef } from "#src/thread/index.ts";
 
 import { clampToWord } from "#src/clamp.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
-import { toolSummary } from "#src/message-stream/run-state.ts";
 import { paneOf } from "./context/pane-context.ts";
 import { readLine } from "./live-line.ts";
 

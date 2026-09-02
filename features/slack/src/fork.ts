@@ -1,6 +1,5 @@
-import type { Context } from "effect";
+import { type Context, Effect } from "effect";
 
-import { Effect } from "effect";
 
 import type { SlackServices } from "./layers.ts";
 

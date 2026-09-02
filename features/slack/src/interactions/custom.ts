@@ -1,9 +1,8 @@
 import { Context, Effect, Schema } from "effect";
 
-import type { InteractionHandler, InteractionsShape } from "./interactions.ts";
+import { type InteractionHandler, Interactions, type InteractionsShape } from "./interactions.ts";
 
 import { featureState } from "#src/feature-state.ts";
-import { Interactions } from "./interactions.ts";
 
 const SlackButtonClickSchema = Schema.Struct({
   actionId: Schema.String,

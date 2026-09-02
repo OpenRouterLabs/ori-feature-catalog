@@ -1,19 +1,17 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import type { WebClient } from "@slack/web-api";
+import { type WebClient, retryPolicies } from "@slack/web-api";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { retryPolicies } from "@slack/web-api";
 import { Effect } from "effect";
 
-import type { SlackClientShape } from "./client.ts";
+import { SlackApiError, SlackClient, type SlackClientShape } from "./client.ts";
 
 import {
   SlackClientLive,
   makeConfiguredWebClient,
   readSlackBotToken,
 } from "./client-live.ts";
-import { SlackApiError, SlackClient } from "./client.ts";
 
 const stubClient = (impl: Record<string, unknown>): WebClient =>
   impl as unknown as WebClient;

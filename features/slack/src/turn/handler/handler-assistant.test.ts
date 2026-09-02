@@ -6,8 +6,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Layer } from "effect";
 
-import type { StateStoreShape } from "#src/state/store.ts";
-import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
+import { StateStore, StateStoreMemory, type StateStoreShape } from "#src/state/store.ts";
+import { AssistantThreads, type AssistantThreadsShape, ThreadContext, ThreadContextLive, keyOf } from "#src/thread/index.ts";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { Blockers, BlockersMemory } from "#src/interactions/blocker.ts";
@@ -19,9 +19,6 @@ import {
   MessageStream,
   MessageStreamLive,
 } from "#src/message-stream/stream.ts";
-import { StateStore, StateStoreMemory } from "#src/state/store.ts";
-import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
 import { handleTurn } from "./handler.ts";
 
 const ref = {

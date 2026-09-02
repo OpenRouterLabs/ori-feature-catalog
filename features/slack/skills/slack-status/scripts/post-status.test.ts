@@ -1,12 +1,7 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type {
-  PostStatusOutcome,
-  StatusEnv,
-  StatusPane,
-} from "./post-status.ts";
+import { postStatus, type PostStatusOutcome, type StatusEnv, type StatusPane } from "./post-status.ts";
 
-import { postStatus } from "./post-status.ts";
 
 const THREAD: StatusEnv = {
   SLACK_CHANNEL_ID: "C1",

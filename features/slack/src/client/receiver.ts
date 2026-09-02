@@ -1,8 +1,7 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
+import { type App, type Receiver, type ReceiverEvent, verifySlackRequest } from "@slack/bolt";
 
-import { verifySlackRequest } from "@slack/bolt";
 
 import { functionSchema } from "#src/schema-support.ts";
 

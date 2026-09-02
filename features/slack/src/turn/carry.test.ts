@@ -2,13 +2,10 @@ import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { StateStoreShape } from "#src/state/store.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { CarryResult } from "./carry.ts";
+import { StateStore, StateStoreMemory, type StateStoreShape } from "#src/state/store.ts";
+import { type ThreadRef, threadInstanceId } from "#src/thread/index.ts";
+import { CarryOutcome, type CarryResult, carrySession } from "./carry.ts";
 
-import { StateStore, StateStoreMemory } from "#src/state/store.ts";
-import { threadInstanceId } from "#src/thread/thread.ts";
-import { carrySession, CarryOutcome } from "./carry.ts";
 
 const FROM = {
   channelId: "C1",

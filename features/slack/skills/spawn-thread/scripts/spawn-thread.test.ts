@@ -1,18 +1,8 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Result, Schema } from "effect";
 
-import type { FetchLike } from "./spawn-thread.ts";
+import { checkDepth, DEFAULT_HTTP_PORT, dispatchToRunloop, type FetchLike, MAX_SPAWN_DEPTH, parseArgs, resolveHttpPort, runContinue, Subcommand } from "./spawn-thread.ts";
 
-import {
-  DEFAULT_HTTP_PORT,
-  MAX_SPAWN_DEPTH,
-  Subcommand,
-  checkDepth,
-  dispatchToRunloop,
-  parseArgs,
-  resolveHttpPort,
-  runContinue,
-} from "./spawn-thread.ts";
 
 const CallSchema = Schema.Struct({
   body: Schema.Record(Schema.String, Schema.mutableKey(Schema.Unknown)),

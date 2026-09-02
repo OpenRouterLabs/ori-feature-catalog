@@ -2,10 +2,9 @@ import { Effect } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { StateStoreShape } from "#src/state/store.ts";
+import { StateStoreMemory, type StateStoreShape } from "#src/state/store.ts";
 
 import { InterruptMode } from "#src/state/settings.ts";
-import { StateStoreMemory } from "#src/state/store.ts";
 import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
 import { dashboardResponse } from "./dashboard.ts";
 

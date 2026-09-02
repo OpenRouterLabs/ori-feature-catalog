@@ -1,8 +1,7 @@
 import { Schema } from "effect";
 
-import type { FlowEdge, FlowNode } from "./flow.ts";
+import { type FlowEdge, FlowEdgeSchema, type FlowNode, FlowNodeSchema } from "./flow.ts";
 
-import { FlowEdgeSchema, FlowNodeSchema } from "./flow.ts";
 
 const NODE = /^([A-Za-z0-9_.-]+)(?:(\[|\{|\()(.*?)(\]|\}|\)))?$/u;
 

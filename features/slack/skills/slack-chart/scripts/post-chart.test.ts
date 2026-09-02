@@ -2,9 +2,8 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Schema } from "effect";
 
-import type { PostChartEnv } from "./post-chart.ts";
+import { type PostChartEnv, postChart } from "./post-chart.ts";
 
-import { postChart } from "./post-chart.ts";
 
 const THREAD: PostChartEnv = {
   ORI_RUNTIME_PORT: "4000",

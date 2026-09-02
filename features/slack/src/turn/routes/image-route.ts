@@ -1,13 +1,11 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { GeneratedImage } from "#src/helpers/images-ai/generate.ts";
+import { type GeneratedImage, generateImage } from "#src/helpers/images-ai/generate.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Refusal } from "./loopback-route.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
+import { type Refusal, loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
-import { generateImage } from "#src/helpers/images-ai/generate.ts";
 import { functionSchema } from "#src/schema-support.ts";
-import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_PROMPT_CHARS = 1000;
 const MAX_FILENAME_CHARS = 48;

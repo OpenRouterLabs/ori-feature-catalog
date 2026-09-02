@@ -3,9 +3,8 @@ import { afterEach, describe, expect, test } from "#src/test-support/effect-test
 
 import { Effect } from "effect";
 
-import type { RawStubs } from "#src/client/client-test-support.ts";
+import { type RawStubs, makeFakeSlackClient } from "#src/client/client-test-support.ts";
 
-import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { uploadFile } from "./upload.ts";
 
 const ORIGINAL_FETCH = globalThis.fetch;

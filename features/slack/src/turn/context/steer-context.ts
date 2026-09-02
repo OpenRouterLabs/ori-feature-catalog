@@ -1,4 +1,4 @@
-import { sanitizeThreadContent } from "#src/thread/thread.ts";
+import { sanitizeThreadContent } from "#src/thread/index.ts";
 
 export const steerContextBlock = (priorAsk?: string): string => {
   const ask = (priorAsk ?? "").trim();

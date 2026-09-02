@@ -3,9 +3,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import type { GenerateOutcome } from "./generate.ts";
+import { type GenerateOutcome, decodeDataUrl, generateImage } from "./generate.ts";
 
-import { decodeDataUrl, generateImage } from "./generate.ts";
 
 const PIXEL =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

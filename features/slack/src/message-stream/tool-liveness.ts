@@ -1,6 +1,5 @@
-import type { RunState } from "./run-state.ts";
+import { type RunState, withTool } from "./run-state.ts";
 
-import { withTool } from "./run-state.ts";
 
 export const startedTool = (state: RunState, tool: string): RunState => ({
   ...withTool(state, tool),

@@ -3,12 +3,11 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import type { PendingForm } from "./questionnaires.ts";
+import { type PendingForm, QuestionnairesMemory } from "./questionnaires.ts";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { blockIdFor, callbackFor } from "#src/helpers/blockers/questions.ts";
 import { makeInteractions } from "./interactions.ts";
-import { QuestionnairesMemory } from "./questionnaires.ts";
 import {
   answersPrompt,
   registerQuestionHandlers,

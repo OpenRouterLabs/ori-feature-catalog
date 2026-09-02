@@ -4,11 +4,10 @@ import type { WebClient } from "@slack/web-api";
 
 import { Effect, Layer, Schema } from "effect";
 
-import type { SlackClientShape } from "./client.ts";
+import { SlackClient, type SlackClientShape, SlackClientShapeSchema } from "./client.ts";
 
 import { opaqueSchema } from "#src/schema-support.ts";
 
-import { SlackClient, SlackClientShapeSchema } from "./client.ts";
 
 const RecordedCallSchema = Schema.Struct({
   args: Schema.Unknown,

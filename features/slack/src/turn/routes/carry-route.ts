@@ -1,9 +1,8 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { CarryResult } from "#src/turn/carry.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
+import { CarryOutcome, type CarryResult } from "#src/turn/carry.ts";
 
-import { CarryOutcome } from "#src/turn/carry.ts";
 import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_CONFLICT = 409;

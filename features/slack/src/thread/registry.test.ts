@@ -1,20 +1,9 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import { beforeEach, describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { LiveTurn } from "./registry.ts";
+import { cancelAll, cancelTurn, drain, enqueue, isBusy, type LiveTurn, resetRegistry, threadCount, TURN_SHUTDOWN_REASON, TURN_TIMEOUT_REASON } from "./registry.ts";
 
 import { deferred } from "./registry-test-support.ts";
-import {
-  cancelAll,
-  cancelTurn,
-  drain,
-  enqueue,
-  isBusy,
-  resetRegistry,
-  threadCount,
-  TURN_SHUTDOWN_REASON,
-  TURN_TIMEOUT_REASON,
-} from "./registry.ts";
 
 describe("registry growth", () => {
   test("forgets a thread once nothing is queued for it", async () => {

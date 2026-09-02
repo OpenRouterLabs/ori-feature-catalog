@@ -2,9 +2,8 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Schema } from "effect";
 
-import type { PostImageEnv } from "./post-image.ts";
+import { type PostImageEnv, postImage } from "./post-image.ts";
 
-import { postImage } from "./post-image.ts";
 
 const THREAD: PostImageEnv = {
   ORI_RUNTIME_PORT: "4000",

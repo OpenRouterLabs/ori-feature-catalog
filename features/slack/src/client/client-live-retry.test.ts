@@ -5,10 +5,9 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect } from "effect";
 
-import type { SlackClientShape, SlackApiError } from "./client.ts";
+import { type SlackApiError, SlackClient, type SlackClientShape } from "./client.ts";
 
 import { SlackClientLive } from "./client-live.ts";
-import { SlackClient } from "./client.ts";
 
 const stubClient = (impl: Record<string, unknown>): WebClient =>
   impl as unknown as WebClient;

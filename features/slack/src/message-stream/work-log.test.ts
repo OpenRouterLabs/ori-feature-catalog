@@ -1,16 +1,8 @@
 /* oxlint-disable typescript/explicit-function-return-type -- the fixtures build states, and their shapes are inferred */
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import type { RunState } from "./run-state.ts";
+import { appendLine, initialRunState, renderRunState, renderWorkLog, RunPhase, type RunState, withTool } from "./run-state.ts";
 
-import {
-  initialRunState,
-  renderRunState,
-  renderWorkLog,
-  RunPhase,
-  withTool,
-  appendLine,
-} from "./run-state.ts";
 
 const logged = (state: RunState, line: string, now?: number): RunState => ({
   ...state,

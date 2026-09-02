@@ -1,9 +1,8 @@
 import { Effect } from "effect";
 
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { type ThreadRef, threadInstanceId } from "#src/thread/index.ts";
 
 import { StateStore } from "#src/state/store.ts";
-import { threadInstanceId } from "#src/thread/thread.ts";
 import { engage, mute } from "./listening/listen.ts";
 
 export const CarryOutcome = {

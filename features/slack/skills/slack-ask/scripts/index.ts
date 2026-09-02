@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 
-import type { AskChoice } from "./post-ask.ts";
+import { type AskChoice, parseChoice, postAsk } from "./post-ask.ts";
 
-import { parseChoice, postAsk } from "./post-ask.ts";
 
 const args = process.argv.slice(2);
 const choices: AskChoice[] = [];

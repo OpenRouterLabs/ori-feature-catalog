@@ -3,9 +3,8 @@ import { Result, Schema } from "effect";
 
 import type { WebClient } from "@slack/web-api";
 
-import type { SlackMember } from "./list-users.ts";
+import { type SlackMember, filterMembersBySearch, listUsers } from "./list-users.ts";
 
-import { filterMembersBySearch, listUsers } from "./list-users.ts";
 
 const UsersListArgsSchema = Schema.Struct({
   cursor: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),

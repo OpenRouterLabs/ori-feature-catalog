@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { sanitizeThreadContent } from "#src/thread/thread.ts";
+import { sanitizeThreadContent } from "#src/thread/index.ts";
 
 const SlackFileSchema = Schema.Struct({
   filetype: Schema.optionalKey(Schema.NullOr(Schema.String)),

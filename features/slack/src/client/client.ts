@@ -6,9 +6,8 @@ import type {
   ViewsOpenArguments,
   WebClient,
 } from "@slack/web-api";
-import type { Effect } from "effect";
+import { Context, type Effect, Schema } from "effect";
 
-import { Context, Schema } from "effect";
 
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 

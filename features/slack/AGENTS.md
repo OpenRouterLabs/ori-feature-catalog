@@ -22,6 +22,16 @@ Everything downstream goes through the Effect context the runtime carries. `onBu
 
 `src/feature-state.test.ts` builds the module twice, the way the loader does, and asserts the state crosses. Against a module-level binding it fails -- that is the shape #31 shipped, and it took the surface down on every intern.
 
+## A directory index is a door, or it is not there
+
+`src/thread/index.ts` is the contract for the thread subsystem: 39 files enter through it and nothing reaches past it into `registry.ts`, `thread.ts` or `assistant.ts`. `src/index.test.ts` fails if anything does. That enforcement is the whole difference between a door and a re-export file -- a barrel is optional, so it gets bypassed, and 46 imports were bypassing this one before.
+
+Two directories that both aggregate and reference each other form an import cycle. `client/index.ts` re-exported `surface-events.ts`, which imports `thread`, which imports the client back; routing thread through a door turned that into `import/no-cycle` immediately. Only one side of a mutual dependency can be a door, which is why `client/` has none.
+
+`client <-> interactions` and `client <-> thread` are the only mutual pairs in the feature. Every other directory is free to become a door.
+
+Test scaffolding is not part of the contract. A sibling's test may import `*-test-support.ts` directly, and the door test exempts it.
+
 ## More than four files on one topic is a folder
 
 A directory is for reading, not for filing. Once a topic reaches five files — counting its tests and test support, because those are what you scroll past looking for the source — it gets its own folder, and the parent gets shorter.

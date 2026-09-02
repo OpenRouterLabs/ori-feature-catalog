@@ -3,9 +3,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Schema } from "effect";
 
-import type { InteractionPayload } from "./interactions.ts";
+import { type InteractionPayload, makeInteractions } from "./interactions.ts";
 
-import { makeInteractions } from "./interactions.ts";
 import {
   ELICITATION_ACTION_ID,
   PERMISSION_ACTION_ID,

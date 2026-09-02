@@ -8,7 +8,7 @@ import {
   AssistantThreads,
   keyOf,
   PaneContextSchema,
-} from "#src/thread/assistant.ts";
+} from "#src/thread/index.ts";
 
 const PaneSchema = Schema.Struct({
   key: Schema.String,

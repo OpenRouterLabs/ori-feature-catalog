@@ -2,13 +2,10 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import type { ThreadListen } from "#src/turn/listening/listen.ts";
-import type { InterruptMode } from "./settings.ts";
-import type { StateStoreShape, ThreadRow, ThreadSession } from "./store.ts";
+import { type ThreadListen, UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
+import { type InterruptMode, interruptModeFrom } from "./settings.ts";
+import { StateStore, type StateStoreShape, type ThreadRow, type ThreadSession } from "./store.ts";
 
-import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
-import { interruptModeFrom } from "./settings.ts";
-import { StateStore } from "./store.ts";
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS slack_sessions (

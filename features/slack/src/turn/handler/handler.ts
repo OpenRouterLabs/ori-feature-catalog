@@ -6,40 +6,23 @@ import { bestEffort } from "#src/helpers/best-effort.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { RunState } from "#src/message-stream/run-state.ts";
-import type { RunOptions } from "#src/message-stream/stream.ts";
-import type { StateStoreShape } from "#src/state/store.ts";
-import type {
-  AssistantThreadsShape,
-  PaneContext,
-} from "#src/thread/assistant.ts";
-import type { LiveTurn } from "#src/thread/registry.ts";
-import type { PendingApprovals, SessionSlot } from "#src/turn/run-events.ts";
-import type { IncomingTurn } from "#src/turn/turn-input.ts";
+import { RunPhase, type RunState, initialRunState } from "#src/message-stream/run-state.ts";
+import { MessageStream, type RunOptions } from "#src/message-stream/stream.ts";
+import { StateStore, type StateStoreShape } from "#src/state/store.ts";
+import { AssistantThreads, type AssistantThreadsShape, hasSuccessor, type LiveTurn, type PaneContext, ThreadContext, threadInstanceId, TURN_SHUTDOWN_REASON, TURN_STEER_REASON, TURN_TIMEOUT_REASON } from "#src/thread/index.ts";
+import { AgentStreamEnded, type PendingApprovals, type SessionSlot, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
+import { type IncomingTurn, IncomingTurnSchema, turnEnv } from "#src/turn/turn-input.ts";
 
 import { Blockers } from "#src/interactions/blocker.ts";
 import { permissionResolvedBlocks } from "#src/interactions/permissions.ts";
 import { makeMessageReply } from "#src/message-reply/reply-live.ts";
 import { answerText } from "#src/message-stream/answer-text.ts";
-import { RunPhase, initialRunState } from "#src/message-stream/run-state.ts";
-import { MessageStream } from "#src/message-stream/stream.ts";
-import { StateStore } from "#src/state/store.ts";
-import { AssistantThreads } from "#src/thread/assistant.ts";
-import {
-  hasSuccessor,
-  TURN_STEER_REASON,
-  TURN_SHUTDOWN_REASON,
-  TURN_TIMEOUT_REASON,
-} from "#src/thread/registry.ts";
-import { threadInstanceId, ThreadContext } from "#src/thread/thread.ts";
 import { openPane, paneContextBlock } from "#src/turn/context/pane-context.ts";
 import { steerContextBlock } from "#src/turn/context/steer-context.ts";
 import { toolContextBlock } from "#src/turn/context/tool-context.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "#src/turn/reply-style.ts";
 import { retireTurn } from "#src/turn/retire-turn.ts";
-import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
 import { beatStatus } from "#src/turn/status-beat.ts";
-import { IncomingTurnSchema, turnEnv } from "#src/turn/turn-input.ts";
 
 const retirePending = Effect.fn("Slack.turn.retirePending")(function* (
   pending: PendingApprovals,

@@ -1,7 +1,7 @@
 import { Effect, Result, Schema } from "effect";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
 import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";

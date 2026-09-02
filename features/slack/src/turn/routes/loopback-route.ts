@@ -1,6 +1,6 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { ThreadRef } from "#src/thread/thread.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
 

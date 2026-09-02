@@ -1,8 +1,7 @@
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import { type SlackBlock, actions, button, section } from "#src/helpers/block-kit/blocks.ts";
 
 import { Schema } from "effect";
 
-import { actions, button, section } from "#src/helpers/block-kit/blocks.ts";
 
 export const BLOCKER_ACTION_ID = "ori_blocker_choice";
 

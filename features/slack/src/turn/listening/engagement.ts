@@ -1,29 +1,14 @@
 import { Effect, Schema } from "effect";
 
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { ThreadListen } from "./listen.ts";
+import { type ThreadRef, ThreadRefSchema } from "#src/thread/index.ts";
+import { addressesSomeoneElse, answersUnaddressed, engage, isCrowded, isStopRequest, isUnmuteRequest, mute, participantOf, standDown, type ThreadListen, unmute, UNMUTED_NOTE, withParticipant } from "./listen.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
-import { ThreadRefSchema } from "#src/thread/thread.ts";
 import {
   admitMessage,
   GateContextSchema,
   IncomingMessageSchema,
 } from "./gates.ts";
-import {
-  addressesSomeoneElse,
-  answersUnaddressed,
-  engage,
-  isStopRequest,
-  isCrowded,
-  isUnmuteRequest,
-  mute,
-  participantOf,
-  standDown,
-  UNMUTED_NOTE,
-  unmute,
-  withParticipant,
-} from "./listen.ts";
 
 type TurnVerdict = "run" | "drop";
 

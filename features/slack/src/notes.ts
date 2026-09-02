@@ -4,14 +4,12 @@ import { bestEffort } from "./helpers/best-effort.ts";
 
 import type { SlackConfig } from "./config.ts";
 import type { SlackServices } from "./layers.ts";
-import type { ThreadRef } from "./thread/thread.ts";
+import { AssistantThreads, type ThreadRef, cancelThread } from "./thread/index.ts";
 import type { EngagementDeps } from "./turn/listening/engagement.ts";
 
-import type { SlackClient } from "./client/index.ts";
+import type { SlackClient } from "./client/client.ts";
 import { makeMessageReply } from "./message-reply/reply-live.ts";
 import { StateStore } from "./state/store.ts";
-import { AssistantThreads } from "./thread/assistant.ts";
-import { cancelThread } from "./thread/registry.ts";
 import { gateContextOf } from "./turn/listening/gates.ts";
 
 const postNote = Effect.fn("Slack.notes.post")(function* (

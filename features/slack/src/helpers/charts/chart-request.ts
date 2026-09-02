@@ -1,12 +1,8 @@
 import { Result, Schema } from "effect";
 
-import type {
-  FlowEdge as FlowEdgeInput,
-  FlowNode as FlowNodeInput,
-} from "./flow.ts";
+import { flowChartSvg, type FlowEdge as FlowEdgeInput, type FlowNode as FlowNodeInput, MAX_NODES, MAX_ROW_WIDTH, widestRow } from "./flow.ts";
 
 import { barChartSvg } from "./charts.ts";
-import { flowChartSvg, MAX_NODES, MAX_ROW_WIDTH, widestRow } from "./flow.ts";
 import { parseGraphSource } from "./graph-source.ts";
 
 const MAX_ROWS = 24;

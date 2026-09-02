@@ -1,8 +1,7 @@
 import { Effect, Schema } from "effect";
 
-import type { SlackClientShape } from "#src/client/index.ts";
+import { SlackApiError, SlackClient, type SlackClientShape } from "#src/client/client.ts";
 
-import { SlackApiError, SlackClient } from "#src/client/index.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 
 const FileUploadSchema = Schema.Struct({

@@ -1,17 +1,11 @@
 import { Effect } from "effect";
 
-import type { PostedMessage, SlackApiError } from "#src/client/index.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
-import type {
-  FileUpload,
-  UploadedFile,
-} from "#src/helpers/images-files/upload.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { type PostedMessage, type SlackApiError, SlackClient } from "#src/client/client.ts";
+import { type SlackBlock, capBlocks, withinSlackLimit } from "#src/helpers/block-kit/blocks.ts";
+import { type FileUpload, type UploadedFile, uploadFile } from "#src/helpers/images-files/upload.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
 import type { MessageReplyShape } from "./reply.ts";
 
-import { SlackClient } from "#src/client/index.ts";
-import { capBlocks, withinSlackLimit } from "#src/helpers/block-kit/blocks.ts";
-import { uploadFile } from "#src/helpers/images-files/upload.ts";
 
 export const makeMessageReply = Effect.fn("Slack.reply.make")(function* (
   ref: ThreadRef

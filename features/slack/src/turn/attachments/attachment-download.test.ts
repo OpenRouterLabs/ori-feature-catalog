@@ -12,15 +12,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import type { DownloadableFile } from "./attachment-download.ts";
+import { attachmentDirFor, discardAttachments, type DownloadableFile, downloadAttachments, isAllowedFileUrl, safeFileName } from "./attachment-download.ts";
 
-import {
-  attachmentDirFor,
-  discardAttachments,
-  downloadAttachments,
-  isAllowedFileUrl,
-  safeFileName,
-} from "./attachment-download.ts";
 
 const dirs: string[] = [];
 const scratch = async (): Promise<string> => {

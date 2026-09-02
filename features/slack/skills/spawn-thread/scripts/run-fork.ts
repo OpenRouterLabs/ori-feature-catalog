@@ -2,10 +2,9 @@ import { Result, Schema } from "effect";
 
 import type { FetchLike } from "./spawn-thread.ts";
 import type { postMessage } from "./post-message.ts";
-import type { SpawnedThread } from "./run-new.ts";
+import { type SpawnedThread, SpawnedThreadSchema, runNew } from "./run-new.ts";
 import type { updateMessage } from "./update-message.ts";
 
-import { runNew, SpawnedThreadSchema } from "./run-new.ts";
 
 export const MAX_FORK = 5;
 

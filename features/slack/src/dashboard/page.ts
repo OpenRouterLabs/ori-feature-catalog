@@ -1,7 +1,6 @@
-import type { InterruptMode } from "#src/state/settings.ts";
+import { type InterruptMode, InterruptMode as Mode } from "#src/state/settings.ts";
 import type { ThreadRow } from "#src/state/store.ts";
 
-import { InterruptMode as Mode } from "#src/state/settings.ts";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;

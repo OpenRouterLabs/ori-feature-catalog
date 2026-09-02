@@ -17,11 +17,7 @@ import {
 } from "#src/message-stream/stream.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 import { StateStore, StateStoreMemory } from "#src/state/store.ts";
-import {
-  AssistantThreads,
-  AssistantThreadsLive,
-} from "#src/thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
+import { AssistantThreads, AssistantThreadsLive, ThreadContext, ThreadContextLive } from "#src/thread/index.ts";
 import { handleTurn } from "./handler.ts";
 
 const ref = {

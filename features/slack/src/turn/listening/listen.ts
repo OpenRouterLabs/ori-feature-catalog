@@ -1,8 +1,7 @@
 import { Schema } from "effect";
 
-import type { GateContext, IncomingMessage } from "./gates.ts";
+import { type GateContext, type IncomingMessage, asideOf } from "./gates.ts";
 
-import { asideOf } from "./gates.ts";
 
 const CROWD_LIMIT = 1;
 

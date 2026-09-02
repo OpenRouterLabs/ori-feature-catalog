@@ -1,15 +1,10 @@
 import { Effect, Schema } from "effect";
 
-import type {
-  InteractionPayload,
-  ViewSubmissionPayload,
-} from "./interactions.ts";
-import type { PendingForm } from "./questionnaires.ts";
+import { type InteractionPayload, InteractionsShapeSchema, type ViewSubmissionPayload } from "./interactions.ts";
+import { type PendingForm, QuestionnairesShapeSchema } from "./questionnaires.ts";
 
 import { SlackClientShapeSchema } from "#src/client/client.ts";
 import { functionSchema } from "#src/schema-support.ts";
-import { InteractionsShapeSchema } from "./interactions.ts";
-import { QuestionnairesShapeSchema } from "./questionnaires.ts";
 
 import {
   askIdFromQuestionsCallback,

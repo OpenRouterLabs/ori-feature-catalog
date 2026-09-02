@@ -4,9 +4,8 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Result, Schema } from "effect";
 
-import type { Addressed } from "./loopback-route.ts";
+import { type Addressed, loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
-import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const Body = Schema.Struct({
   ...threadFields,

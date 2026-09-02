@@ -2,13 +2,12 @@ import { Option, Result, Schema } from "effect";
 
 import type { KnownBlock } from "@slack/types";
 
-import type { FetchLike } from "./spawn-thread.ts";
+import { type FetchLike, dispatchToRunloop } from "./spawn-thread.ts";
 
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { isString } from "#skills/slack-api/scripts/result.ts";
 import { buildSlackThreadUrl } from "./guards.ts";
 import { postMessage } from "./post-message.ts";
-import { dispatchToRunloop } from "./spawn-thread.ts";
 import { updateMessage } from "./update-message.ts";
 
 const ANCHOR_PLACEHOLDER_TEXT = ":link: _spawning a new thread…_";

@@ -4,7 +4,7 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Effect } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
-import { TURN_TIMEOUT_REASON } from "#src/thread/registry.ts";
+import { TURN_TIMEOUT_REASON } from "#src/thread/index.ts";
 import {
   bridgeOf,
   event,

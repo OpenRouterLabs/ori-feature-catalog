@@ -1,15 +1,8 @@
 import { Schema } from "effect";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import { actions, button, choiceInput, inputBlock, section, type SlackBlock } from "#src/helpers/block-kit/blocks.ts";
 import type { ModalView } from "#src/helpers/modals/modals.ts";
 
-import {
-  actions,
-  button,
-  choiceInput,
-  inputBlock,
-  section,
-} from "#src/helpers/block-kit/blocks.ts";
 
 export const QUESTIONS_ACTION_ID = "ori_questions_open";
 export const QUESTIONS_MODAL_CALLBACK = "ori_questions_form";

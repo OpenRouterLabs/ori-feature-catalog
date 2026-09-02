@@ -2,7 +2,8 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Layer, Schema } from "effect";
 
-import { makeSlackClientFromToken, SlackClient } from "./client/index.ts";
+import { makeSlackClientFromToken } from "./client/client-live.ts";
+import { SlackClient } from "./client/client.ts";
 import { Blockers, BlockersMemory } from "./interactions/blocker.ts";
 import { Interactions, makeInteractions } from "./interactions/interactions.ts";
 import {
@@ -13,8 +14,7 @@ import { MessageStream, MessageStreamLive } from "./message-stream/stream.ts";
 import { opaqueSchema } from "./schema-support.ts";
 import { StateStoreDurable } from "./state/store-durable.ts";
 import { StateStore, StateStoreMemory } from "./state/store.ts";
-import { AssistantThreads, AssistantThreadsLive } from "./thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "./thread/thread.ts";
+import { AssistantThreads, AssistantThreadsLive, ThreadContext, ThreadContextLive } from "./thread/index.ts";
 
 export type SlackServices =
   | AssistantThreads

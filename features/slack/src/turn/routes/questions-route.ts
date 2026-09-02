@@ -1,15 +1,14 @@
 import { Effect, Result, Schema } from "effect";
 
 import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Refusal } from "./loopback-route.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
+import { type Refusal, loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 import {
   QuestionsSchema,
   questionsBlocks,
 } from "#src/helpers/blockers/questions.ts";
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
-import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_NOT_FOUND = 404;

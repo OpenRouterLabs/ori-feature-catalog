@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
 
-import { SlackClient } from "#src/client/index.ts";
+import { SlackClient } from "#src/client/client.ts";
 
 const MAX_CACHED_NAMES = 1000;
 

@@ -1,11 +1,9 @@
 import { Effect } from "effect";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import { type SlackBlock, context, markdown } from "#src/helpers/block-kit/blocks.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
-import type { RunState } from "./run-state.ts";
+import { RunPhase, type RunState, minutesSince, renderRunState } from "./run-state.ts";
 
-import { context, markdown } from "#src/helpers/block-kit/blocks.ts";
-import { RunPhase, minutesSince, renderRunState } from "./run-state.ts";
 
 const SUPERSEDED: ReadonlySet<RunPhase> = new Set([RunPhase.Steered]);
 

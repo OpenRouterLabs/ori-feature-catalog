@@ -5,31 +5,24 @@ import { Context, Effect, Layer, Schema, Scope } from "effect";
 
 import { bestEffort } from "./helpers/best-effort.ts";
 
-import type { SlackClientShape } from "./client/index.ts";
+import { SlackClient, type SlackClientShape, SlackClientShapeSchema } from "./client/client.ts";
 import type { RawSlackMessage } from "./client/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
-import type { SlackConfig } from "./config.ts";
-import type {
-  InteractionPayload,
-  InteractionsShape,
-  ViewSubmissionPayload,
-} from "./interactions/interactions.ts";
-import type { SlackServices } from "./layers.ts";
-import type { ThreadRef } from "./thread/thread.ts";
+import { type SlackConfig, readSlackConfig } from "./config.ts";
+import { type InteractionPayload, Interactions, type InteractionsShape, type ViewSubmissionPayload } from "./interactions/interactions.ts";
+import { SlackDefaultLayers, type SlackServices } from "./layers.ts";
+import { type ThreadRef, cancelTurn } from "./thread/index.ts";
 import type { IncomingMessage } from "./turn/listening/gates.ts";
-import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
+import { type TurnRouteDeps, type TurnRoutes, makeTurnRoutes } from "./turn/turn-routes.ts";
 
-import { makeSurfaceEventHandlers, SlackClient } from "./client/index.ts";
-import { SlackClientShapeSchema } from "./client/client.ts";
+import { makeSurfaceEventHandlers } from "./client/surface-events.ts";
 import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
 import { makeDashboardRoute } from "./dashboard/dashboard.ts";
-import { readSlackConfig } from "./config.ts";
 import { forkWith } from "./fork.ts";
 import { functionSchema, opaqueSchema } from "./schema-support.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
 import { registerCustomButtons } from "./interactions/custom.ts";
 import { Blockers } from "./interactions/blocker.ts";
-import { Interactions } from "./interactions/interactions.ts";
 import {
   registerCancelHandler,
   registerPermissionHandlers,
@@ -37,7 +30,6 @@ import {
 import { Questionnaires } from "./interactions/questionnaires.ts";
 import { registerQuestionHandlers } from "./interactions/questions-handler.ts";
 import { StateStore } from "./state/store.ts";
-import { SlackDefaultLayers } from "./layers.ts";
 import { setLoadingEmoji } from "./message-stream/run-state.ts";
 import {
   engagementDeps,
@@ -45,8 +37,6 @@ import {
   sayFailed,
   startStatus,
 } from "./notes.ts";
-import { cancelTurn } from "./thread/registry.ts";
-import { makeTurnRoutes } from "./turn/turn-routes.ts";
 
 const SlackLoggerSchema = Schema.Struct({
   error:

@@ -2,7 +2,7 @@ import type { Chat } from "ori";
 
 import { Cause, Context, Effect, Schema } from "effect";
 
-import type { PostedMessage, SlackClient } from "#src/client/index.ts";
+import type { PostedMessage, SlackClient } from "#src/client/client.ts";
 import type { RawSlackMessage } from "#src/client/listeners.ts";
 import type { SlackConfig } from "#src/config.ts";
 import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
@@ -10,23 +10,15 @@ import type { SlackLogger } from "#src/index.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
 import type { SlackServices } from "#src/layers.ts";
-import type { InterruptMode as InterruptModeType } from "#src/state/settings.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { EngagementDeps } from "./listening/engagement.ts";
+import { InterruptMode, type InterruptMode as InterruptModeType } from "#src/state/settings.ts";
+import { type ThreadRef, ThreadRefSchema, enqueue, isBusy, steerThread, threadInstanceId } from "#src/thread/index.ts";
+import { claimStart, considerTurn, type EngagementDeps, EngagementDepsSchema } from "./listening/engagement.ts";
 import type { IncomingMessage } from "./listening/gates.ts";
 
 import { makeMessageReply } from "#src/message-reply/reply-live.ts";
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
-import { InterruptMode } from "#src/state/settings.ts";
 import { StateStore } from "#src/state/store.ts";
-import { enqueue, isBusy, steerThread } from "#src/thread/registry.ts";
-import { ThreadRefSchema, threadInstanceId } from "#src/thread/thread.ts";
 import { withAttachments } from "./attachments/attachments.ts";
-import {
-  claimStart,
-  considerTurn,
-  EngagementDepsSchema,
-} from "./listening/engagement.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 import { carrySession } from "./carry.ts";

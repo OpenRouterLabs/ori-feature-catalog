@@ -5,9 +5,8 @@ import { Effect, Schema } from "effect";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { ChartFontOptions } from "./fonts.ts";
+import { type ChartFontOptions, FONT_DIR_CANDIDATES, discoverChartFonts } from "./fonts.ts";
 
-import { discoverChartFonts, FONT_DIR_CANDIDATES } from "./fonts.ts";
 
 const RENDER_WIDTH = 1440;
 

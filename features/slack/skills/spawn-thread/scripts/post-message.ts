@@ -1,6 +1,5 @@
-import type { Option } from "effect";
+import { type Option, Result, Schema } from "effect";
 
-import { Result, Schema } from "effect";
 
 import type { KnownBlock } from "@slack/types";
 

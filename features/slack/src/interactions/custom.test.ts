@@ -8,7 +8,7 @@ import {
 import { Context, Effect } from "effect";
 
 import type { SlackRuntime } from "#src/index.ts";
-import type { InteractionPayload } from "./interactions.ts";
+import { type InteractionPayload, Interactions, makeInteractions } from "./interactions.ts";
 
 import { featureState } from "#src/feature-state.ts";
 
@@ -18,7 +18,6 @@ import {
   registeredButtonIds,
   resetCustomButtons,
 } from "./custom.ts";
-import { Interactions, makeInteractions } from "./interactions.ts";
 
 const click = (
   actionId: string,

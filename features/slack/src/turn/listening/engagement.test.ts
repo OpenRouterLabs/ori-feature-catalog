@@ -2,14 +2,12 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
 import { Effect, Schema } from "effect";
 
-import type { ThreadRef } from "#src/thread/thread.ts";
-import type { EngagementInput } from "./engagement.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
+import { EngagementDepsSchema, type EngagementInput, considerTurn } from "./engagement.ts";
 import type { GateContext, IncomingMessage } from "./gates.ts";
-import type { ThreadListen } from "./listen.ts";
+import { type ThreadListen, UNSEEN_THREAD } from "./listen.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
-import { considerTurn, EngagementDepsSchema } from "./engagement.ts";
-import { UNSEEN_THREAD } from "./listen.ts";
 
 const BOT = "U0SELF00";
 const REF: ThreadRef = {

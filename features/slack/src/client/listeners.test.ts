@@ -6,12 +6,8 @@ import { Schema } from "effect";
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 
-import type {
-  RawAssistantThreadStarted,
-  RawSlackMessage,
-} from "./listeners.ts";
+import { type RawAssistantThreadStarted, type RawSlackMessage, registerListeners } from "./listeners.ts";
 
-import { registerListeners } from "./listeners.ts";
 
 type Handler = (args: { readonly event: unknown }) => Promise<void>;
 

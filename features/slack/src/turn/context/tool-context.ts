@@ -1,4 +1,4 @@
-import type { ThreadRef } from "#src/thread/thread.ts";
+import type { ThreadRef } from "#src/thread/index.ts";
 
 export const toolContextBlock = (ref: ThreadRef): string =>
   [

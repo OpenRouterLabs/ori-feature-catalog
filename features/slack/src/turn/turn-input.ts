@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { ThreadRefSchema } from "#src/thread/thread.ts";
+import { ThreadRefSchema } from "#src/thread/index.ts";
 
 export const IncomingTurnSchema = Schema.Struct({
   attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),

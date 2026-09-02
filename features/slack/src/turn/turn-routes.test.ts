@@ -10,14 +10,12 @@ import {
 import { Effect } from "effect";
 
 import type { SlackServices } from "#src/layers.ts";
-import type { TurnRouteDeps } from "./turn-routes.ts";
+import { type TurnRouteDeps, makeTurnRoutes } from "./turn-routes.ts";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { deferred } from "#src/thread/registry-test-support.ts";
-import { enqueue, resetRegistry } from "#src/thread/registry.ts";
-import { threadInstanceId } from "#src/thread/thread.ts";
-import { makeTurnRoutes } from "./turn-routes.ts";
+import { enqueue, resetRegistry, threadInstanceId } from "#src/thread/index.ts";
 
 const REF = {
   channelId: "C1",
