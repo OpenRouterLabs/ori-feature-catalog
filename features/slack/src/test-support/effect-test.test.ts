@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit } from "effect";
+import { Effect, Exit } from "effect";
 
 import { asThrowable, describe, expect, test } from "#src/test-support/effect-test.ts";
 

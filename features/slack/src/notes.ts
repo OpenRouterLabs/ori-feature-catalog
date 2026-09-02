@@ -7,7 +7,7 @@ import type { SlackServices } from "./layers.ts";
 import type { ThreadRef } from "./thread/thread.ts";
 import type { EngagementDeps } from "./turn/listening/engagement.ts";
 
-import { SlackClient } from "./client/index.ts";
+import type { SlackClient } from "./client/index.ts";
 import { makeMessageReply } from "./message-reply/reply-live.ts";
 import { StateStore } from "./state/store.ts";
 import { AssistantThreads } from "./thread/assistant.ts";
