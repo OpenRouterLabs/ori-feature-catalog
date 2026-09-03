@@ -1,6 +1,6 @@
 import { Effect, Exit } from "effect";
 
-import { asThrowable, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { asThrowable, describe, expect, test } from "#src/test-support/index.ts";
 
 const causeOf = async (effect: Effect.Effect<unknown, unknown>) => {
   const exit = await Effect.runPromiseExit(effect);

@@ -42,17 +42,15 @@ It is not a re-export file. Callers still import the module that owns a name; a 
 
 A directory earns one when it has something to compose. `registry.ts` is module-level state behind plain functions, so `thread`'s root does not present it, and directories that are only pure helpers do not have one at all.
 
-## index.ts builds what the directory provides
+## Every directory has an index.ts, and none of them forward
 
-A directory with something to assemble has an `index.ts`, and that file does the assembling. It holds the composition itself, moved there rather than re-exported:
+`index.ts` is the directory. It is never a re-export of its siblings -- `src/index.test.ts` fails on any `export *` -- and it takes one of two shapes.
 
-- `thread`, `interactions`, `message-stream`, `state`, `client` build layers, in the shape of the daemon's own layer module -- options schema and type, a config service where there are options, the implementation layer that acquires its dependencies, `makeXLayer(options)` with an explicit requirement list, and a default instance.
-- `turn`, `turn/routes`, `turn/attachments`, `turn/context`, `turn/listening`, `surface`, `dashboard`, `message-reply` build handlers. `surface/index.ts` is the whole boot: `makeBoltApp`, then the caller's turn wiring, then `registerListeners`, then `app.start()`.
-- `helpers/charts` builds the pipeline its seven modules only supply parts of: `makeChartPipeline()` decodes a posted body, resolves its drawing, refuses a shape that would not read, draws the SVG, and rasterises it. `chart-route.ts` held that sequence before, so the route knew a `ChartRequest` carries an SVG string that has to reach `svgToPng`.
+Where the directory assembles something, the index holds that assembly, moved there rather than pointed at. `thread`, `interactions`, `message-stream`, `state` and `client` build layers, in the shape of the daemon's own layer module: options schema and type, a config service where there are options, the implementation layer that acquires its dependencies, `makeXLayer(options)` with an explicit requirement list, a default instance. `turn`, `turn/routes`, `turn/attachments`, `turn/context`, `turn/listening`, `surface`, `dashboard`, `message-reply` and `helpers/charts` build handlers and pipelines the same way.
 
-`src/index.test.ts` fails on an index that uses `export *` or does not export a `make*`. A directory with nothing to assemble -- the pure helpers under `helpers/` outside `helpers/charts` -- has no index, and callers import the module that owns the name.
+Where the directory is one module, that module IS the index -- `helpers/users/index.ts`, `helpers/modals/index.ts`, `turn/handler/index.ts`. There is no wrapper around it and no second file to keep in step.
 
-Making an index usually means splitting the module it came from. `reply-live.ts` returned one lump with six operations inline, so there was nothing to compose until those became named factories; the index builds the shape from them now. If an index would only forward a name, the composition has not been found yet.
+Making an index usually means splitting the module it came from. `reply-live.ts` returned one lump with six operations inline; `attachments.ts` and `engagement.ts` owned no primitive at all and are gone, their wiring now in the index beside them. If an index would only forward a name, the composition has not been found yet.
 
 None of this works while two directories depend on each other. `client/` held `bolt-lifecycle.ts`, `listeners.ts` and `surface-events.ts`, which wire Bolt to `thread` and `interactions` while the rest of `client/` is the SDK wrapper those two depend on -- a cycle the moment both have an index, and why `client/index.ts` failed twice. They live in `src/surface/` now and the graph has no mutual pairs.
 

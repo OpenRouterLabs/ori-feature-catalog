@@ -2,7 +2,7 @@
 
 import type { AgentRuntimeEvent, Chat } from "ori";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect, Layer } from "effect";
 
@@ -22,7 +22,7 @@ import {
 import { StateStore, StateStoreMemory } from "#src/state/store.ts";
 import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
 import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
-import { handleTurn } from "./handler.ts";
+import { handleTurn } from "./index.ts";
 
 const ref = {
   channelId: "D1",

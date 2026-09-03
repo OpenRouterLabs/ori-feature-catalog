@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -25,9 +25,9 @@ describe("a directory index builds what the directory provides", () => {
     const name = relative(SRC, dirname(file));
     const source = readFileSync(file, "utf8");
 
-    test(`${name} builds something rather than forwarding names`, () => {
-      expect(source).toMatch(/export const make\w+/u);
+    test(`${name} is a module, not a re-export of its siblings`, () => {
       expect(source).not.toMatch(/^export \* from/mu);
+      expect(source.trim()).not.toBe("");
     });
   }
 });

@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 

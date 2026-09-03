@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining -- test doubles assert on recorded `unknown` args; cases read better whole than split */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
@@ -14,7 +14,7 @@ import {
   servicesFor,
   updated,
 } from "./handler-test-support.ts";
-import { handleTurn } from "./handler.ts";
+import { handleTurn } from "./index.ts";
 
 describe("handleTurn", () => {
   test("a run that dies mid-stream renders as failed, not as still working", async () => {

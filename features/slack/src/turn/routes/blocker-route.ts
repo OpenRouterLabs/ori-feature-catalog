@@ -1,8 +1,8 @@
 import { Effect, Result, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
@@ -10,7 +10,7 @@ import type { ThreadRef } from "#src/thread/thread.ts";
 import {
   blockerAnsweredBlocks,
   blockerBlocks,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_ASK_BODY_KIB = 16;

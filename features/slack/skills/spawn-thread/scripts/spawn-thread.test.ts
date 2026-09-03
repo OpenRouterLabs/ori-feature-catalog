@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 import { Result, Schema } from "effect";
 
 import type { FetchLike } from "./spawn-thread.ts";

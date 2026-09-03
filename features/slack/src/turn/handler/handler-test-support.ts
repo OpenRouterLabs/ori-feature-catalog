@@ -20,7 +20,7 @@ import {
   AssistantThreadsLive,
 } from "#src/thread/assistant.ts";
 import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
-import { handleTurn } from "./handler.ts";
+import { handleTurn } from "./index.ts";
 
 export const ref = {
   channelId: "C1",

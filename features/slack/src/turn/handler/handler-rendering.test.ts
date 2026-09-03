@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect, Layer, Schema } from "effect";
 
@@ -22,7 +22,7 @@ import {
   AssistantThreadsLive,
 } from "#src/thread/assistant.ts";
 import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
-import { handleTurn } from "./handler.ts";
+import { handleTurn } from "./index.ts";
 
 const ref = {
   channelId: "C1",

@@ -3,11 +3,11 @@ import type { Effect } from "effect";
 import { Schema } from "effect";
 
 import type { PostedMessage, SlackApiError } from "#src/client/client.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type {
   FileUpload,
   UploadedFile,
-} from "#src/helpers/images-files/upload.ts";
+} from "#src/helpers/images-files/index.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
 import { ThreadRefSchema } from "#src/thread/thread.ts";

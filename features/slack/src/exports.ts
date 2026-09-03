@@ -8,7 +8,7 @@ import type { SlackClientShape } from "./client/client.ts";
 import { makeSlackClientFromToken } from "./client/client-live.ts";
 import { readBotToken } from "./config.ts";
 import { featureState } from "./feature-state.ts";
-import { capBlocks, withinSlackLimit } from "./helpers/block-kit/blocks.ts";
+import { capBlocks, withinSlackLimit } from "./helpers/block-kit/index.ts";
 import { opaqueSchema } from "./schema-support.ts";
 
 const SlackPostMessageInputSchema = Schema.Struct({
@@ -105,4 +105,4 @@ export type {
   SlackButtonHandler,
 } from "./interactions/custom.ts";
 
-export { actions, button } from "./helpers/block-kit/blocks.ts";
+export { actions, button } from "./helpers/block-kit/index.ts";

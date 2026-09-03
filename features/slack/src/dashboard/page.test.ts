@@ -1,6 +1,6 @@
 import type { ThreadRow } from "#src/state/store.ts";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { InterruptMode } from "#src/state/settings.ts";
 import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";

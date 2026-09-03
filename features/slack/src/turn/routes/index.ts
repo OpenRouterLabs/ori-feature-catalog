@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 
 import type { PostedMessage, SlackClient } from "#src/client/client.ts";
 import type { SlackConfig } from "#src/config.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
 import type { SlackServices } from "#src/layers.ts";

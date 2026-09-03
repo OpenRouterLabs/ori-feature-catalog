@@ -2,7 +2,7 @@ import net from "node:net";
 
 import { WebClient } from "@slack/web-api";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { makeBoltApp } from "#src/surface/bolt-lifecycle.ts";
 import { makeConfiguredWebClient } from "./client-live.ts";

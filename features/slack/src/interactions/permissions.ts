@@ -2,13 +2,13 @@ import type { PermissionOptionKind } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type {
   InteractionPayload,
   InteractionsShape,
 } from "./interactions.ts";
 
-import { actions, button, section } from "#src/helpers/block-kit/blocks.ts";
+import { actions, button, section } from "#src/helpers/block-kit/index.ts";
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
 export const PERMISSION_ACTION_ID = "ori_permission_select";

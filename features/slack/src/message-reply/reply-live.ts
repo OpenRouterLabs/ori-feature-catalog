@@ -5,16 +5,16 @@ import type {
   SlackApiError,
   SlackClientShape,
 } from "#src/client/client.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type {
   FileUpload,
   UploadedFile,
-} from "#src/helpers/images-files/upload.ts";
+} from "#src/helpers/images-files/index.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 
 import { SlackClient } from "#src/client/client.ts";
-import { capBlocks, withinSlackLimit } from "#src/helpers/block-kit/blocks.ts";
-import { uploadFile } from "#src/helpers/images-files/upload.ts";
+import { capBlocks, withinSlackLimit } from "#src/helpers/block-kit/index.ts";
+import { uploadFile } from "#src/helpers/images-files/index.ts";
 
 export const attachFile =
   (slack: SlackClientShape, ref: ThreadRef) =>

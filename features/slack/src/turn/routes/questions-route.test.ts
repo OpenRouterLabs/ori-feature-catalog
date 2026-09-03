@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- typing every local helper buys nothing here, and cases read better whole than split */
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect, Schema } from "effect";
 

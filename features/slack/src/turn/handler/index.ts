@@ -2,7 +2,7 @@ import type { AgentRuntimeEvent, Chat } from "ori";
 
 import { Effect, Ref, Schema, Stream } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";

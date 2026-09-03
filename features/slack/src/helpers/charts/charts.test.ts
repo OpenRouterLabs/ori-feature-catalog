@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { barChartSvg } from "./charts.ts";
 import { flowChartSvg } from "./flow.ts";

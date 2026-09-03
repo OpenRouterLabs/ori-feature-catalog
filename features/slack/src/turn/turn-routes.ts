@@ -6,7 +6,7 @@ import { Effect, Schema } from "effect";
 import type { PostedMessage, SlackClient } from "#src/client/client.ts";
 import type { RawSlackMessage } from "#src/surface/listeners.ts";
 import type { SlackConfig } from "#src/config.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { SlackLogger } from "#src/index.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
@@ -26,7 +26,7 @@ import {
   EngagementDepsSchema,
   makeTurnListening,
 } from "./listening/index.ts";
-import { handleTurn } from "./handler/handler.ts";
+import { handleTurn } from "./handler/index.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 import { carrySession } from "./carry.ts";
 import { makeCarryRoute } from "./routes/carry-route.ts";

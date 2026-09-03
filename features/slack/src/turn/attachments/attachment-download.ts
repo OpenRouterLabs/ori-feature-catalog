@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 import { functionSchema } from "#src/schema-support.ts";
 
 import { mkdir, rm, writeFile } from "node:fs/promises";

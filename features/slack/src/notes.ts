@@ -1,6 +1,6 @@
 import { Context, Effect } from "effect";
 
-import { bestEffort } from "./helpers/best-effort.ts";
+import { bestEffort } from "./helpers/index.ts";
 
 import type { SlackConfig } from "./config.ts";
 import type { SlackServices } from "./layers.ts";

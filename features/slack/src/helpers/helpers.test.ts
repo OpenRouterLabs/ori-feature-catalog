@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
@@ -10,9 +10,9 @@ import {
   button,
   capBlocks,
   section,
-} from "./block-kit/blocks.ts";
-import { openModal } from "./modals/modals.ts";
-import { makeUserDirectory } from "./users/users.ts";
+} from "./block-kit/index.ts";
+import { openModal } from "./modals/index.ts";
+import { makeUserDirectory } from "./users/index.ts";
 
 describe("section", () => {
   test("takes the same markdown every other block takes", () => {

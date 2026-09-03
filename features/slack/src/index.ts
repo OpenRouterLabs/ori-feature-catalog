@@ -3,7 +3,7 @@ import type { Chat, StateStore as OriStateStore } from "ori";
 
 import { Context, Effect, Layer, Schema, Scope } from "effect";
 
-import { bestEffort } from "./helpers/best-effort.ts";
+import { bestEffort } from "./helpers/index.ts";
 
 import type { SlackClientShape } from "./client/client.ts";
 import type { RawSlackMessage } from "./surface/listeners.ts";

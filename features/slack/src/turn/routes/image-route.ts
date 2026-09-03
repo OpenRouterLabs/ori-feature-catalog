@@ -1,11 +1,11 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { GeneratedImage } from "#src/helpers/images-ai/generate.ts";
+import type { GeneratedImage } from "#src/helpers/images-ai/index.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
-import { generateImage } from "#src/helpers/images-ai/generate.ts";
+import { generateImage } from "#src/helpers/images-ai/index.ts";
 import { functionSchema } from "#src/schema-support.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
