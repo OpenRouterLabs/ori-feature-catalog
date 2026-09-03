@@ -4,11 +4,10 @@ import { MessageStream, MessageStreamLive } from "./stream.ts";
 
 export type MessageStreamServices = MessageStream;
 
-export const MessageStreamLayer: Layer.Layer<MessageStreamServices> =
+const messageStreamImplementationLayer: Layer.Layer<MessageStreamServices> =
   Layer.succeed(MessageStream)(MessageStreamLive);
 
-export * from "./answer-text.ts";
-export * from "./run-state.ts";
-export * from "./settle.ts";
-export * from "./stream.ts";
-export * from "./tool-liveness.ts";
+export const makeMessageStreamLayer = (): Layer.Layer<MessageStreamServices> =>
+  messageStreamImplementationLayer;
+
+export const messageStreamLayer = makeMessageStreamLayer();

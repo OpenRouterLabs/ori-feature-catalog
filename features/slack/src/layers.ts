@@ -2,18 +2,18 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Layer, Schema } from "effect";
 
-import { type ClientServices, SlackClientLayer } from "./client/index.ts";
+import { type ClientServices, makeSlackClientLayer } from "./client/index.ts";
 import {
   type InteractionServices,
-  InteractionsLayer,
+  interactionsLayer,
 } from "./interactions/index.ts";
 import {
-  MessageStreamLayer,
+  messageStreamLayer,
   type MessageStreamServices,
 } from "./message-stream/index.ts";
 import { opaqueSchema } from "./schema-support.ts";
-import { StateLayer, type StateServices } from "./state/index.ts";
-import { ThreadLayer, type ThreadServices } from "./thread/index.ts";
+import { makeStateLayer, type StateServices } from "./state/index.ts";
+import { threadLayer, type ThreadServices } from "./thread/index.ts";
 
 export type SlackServices =
   | ClientServices
@@ -35,8 +35,8 @@ export const SlackDefaultLayers = (
   input: SlackGraphInput
 ): Layer.Layer<SlackServices> =>
   Layer.mergeAll(
-    ThreadLayer,
-    MessageStreamLayer,
-    StateLayer(input.store),
-    InteractionsLayer
-  ).pipe(Layer.provideMerge(SlackClientLayer(input.token)));
+    threadLayer,
+    messageStreamLayer,
+    makeStateLayer({ store: input.store }),
+    interactionsLayer
+  ).pipe(Layer.provideMerge(makeSlackClientLayer({ token: input.token })));

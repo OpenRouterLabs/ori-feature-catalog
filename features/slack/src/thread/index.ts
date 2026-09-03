@@ -7,12 +7,13 @@ import { ThreadContext, ThreadContextLive } from "./thread.ts";
 
 export type ThreadServices = AssistantThreads | ThreadContext;
 
-export const ThreadLayer: Layer.Layer<ThreadServices, never, SlackClient> =
+const threadImplementationLayer: Layer.Layer<ThreadServices, never, SlackClient> =
   Layer.mergeAll(
     Layer.effect(ThreadContext)(ThreadContextLive),
     Layer.effect(AssistantThreads)(AssistantThreadsLive())
   );
 
-export * from "./assistant.ts";
-export * from "./registry.ts";
-export * from "./thread.ts";
+export const makeThreadLayer = (): Layer.Layer<ThreadServices, never, SlackClient> =>
+  threadImplementationLayer;
+
+export const threadLayer = makeThreadLayer();

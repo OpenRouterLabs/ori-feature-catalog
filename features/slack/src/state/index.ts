@@ -1,19 +1,47 @@
 import type { StateStore as OriStateStore } from "ori";
 
-import { Layer } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
+
+import { opaqueSchema } from "#src/schema-support.ts";
 
 import { StateStoreDurable } from "./store-durable.ts";
 import { StateStore, StateStoreMemory } from "./store.ts";
 
+const StateLayerOptionsSchema = Schema.Struct({
+  store: Schema.optionalKey(
+    Schema.UndefinedOr(opaqueSchema<OriStateStore>("StateLayerOptions.store"))
+  ),
+});
+
+type StateLayerOptions = typeof StateLayerOptionsSchema.Type;
+
+class StateConfig extends Context.Service<StateConfig, StateLayerOptions>()(
+  "ori/slack/StateConfig"
+) {
+  static readonly fromOptions = (
+    options: StateLayerOptions
+  ): Layer.Layer<StateConfig> =>
+    Layer.effect(StateConfig)(Effect.succeed(StateConfig.of(options)));
+}
+
 export type StateServices = StateStore;
 
-export const StateLayer = (
-  store: OriStateStore | undefined
+const stateImplementationLayer = Layer.effect(StateStore)(
+  Effect.gen(function* () {
+    const config = yield* StateConfig;
+    return yield* config.store === undefined
+      ? StateStoreMemory
+      : StateStoreDurable(config.store);
+  })
+);
+
+export const makeStateLayer = (
+  options?: StateLayerOptions
 ): Layer.Layer<StateServices> =>
-  Layer.effect(StateStore)(
-    store === undefined ? StateStoreMemory : StateStoreDurable(store)
+  stateImplementationLayer.pipe(
+    Layer.provide(StateConfig.fromOptions({ store: options?.store }))
   );
 
-export * from "./settings.ts";
-export * from "./store.ts";
-export * from "./store-durable.ts";
+export const stateLayer = makeStateLayer();
+
+export type { StateLayerOptions };
