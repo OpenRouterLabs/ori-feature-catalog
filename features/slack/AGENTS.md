@@ -42,24 +42,18 @@ It is not a re-export file. Callers still import the module that owns a name; a 
 
 A directory earns one when it has something to compose. `registry.ts` is module-level state behind plain functions, so `thread`'s root does not present it, and directories that are only pure helpers do not have one at all.
 
-## index.ts is the directory's layer
+## index.ts builds what the directory provides
 
-A directory that owns services has an `index.ts`, and that file builds them. It reads like the daemon's own layer module: the options schema and its type, a config service carrying them, the implementation layer that acquires its dependencies, then `makeXLayer(options)` returning a `Layer` with an explicit requirement list, and a default instance where there is nothing to configure.
+A directory with something to assemble has an `index.ts`, and that file does the assembling. It holds the composition itself, moved there rather than re-exported:
 
-`SlackDefaultLayers` merges those five and knows nothing about how any of them is built:
+- `thread`, `interactions`, `message-stream`, `state`, `client` build layers, in the shape of the daemon's own layer module -- options schema and type, a config service where there are options, the implementation layer that acquires its dependencies, `makeXLayer(options)` with an explicit requirement list, and a default instance.
+- `turn`, `turn/routes`, `surface`, `dashboard`, `message-reply` build handlers. `surface/index.ts` is the whole boot: `makeBoltApp`, then the caller's turn wiring, then `registerListeners`, then `app.start()`.
 
-```ts
-Layer.mergeAll(
-  threadLayer,
-  messageStreamLayer,
-  makeStateLayer({ store: input.store }),
-  interactionsLayer
-).pipe(Layer.provideMerge(makeSlackClientLayer({ token: input.token })))
-```
+`src/index.test.ts` fails on an index that uses `export *` or does not export a `make*`. A directory with nothing to assemble -- the pure helpers under `helpers/`, and `turn/attachments`, `turn/context`, `turn/listening` -- has no index, and callers import the module that owns the name.
 
-It is not a re-export file, and `src/index.test.ts` fails on any index that forwards a name with `export *` or does not export a `make*Layer`. A directory with nothing to compose has no index at all; callers import the module that owns the name.
+Making an index usually means splitting the module it came from. `reply-live.ts` returned one lump with six operations inline, so there was nothing to compose until those became named factories; the index builds the shape from them now. If an index would only forward a name, the composition has not been found yet.
 
-This only works because no two directories depend on each other. `client/` held `bolt-lifecycle.ts`, `listeners.ts` and `surface-events.ts`, which wire Bolt to `thread` and `interactions` while the rest of `client/` is the SDK wrapper those two depend on -- a cycle the moment both have an index, and why `client/index.ts` failed twice. They live in `src/surface/` now, `client/` is a leaf, and the graph has no mutual pairs.
+None of this works while two directories depend on each other. `client/` held `bolt-lifecycle.ts`, `listeners.ts` and `surface-events.ts`, which wire Bolt to `thread` and `interactions` while the rest of `client/` is the SDK wrapper those two depend on -- a cycle the moment both have an index, and why `client/index.ts` failed twice. They live in `src/surface/` now and the graph has no mutual pairs.
 
 ## More than four files on one topic is a folder
 

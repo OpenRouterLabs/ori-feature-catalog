@@ -17,7 +17,7 @@ import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { deferred } from "#src/thread/registry-test-support.ts";
 import { enqueue, resetRegistry } from "#src/thread/registry.ts";
 import { threadInstanceId } from "#src/thread/thread.ts";
-import { makeTurnRoutes } from "./turn-routes.ts";
+import { makeTurnRoutes } from "./index.ts";
 
 const REF = {
   channelId: "C1",

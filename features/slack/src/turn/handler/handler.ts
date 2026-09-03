@@ -19,7 +19,7 @@ import type { IncomingTurn } from "#src/turn/turn-input.ts";
 
 import { Blockers } from "#src/interactions/blocker.ts";
 import { permissionResolvedBlocks } from "#src/interactions/permissions.ts";
-import { makeMessageReply } from "#src/message-reply/reply-live.ts";
+import { makeMessageReply } from "#src/message-reply/index.ts";
 import { answerText } from "#src/message-stream/answer-text.ts";
 import { RunPhase, initialRunState } from "#src/message-stream/run-state.ts";
 import { MessageStream } from "#src/message-stream/stream.ts";

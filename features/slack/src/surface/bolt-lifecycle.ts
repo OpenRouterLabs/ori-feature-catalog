@@ -4,17 +4,8 @@ import { App, LogLevel } from "@slack/bolt";
 import { Effect, Exit, Option, Schema, Scope } from "effect";
 
 import type { SlackLogger } from "#src/index.ts";
-import type {
-  InteractionPayload,
-  ViewSubmissionPayload,
-} from "#src/interactions/interactions.ts";
-import type {
-  RawAssistantThreadStarted,
-  RawSlackMessage,
-} from "./listeners.ts";
 
 import { cancelAll, drain, resetRegistry } from "#src/thread/registry.ts";
-import { registerListeners } from "./listeners.ts";
 import { resolveSlackProxyAgent } from "#src/client/proxy-agent.ts";
 import { SlackReceiver } from "#src/client/receiver.ts";
 
@@ -54,7 +45,7 @@ const BoltIdentitySchema = Schema.Struct({
   botUserId: Schema.UndefinedOr(Schema.String),
 });
 
-type BoltIdentity = typeof BoltIdentitySchema.Type;
+export type BoltIdentity = typeof BoltIdentitySchema.Type;
 
 type BoltAuthorization =
   | { readonly authorize: () => Promise<AuthorizeResult> }
@@ -93,25 +84,4 @@ export const makeBoltApp = (input: {
     }),
     receiver,
   };
-};
-
-export const goLive = async (input: {
-  readonly app: App;
-  readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
-  readonly dispatchInteraction: (payload: InteractionPayload) => Promise<void>;
-  readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
-  readonly logger: SlackLogger;
-  readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
-  readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
-}): Promise<void> => {
-  registerListeners({
-    app: input.app,
-    changeAssistantContext: input.changeAssistantContext,
-    dispatchInteraction: input.dispatchInteraction,
-    dispatchView: input.dispatchView,
-    openAssistantThread: input.openAssistantThread,
-    startTurn: input.startTurn,
-  });
-  await input.app.start();
-  input.logger.info("[slack] chat surface is live");
 };

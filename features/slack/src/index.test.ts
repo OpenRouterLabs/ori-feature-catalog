@@ -20,13 +20,13 @@ const indexesUnder = (dir: string, found: string[] = []): string[] => {
   return found;
 };
 
-describe("a directory index is its layer", () => {
+describe("a directory index builds what the directory provides", () => {
   for (const file of indexesUnder(SRC)) {
     const name = relative(SRC, dirname(file));
     const source = readFileSync(file, "utf8");
 
-    test(`${name} builds a layer rather than forwarding names`, () => {
-      expect(source).toMatch(/export const make\w+Layer/u);
+    test(`${name} builds something rather than forwarding names`, () => {
+      expect(source).toMatch(/export const make\w+/u);
       expect(source).not.toMatch(/^export \* from/mu);
     });
   }

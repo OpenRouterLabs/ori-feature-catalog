@@ -8,7 +8,7 @@ import type { ThreadRef } from "./thread/thread.ts";
 import type { EngagementDeps } from "./turn/listening/engagement.ts";
 
 import type { SlackClient } from "./client/client.ts";
-import { makeMessageReply } from "./message-reply/reply-live.ts";
+import { makeMessageReply } from "#src/message-reply/index.ts";
 import { StateStore } from "./state/store.ts";
 import { AssistantThreads } from "./thread/assistant.ts";
 import { cancelThread } from "./thread/registry.ts";

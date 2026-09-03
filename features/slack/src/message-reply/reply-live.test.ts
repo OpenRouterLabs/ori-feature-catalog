@@ -6,7 +6,7 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Effect } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
-import { makeMessageReply } from "./reply-live.ts";
+import { makeMessageReply } from "#src/message-reply/index.ts";
 
 const ref = {
   channelId: "C1",
