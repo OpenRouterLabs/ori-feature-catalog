@@ -9,7 +9,7 @@ import type {
 import {
   BLOCKER_ACTION_ID,
   decodeChoice,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 
 export const registerBlockerHandlers = (input: {
   readonly blockers: BlockersShape;

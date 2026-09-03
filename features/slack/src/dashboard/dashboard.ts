@@ -50,8 +50,3 @@ export const dashboardResponse = Effect.fn("Slack.dashboard.handle")(
       : yield* page(store, now);
   }
 );
-
-export const makeDashboardRoute =
-  (store: StateStoreShape) =>
-  (request: Request): Promise<Response> =>
-    Effect.runPromise(dashboardResponse(store, request));

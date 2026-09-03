@@ -19,7 +19,7 @@ import {
   questionsAnsweredBlocks,
   questionsModal,
 } from "#src/helpers/blockers/questions.ts";
-import { openModal } from "#src/helpers/modals/modals.ts";
+import { openModal } from "#src/helpers/modals/index.ts";
 
 const AnsweredSchema = Schema.Struct({
   answer: Schema.String,

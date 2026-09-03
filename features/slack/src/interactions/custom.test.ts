@@ -3,7 +3,7 @@ import {
   describe,
   expect,
   test,
-} from "#src/test-support/effect-test.ts";
+} from "#src/test-support/index.ts";
 
 import { Context, Effect } from "effect";
 

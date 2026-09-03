@@ -1,6 +1,6 @@
 import type { AgentRuntimeEvent } from "ori";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { initialRunState } from "#src/message-stream/run-state.ts";
 import { beatLine } from "./status-beat.ts";

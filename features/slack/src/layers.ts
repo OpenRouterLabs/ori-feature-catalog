@@ -2,34 +2,25 @@ import type { StateStore as OriStateStore } from "ori";
 
 import { Layer, Schema } from "effect";
 
-import { makeSlackClientFromToken, SlackClient } from "./client/index.ts";
-import { Blockers, BlockersMemory } from "./interactions/blocker.ts";
-import { Interactions, makeInteractions } from "./interactions/interactions.ts";
+import { type ClientServices, makeSlackClientLayer } from "./client/index.ts";
 import {
-  Questionnaires,
-  QuestionnairesMemory,
-} from "./interactions/questionnaires.ts";
-import { MessageStream, MessageStreamLive } from "./message-stream/stream.ts";
+  type InteractionServices,
+  interactionsLayer,
+} from "./interactions/index.ts";
+import {
+  messageStreamLayer,
+  type MessageStreamServices,
+} from "./message-stream/index.ts";
 import { opaqueSchema } from "./schema-support.ts";
-import { StateStoreDurable } from "./state/store-durable.ts";
-import { StateStore, StateStoreMemory } from "./state/store.ts";
-import { AssistantThreads, AssistantThreadsLive } from "./thread/assistant.ts";
-import { ThreadContext, ThreadContextLive } from "./thread/thread.ts";
+import { makeStateLayer, type StateServices } from "./state/index.ts";
+import { threadLayer, type ThreadServices } from "./thread/index.ts";
 
 export type SlackServices =
-  | AssistantThreads
-  | Blockers
-  | Interactions
-  | MessageStream
-  | Questionnaires
-  | SlackClient
-  | StateStore
-  | ThreadContext;
-
-const SlackClientLayer = (token: string): Layer.Layer<SlackClient> =>
-  Layer.sync(SlackClient)(() =>
-    SlackClient.of(makeSlackClientFromToken(token))
-  );
+  | ClientServices
+  | InteractionServices
+  | MessageStreamServices
+  | StateServices
+  | ThreadServices;
 
 const SlackGraphInputSchema = Schema.Struct({
   store: Schema.optionalKey(
@@ -44,15 +35,8 @@ export const SlackDefaultLayers = (
   input: SlackGraphInput
 ): Layer.Layer<SlackServices> =>
   Layer.mergeAll(
-    Layer.effect(ThreadContext)(ThreadContextLive),
-    Layer.succeed(MessageStream)(MessageStreamLive),
-    Layer.effect(StateStore)(
-      input.store === undefined
-        ? StateStoreMemory
-        : StateStoreDurable(input.store)
-    ),
-    Layer.effect(Questionnaires)(QuestionnairesMemory),
-    Layer.effect(Blockers)(BlockersMemory),
-    Layer.sync(Interactions)(makeInteractions),
-    Layer.effect(AssistantThreads)(AssistantThreadsLive())
-  ).pipe(Layer.provideMerge(SlackClientLayer(input.token)));
+    threadLayer,
+    messageStreamLayer,
+    makeStateLayer({ store: input.store }),
+    interactionsLayer
+  ).pipe(Layer.provideMerge(makeSlackClientLayer({ token: input.token })));

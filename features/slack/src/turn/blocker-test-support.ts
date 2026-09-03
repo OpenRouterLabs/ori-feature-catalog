@@ -6,7 +6,7 @@ import type { InteractionPayload } from "#src/interactions/interactions.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 
-import { BLOCKER_ACTION_ID } from "#src/helpers/blockers/blockers.ts";
+import { BLOCKER_ACTION_ID } from "#src/helpers/blockers/index.ts";
 import { registerBlockerHandlers } from "#src/interactions/blocker-handler.ts";
 import { BlockersMemory } from "#src/interactions/blocker.ts";
 import { makeInteractions } from "#src/interactions/interactions.ts";

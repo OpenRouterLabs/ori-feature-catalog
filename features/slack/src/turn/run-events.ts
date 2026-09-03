@@ -2,10 +2,10 @@ import type { AgentFailure, AgentRuntimeEvent } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 
-import type { SlackApiError } from "#src/client/index.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackApiError } from "#src/client/client.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { RunState } from "#src/message-stream/run-state.ts";
 import type { StateStoreShape } from "#src/state/store.ts";

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

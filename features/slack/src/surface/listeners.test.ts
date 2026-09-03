@@ -3,7 +3,7 @@ import type { App } from "@slack/bolt";
 
 import { Schema } from "effect";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 
 import type {

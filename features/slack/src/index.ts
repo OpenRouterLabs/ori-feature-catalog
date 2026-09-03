@@ -3,10 +3,10 @@ import type { Chat, StateStore as OriStateStore } from "ori";
 
 import { Context, Effect, Layer, Schema, Scope } from "effect";
 
-import { bestEffort } from "./helpers/best-effort.ts";
+import { bestEffort } from "./helpers/index.ts";
 
-import type { SlackClientShape } from "./client/index.ts";
-import type { RawSlackMessage } from "./client/listeners.ts";
+import type { SlackClientShape } from "./client/client.ts";
+import type { RawSlackMessage } from "./surface/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
 import type { SlackConfig } from "./config.ts";
 import type {
@@ -19,12 +19,11 @@ import type { ThreadRef } from "./thread/thread.ts";
 import type { IncomingMessage } from "./turn/listening/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
-import { makeSurfaceEventHandlers, SlackClient } from "./client/index.ts";
-import { SlackClientShapeSchema } from "./client/client.ts";
-import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
-import { makeDashboardRoute } from "./dashboard/dashboard.ts";
+import { SlackClient, SlackClientShapeSchema } from "./client/client.ts";
+import { makeStop } from "./surface/bolt-lifecycle.ts";
+import { makeSurface } from "./surface/index.ts";
+import { makeDashboardRoute } from "./dashboard/index.ts";
 import { readSlackConfig } from "./config.ts";
-import { forkWith } from "./fork.ts";
 import { functionSchema, opaqueSchema } from "./schema-support.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
 import { registerCustomButtons } from "./interactions/custom.ts";
@@ -46,7 +45,7 @@ import {
   startStatus,
 } from "./notes.ts";
 import { cancelTurn } from "./thread/registry.ts";
-import { makeTurnRoutes } from "./turn/turn-routes.ts";
+import { makeTurnRoutes } from "./turn/index.ts";
 
 const SlackLoggerSchema = Schema.Struct({
   error:
@@ -278,52 +277,49 @@ const openForTraffic = async (input: {
     logger: input.logger,
   });
 
-  const { app, receiver } = makeBoltApp({
+  const surface = await makeSurface({
+    context: input.context,
+    ...interactionDispatchers(input.context, interactions),
     identity: input.identity,
     logger: input.logger,
     signingSecret: input.config.signingSecret,
     token: input.config.token,
-  });
+    wireTurns: () => {
+      const routes = makeTurnRoutes(
+        turnRouteDeps({
+          bridge: input.bridge,
+          config: input.config,
+          context: input.context,
+          identity: input.identity,
+          isStopping: input.isStopping,
+          logger: input.logger,
+        })
+      );
 
-  const routes = makeTurnRoutes(
-    turnRouteDeps({
-      bridge: input.bridge,
-      config: input.config,
-      context: input.context,
-      identity: input.identity,
-      isStopping: input.isStopping,
-      logger: input.logger,
-    })
-  );
-
-  registerQuestionHandlers({
-    continueTurn: (form, prompt) => {
-      routes.runTurnSafely({
-        ref: form.ref,
-        text: prompt,
-        userId: "",
+      registerQuestionHandlers({
+        continueTurn: (form, prompt) => {
+          routes.runTurnSafely({
+            ref: form.ref,
+            text: prompt,
+            userId: "",
+          });
+        },
+        forms: Context.get(input.context, Questionnaires),
+        interactions,
+        slack: Context.get(input.context, SlackClient),
       });
-    },
-    forms: Context.get(input.context, Questionnaires),
-    interactions,
-    slack: Context.get(input.context, SlackClient),
-  });
 
-  await goLive({
-    app,
-    ...interactionDispatchers(input.context, interactions),
-    ...makeSurfaceEventHandlers({
-      context: input.context,
-      runWith: forkWith(input.context),
-    }),
-    logger: input.logger,
-    startTurn: routes.startTurnSafely,
+      return {
+        routes,
+        startTurn: routes.startTurnSafely,
+      };
+    },
   });
 
   return {
-    app,
-    receiver,
-    routes,
+    app: surface.app,
+    receiver: surface.receiver,
+    routes: surface.turns.routes,
   };
 };
 

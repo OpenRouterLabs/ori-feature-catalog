@@ -1,6 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the shell is generic over its body, and a test names one shape */
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect, Result, Schema } from "effect";
 

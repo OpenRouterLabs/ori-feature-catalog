@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
 import { Schema } from "effect";
 import { join } from "node:path";
 

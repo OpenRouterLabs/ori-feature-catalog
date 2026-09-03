@@ -1,7 +1,7 @@
 import { Context, Effect, Schema } from "effect";
 
 import { clampToWord } from "#src/clamp.ts";
-import { SlackClient } from "#src/client/index.ts";
+import { SlackClient } from "#src/client/client.ts";
 import { functionSchema } from "#src/schema-support.ts";
 
 export const ThreadRefSchema = Schema.Struct({

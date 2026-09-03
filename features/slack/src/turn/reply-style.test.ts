@@ -1,7 +1,7 @@
 import type { AgentRuntimeEvent, Chat, ChatTurnInput } from "ori";
 
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the bridge fake stands in for the Chat surface */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect, Layer } from "effect";
 
@@ -17,7 +17,7 @@ import { MessageStream, MessageStreamLive } from "#src/message-stream/stream.ts"
 import { StateStore, StateStoreMemory } from "#src/state/store.ts";
 import { AssistantThreads, AssistantThreadsLive } from "#src/thread/assistant.ts";
 import { ThreadContext, ThreadContextLive } from "#src/thread/thread.ts";
-import { handleTurn } from "./handler/handler.ts";
+import { handleTurn } from "./handler/index.ts";
 import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "./reply-style.ts";
 
 const storeWithSession = (): Effect.Effect<StateStoreShape> =>
