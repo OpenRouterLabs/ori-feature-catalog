@@ -121,6 +121,7 @@ const runTurn = (input: {
         signal: new AbortController().signal,
         turnId: "turn-1",
       },
+      onItAfterMs: 20_000,
       turn: {
         ref,
         text: input.text ?? "triage the open PRs please",

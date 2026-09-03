@@ -33,6 +33,7 @@ import { openPane } from "#src/turn/context/pane-context.ts";
 import { makeTurnPrompt } from "#src/turn/context/index.ts";
 import { retireTurn } from "#src/turn/retire-turn.ts";
 import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
+import { armOnItNotice } from "#src/turn/on-it.ts";
 import { beatStatus } from "#src/turn/status-beat.ts";
 import { IncomingTurnSchema, turnEnv } from "#src/turn/turn-input.ts";
 
@@ -174,6 +175,7 @@ const driveRun = (input: {
   readonly existing: { readonly sessionId: string } | undefined;
   readonly instanceId: string;
   readonly live: LiveTurn;
+  readonly onItAfterMs: number;
   readonly prompt: string;
   readonly reply: MessageReplyShape;
   readonly sendMessage: Chat["sendMessage"];
@@ -198,6 +200,13 @@ const driveRun = (input: {
       threadKey: input.instanceId,
     });
 
+    const notice = yield* armOnItNotice({
+      delayMs: input.onItAfterMs,
+      firstTurn: input.existing === undefined,
+      peek,
+      post: (text) => reply.reply(text),
+    });
+
     const events = openStream(input, live.signal);
 
     const pending: PendingApprovals = new Map();
@@ -216,6 +225,7 @@ const driveRun = (input: {
       store,
       turn: input.turn,
     });
+    yield* notice.stop;
     yield* beat.stop;
     yield* retirePending(pending, reply);
   });
@@ -228,6 +238,7 @@ const runOptions = (turn: IncomingTurn): RunOptions => ({
 const HandleTurnInputSchema = Schema.Struct({
   bridge: opaqueSchema<Chat>("HandleTurnInput.bridge"),
   live: opaqueSchema<LiveTurn>("HandleTurnInput.live"),
+  onItAfterMs: Schema.Number,
   turn: IncomingTurnSchema,
 });
 
@@ -281,6 +292,7 @@ export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
         existing,
         instanceId,
         live: input.live,
+        onItAfterMs: input.onItAfterMs,
         prompt,
         reply,
         sendMessage: input.bridge.sendMessage.bind(input.bridge),

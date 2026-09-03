@@ -181,6 +181,7 @@ describe("handleTurn", () => {
         yield* handleTurn({
           bridge: first.bridge,
           live: liveTurn(),
+          onItAfterMs: 20_000,
           turn: {
             ref,
             text: "one",
@@ -190,6 +191,7 @@ describe("handleTurn", () => {
         yield* handleTurn({
           bridge: second.bridge,
           live: liveTurn(),
+          onItAfterMs: 20_000,
           turn: {
             ref,
             text: "two",
