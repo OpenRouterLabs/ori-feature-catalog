@@ -199,11 +199,8 @@ const driveRun = (input: {
       threadKey: input.instanceId,
     });
 
-    // The status line is the only thing a long turn shows until it settles,
-    // and it is easy to miss. This says once, in the thread, what the turn
-    // turned out to be -- and stays quiet when there is nothing to add.
     const notice = yield* armOnItNotice({
-      ask: input.turn.text,
+      firstTurn: input.existing === undefined,
       peek,
       post: (text) => reply.reply(text),
     });

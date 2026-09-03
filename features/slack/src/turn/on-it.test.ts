@@ -5,7 +5,7 @@ import type { RunState } from "#src/message-stream/run-state.ts";
 
 import { initialRunState } from "#src/message-stream/run-state.ts";
 import { describe, expect, test } from "#src/test-support/index.ts";
-import { armOnItNotice, isSmallTalk, onItText } from "#src/turn/on-it.ts";
+import { armOnItNotice, onItText } from "#src/turn/on-it.ts";
 
 const stateWith = (over: Partial<RunState>): RunState => ({
   ...initialRunState(),
@@ -13,87 +13,22 @@ const stateWith = (over: Partial<RunState>): RunState => ({
 });
 
 const noticeFor = (input: {
-  readonly ask: string;
   readonly text?: string;
   readonly tools?: readonly string[];
 }): string | undefined =>
   Option.getOrUndefined(
-    onItText({
-      ask: input.ask,
-      state: stateWith({
+    onItText(
+      stateWith({
         text: input.text ?? "",
         tools: new Map((input.tools ?? []).map((name) => [name, 1])),
-      }),
-    })
-  );
-
-describe("what does not earn a notice", () => {
-  test.each([
-    "hey",
-    "Hey!",
-    "hi",
-    "Hi there",
-    "hello",
-    "yo",
-    "gm",
-    "good morning",
-    "sup",
-    "howdy",
-  ])("an opener carries no request: %s", (ask) => {
-    expect(isSmallTalk(ask)).toBe(true);
-  });
-
-  test.each(["thanks", "Thanks!", "ty", "cool", "nice", "ok", "perfect"])(
-    "an acknowledgement closes the turn: %s",
-    (ask) => {
-      expect(isSmallTalk(ask)).toBe(true);
-    }
-  );
-
-  test.each(["hey ori", "Thanks, ori", "hi ori!"])(
-    "naming the bot does not make it a request: %s",
-    (ask) => {
-      expect(isSmallTalk(ask)).toBe(true);
-    }
-  );
-
-  test("a greeting stays silent even once the turn is doing work", () => {
-    expect(
-      noticeFor({
-        ask: "hey",
-        text: "Hello! How can I help?",
-        tools: ["Read"],
       })
-    ).toBeUndefined();
-  });
+    )
+  );
 
-  test("a real ask that happens to open with a greeting still earns one", () => {
-    expect(isSmallTalk("hey can you fix the reload loop on tally")).toBe(false);
-  });
-
-  test("a question the length of a greeting is still a question", () => {
-    expect(isSmallTalk("why?")).toBe(false);
-  });
-});
-
-describe("a notice has to say something", () => {
-  test("a turn that has produced nothing yet stays quiet", () => {
-    expect(noticeFor({ ask: "fix the reload loop on tally" })).toBeUndefined();
-  });
-
-  test("a half-typed sentence is not signal, because it is posted once", () => {
-    expect(
-      noticeFor({
-        ask: "fix the reload loop on tally",
-        text: "I'll start by reproducing the",
-      })
-    ).toBeUndefined();
-  });
-
+describe("what the notice says", () => {
   test("the model's own first sentence is the signal", () => {
     expect(
       noticeFor({
-        ask: "fix the reload loop on tally",
         text: "I'll reproduce on the ori codebase first, then check the VM. Starting with the watcher.",
       })
     ).toBe(
@@ -102,37 +37,35 @@ describe("a notice has to say something", () => {
   });
 
   test("the tools it is running stand in when it has said nothing", () => {
-    expect(
-      noticeFor({
-        ask: "fix the reload loop on tally",
-        tools: ["Read", "Grep"],
-      })
-    ).toBe("On it — running Read, Grep.");
+    expect(noticeFor({ tools: ["Read", "Grep"] })).toBe(
+      "On it — running Read, Grep."
+    );
   });
 
   test("what it said beats what it is running", () => {
     expect(
       noticeFor({
-        ask: "fix the reload loop on tally",
         text: "Checking the reload watcher first.",
         tools: ["Read"],
       })
     ).toBe("On it: Checking the reload watcher first.");
   });
 
+  test("a turn that has produced nothing has nothing to say yet", () => {
+    expect(noticeFor({})).toBeUndefined();
+  });
+
+  test("a half-typed sentence is not signal, because it is posted once", () => {
+    expect(noticeFor({ text: "I'll start by reproducing the" })).toBeUndefined();
+  });
+
   test("a long opening sentence is cut on a word, not mid-word", () => {
     const sentence = "reproducing the failure on a clean checkout ".repeat(8);
-    const notice =
-      noticeFor({
-        ask: "fix it",
-        text: `${sentence}.`,
-      }) ?? "";
+    const notice = noticeFor({ text: `${sentence}.` }) ?? "";
 
     expect(notice).toStartWith("On it: ");
     expect(notice).toEndWith("…");
 
-    // Every word that survived is a whole word from the sentence, and the cut
-    // landed where the sentence had a space.
     const kept = notice.slice("On it: ".length, -1);
     expect(sentence).toStartWith(kept);
     expect(sentence.charAt(kept.length)).toBe(" ");
@@ -141,17 +74,18 @@ describe("a notice has to say something", () => {
 
 describe("when the notice is posted", () => {
   const armed = (input: {
-    readonly ask: string;
+    readonly firstTurn?: boolean;
     readonly holdMs: number;
-    readonly text: string;
+    readonly text?: string;
+    readonly textAfterMs?: { readonly at: number; readonly text: string };
   }) =>
     Effect.gen(function* () {
       const posted: string[] = [];
-      const state = yield* Ref.make(stateWith({ text: input.text }));
+      const state = yield* Ref.make(stateWith({ text: input.text ?? "" }));
 
       const notice = yield* armOnItNotice({
-        ask: input.ask,
         delayMs: 1000,
+        firstTurn: input.firstTurn ?? true,
         peek: Ref.get(state),
         post: (text) =>
           Effect.sync(() => {
@@ -161,46 +95,78 @@ describe("when the notice is posted", () => {
               ts: "1.1",
             };
           }),
+        recheckMs: 100,
       });
 
-      yield* TestClock.adjust(Duration.millis(input.holdMs));
+      const later = input.textAfterMs;
+      if (later === undefined) {
+        yield* TestClock.adjust(Duration.millis(input.holdMs));
+      } else {
+        yield* TestClock.adjust(Duration.millis(later.at));
+        yield* Ref.set(state, stateWith({ text: later.text }));
+        yield* TestClock.adjust(Duration.millis(input.holdMs - later.at));
+      }
+
       yield* notice.stop;
       return posted;
     }).pipe(Effect.provide(TestClock.layer()));
 
   test.effect("a turn that settles before the delay says nothing", () =>
     Effect.gen(function* () {
-      const posted = yield* armed({
-        ask: "fix the reload loop",
-        holdMs: 500,
-        text: "Checking the watcher.",
-      });
-
-      expect(posted).toBeEmpty();
+      expect(
+        yield* armed({
+          holdMs: 500,
+          text: "Checking the watcher.",
+        })
+      ).toBeEmpty();
     })
   );
 
-  test.effect("a turn still running past the delay explains itself once", () =>
+  test.effect("a first turn still running past the delay explains itself", () =>
     Effect.gen(function* () {
-      const posted = yield* armed({
-        ask: "fix the reload loop",
-        holdMs: 5000,
-        text: "Checking the watcher.",
-      });
-
-      expect(posted).toEqual(["On it: Checking the watcher."]);
+      expect(
+        yield* armed({
+          holdMs: 5000,
+          text: "Checking the watcher.",
+        })
+      ).toEqual(["On it: Checking the watcher."]);
     })
   );
 
-  test.effect("a greeting that somehow runs long still says nothing", () =>
+  test.effect("it explains itself once, not on every recheck", () =>
     Effect.gen(function* () {
-      const posted = yield* armed({
-        ask: "hey",
-        holdMs: 5000,
-        text: "Hello there.",
-      });
+      expect(
+        yield* armed({
+          holdMs: 30_000,
+          text: "Checking the watcher.",
+        })
+      ).toHaveLength(1);
+    })
+  );
 
-      expect(posted).toBeEmpty();
+  test.effect("a follow-up turn in an open thread stays quiet", () =>
+    Effect.gen(function* () {
+      expect(
+        yield* armed({
+          firstTurn: false,
+          holdMs: 30_000,
+          text: "Checking the watcher.",
+        })
+      ).toBeEmpty();
+    })
+  );
+
+  test.effect("a turn with nothing to say yet waits rather than saying nothing", () =>
+    Effect.gen(function* () {
+      expect(
+        yield* armed({
+          holdMs: 5000,
+          textAfterMs: {
+            at: 2000,
+            text: "Checking the watcher.",
+          },
+        })
+      ).toEqual(["On it: Checking the watcher."]);
     })
   );
 });
