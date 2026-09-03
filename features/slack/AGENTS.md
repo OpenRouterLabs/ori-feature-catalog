@@ -47,9 +47,10 @@ A directory earns one when it has something to compose. `registry.ts` is module-
 A directory with something to assemble has an `index.ts`, and that file does the assembling. It holds the composition itself, moved there rather than re-exported:
 
 - `thread`, `interactions`, `message-stream`, `state`, `client` build layers, in the shape of the daemon's own layer module -- options schema and type, a config service where there are options, the implementation layer that acquires its dependencies, `makeXLayer(options)` with an explicit requirement list, and a default instance.
-- `turn`, `turn/routes`, `surface`, `dashboard`, `message-reply` build handlers. `surface/index.ts` is the whole boot: `makeBoltApp`, then the caller's turn wiring, then `registerListeners`, then `app.start()`.
+- `turn`, `turn/routes`, `turn/attachments`, `turn/context`, `turn/listening`, `surface`, `dashboard`, `message-reply` build handlers. `surface/index.ts` is the whole boot: `makeBoltApp`, then the caller's turn wiring, then `registerListeners`, then `app.start()`.
+- `helpers/charts` builds the pipeline its seven modules only supply parts of: `makeChartPipeline()` decodes a posted body, resolves its drawing, refuses a shape that would not read, draws the SVG, and rasterises it. `chart-route.ts` held that sequence before, so the route knew a `ChartRequest` carries an SVG string that has to reach `svgToPng`.
 
-`src/index.test.ts` fails on an index that uses `export *` or does not export a `make*`. A directory with nothing to assemble -- the pure helpers under `helpers/`, and `turn/attachments`, `turn/context`, `turn/listening` -- has no index, and callers import the module that owns the name.
+`src/index.test.ts` fails on an index that uses `export *` or does not export a `make*`. A directory with nothing to assemble -- the pure helpers under `helpers/` outside `helpers/charts` -- has no index, and callers import the module that owns the name.
 
 Making an index usually means splitting the module it came from. `reply-live.ts` returned one lump with six operations inline, so there was nothing to compose until those became named factories; the index builds the shape from them now. If an index would only forward a name, the composition has not been found yet.
 

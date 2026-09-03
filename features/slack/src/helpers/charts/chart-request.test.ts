@@ -1,6 +1,8 @@
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { parseChartBody } from "./chart-request.ts";
+import { makeChartPipeline } from "./index.ts";
+
+const charts = makeChartPipeline();
 
 const base = {
   channel: "C1",
@@ -8,9 +10,9 @@ const base = {
   title: "PR queue",
 };
 
-describe("parseChartBody", () => {
+describe("the chart pipeline parse", () => {
   test("renders bars from rows", () => {
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       ...base,
       kind: "bars",
       rows: [
@@ -27,14 +29,14 @@ describe("parseChartBody", () => {
 
   test("refuses a kind with nothing to draw", () => {
     expect(
-      parseChartBody({
+      charts.parse({
         ...base,
         kind: "bars",
         rows: [],
       }).ok
     ).toBe(false);
     expect(
-      parseChartBody({
+      charts.parse({
         ...base,
         kind: "flow",
       }).ok
@@ -43,12 +45,12 @@ describe("parseChartBody", () => {
 
   test("refuses a shape it cannot read rather than guessing", () => {
     expect(
-      parseChartBody({
+      charts.parse({
         ...base,
         kind: "pie",
       }).ok
     ).toBe(false);
-    expect(parseChartBody(null).ok).toBe(false);
+    expect(charts.parse(null).ok).toBe(false);
   });
 
   test("caps a row set nobody could read in a thread", () => {
@@ -56,7 +58,7 @@ describe("parseChartBody", () => {
       label: `row-${i}`,
       value: i,
     }));
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       ...base,
       kind: "bars",
       rows,
@@ -68,7 +70,7 @@ describe("parseChartBody", () => {
 
 describe("tables are not drawn", () => {
   test("the chart request rejects the table kind", () => {
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       channel: "C1",
       cells: [["a", "b"]],
       headers: ["x", "y"],
@@ -81,7 +83,7 @@ describe("tables are not drawn", () => {
   });
 
   test("a shape is still drawn", () => {
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       channel: "C1",
       graph: "flowchart TD\n  A --> B",
       kind: "flow",
@@ -112,18 +114,18 @@ const flowBody = (graph: string): Record<string, string> => ({
 
 describe("a flow that would draw as a smear", () => {
   test("four siblings still render", () => {
-    expect(parseChartBody(flowBody(fanOut(4))).ok).toBe(true);
+    expect(charts.parse(flowBody(fanOut(4))).ok).toBe(true);
   });
 
   test("nine are refused, and the reason names the table", () => {
-    const parsed = parseChartBody(flowBody(fanOut(9)));
+    const parsed = charts.parse(flowBody(fanOut(9)));
 
     expect(parsed.ok).toBe(false);
     expect(!parsed.ok && parsed.error).toContain("markdown table");
   });
 
   test("a line break tag never reaches a label", () => {
-    const parsed = parseChartBody(
+    const parsed = charts.parse(
       flowBody(
         "flowchart TD\n  A(Untrusted surfaces<br/>and where they land) --> B[Next]"
       )
@@ -148,7 +150,7 @@ describe("a flow with more nodes than fit", () => {
     }));
 
   test("is refused rather than quietly losing its tail", () => {
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       channel: "C1",
       edges: chainOf(40),
       kind: "flow",
@@ -162,7 +164,7 @@ describe("a flow with more nodes than fit", () => {
   });
 
   test("a flow at the cap still renders", () => {
-    const parsed = parseChartBody({
+    const parsed = charts.parse({
       channel: "C1",
       edges: chainOf(30),
       kind: "flow",

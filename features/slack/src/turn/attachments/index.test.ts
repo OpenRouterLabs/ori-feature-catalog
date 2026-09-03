@@ -2,17 +2,19 @@ import { Effect, Exit } from "effect";
 
 import { describe, expect, test } from "#src/test-support/effect-test.ts";
 
-import { withAttachments } from "./attachments.ts";
+import { makeTurnAttachments } from "./index.ts";
+
+const withAttachments = makeTurnAttachments({
+  fetch: globalThis.fetch,
+  token: "xoxb-test",
+});
 
 const eventWithNoFiles = {
-  event: {
-    channel: "C1",
-    text: "no files here",
-    thread_ts: "1700.1",
-    ts: "1700.2",
-    user: "U1",
-  },
-  token: "xoxb-test",
+  channel: "C1",
+  text: "no files here",
+  thread_ts: "1700.1",
+  ts: "1700.2",
+  user: "U1",
 } as unknown as Parameters<typeof withAttachments>[0];
 
 describe("withAttachments", () => {

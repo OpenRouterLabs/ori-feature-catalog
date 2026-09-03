@@ -9,10 +9,7 @@ import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { RunState } from "#src/message-stream/run-state.ts";
 import type { RunOptions } from "#src/message-stream/stream.ts";
 import type { StateStoreShape } from "#src/state/store.ts";
-import type {
-  AssistantThreadsShape,
-  PaneContext,
-} from "#src/thread/assistant.ts";
+import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
 import type { LiveTurn } from "#src/thread/registry.ts";
 import type { PendingApprovals, SessionSlot } from "#src/turn/run-events.ts";
 import type { IncomingTurn } from "#src/turn/turn-input.ts";
@@ -32,10 +29,8 @@ import {
   TURN_TIMEOUT_REASON,
 } from "#src/thread/registry.ts";
 import { threadInstanceId, ThreadContext } from "#src/thread/thread.ts";
-import { openPane, paneContextBlock } from "#src/turn/context/pane-context.ts";
-import { steerContextBlock } from "#src/turn/context/steer-context.ts";
-import { toolContextBlock } from "#src/turn/context/tool-context.ts";
-import { SLACK_REPLY_STYLE, SLACK_STYLE_REMINDER } from "#src/turn/reply-style.ts";
+import { openPane } from "#src/turn/context/pane-context.ts";
+import { makeTurnPrompt } from "#src/turn/context/index.ts";
 import { retireTurn } from "#src/turn/retire-turn.ts";
 import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
 import { beatStatus } from "#src/turn/status-beat.ts";
@@ -230,24 +225,6 @@ const runOptions = (turn: IncomingTurn): RunOptions => ({
   ...(turn.userId === "" ? {} : { recipientUserId: turn.userId }),
 });
 
-const promptFor = (input: {
-  readonly context: string;
-  readonly paneContext: PaneContext | undefined;
-  readonly resuming: boolean;
-  readonly turn: IncomingTurn;
-}): string =>
-  [
-    input.resuming ? SLACK_STYLE_REMINDER : SLACK_REPLY_STYLE,
-    paneContextBlock(input.paneContext),
-    toolContextBlock(input.turn.ref),
-    input.turn.attachmentWarning ?? "",
-    input.context,
-    steerContextBlock(input.turn.priorAsk),
-    input.turn.text,
-  ]
-    .filter((part) => part !== "")
-    .join("\n\n");
-
 const HandleTurnInputSchema = Schema.Struct({
   bridge: opaqueSchema<Chat>("HandleTurnInput.bridge"),
   live: opaqueSchema<LiveTurn>("HandleTurnInput.live"),
@@ -289,7 +266,7 @@ export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
       startsThread: input.turn.startsThread,
     });
 
-    const prompt = promptFor({
+    const prompt = makeTurnPrompt({
       context,
       paneContext,
       resuming: existing !== undefined,

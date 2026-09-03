@@ -3,12 +3,12 @@ import { describe, expect, test } from "#src/test-support/effect-test.ts";
 import { Effect, Schema } from "effect";
 
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { EngagementInput } from "./engagement.ts";
+import type { EngagementInput } from "./index.ts";
 import type { GateContext, IncomingMessage } from "./gates.ts";
 import type { ThreadListen } from "./listen.ts";
 
 import { functionSchema } from "#src/schema-support.ts";
-import { considerTurn, EngagementDepsSchema } from "./engagement.ts";
+import { EngagementDepsSchema, makeTurnListening } from "./index.ts";
 import { UNSEEN_THREAD } from "./listen.ts";
 
 const BOT = "U0SELF00";
@@ -76,7 +76,7 @@ const send = (
   message: Partial<IncomingMessage>,
   addressed = false
 ): Effect.Effect<"run" | "drop"> =>
-  considerTurn(h.deps, {
+  makeTurnListening(h.deps)({
     addressed,
     key: KEY,
     message: messageWith(message),

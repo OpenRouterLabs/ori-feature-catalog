@@ -4,7 +4,7 @@ import type { RawSlackMessage } from "#src/surface/listeners.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn-routes.ts";
 
 import { StateStore } from "#src/state/store.ts";
-import { claimStart } from "./listening/engagement.ts";
+import { claimStart } from "./listening/starts.ts";
 import { makeTurnRouteHandlers } from "./routes/index.ts";
 import { makeRunTurn, makeStartTurn } from "./turn-routes.ts";
 

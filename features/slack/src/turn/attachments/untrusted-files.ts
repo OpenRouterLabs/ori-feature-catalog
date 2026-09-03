@@ -40,6 +40,22 @@ export const attachedFiles = (event: unknown): readonly AttachedFile[] => {
   }));
 };
 
+export const downloadableFiles = (
+  files: readonly AttachedFile[]
+): readonly AttachedFile[] =>
+  files.filter((file) => file.urlPrivate !== "" && file.id !== "");
+
+export const withDownloadedPaths = (
+  files: readonly AttachedFile[],
+  downloaded: readonly { readonly id: string; readonly path: string }[]
+): readonly AttachedFile[] => {
+  const pathById = new Map(downloaded.map((file) => [file.id, file.path]));
+  return files.map((file) => ({
+    ...file,
+    path: pathById.get(file.id),
+  }));
+};
+
 export const untrustedFilesWarning = (
   files: readonly AttachedFile[]
 ): string => {

@@ -13,7 +13,7 @@ import type { QuestionnairesShape } from "#src/interactions/questionnaires.ts";
 import type { SlackServices } from "#src/layers.ts";
 import type { InterruptMode as InterruptModeType } from "#src/state/settings.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { EngagementDeps } from "./listening/engagement.ts";
+import type { EngagementDeps } from "./listening/index.ts";
 import type { IncomingMessage } from "./listening/gates.ts";
 
 import { makeMessageReply } from "#src/message-reply/index.ts";
@@ -21,8 +21,11 @@ import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { InterruptMode } from "#src/state/settings.ts";
 import { enqueue, isBusy, steerThread } from "#src/thread/registry.ts";
 import { ThreadRefSchema, threadInstanceId } from "#src/thread/thread.ts";
-import { withAttachments } from "./attachments/attachments.ts";
-import { considerTurn, EngagementDepsSchema } from "./listening/engagement.ts";
+import { makeTurnAttachments } from "./attachments/index.ts";
+import {
+  EngagementDepsSchema,
+  makeTurnListening,
+} from "./listening/index.ts";
 import { handleTurn } from "./handler/handler.ts";
 import { makeBlockerRoute } from "./routes/blocker-route.ts";
 import { carrySession } from "./carry.ts";
@@ -181,20 +184,19 @@ const runTheTurn = Effect.fn("Slack.turn.runWithAttachments")(function* (
 ): Effect.fn.Return<void, unknown> {
   const startsThread = event.thread_ts === undefined;
   const text = event.text ?? "";
-  yield* withAttachments(
-    {
-      event,
-      token: deps.token,
-    },
-    (attachmentWarning) =>
-      deps.runTurn({
-        attachmentWarning,
-        ref,
-        startsThread,
-        steer: true,
-        text,
-        userId: event.user ?? "",
-      })
+  const withAttachments = makeTurnAttachments({
+    fetch: globalThis.fetch,
+    token: deps.token,
+  });
+  yield* withAttachments(event, (attachmentWarning) =>
+    deps.runTurn({
+      attachmentWarning,
+      ref,
+      startsThread,
+      steer: true,
+      text,
+      userId: event.user ?? "",
+    })
   );
 });
 
@@ -207,8 +209,10 @@ export const makeStartTurn = (deps: {
   readonly started: (ts: string | undefined) => boolean;
   readonly token: string;
   readonly workspaceTeamId: string;
-}) =>
-  Effect.fn("Slack.turn.start")(function* (
+}) => {
+  const considerTurn = makeTurnListening(deps.engagement);
+
+  return Effect.fn("Slack.turn.start")(function* (
     event: RawSlackMessage,
     addressed: boolean
   ): Effect.fn.Return<void, unknown> {
@@ -223,7 +227,7 @@ export const makeStartTurn = (deps: {
       teamId: event.team ?? deps.workspaceTeamId,
       threadTs,
     };
-    const verdict = yield* considerTurn(deps.engagement, {
+    const verdict = yield* considerTurn({
       addressed,
       key: threadInstanceId(ref),
       message: deps.messageOf(event),
@@ -249,6 +253,7 @@ export const makeStartTurn = (deps: {
       )
     );
   });
+};
 
 const LoopbackTurnSchema = Schema.Struct({
   ref: ThreadRefSchema,

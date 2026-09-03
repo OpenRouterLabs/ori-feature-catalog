@@ -5,7 +5,7 @@ import { bestEffort } from "./helpers/best-effort.ts";
 import type { SlackConfig } from "./config.ts";
 import type { SlackServices } from "./layers.ts";
 import type { ThreadRef } from "./thread/thread.ts";
-import type { EngagementDeps } from "./turn/listening/engagement.ts";
+import type { EngagementDeps } from "./turn/listening/index.ts";
 
 import type { SlackClient } from "./client/client.ts";
 import { makeMessageReply } from "#src/message-reply/index.ts";

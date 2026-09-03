@@ -27,26 +27,6 @@ import {
 
 type TurnVerdict = "run" | "drop";
 
-const RECENT_STARTS = 512;
-
-export const claimStart = (): ((ts: string | undefined) => boolean) => {
-  const seen = new Set<string>();
-  return (ts) => {
-    if (ts === undefined || seen.has(ts)) {
-      return false;
-    }
-    seen.add(ts);
-    while (seen.size > RECENT_STARTS) {
-      const oldest = seen.values().next().value;
-      if (oldest === undefined) {
-        break;
-      }
-      seen.delete(oldest);
-    }
-    return true;
-  };
-};
-
 export const EngagementDepsSchema = Schema.Struct({
   gates: GateContextSchema,
   note: functionSchema<(ref: ThreadRef, text: string) => Effect.Effect<void>>(
@@ -89,9 +69,8 @@ const observe = Effect.fn("Slack.engagement.observe")(function* (
   return yield* deps.updateListen(input.key, mute);
 });
 
-export const considerTurn = Effect.fn("Slack.engagement.considerTurn")(
-  function* (
-    deps: EngagementDeps,
+export const makeTurnListening = (deps: EngagementDeps) =>
+  Effect.fn("Slack.engagement.considerTurn")(function* (
     input: EngagementInput
   ): Effect.fn.Return<TurnVerdict> {
     const known = yield* deps.readListen(input.key);
@@ -130,5 +109,4 @@ export const considerTurn = Effect.fn("Slack.engagement.considerTurn")(
 
     yield* deps.updateListen(input.key, engage);
     return "run";
-  }
-);
+  });
