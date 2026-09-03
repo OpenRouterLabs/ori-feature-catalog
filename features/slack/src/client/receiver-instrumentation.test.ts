@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await unicorn/consistent-function-scoping -- test doubles stand in for Slack SDK shapes and record `unknown` log fields; cases read better whole than split */
 import type { App, ReceiverEvent } from "@slack/bolt";
 
 import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
