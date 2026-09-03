@@ -94,6 +94,7 @@ const queuedNotice =
 
 const RunTurnDepsSchema = Schema.Struct({
   bridge: opaqueSchema<Chat>("RunTurnDeps.bridge"),
+  onItAfterMs: Schema.Number,
   interruptMode: functionSchema<() => Effect.Effect<InterruptModeType>>(
     "RunTurnDeps.interruptMode"
   ),
@@ -143,6 +144,7 @@ export const makeRunTurn = (deps: RunTurnDeps) =>
               handleTurn({
                 bridge: deps.bridge,
                 live,
+                onItAfterMs: deps.onItAfterMs,
                 turn: redirected,
               }).pipe(
                 Effect.catchCause((cause) =>

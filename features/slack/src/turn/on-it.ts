@@ -8,20 +8,13 @@ import { clampToWord } from "#src/clamp.ts";
 import { opaqueSchema } from "#src/schema-support.ts";
 import { toolSummary } from "#src/message-stream/run-state.ts";
 
-const NOTICE_AFTER_MS = 20_000;
-
 const RECHECK_MS = 2000;
-
 const FIRST_SENTENCE_LIMIT = 140;
-
 const TOOL_SUMMARY_LIMIT = 90;
 
 const WHITESPACE = /\s+/gu;
-
 const SENTENCE_BREAK = /(?<=[.!?])\s/u;
-
 const SENTENCE_END = /[.!?]$/u;
-
 const TRAILING_STOPS = /[.!?]+$/u;
 
 const firstSentence = (text: string): Option.Option<string> => {
@@ -72,7 +65,7 @@ const postWhenReady = (input: {
   );
 
 export const armOnItNotice = Effect.fnUntraced(function* (input: {
-  readonly delayMs?: number | undefined;
+  readonly delayMs: number;
   readonly firstTurn: boolean;
   readonly peek: Effect.Effect<RunState>;
   readonly post: (text: string) => Effect.Effect<PostedMessage, SlackApiError>;
@@ -83,7 +76,7 @@ export const armOnItNotice = Effect.fnUntraced(function* (input: {
   }
 
   const fiber = yield* Effect.forkChild(
-    Effect.sleep(input.delayMs ?? NOTICE_AFTER_MS).pipe(
+    Effect.sleep(input.delayMs).pipe(
       Effect.andThen(() =>
         postWhenReady({
           peek: input.peek,

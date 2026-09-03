@@ -62,6 +62,7 @@ const promptOf = (store?: StateStoreShape): Effect.Effect<string> =>
         signal: controller.signal,
         turnId: "turn-1",
       },
+      onItAfterMs: 20_000,
       turn: {
         ref: {
           channelId: "C1",

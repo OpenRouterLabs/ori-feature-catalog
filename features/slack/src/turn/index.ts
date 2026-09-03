@@ -13,6 +13,7 @@ export const makeTurnRoutes = (deps: TurnRouteDeps): TurnRoutes => {
     bridge: deps.bridge,
     interruptMode: () => Context.get(deps.context, StateStore).getInterruptMode(),
     logger: deps.logger,
+    onItAfterMs: deps.config.onItAfterMs,
     postQueuedNotice: deps.postQueuedNotice,
     runWith: deps.runWith,
   });

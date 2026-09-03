@@ -137,6 +137,7 @@ const run = (input: {
     yield* handleTurn({
       bridge: harness.bridge,
       live,
+      onItAfterMs: 20_000,
       turn: {
         ref,
         spawnDepth: input.spawnDepth,

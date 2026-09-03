@@ -30,7 +30,31 @@ describe("the secrets are the only thing worth refusing to boot over", () => {
     expect(config.loadingEmoji).toBe(":braille-loader:");
     expect(config.allowedUserIds.size).toBe(0);
     expect(config.openRouterApiKey).toBeUndefined();
+    expect(config.onItAfterMs).toBe(20_000);
   });
+});
+
+describe("how long a turn runs before it explains itself", () => {
+  test("a workspace can set its own", () => {
+    expect(
+      readSlackConfig({
+        ...secrets,
+        SLACK_ON_IT_AFTER_MS: "45000",
+      }).onItAfterMs
+    ).toBe(45_000);
+  });
+
+  test.each(["", "  ", "soon", "0", "-1", "1.5", "1e999"])(
+    "a value that is not a count of milliseconds falls back: %s",
+    (raw) => {
+      expect(
+        readSlackConfig({
+          ...secrets,
+          SLACK_ON_IT_AFTER_MS: raw,
+        }).onItAfterMs
+      ).toBe(20_000);
+    }
+  );
 });
 
 describe("a misconfigured value degrades rather than breaking the surface", () => {

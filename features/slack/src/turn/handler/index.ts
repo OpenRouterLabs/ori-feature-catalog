@@ -175,6 +175,7 @@ const driveRun = (input: {
   readonly existing: { readonly sessionId: string } | undefined;
   readonly instanceId: string;
   readonly live: LiveTurn;
+  readonly onItAfterMs: number;
   readonly prompt: string;
   readonly reply: MessageReplyShape;
   readonly sendMessage: Chat["sendMessage"];
@@ -200,6 +201,7 @@ const driveRun = (input: {
     });
 
     const notice = yield* armOnItNotice({
+      delayMs: input.onItAfterMs,
       firstTurn: input.existing === undefined,
       peek,
       post: (text) => reply.reply(text),
@@ -236,6 +238,7 @@ const runOptions = (turn: IncomingTurn): RunOptions => ({
 const HandleTurnInputSchema = Schema.Struct({
   bridge: opaqueSchema<Chat>("HandleTurnInput.bridge"),
   live: opaqueSchema<LiveTurn>("HandleTurnInput.live"),
+  onItAfterMs: Schema.Number,
   turn: IncomingTurnSchema,
 });
 
@@ -289,6 +292,7 @@ export const handleTurn = Effect.fn("Slack.turn.handle")(function* (
         existing,
         instanceId,
         live: input.live,
+        onItAfterMs: input.onItAfterMs,
         prompt,
         reply,
         sendMessage: input.bridge.sendMessage.bind(input.bridge),
