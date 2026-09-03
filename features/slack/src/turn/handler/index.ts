@@ -33,6 +33,7 @@ import { openPane } from "#src/turn/context/pane-context.ts";
 import { makeTurnPrompt } from "#src/turn/context/index.ts";
 import { retireTurn } from "#src/turn/retire-turn.ts";
 import { AgentStreamEnded, applyEvent, handleRunEvent } from "#src/turn/run-events.ts";
+import { armOnItNotice } from "#src/turn/on-it.ts";
 import { beatStatus } from "#src/turn/status-beat.ts";
 import { IncomingTurnSchema, turnEnv } from "#src/turn/turn-input.ts";
 
@@ -198,6 +199,15 @@ const driveRun = (input: {
       threadKey: input.instanceId,
     });
 
+    // The status line is the only thing a long turn shows until it settles,
+    // and it is easy to miss. This says once, in the thread, what the turn
+    // turned out to be -- and stays quiet when there is nothing to add.
+    const notice = yield* armOnItNotice({
+      ask: input.turn.text,
+      peek,
+      post: (text) => reply.reply(text),
+    });
+
     const events = openStream(input, live.signal);
 
     const pending: PendingApprovals = new Map();
@@ -216,6 +226,7 @@ const driveRun = (input: {
       store,
       turn: input.turn,
     });
+    yield* notice.stop;
     yield* beat.stop;
     yield* retirePending(pending, reply);
   });
