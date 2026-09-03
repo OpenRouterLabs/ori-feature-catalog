@@ -62,10 +62,6 @@ export const makeSurface = async <Turns extends SurfaceTurns>(input: {
     }),
     dispatchInteraction: input.dispatchInteraction,
     dispatchView: input.dispatchView,
-    logger: input.logger,
-    // The receipt is timed by the receiver, so the dispatch line is joined to
-    // it here, where the receiver the app was built with is still in hand.
-    receiptAt: (eventId) => receiver.receiptAt(eventId),
     startTurn: turns.startTurn,
   });
 

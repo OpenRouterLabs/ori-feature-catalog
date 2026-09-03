@@ -4,6 +4,8 @@ import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
 
+import { readDispatch } from "./dispatch-note.ts";
+
 import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
 const MS_PER_SECOND = 1000;
@@ -109,21 +111,15 @@ const ReceiptOutcomeSchema = Schema.Literals([
 type ReceiptOutcome = typeof ReceiptOutcomeSchema.Type;
 
 const AnswerSchema = Schema.Struct({
-  deduped: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  addressed: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
   eventId: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   eventType: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   outcome: ReceiptOutcomeSchema,
+  queueMs: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
   response: opaqueSchema<Response>("Answer.response"),
 });
 
 type Answer = typeof AnswerSchema.Type;
-
-const ReceiptSchema = Schema.Struct({
-  at: Schema.Number,
-  mark: Schema.Number,
-});
-
-type Receipt = typeof ReceiptSchema.Type;
 
 const logLevelSchema = (level: string) =>
   functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
@@ -146,7 +142,7 @@ type SlackReceiverOptions = typeof SlackReceiverOptionsSchema.Type;
 export class SlackReceiver implements Receiver {
   #app: App | undefined;
   #pruneTimer: ReturnType<typeof setInterval> | undefined;
-  readonly #seen = new Map<string, Receipt>();
+  readonly #seen = new Map<string, number>();
   readonly #options: SlackReceiverOptions;
 
   constructor(options: SlackReceiverOptions) {
@@ -160,8 +156,8 @@ export class SlackReceiver implements Receiver {
   start(): Promise<void> {
     this.#pruneTimer ??= setInterval(() => {
       const cutoff = Date.now() - DEDUP_TTL_MS;
-      for (const [id, receipt] of this.#seen) {
-        if (receipt.at < cutoff) {
+      for (const [id, at] of this.#seen) {
+        if (at < cutoff) {
           this.#seen.delete(id);
         }
       }
@@ -180,10 +176,6 @@ export class SlackReceiver implements Receiver {
     return Promise.resolve();
   }
 
-  receiptAt(eventId: string): number | undefined {
-    return this.#seen.get(eventId)?.mark;
-  }
-
   #release(eventId: string | undefined): void {
     if (eventId !== undefined) {
       this.#seen.delete(eventId);
@@ -197,10 +189,7 @@ export class SlackReceiver implements Receiver {
     if (this.#seen.has(eventId)) {
       return false;
     }
-    this.#seen.set(eventId, {
-      at: Date.now(),
-      mark: performance.now(),
-    });
+    this.#seen.set(eventId, Date.now());
     return true;
   }
 
@@ -318,7 +307,6 @@ export class SlackReceiver implements Receiver {
     const eventType = eventTypeOf(body);
     if (!this.#admit(eventId)) {
       return {
-        deduped: true,
         eventId,
         eventType,
         outcome: "deduped",
@@ -333,6 +321,7 @@ export class SlackReceiver implements Receiver {
       retryReason: retry.reason,
     };
 
+    const handoff = performance.now();
     const outcome = await Effect.runPromise(
       Effect.tryPromise(() => app.processEvent(event)).pipe(
         Effect.map((): ReceiptOutcome => "dispatched"),
@@ -346,10 +335,15 @@ export class SlackReceiver implements Receiver {
       )
     );
 
+    const dispatch = readDispatch(body);
+
     return {
+      addressed: dispatch?.addressed,
       eventId,
       eventType,
       outcome,
+      queueMs:
+        dispatch === undefined ? undefined : Math.round(dispatch.at - handoff),
       response: new Response("", { status: HTTP_OK }),
     };
   }
@@ -365,10 +359,11 @@ export class SlackReceiver implements Receiver {
     } finally {
       this.#options.logger.info("[slack] event received", {
         ack_ms: elapsedMsSince(mark),
-        deduped: answer?.deduped === true,
+        addressed: answer?.addressed,
         event_id: answer?.eventId,
         event_type: answer?.eventType,
         outcome: answer?.outcome ?? "errored",
+        queue_ms: answer?.queueMs,
         retry_num: retry.num,
         retry_reason: retry.reason,
         status: answer?.response.status,

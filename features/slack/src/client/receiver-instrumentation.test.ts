@@ -4,6 +4,7 @@ import type { App, ReceiverEvent } from "@slack/bolt";
 import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
 import { createHmac } from "node:crypto";
 
+import { noteDispatch } from "./dispatch-note.ts";
 import { SlackReceiver } from "./receiver.ts";
 
 const SIGNING_SECRET = "test-signing-secret";
@@ -121,7 +122,6 @@ describe("the receipt line", () => {
 
     expect(receipts(recorded)).toHaveLength(1);
     expect(receipts(recorded)[0]?.fields).toMatchObject({
-      deduped: false,
       event_id: "Ev-ack",
       event_type: "app_mention",
       outcome: "dispatched",
@@ -138,9 +138,8 @@ describe("the receipt line", () => {
     await receiver.handleRequest(request({ body, retryNum: "1" }));
 
     expect(receipts(recorded)).toHaveLength(2);
-    expect(receipts(recorded)[0]?.fields.deduped).toBe(false);
+    expect(receipts(recorded)[0]?.fields.outcome).toBe("dispatched");
     expect(receipts(recorded)[1]?.fields).toMatchObject({
-      deduped: true,
       event_id: "Ev-dup",
       outcome: "deduped",
     });
@@ -264,30 +263,57 @@ describe("the receipt line", () => {
   });
 });
 
-describe("the receipt clock", () => {
-  test("an admitted event's receipt is readable while its turn is dispatching", async () => {
-    let seenAt: number | undefined;
-    const { receiver } = await startedReceiver(async () => {
-      seenAt = receiver.receiptAt("Ev-clock");
+describe("the dispatch fields", () => {
+  test("a turn the listener starts is timed and marked addressed", async () => {
+    const { recorded, receiver } = await startedReceiver(async (event) => {
+      await Bun.sleep(20);
+      noteDispatch(event.body, true);
     });
 
-    await receiver.handleRequest(request({ body: eventBody("Ev-clock") }));
+    await receiver.handleRequest(request({ body: eventBody("Ev-queue") }));
 
-    expect(typeof seenAt).toBe("number");
+    const fields = receipts(recorded)[0]?.fields;
+    expect(fields?.addressed).toBe(true);
+    expect(fields?.queue_ms as number).toBeGreaterThanOrEqual(20);
+    expect(fields?.ack_ms as number).toBeGreaterThanOrEqual(
+      fields?.queue_ms as number
+    );
   });
 
-  test("an event the receiver never admitted has no receipt", async () => {
-    const { receiver } = await startedReceiver();
+  test("an unaddressed turn is recorded as one", async () => {
+    const { recorded, receiver } = await startedReceiver((event) => {
+      noteDispatch(event.body, false);
+      return Promise.resolve();
+    });
 
-    expect(receiver.receiptAt("Ev-never")).toBeUndefined();
+    await receiver.handleRequest(request({ body: eventBody("Ev-thread") }));
+
+    expect(receipts(recorded)[0]?.fields.addressed).toBe(false);
   });
 
-  test("stop() forgets the receipts along with the dedupe memory", async () => {
-    const { receiver } = await startedReceiver();
+  test("an event no listener acts on carries neither field", async () => {
+    const { recorded, receiver } = await startedReceiver();
 
-    await receiver.handleRequest(request({ body: eventBody("Ev-gone") }));
-    await receiver.stop();
+    await receiver.handleRequest(request({ body: eventBody("Ev-ignored") }));
 
-    expect(receiver.receiptAt("Ev-gone")).toBeUndefined();
+    const fields = receipts(recorded)[0]?.fields;
+    expect(fields?.outcome).toBe("dispatched");
+    expect(fields?.addressed).toBeUndefined();
+    expect(fields?.queue_ms).toBeUndefined();
+  });
+
+  test("one request cannot read another request's dispatch", async () => {
+    const { recorded, receiver } = await startedReceiver((event) => {
+      if (event.body.event_id === "Ev-a") {
+        noteDispatch(event.body, true);
+      }
+      return Promise.resolve();
+    });
+
+    await receiver.handleRequest(request({ body: eventBody("Ev-a") }));
+    await receiver.handleRequest(request({ body: eventBody("Ev-b") }));
+
+    expect(receipts(recorded)[0]?.fields.addressed).toBe(true);
+    expect(receipts(recorded)[1]?.fields.addressed).toBeUndefined();
   });
 });
