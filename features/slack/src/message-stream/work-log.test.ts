@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/explicit-function-return-type -- the fixtures build states, and their shapes are inferred */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { RunState } from "./run-state.ts";
 

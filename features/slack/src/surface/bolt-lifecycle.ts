@@ -1,22 +1,13 @@
 import type { AuthorizeResult } from "@slack/bolt";
 
 import { App, LogLevel } from "@slack/bolt";
-import { Effect, Exit, Option, Scope } from "effect";
+import { Effect, Exit, Option, Schema, Scope } from "effect";
 
 import type { SlackLogger } from "#src/index.ts";
-import type {
-  InteractionPayload,
-  ViewSubmissionPayload,
-} from "#src/interactions/interactions.ts";
-import type {
-  RawAssistantThreadStarted,
-  RawSlackMessage,
-} from "./listeners.ts";
 
 import { cancelAll, drain, resetRegistry } from "#src/thread/registry.ts";
-import { registerListeners } from "./listeners.ts";
-import { resolveSlackProxyAgent } from "./proxy-agent.ts";
-import { SlackReceiver } from "./receiver.ts";
+import { resolveSlackProxyAgent } from "#src/client/proxy-agent.ts";
+import { SlackReceiver } from "#src/client/receiver.ts";
 
 const SHUTDOWN_DRAIN_MS = 15_000;
 
@@ -49,10 +40,12 @@ export const makeStop =
     await Effect.runPromise(Scope.close(deps.scope, Exit.void));
   };
 
-interface BoltIdentity {
-  readonly botId: string | undefined;
-  readonly botUserId: string | undefined;
-}
+const BoltIdentitySchema = Schema.Struct({
+  botId: Schema.UndefinedOr(Schema.String),
+  botUserId: Schema.UndefinedOr(Schema.String),
+});
+
+export type BoltIdentity = typeof BoltIdentitySchema.Type;
 
 type BoltAuthorization =
   | { readonly authorize: () => Promise<AuthorizeResult> }
@@ -91,28 +84,4 @@ export const makeBoltApp = (input: {
     }),
     receiver,
   };
-};
-
-export const goLive = async (input: {
-  readonly app: App;
-  readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
-  readonly dispatchInteraction: (payload: InteractionPayload) => Promise<void>;
-  readonly dispatchView: (payload: ViewSubmissionPayload) => Promise<void>;
-  readonly logger: SlackLogger;
-  readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
-  readonly receiptAt: (eventId: string) => number | undefined;
-  readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
-}): Promise<void> => {
-  registerListeners({
-    app: input.app,
-    changeAssistantContext: input.changeAssistantContext,
-    dispatchInteraction: input.dispatchInteraction,
-    dispatchView: input.dispatchView,
-    logger: input.logger,
-    openAssistantThread: input.openAssistantThread,
-    receiptAt: input.receiptAt,
-    startTurn: input.startTurn,
-  });
-  await input.app.start();
-  input.logger.info("[slack] chat surface is live");
 };

@@ -55,13 +55,15 @@ const NAME_ID_FAMILY = 1;
 const PLATFORM_UNICODE = 0;
 const PLATFORM_WINDOWS = 3;
 
-export interface ChartFontOptions {
-  readonly defaultFontFamily: string;
-  readonly fontDirs: readonly string[];
-  readonly monospaceFamily: string;
-  readonly sansSerifFamily: string;
-  readonly serifFamily: string;
-}
+const ChartFontOptionsSchema = Schema.Struct({
+  defaultFontFamily: Schema.String,
+  fontDirs: Schema.Array(Schema.String),
+  monospaceFamily: Schema.String,
+  sansSerifFamily: Schema.String,
+  serifFamily: Schema.String,
+});
+
+export type ChartFontOptions = typeof ChartFontOptionsSchema.Type;
 
 const decodeName = (bytes: Uint8Array, platformId: number): string =>
   platformId === PLATFORM_WINDOWS || platformId === PLATFORM_UNICODE

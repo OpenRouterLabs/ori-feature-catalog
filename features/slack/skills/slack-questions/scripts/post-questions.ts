@@ -1,14 +1,18 @@
+import { Schema } from "effect";
+
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
 const DEFAULT_PORT = "3141";
 
-export interface Question {
-  readonly choices?: readonly string[];
-  readonly id: string;
-  readonly kind?: "single" | "multi" | "text";
-  readonly optional?: boolean;
-  readonly prompt: string;
-}
+export const QuestionSchema = Schema.Struct({
+  choices: Schema.optionalKey(Schema.Array(Schema.String)),
+  id: Schema.String,
+  kind: Schema.optionalKey(Schema.Literals(["single", "multi", "text"])),
+  optional: Schema.optionalKey(Schema.Boolean),
+  prompt: Schema.String,
+});
+
+export type Question = typeof QuestionSchema.Type;
 
 type PostQuestionsOutcome =
   | { readonly kind: "asked" }

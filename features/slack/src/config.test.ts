@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { readBotToken, readSlackConfig, SLACK_ENV_VARS } from "./config.ts";
 

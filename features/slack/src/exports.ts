@@ -1,22 +1,30 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Block, KnownBlock } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 
-import type { SlackClientShape } from "./client/index.ts";
+import type { SlackClientShape } from "./client/client.ts";
 
-import { makeSlackClientFromToken } from "./client/index.ts";
+import { makeSlackClientFromToken } from "./client/client-live.ts";
 import { readBotToken } from "./config.ts";
-import { capBlocks, withinSlackLimit } from "./helpers/block-kit/blocks.ts";
+import { featureState } from "./feature-state.ts";
+import { capBlocks, withinSlackLimit } from "./helpers/block-kit/index.ts";
+import { opaqueSchema } from "./schema-support.ts";
 
-export interface SlackPostMessageInput {
-  readonly channel: string;
-  readonly text: string;
-  readonly threadTs?: string;
-  readonly blocks?: readonly (Block | KnownBlock)[];
-  readonly unfurlLinks?: boolean;
-  readonly unfurlMedia?: boolean;
-}
+const SlackPostMessageInputSchema = Schema.Struct({
+  channel: Schema.String,
+  text: Schema.String,
+  threadTs: Schema.optionalKey(Schema.String),
+  blocks: Schema.optionalKey(
+    Schema.Array(
+      opaqueSchema<Block | KnownBlock>("SlackPostMessageInput.blocks")
+    )
+  ),
+  unfurlLinks: Schema.optionalKey(Schema.Boolean),
+  unfurlMedia: Schema.optionalKey(Schema.Boolean),
+});
+
+export type SlackPostMessageInput = typeof SlackPostMessageInputSchema.Type;
 
 export type SlackPostMessageResult =
   | { readonly ok: true; readonly channel: string; readonly ts?: string }
@@ -25,6 +33,10 @@ export type SlackPostMessageResult =
 let client: SlackClientShape | undefined;
 
 const resolveClient = (): SlackClientShape | undefined => {
+  const running = featureState().runtime?.slack;
+  if (running !== undefined) {
+    return running;
+  }
   if (client !== undefined) {
     return client;
   }
@@ -93,4 +105,4 @@ export type {
   SlackButtonHandler,
 } from "./interactions/custom.ts";
 
-export { actions, button } from "./helpers/block-kit/blocks.ts";
+export { actions, button } from "./helpers/block-kit/index.ts";

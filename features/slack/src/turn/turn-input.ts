@@ -1,15 +1,19 @@
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { Schema } from "effect";
 
-export interface IncomingTurn {
-  readonly attachmentWarning?: string | undefined;
-  readonly priorPartial?: string | undefined;
-  readonly priorAsk?: string | undefined;
-  readonly ref: ThreadRef;
-  readonly startsThread?: boolean | undefined;
-  readonly spawnDepth?: number | undefined;
-  readonly text: string;
-  readonly userId: string;
-}
+import { ThreadRefSchema } from "#src/thread/thread.ts";
+
+export const IncomingTurnSchema = Schema.Struct({
+  attachmentWarning: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  priorPartial: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  priorAsk: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  ref: ThreadRefSchema,
+  startsThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  spawnDepth: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  text: Schema.String,
+  userId: Schema.String,
+});
+
+export type IncomingTurn = typeof IncomingTurnSchema.Type;
 
 export const turnEnv = (turn: IncomingTurn): Record<string, string> => ({
   SLACK_CHANNEL_ID: turn.ref.channelId,

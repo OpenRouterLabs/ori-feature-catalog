@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
+import { functionSchema } from "#src/schema-support.ts";
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -40,19 +41,23 @@ class AttachmentError extends Schema.TaggedErrorClass<AttachmentError>()(
   }
 }
 
-export interface DownloadableFile {
-  readonly filetype: string;
-  readonly id: string;
-  readonly label: string;
-  readonly urlPrivate: string;
-}
+const DownloadableFileSchema = Schema.Struct({
+  filetype: Schema.String,
+  id: Schema.String,
+  label: Schema.String,
+  urlPrivate: Schema.String,
+});
 
-interface DownloadedFile {
-  readonly bytes: number;
-  readonly id: string;
-  readonly label: string;
-  readonly path: string;
-}
+export type DownloadableFile = typeof DownloadableFileSchema.Type;
+
+const DownloadedFileSchema = Schema.Struct({
+  bytes: Schema.Number,
+  id: Schema.String,
+  label: Schema.String,
+  path: Schema.String,
+});
+
+type DownloadedFile = typeof DownloadedFileSchema.Type;
 
 export const safeFileName = (name: string, fileId: string): string => {
   const base = basename(name)
@@ -85,11 +90,13 @@ export const attachmentDirFor = (threadTs: string): string => {
   );
 };
 
-interface DownloadDeps {
-  readonly fetch: typeof globalThis.fetch;
-  readonly token: string;
-  readonly writeDir: string;
-}
+const DownloadDepsSchema = Schema.Struct({
+  fetch: functionSchema<typeof globalThis.fetch>("DownloadDeps.fetch"),
+  token: Schema.String,
+  writeDir: Schema.String,
+});
+
+type DownloadDeps = typeof DownloadDepsSchema.Type;
 
 const fetchWithinLimits = Effect.fn("Slack.attachments.fetchFile")(function* (
   file: DownloadableFile,
@@ -179,10 +186,12 @@ const writeDownload = Effect.fn("Slack.attachments.writeFile")(function* (
   });
 });
 
-interface TurnBudget {
-  budget: number;
-  dirReady: boolean;
-}
+const TurnBudgetSchema = Schema.Struct({
+  budget: Schema.mutableKey(Schema.Number),
+  dirReady: Schema.mutableKey(Schema.Boolean),
+});
+
+type TurnBudget = typeof TurnBudgetSchema.Type;
 
 const downloadOne = Effect.fn("Slack.attachments.downloadOne")(function* (
   file: DownloadableFile,

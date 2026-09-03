@@ -10,11 +10,49 @@ A module global is shorter and makes that capability the one thing nobody can ex
 
 Pure functions do not need this. A chart takes numbers and returns a string — there is nothing to inject, and a layer would be ceremony.
 
-## The contribution entry stashes nothing
+## One global slot, and DI for everything else
 
-`feature.ts` builds `chat` and `api` from one factory so they close over the same runtime handle, and hands `src/exports.ts` the client as an argument.
+Ori does not import `feature.ts`, it rebuilds it. `importFreshModule` runs `Bun.build` into a fresh temp directory and imports the output, so every load is a new file URL bundling the feature's own files together. `discoverFeatures` is called from the harness loader, the skill contributions, feature boot and the CLI, and the module cache beside it is only consulted under an import scope that edit mode sets, so in ordinary operation each caller gets its own build.
 
-Module scope cannot hold it. The entry is loaded eagerly while the runtime arrives through a dynamic `import()`, and the two resolve as separate module graphs, so a module-level binding exists twice: `start` writes one copy, a route handler reads the other, and every request answers 503 while boot reports the surface live. Three `globalThis` singletons were the first fix for that and had to be removed. A closure the two contributions share cannot split, and an argument crosses a module boundary whatever the graph looks like.
+For a feature, module scope is per-load, not per-process.
+
+That is a bootstrap problem, not a general one. Exactly one reference has to survive: `src/feature-state.ts` keys a `globalThis` property by `Symbol.for` and is the only file in the feature allowed to name `globalThis`. It holds the running `SlackRuntime` and the buttons registered before the surface came up -- nothing else.
+
+Everything downstream goes through the Effect context the runtime carries. `onButton` reaches `Interactions` with `Context.get(runtime.context, Interactions)` rather than keeping its own copy, which is how three `globalThis` singletons became one. Reach for the context first; the slot is only for what has to exist before the context does.
+
+`src/feature-state.test.ts` builds the module twice, the way the loader does, and asserts the state crosses. Against a module-level binding it fails -- that is the shape #31 shipped, and it took the surface down on every intern.
+
+## A directory index is a composition root
+
+`index.ts` builds the subsystem its directory owns and hands back the layer. Read one and you know what that directory provides, what it needs to be built, and in what order the pieces go together, because the wiring is the file:
+
+```ts
+export type ThreadServices = AssistantThreads | ThreadContext;
+
+export const ThreadLayer: Layer.Layer<ThreadServices, never, SlackClient> =
+  Layer.mergeAll(
+    Layer.effect(ThreadContext)(ThreadContextLive),
+    Layer.effect(AssistantThreads)(AssistantThreadsLive())
+  );
+```
+
+`SlackDefaultLayers` then composes roots rather than reaching past them for individual services, so adding a service to a subsystem touches one file instead of two.
+
+It is not a re-export file. Callers still import the module that owns a name; a directory index that only forwards names is a second place for every name to live, and two of them that reference each other form an import cycle -- `client/index.ts` was that, twice.
+
+A directory earns one when it has something to compose. `registry.ts` is module-level state behind plain functions, so `thread`'s root does not present it, and directories that are only pure helpers do not have one at all.
+
+## Every directory has an index.ts, and none of them forward
+
+`index.ts` is the directory. It is never a re-export of its siblings -- `src/index.test.ts` fails on any `export *` -- and it takes one of two shapes.
+
+Where the directory assembles something, the index holds that assembly, moved there rather than pointed at. `thread`, `interactions`, `message-stream`, `state` and `client` build layers, in the shape of the daemon's own layer module: options schema and type, a config service where there are options, the implementation layer that acquires its dependencies, `makeXLayer(options)` with an explicit requirement list, a default instance. `turn`, `turn/routes`, `turn/attachments`, `turn/context`, `turn/listening`, `surface`, `dashboard`, `message-reply` and `helpers/charts` build handlers and pipelines the same way.
+
+Where the directory is one module, that module IS the index -- `helpers/users/index.ts`, `helpers/modals/index.ts`, `turn/handler/index.ts`. There is no wrapper around it and no second file to keep in step.
+
+Making an index usually means splitting the module it came from. `reply-live.ts` returned one lump with six operations inline; `attachments.ts` and `engagement.ts` owned no primitive at all and are gone, their wiring now in the index beside them. If an index would only forward a name, the composition has not been found yet.
+
+None of this works while two directories depend on each other. `client/` held `bolt-lifecycle.ts`, `listeners.ts` and `surface-events.ts`, which wire Bolt to `thread` and `interactions` while the rest of `client/` is the SDK wrapper those two depend on -- a cycle the moment both have an index, and why `client/index.ts` failed twice. They live in `src/surface/` now and the graph has no mutual pairs.
 
 ## More than four files on one topic is a folder
 

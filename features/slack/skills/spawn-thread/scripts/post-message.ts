@@ -4,6 +4,7 @@ import { Result, Schema } from "effect";
 
 import type { KnownBlock } from "@slack/types";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import {
   makeClient,
   markdownToSlack,
@@ -11,14 +12,37 @@ import {
 } from "#skills/slack-api/scripts/helpers.ts";
 import { tryCatchAsync } from "#skills/slack-api/scripts/result.ts";
 
-interface PostMessageOpts {
-  channel: string;
-  text?: string | undefined;
-  blocks?: readonly KnownBlock[] | undefined;
-  threadTs?: string | undefined;
-  noThread?: boolean | undefined;
-  env?: Record<string, string | undefined> | undefined;
-}
+const PostMessageOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  text: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.String))
+  ),
+  blocks: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Array(opaqueSchema<KnownBlock>("PostMessageOpts.blocks"))
+      )
+    )
+  ),
+  threadTs: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.String))
+  ),
+  noThread: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean))
+  ),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+});
+
+type PostMessageOpts = typeof PostMessageOptsSchema.Type;
 
 export const PostMessageResponse = Schema.Struct({
   ts: Schema.NonEmptyString,

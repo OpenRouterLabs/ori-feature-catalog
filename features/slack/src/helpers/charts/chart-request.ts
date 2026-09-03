@@ -1,4 +1,4 @@
-import { Result, Schema } from "effect";
+import { Schema } from "effect";
 
 import type {
   FlowEdge as FlowEdgeInput,
@@ -33,7 +33,7 @@ const FlowEdge = Schema.Struct({
   to: Schema.String,
 });
 
-const ChartBody = Schema.Struct({
+const ChartBodySchema = Schema.Struct({
   channel: Schema.String,
   graph: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
   edges: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(FlowEdge))),
@@ -44,19 +44,73 @@ const ChartBody = Schema.Struct({
   thread_ts: Schema.String,
   title: Schema.String,
 });
-const decodeBody = Schema.decodeUnknownResult(ChartBody);
+export type ChartBody = typeof ChartBodySchema.Type;
 
-const render = (input: {
+export const decodeChartBody = Schema.decodeUnknownResult(ChartBodySchema);
+
+export const UNREADABLE_BODY =
+  "expected { channel, thread_ts, title, kind: bars|flow, and rows|graph to match }";
+
+export type ChartRow = typeof Row.Type;
+
+export type ChartDrawing = {
   readonly edges: readonly FlowEdgeInput[];
-  readonly kind: "bars" | "flow";
   readonly nodes: readonly FlowNodeInput[];
-  readonly rows: readonly { label: string; value: number }[];
+};
+
+/** The rows a thread reader can still take in; a longer set is cut. */
+export const chartRows = (body: ChartBody): readonly ChartRow[] =>
+  (body.rows ?? []).slice(0, MAX_ROWS);
+
+/** A graph source describes the nodes and edges the explicit fields carry. */
+export const chartDrawing = (body: ChartBody): ChartDrawing =>
+  body.graph === undefined
+    ? {
+        edges: body.edges ?? [],
+        nodes: body.nodes ?? [],
+      }
+    : parseGraphSource(body.graph);
+
+/** Why a flow chart of this shape would come out unreadable, when it would. */
+export const flowRefusal = (drawing: ChartDrawing): string | undefined => {
+  const { edges, nodes } = drawing;
+  if (nodes.length > MAX_NODES) {
+    return `${nodes.length} nodes is more than a flow chart can carry (max ${MAX_NODES}) — split it into two charts rather than losing the tail`;
+  }
+  const widest = widestRow(nodes, edges);
+  if (widest > MAX_ROW_WIDTH) {
+    return `${widest} boxes would share one row (max ${MAX_ROW_WIDTH}) and their labels would overlap — that shape is a markdown table, not a flow chart`;
+  }
+  return undefined;
+};
+
+/** Why there is nothing to post: no thread to post into, or nothing to draw. */
+export const emptyRefusal = (input: {
+  readonly body: ChartBody;
+  readonly drawing: ChartDrawing;
+  readonly rows: readonly ChartRow[];
+}): string | undefined => {
+  const counts = {
+    bars: input.rows.length,
+    flow: input.drawing.nodes.length,
+  };
+  return counts[input.body.kind] === 0 ||
+    input.body.channel === "" ||
+    input.body.thread_ts === ""
+    ? "channel, thread_ts and at least one row are required"
+    : undefined;
+};
+
+export const renderChartSvg = (input: {
+  readonly drawing: ChartDrawing;
+  readonly kind: "bars" | "flow";
+  readonly rows: readonly ChartRow[];
   readonly title: string;
 }): string => {
   if (input.kind === "flow") {
     return flowChartSvg({
-      edges: input.edges,
-      nodes: input.nodes,
+      edges: input.drawing.edges,
+      nodes: input.drawing.nodes,
       title: input.title,
     });
   }
@@ -66,78 +120,16 @@ const render = (input: {
   });
 };
 
-export interface ChartRequest {
-  readonly channel: string;
-  readonly svg: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-  readonly title: string;
-}
+const ChartRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  svg: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+  title: Schema.String,
+});
 
-type ChartParse =
+export type ChartRequest = typeof ChartRequestSchema.Type;
+
+export type ChartParse =
   | { readonly ok: true; readonly request: ChartRequest }
   | { readonly ok: false; readonly error: string };
-
-export const parseChartBody = (raw: unknown): ChartParse =>
-  Result.match(decodeBody(raw), {
-    onFailure: (): ChartParse => ({
-      error:
-        "expected { channel, thread_ts, title, kind: bars|flow, and rows|graph to match }",
-      ok: false,
-    }),
-    onSuccess: (decoded): ChartParse => {
-      const rows = (decoded.rows ?? []).slice(0, MAX_ROWS);
-      const drawn =
-        decoded.graph === undefined
-          ? {
-              edges: decoded.edges ?? [],
-              nodes: decoded.nodes ?? [],
-            }
-          : parseGraphSource(decoded.graph);
-      const { edges, nodes } = drawn;
-      const counts = {
-        bars: rows.length,
-        flow: nodes.length,
-      };
-      if (decoded.kind === "flow") {
-        if (nodes.length > MAX_NODES) {
-          return {
-            error: `${nodes.length} nodes is more than a flow chart can carry (max ${MAX_NODES}) — split it into two charts rather than losing the tail`,
-            ok: false,
-          };
-        }
-        const widest = widestRow(nodes, edges);
-        if (widest > MAX_ROW_WIDTH) {
-          return {
-            error: `${widest} boxes would share one row (max ${MAX_ROW_WIDTH}) and their labels would overlap — that shape is a markdown table, not a flow chart`,
-            ok: false,
-          };
-        }
-      }
-
-      const empty = counts[decoded.kind];
-      if (empty === 0 || decoded.channel === "" || decoded.thread_ts === "") {
-        return {
-          error: "channel, thread_ts and at least one row are required",
-          ok: false,
-        };
-      }
-
-      return {
-        ok: true,
-        request: {
-          channel: decoded.channel,
-          svg: render({
-            edges,
-            kind: decoded.kind,
-            nodes,
-            rows,
-            title: decoded.title,
-          }),
-          team: decoded.team,
-          threadTs: decoded.thread_ts,
-          title: decoded.title,
-        },
-      };
-    },
-  });

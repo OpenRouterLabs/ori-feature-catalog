@@ -1,8 +1,13 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import type { WebClient } from "@slack/web-api";
+
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { makeFakeSlackClient } from "./client/client-test-support.ts";
+import type { SlackRuntime } from "./index.ts";
+
 import { makePostMessage, postMessage, webClient } from "./exports.ts";
+import { featureState } from "./feature-state.ts";
 
 const withRaw = (
   postMessageStub: (args: never) => unknown
@@ -247,9 +252,28 @@ describe("webClient", () => {
 });
 
 describe("one client, whoever asks", () => {
-  test("builds and memoises its own when no surface is running", () => {
+  const withRunningSurface = <A>(slack: unknown, run: () => A): A => {
+    featureState().runtime = { slack } as SlackRuntime;
+    try {
+      return run();
+    } finally {
+      featureState().runtime = undefined;
+    }
+  };
+
+  test("hands back the surface's own client while it is running", () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an identity stub: the test asserts which object comes back, never calls it
+    const raw = { marker: "the surface's" } as unknown as WebClient;
+
+    const got = withRunningSurface({ raw }, () => webClient());
+
+    expect(got).toBe(raw);
+  });
+
+  test("falls back to its own when no surface is running", () => {
     const original = Bun.env.SLACK_BOT_TOKEN;
     Bun.env.SLACK_BOT_TOKEN = "xoxb-test-token";
+    featureState().runtime = undefined;
 
     try {
       const first = webClient();

@@ -1,10 +1,10 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the recorded args are `unknown` */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
-import { makeMessageReply } from "#src/message-reply/reply-live.ts";
+import { makeMessageReply } from "#src/message-reply/index.ts";
 import { initialRunState, RunPhase } from "./run-state.ts";
 import { settle } from "./settle.ts";
 

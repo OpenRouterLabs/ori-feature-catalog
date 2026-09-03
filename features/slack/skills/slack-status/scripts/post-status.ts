@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 const MAX_LINE_CHARS = 120;
 const MAX_MESSAGE_CHARS = 300;
@@ -13,10 +13,12 @@ export type PostStatusOutcome =
 
 export type StatusEnv = Readonly<Record<string, string | undefined>>;
 
-export interface StatusPane {
-  readonly channelId: string;
-  readonly threadTs: string;
-}
+const StatusPaneSchema = Schema.Struct({
+  channelId: Schema.String,
+  threadTs: Schema.String,
+});
+
+export type StatusPane = typeof StatusPaneSchema.Type;
 
 const present = (raw: string | undefined): string | undefined =>
   raw !== undefined && raw !== "" && raw !== "undefined" ? raw : undefined;

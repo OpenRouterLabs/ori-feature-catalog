@@ -1,8 +1,8 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type -- fakes stand in for the Slack SDK shape */
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
-import { readViewSubmissionPayload } from "#src/client/listeners.ts";
+import { readViewSubmissionPayload } from "#src/surface/listeners.ts";
 import { blockIdFor, callbackFor } from "#src/helpers/blockers/questions.ts";
 
 const submission = (askId: string, typed: string): unknown => ({

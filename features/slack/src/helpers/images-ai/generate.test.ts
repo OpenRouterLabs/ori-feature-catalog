@@ -1,11 +1,11 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- fetch stubs stand in for the platform type */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
-import type { GenerateOutcome } from "./generate.ts";
+import type { GenerateOutcome } from "./index.ts";
 
-import { decodeDataUrl, generateImage } from "./generate.ts";
+import { decodeDataUrl, generateImage } from "./index.ts";
 
 const PIXEL =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

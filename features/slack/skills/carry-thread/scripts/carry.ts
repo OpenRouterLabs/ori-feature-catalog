@@ -1,4 +1,4 @@
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
 import type { FetchLike } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 
@@ -7,16 +7,20 @@ import { openThread } from "#skills/spawn-thread/scripts/run-new.ts";
 import { resolveHttpPort } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 import type { updateMessage } from "#skills/spawn-thread/scripts/update-message.ts";
 
-export interface CarriedThread {
-  readonly channel: string;
-  readonly sessionId: string;
-  readonly thread_ts: string;
-}
+const CarriedThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  sessionId: Schema.String,
+  thread_ts: Schema.String,
+});
 
-interface OriginThread {
-  readonly channel: string;
-  readonly threadTs: string;
-}
+export type CarriedThread = typeof CarriedThreadSchema.Type;
+
+const OriginThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  threadTs: Schema.String,
+});
+
+type OriginThread = typeof OriginThreadSchema.Type;
 
 const present = (value: string | undefined): value is string =>
   value !== undefined && value.length > 0 && value !== "undefined";

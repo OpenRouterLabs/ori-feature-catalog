@@ -1,7 +1,8 @@
 import type { WebClient } from "@slack/web-api";
 
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import { makeClient } from "./helpers.ts";
 import { isString, tryCatchAsync } from "./result.ts";
 
@@ -9,14 +10,35 @@ const DEFAULT_LIMIT = 1000;
 const UNLIMITED_MODE_CAP = 10_000;
 const PER_PAGE_MAX = 200;
 
-export interface GetHistoryOpts {
-  channel: string;
-  oldest?: string | undefined;
-  latest?: string | undefined;
-  limit?: number | undefined;
-  env?: Record<string, string | undefined> | undefined;
-  client?: WebClient | undefined;
-}
+const GetHistoryOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  oldest: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.String))
+  ),
+  latest: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.String))
+  ),
+  limit: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.Number))
+  ),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+  client: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(opaqueSchema<WebClient>("GetHistoryOpts.client"))
+    )
+  ),
+});
+
+export type GetHistoryOpts = typeof GetHistoryOptsSchema.Type;
 
 const tsOf = (msg: unknown): string | undefined => {
   if (typeof msg === "object" && msg !== null && "ts" in msg) {

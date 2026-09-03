@@ -1,12 +1,12 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
 import type { RawStubs } from "#src/client/client-test-support.ts";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
-import { uploadFile } from "./upload.ts";
+import { uploadFile } from "./index.ts";
 
 const ORIGINAL_FETCH = globalThis.fetch;
 

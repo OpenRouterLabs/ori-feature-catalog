@@ -1,14 +1,19 @@
-import { Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import type { InteractionHandler, InteractionsShape } from "./interactions.ts";
 
-export interface SlackButtonClick {
-  readonly actionId: string;
-  readonly channelId: string;
-  readonly threadTs: string | undefined;
-  readonly userId: string;
-  readonly value: string | undefined;
-}
+import { featureState } from "#src/feature-state.ts";
+import { Interactions } from "./interactions.ts";
+
+const SlackButtonClickSchema = Schema.Struct({
+  actionId: Schema.String,
+  channelId: Schema.String,
+  threadTs: Schema.UndefinedOr(Schema.String),
+  userId: Schema.String,
+  value: Schema.UndefinedOr(Schema.String),
+});
+
+export type SlackButtonClick = typeof SlackButtonClickSchema.Type;
 
 export type SlackButtonHandler = (
   click: SlackButtonClick
@@ -16,9 +21,14 @@ export type SlackButtonHandler = (
 
 export const RESERVED_ACTION_PREFIX = "ori_";
 
-const buttons = new Map<string, SlackButtonHandler>();
+const registry = (): Map<string, SlackButtonHandler> => featureState().buttons;
 
-let interactions: InteractionsShape | undefined;
+const liveInteractions = (): InteractionsShape | undefined => {
+  const { runtime } = featureState();
+  return runtime === undefined
+    ? undefined
+    : Context.get(runtime.context, Interactions);
+};
 
 const adapt =
   (actionId: string, handler: SlackButtonHandler): InteractionHandler =>
@@ -48,17 +58,18 @@ export const onButton = (
       `[slack] action id "${actionId}" is reserved: "${RESERVED_ACTION_PREFIX}" belongs to the surface's own buttons`
     );
   }
-  buttons.set(actionId, handler);
-  interactions?.on(actionId, adapt(actionId, handler));
+  registry().set(actionId, handler);
+  liveInteractions()?.on(actionId, adapt(actionId, handler));
 };
 
-export const registeredButtonIds = (): readonly string[] => [...buttons.keys()];
+export const registeredButtonIds = (): readonly string[] => [
+  ...registry().keys(),
+];
 
 export const registerCustomButtons = (
   next: InteractionsShape
 ): readonly string[] => {
-  interactions = next;
-  const ids = [...buttons.entries()];
+  const ids = [...registry().entries()];
   for (const [actionId, handler] of ids) {
     next.on(actionId, adapt(actionId, handler));
   }
@@ -66,6 +77,5 @@ export const registerCustomButtons = (
 };
 
 export const resetCustomButtons = (): void => {
-  buttons.clear();
-  interactions = undefined;
+  registry().clear();
 };

@@ -2,10 +2,10 @@ import type { AgentFailure, AgentRuntimeEvent } from "ori";
 
 import { Effect, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 
-import type { SlackApiError } from "#src/client/index.ts";
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackApiError } from "#src/client/client.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { RunState } from "#src/message-stream/run-state.ts";
 import type { StateStoreShape } from "#src/state/store.ts";
@@ -191,10 +191,12 @@ const retireApproval = Effect.fn("Slack.runEvents.retireApproval")(
   }
 );
 
-export interface SessionSlot {
-  current: string | undefined;
-  readonly instanceId: string;
-}
+const SessionSlotSchema = Schema.Struct({
+  current: Schema.mutableKey(Schema.UndefinedOr(Schema.String)),
+  instanceId: Schema.String,
+});
+
+export type SessionSlot = typeof SessionSlotSchema.Type;
 
 const requestPermission = Effect.fn("Slack.runEvents.requestPermission")(
   function* (input: {

@@ -1,40 +1,66 @@
-import { Context, Effect, Ref } from "effect";
+import { Context, Effect, Ref, Schema } from "effect";
 
 import type { ThreadListen } from "#src/turn/listening/listen.ts";
 import type { InterruptMode } from "./settings.ts";
 
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { UNSEEN_THREAD } from "#src/turn/listening/listen.ts";
 import { DEFAULT_INTERRUPT_MODE } from "./settings.ts";
 
-export interface ThreadSession {
-  readonly sessionId: string;
-  readonly startedAt: number;
-}
+const ThreadSessionSchema = Schema.Struct({
+  sessionId: Schema.String,
+  startedAt: Schema.Number,
+});
 
-export interface ThreadRow {
-  readonly instanceId: string;
-  readonly listen: ThreadListen;
-  readonly session: ThreadSession | undefined;
-}
+export type ThreadSession = typeof ThreadSessionSchema.Type;
 
-export interface StateStoreShape {
-  readonly getSession: (
-    instanceId: string
-  ) => Effect.Effect<ThreadSession | undefined>;
-  readonly putSession: (
-    instanceId: string,
-    session: ThreadSession
-  ) => Effect.Effect<void>;
-  readonly clearSession: (instanceId: string) => Effect.Effect<void>;
-  readonly getListen: (instanceId: string) => Effect.Effect<ThreadListen>;
-  readonly listThreads: () => Effect.Effect<readonly ThreadRow[]>;
-  readonly getInterruptMode: () => Effect.Effect<InterruptMode>;
-  readonly putInterruptMode: (mode: InterruptMode) => Effect.Effect<void>;
-  readonly updateListen: (
-    instanceId: string,
-    change: (state: ThreadListen) => ThreadListen
-  ) => Effect.Effect<ThreadListen>;
-}
+const ThreadRowSchema = Schema.Struct({
+  instanceId: Schema.String,
+  listen: opaqueSchema<ThreadListen>("ThreadRow.listen"),
+  session: Schema.UndefinedOr(ThreadSessionSchema),
+});
+
+export type ThreadRow = typeof ThreadRowSchema.Type;
+
+const StateStoreShapeSchema = Schema.Struct({
+  getSession:
+    functionSchema<
+      (instanceId: string) => Effect.Effect<ThreadSession | undefined>
+    >("StateStoreShape.getSession"),
+  putSession:
+    functionSchema<
+      (instanceId: string, session: ThreadSession) => Effect.Effect<void>
+    >("StateStoreShape.putSession"),
+  clearSession:
+    functionSchema<(instanceId: string) => Effect.Effect<void>>(
+      "StateStoreShape.clearSession"
+    ),
+  getListen:
+    functionSchema<(instanceId: string) => Effect.Effect<ThreadListen>>(
+      "StateStoreShape.getListen"
+    ),
+  listThreads:
+    functionSchema<() => Effect.Effect<readonly ThreadRow[]>>(
+      "StateStoreShape.listThreads"
+    ),
+  getInterruptMode:
+    functionSchema<() => Effect.Effect<InterruptMode>>(
+      "StateStoreShape.getInterruptMode"
+    ),
+  putInterruptMode:
+    functionSchema<(mode: InterruptMode) => Effect.Effect<void>>(
+      "StateStoreShape.putInterruptMode"
+    ),
+  updateListen:
+    functionSchema<
+      (
+        instanceId: string,
+        change: (state: ThreadListen) => ThreadListen
+      ) => Effect.Effect<ThreadListen>
+    >("StateStoreShape.updateListen"),
+});
+
+export type StateStoreShape = typeof StateStoreShapeSchema.Type;
 
 export class StateStore extends Context.Service<StateStore, StateStoreShape>()(
   "ori/slack/StateStore"

@@ -1,10 +1,11 @@
-import { Effect, Fiber } from "effect";
+import { Effect, Fiber, Schema } from "effect";
 
 import type { RunState } from "#src/message-stream/run-state.ts";
 import type { AssistantThreadsShape } from "#src/thread/assistant.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 
 import { clampToWord } from "#src/clamp.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 import { toolSummary } from "#src/message-stream/run-state.ts";
 import { paneOf } from "./context/pane-context.ts";
 import { readLine } from "./live-line.ts";
@@ -44,9 +45,11 @@ export const beatLine = (state: RunState, now: number = Date.now()): string => {
   return line.length <= LINE_LIMIT ? line : `${line.slice(0, LINE_LIMIT - 1)}…`;
 };
 
-interface StatusBeat {
-  readonly stop: Effect.Effect<void>;
-}
+const StatusBeatSchema = Schema.Struct({
+  stop: opaqueSchema<Effect.Effect<void>>("StatusBeat.stop"),
+});
+
+type StatusBeat = typeof StatusBeatSchema.Type;
 
 export const beatStatus = Effect.fn("Slack.statusBeat.arm")(function* (input: {
   readonly assistant: AssistantThreadsShape;

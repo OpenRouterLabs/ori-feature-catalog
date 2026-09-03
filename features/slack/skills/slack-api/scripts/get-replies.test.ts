@@ -1,23 +1,32 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-import { Result } from "effect";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Result, Schema } from "effect";
 
 import type { WebClient } from "@slack/web-api";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import { getThreadReplies, type GetRepliesOpts } from "./get-replies.ts";
 
 type RepliesArgs = Parameters<WebClient["conversations"]["replies"]>[0];
 
-interface RepliesPage {
-  readonly messages?: readonly unknown[];
-  readonly response_metadata?: {
-    readonly next_cursor?: string;
-  };
-}
+const RepliesPageSchema = Schema.Struct({
+  messages: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  response_metadata: Schema.optionalKey(
+    Schema.Struct({
+      next_cursor: Schema.optionalKey(Schema.String),
+    })
+  ),
+});
 
-interface FakeClient {
-  readonly calls: RepliesArgs[];
-  readonly client: WebClient;
-}
+type RepliesPage = typeof RepliesPageSchema.Type;
+
+const FakeClientSchema = Schema.Struct({
+  calls: Schema.mutable(
+    Schema.Array(opaqueSchema<RepliesArgs>("FakeClient.calls"))
+  ),
+  client: opaqueSchema<WebClient>("FakeClient.client"),
+});
+
+type FakeClient = typeof FakeClientSchema.Type;
 
 const fakeRepliesClient = (pages: readonly RepliesPage[]): FakeClient => {
   const calls: RepliesArgs[] = [];
@@ -38,10 +47,12 @@ const fakeRepliesClient = (pages: readonly RepliesPage[]): FakeClient => {
   };
 };
 
-interface RepliesPayload {
-  readonly hasMore: boolean;
-  readonly messages: readonly unknown[];
-}
+const RepliesPayloadSchema = Schema.Struct({
+  hasMore: Schema.Boolean,
+  messages: Schema.Array(Schema.Unknown),
+});
+
+type RepliesPayload = typeof RepliesPayloadSchema.Type;
 
 const isRepliesPayload = (value: unknown): value is RepliesPayload => {
   if (typeof value !== "object" || value === null) {

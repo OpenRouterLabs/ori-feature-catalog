@@ -2,9 +2,9 @@ import { Effect, Result, Schema } from "effect";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
-import type { Addressed } from "./loopback-route.ts";
 
-import { loopbackRoute, refuse } from "./loopback-route.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { AddressedSchema, loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_UNPROCESSABLE = 422;
@@ -21,11 +21,14 @@ const AttachBodySchema = Schema.Struct({
 
 const decodeBody = Schema.decodeUnknownResult(AttachBodySchema);
 
-interface AttachRequest extends Addressed {
-  readonly comment: string | undefined;
-  readonly path: string;
-  readonly title: string | undefined;
-}
+const AttachRequestSchema = Schema.Struct({
+  ...AddressedSchema.fields,
+  comment: Schema.UndefinedOr(Schema.String),
+  path: Schema.String,
+  title: Schema.UndefinedOr(Schema.String),
+});
+
+type AttachRequest = typeof AttachRequestSchema.Type;
 
 const blank = (value: string): boolean => value.trim().length === 0;
 
@@ -57,11 +60,17 @@ const parse = (raw: unknown): Result.Result<AttachRequest, string> =>
 const basename = (path: string): string =>
   path.split("/").filter((part) => part !== "").at(-1) ?? "attachment";
 
-export interface AttachRouteDeps {
-  readonly readFile: (path: string) => Promise<Blob>;
-  readonly replyFor: (ref: ThreadRef) => Promise<MessageReplyShape>;
-  readonly workspaceTeamId: string;
-}
+const AttachRouteDepsSchema = Schema.Struct({
+  readFile: functionSchema<(path: string) => Promise<Blob>>(
+    "AttachRouteDeps.readFile"
+  ),
+  replyFor: functionSchema<(ref: ThreadRef) => Promise<MessageReplyShape>>(
+    "AttachRouteDeps.replyFor"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+export type AttachRouteDeps = typeof AttachRouteDepsSchema.Type;
 
 export const makeAttachRoute = (
   deps: AttachRouteDeps

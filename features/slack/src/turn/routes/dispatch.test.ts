@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { MAX_SPAWN_DEPTH as SKILL_MAX_SPAWN_DEPTH } from "#skills/spawn-thread/scripts/spawn-thread.ts";
 import { MAX_SPAWN_DEPTH, isLoopback, parseDispatchBody } from "./dispatch.ts";

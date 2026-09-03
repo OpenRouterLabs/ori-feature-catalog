@@ -1,13 +1,16 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Schema } from "effect";
 import { join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "slack.ts");
 
-interface RunResult {
-  readonly code: number;
-  readonly stderr: string;
-  readonly stdout: string;
-}
+const RunResultSchema = Schema.Struct({
+  code: Schema.Number,
+  stderr: Schema.String,
+  stdout: Schema.String,
+});
+
+type RunResult = typeof RunResultSchema.Type;
 
 const run = async (
   args: readonly string[],

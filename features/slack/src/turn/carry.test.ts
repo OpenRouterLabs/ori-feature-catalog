@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { StateStoreShape } from "#src/state/store.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";

@@ -1,32 +1,45 @@
 import type { App } from "@slack/bolt";
 
+import { Schema } from "effect";
+
 import type {
   InteractionPayload,
   ViewSubmissionPayload,
 } from "#src/interactions/interactions.ts";
 
-export interface RawAssistantThreadStarted {
-  readonly assistant_thread?: {
-    readonly channel_id?: string;
-    readonly context?: {
-      readonly channel_id?: string;
-      readonly team_id?: string;
-    };
-    readonly thread_ts?: string;
-  };
-}
+const OptionalString = Schema.optional(Schema.String);
 
-export interface RawSlackMessage {
-  readonly bot_id?: string;
-  readonly channel?: string;
-  readonly channel_type?: string;
-  readonly subtype?: string;
-  readonly team?: string;
-  readonly text?: string;
-  readonly thread_ts?: string;
-  readonly ts?: string;
-  readonly user?: string;
-}
+const RawAssistantThreadStartedSchema = Schema.Struct({
+  assistant_thread: Schema.optional(
+    Schema.Struct({
+      channel_id: OptionalString,
+      context: Schema.optional(
+        Schema.Struct({
+          channel_id: OptionalString,
+          team_id: OptionalString,
+        })
+      ),
+      thread_ts: OptionalString,
+    })
+  ),
+});
+
+export type RawAssistantThreadStarted =
+  typeof RawAssistantThreadStartedSchema.Type;
+
+export const RawSlackMessageSchema = Schema.Struct({
+  bot_id: OptionalString,
+  channel: OptionalString,
+  channel_type: OptionalString,
+  subtype: OptionalString,
+  team: OptionalString,
+  text: OptionalString,
+  thread_ts: OptionalString,
+  ts: OptionalString,
+  user: OptionalString,
+});
+
+export type RawSlackMessage = typeof RawSlackMessageSchema.Type;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? { ...value } : {};

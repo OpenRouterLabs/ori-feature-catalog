@@ -1,15 +1,31 @@
 import type { WebClient } from "@slack/web-api";
 
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import { makeClient } from "./helpers.ts";
 import { tryCatchAsync } from "./result.ts";
 
-interface OpenDmOpts {
-  users: string;
-  env?: Record<string, string | undefined> | undefined;
-  client?: WebClient | undefined;
-}
+const OpenDmOptsSchema = Schema.Struct({
+  users: Schema.mutableKey(Schema.String),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+  client: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(opaqueSchema<WebClient>("OpenDmOpts.client"))
+    )
+  ),
+});
+
+type OpenDmOpts = typeof OpenDmOptsSchema.Type;
 
 export const openDm = async (
   opts: OpenDmOpts

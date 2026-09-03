@@ -1,15 +1,21 @@
-export interface GateContext {
-  readonly botUserId: string | undefined;
-  readonly allowedUserIds: ReadonlySet<string>;
-  readonly skipPrefixes: readonly string[];
-}
+import { Schema } from "effect";
 
-export interface IncomingMessage {
-  readonly botId: string | undefined;
-  readonly subtype: string | undefined;
-  readonly text: string;
-  readonly userId: string | undefined;
-}
+export const GateContextSchema = Schema.Struct({
+  botUserId: Schema.UndefinedOr(Schema.String),
+  allowedUserIds: Schema.ReadonlySet(Schema.String),
+  skipPrefixes: Schema.Array(Schema.String),
+});
+
+export type GateContext = typeof GateContextSchema.Type;
+
+export const IncomingMessageSchema = Schema.Struct({
+  botId: Schema.UndefinedOr(Schema.String),
+  subtype: Schema.UndefinedOr(Schema.String),
+  text: Schema.String,
+  userId: Schema.UndefinedOr(Schema.String),
+});
+
+export type IncomingMessage = typeof IncomingMessageSchema.Type;
 
 type GateDecision =
   | { readonly admit: true }

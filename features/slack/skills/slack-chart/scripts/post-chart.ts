@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Result, Schema } from "effect";
 
 import { unreadable } from "#skills/slack-api/scripts/result.ts";
 
@@ -21,6 +21,12 @@ type PostChartOutcome =
 
 export type PostChartEnv = Readonly<Record<string, string | undefined>>;
 
+const decodeSpecJson = Schema.decodeUnknownResult(Schema.UnknownFromJsonString);
+
+const decodeSpecObject = Schema.decodeUnknownResult(
+  Schema.Record(Schema.String, Schema.Unknown)
+);
+
 export const postChart = async (input: {
   readonly env: PostChartEnv;
   readonly fetch: typeof globalThis.fetch;
@@ -36,25 +42,21 @@ export const postChart = async (input: {
     };
   }
 
-  const parsed = Effect.runSync(
-    Effect.try((): unknown => JSON.parse(input.spec)).pipe(
-      Effect.map((value) => Option.some(value)),
-      Effect.orElseSucceed(() => Option.none<unknown>())
-    )
-  );
-  if (Option.isNone(parsed)) {
+  const json = decodeSpecJson(input.spec);
+  if (Result.isFailure(json)) {
     return {
       kind: "error",
       message: "the spec must be JSON",
     };
   }
-  const spec: unknown = parsed.value;
-  if (typeof spec !== "object" || spec === null) {
+  const decodedSpec = decodeSpecObject(json.success);
+  if (Result.isFailure(decodedSpec)) {
     return {
       kind: "error",
       message: "the spec must be a JSON object",
     };
   }
+  const spec = decodedSpec.success;
 
   const port = input.env.ORI_RUNTIME_PORT ?? DEFAULT_PORT;
   const response = await input

@@ -1,12 +1,12 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import type { ChatPostMessageArguments } from "@slack/web-api";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
 import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
-import { makeMessageReply } from "./reply-live.ts";
+import { makeMessageReply } from "#src/message-reply/index.ts";
 
 const ref = {
   channelId: "C1",

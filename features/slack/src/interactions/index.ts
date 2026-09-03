@@ -1,11 +1,19 @@
-export { registerBlockerHandlers } from "./blocker-handler.ts";
-export type { BlockersShape } from "./blocker.ts";
-export { Blockers, BlockersMemory } from "./blocker.ts";
-export type { SlackButtonClick, SlackButtonHandler } from "./custom.ts";
-export { RESERVED_ACTION_PREFIX, onButton, registerCustomButtons, registeredButtonIds } from "./custom.ts";
-export type { InteractionPayload, InteractionsShape, ViewSubmissionPayload } from "./interactions.ts";
-export { Interactions, makeInteractions } from "./interactions.ts";
-export { elicitationBlocks, permissionBlocks, permissionResolvedBlocks, registerCancelHandler, registerPermissionHandlers } from "./permissions.ts";
-export type { QuestionnairesShape } from "./questionnaires.ts";
-export { Questionnaires, QuestionnairesMemory } from "./questionnaires.ts";
-export { registerQuestionHandlers } from "./questions-handler.ts";
+import { Layer } from "effect";
+
+import { Blockers, BlockersMemory } from "./blocker.ts";
+import { Interactions, makeInteractions } from "./interactions.ts";
+import { Questionnaires, QuestionnairesMemory } from "./questionnaires.ts";
+
+export type InteractionServices = Blockers | Interactions | Questionnaires;
+
+const interactionsImplementationLayer: Layer.Layer<InteractionServices> =
+  Layer.mergeAll(
+    Layer.effect(Blockers)(BlockersMemory),
+    Layer.sync(Interactions)(makeInteractions),
+    Layer.effect(Questionnaires)(QuestionnairesMemory)
+  );
+
+export const makeInteractionsLayer = (): Layer.Layer<InteractionServices> =>
+  interactionsImplementationLayer;
+
+export const interactionsLayer = makeInteractionsLayer();

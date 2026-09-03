@@ -1,12 +1,12 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the fake stands in for the Slack SDK shape */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
 import type { AssistantThreadsShape } from "./assistant.ts";
 
 import { makeFakeSlackClient, opsOf } from "#src/client/client-test-support.ts";
-import { SlackClient } from "#src/client/index.ts";
+import { SlackClient } from "#src/client/client.ts";
 import { AssistantThreadsLive, keyOf, titleFromMessage } from "./assistant.ts";
 
 const PANE = {

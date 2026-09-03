@@ -1,3 +1,5 @@
+import { Schema } from "effect";
+
 import type { GateContext, IncomingMessage } from "./gates.ts";
 
 import { asideOf } from "./gates.ts";
@@ -11,12 +13,14 @@ const SILENT_SUBTYPES: ReadonlySet<string> = new Set([
   "message_deleted",
 ]);
 
-export interface ThreadListen {
-  readonly engaged: boolean;
-  readonly muted: boolean;
-  readonly participants: ReadonlySet<string>;
-  readonly suppressed: boolean;
-}
+const ThreadListenSchema = Schema.Struct({
+  engaged: Schema.Boolean,
+  muted: Schema.Boolean,
+  participants: Schema.ReadonlySet(Schema.String),
+  suppressed: Schema.Boolean,
+});
+
+export type ThreadListen = typeof ThreadListenSchema.Type;
 
 export const UNSEEN_THREAD: ThreadListen = {
   engaged: false,
