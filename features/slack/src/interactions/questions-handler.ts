@@ -1,12 +1,15 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
-import type { SlackClientShape } from "#src/client/index.ts";
 import type {
   InteractionPayload,
-  InteractionsShape,
   ViewSubmissionPayload,
 } from "./interactions.ts";
-import type { PendingForm, QuestionnairesShape } from "./questionnaires.ts";
+import type { PendingForm } from "./questionnaires.ts";
+
+import { SlackClientShapeSchema } from "#src/client/client.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { InteractionsShapeSchema } from "./interactions.ts";
+import { QuestionnairesShapeSchema } from "./questionnaires.ts";
 
 import {
   askIdFromQuestionsCallback,
@@ -16,12 +19,14 @@ import {
   questionsAnsweredBlocks,
   questionsModal,
 } from "#src/helpers/blockers/questions.ts";
-import { openModal } from "#src/helpers/modals/modals.ts";
+import { openModal } from "#src/helpers/modals/index.ts";
 
-interface Answered {
-  readonly answer: string;
-  readonly prompt: string;
-}
+const AnsweredSchema = Schema.Struct({
+  answer: Schema.String,
+  prompt: Schema.String,
+});
+
+type Answered = typeof AnsweredSchema.Type;
 
 const answersOf = (
   form: PendingForm,
@@ -56,12 +61,17 @@ export const answersPrompt = (answers: readonly Answered[]): string =>
     "stopped.",
   ].join("\n");
 
-interface HandlerDeps {
-  readonly continueTurn: (form: PendingForm, prompt: string) => void;
-  readonly forms: QuestionnairesShape;
-  readonly interactions: InteractionsShape;
-  readonly slack: SlackClientShape;
-}
+const HandlerDepsSchema = Schema.Struct({
+  continueTurn:
+    functionSchema<(form: PendingForm, prompt: string) => void>(
+      "HandlerDeps.continueTurn"
+    ),
+  forms: QuestionnairesShapeSchema,
+  interactions: InteractionsShapeSchema,
+  slack: SlackClientShapeSchema,
+});
+
+type HandlerDeps = typeof HandlerDepsSchema.Type;
 
 const onOpenClicked = (input: HandlerDeps): void => {
   input.interactions.on(

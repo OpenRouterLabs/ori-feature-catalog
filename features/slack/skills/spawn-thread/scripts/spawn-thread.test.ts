@@ -1,5 +1,5 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-import { Result } from "effect";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Result, Schema } from "effect";
 
 import type { FetchLike } from "./spawn-thread.ts";
 
@@ -14,10 +14,12 @@ import {
   runContinue,
 } from "./spawn-thread.ts";
 
-interface Call {
-  readonly body: Record<string, unknown>;
-  readonly url: string;
-}
+const CallSchema = Schema.Struct({
+  body: Schema.Record(Schema.String, Schema.mutableKey(Schema.Unknown)),
+  url: Schema.String,
+});
+
+type Call = typeof CallSchema.Type;
 
 const recording = (
   calls: Call[],

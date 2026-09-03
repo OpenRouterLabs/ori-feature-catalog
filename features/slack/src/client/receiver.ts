@@ -1,8 +1,10 @@
-import { Effect } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
+
+import { functionSchema } from "#src/schema-support.ts";
 
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
@@ -19,36 +21,37 @@ const HTTP_UNAUTHORIZED = 401;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 const HTTP_SERVICE_UNAVAILABLE = 503;
 
-interface UrlVerification {
-  readonly challenge: string;
-  readonly type: "url_verification";
-}
+const UrlVerificationSchema = Schema.Struct({
+  challenge: Schema.String,
+  type: Schema.Literals(["url_verification"]),
+});
+
+type UrlVerification = typeof UrlVerificationSchema.Type;
+
+const decodeUrlVerification = Schema.decodeUnknownResult(UrlVerificationSchema);
 
 const isUrlVerification = (body: unknown): body is UrlVerification =>
-  typeof body === "object" &&
-  body !== null &&
-  (body as { type?: unknown }).type === "url_verification" &&
-  typeof (body as { challenge?: unknown }).challenge === "string";
+  Result.isSuccess(decodeUrlVerification(body));
+
+const EventEnvelopeSchema = Schema.Struct({
+  event_id: Schema.optionalKey(Schema.String),
+});
+
+const decodeEventEnvelope = Schema.decodeUnknownResult(EventEnvelopeSchema);
 
 const eventIdOf = (body: unknown): string | undefined => {
-  if (typeof body !== "object" || body === null) {
-    return undefined;
-  }
-  const id = (body as { event_id?: unknown }).event_id;
-  return typeof id === "string" ? id : undefined;
+  const decoded = decodeEventEnvelope(body);
+  return Result.isSuccess(decoded) ? decoded.success.event_id : undefined;
 };
 
-const readJsonObject = (text: string): Record<string, unknown> | undefined =>
-  Effect.runSync(
-    Effect.try((): unknown => JSON.parse(text)).pipe(
-      Effect.map((parsed) =>
-        typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-          ? { ...parsed }
-          : undefined
-      ),
-      Effect.orElseSucceed(() => undefined)
-    )
-  );
+const decodeJsonObject = Schema.decodeUnknownResult(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
+);
+
+const readJsonObject = (text: string): Record<string, unknown> | undefined => {
+  const decoded = decodeJsonObject(text);
+  return Result.isFailure(decoded) ? undefined : { ...decoded.success };
+};
 
 const parseBody = (raw: string): Record<string, unknown> | undefined => {
   const direct = readJsonObject(raw);
@@ -60,13 +63,21 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
-interface SlackReceiverOptions {
-  readonly signingSecret: string;
-  readonly logger: {
-    readonly error: (message: string, ...rest: readonly unknown[]) => void;
-    readonly warn: (message: string, ...rest: readonly unknown[]) => void;
-  };
-}
+const SlackReceiverOptionsSchema = Schema.Struct({
+  signingSecret: Schema.String,
+  logger: Schema.Struct({
+    error:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.error"
+      ),
+    warn:
+      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+        "SlackReceiverOptions.logger.warn"
+      ),
+  }),
+});
+
+type SlackReceiverOptions = typeof SlackReceiverOptionsSchema.Type;
 
 export class SlackReceiver implements Receiver {
   #app: App | undefined;

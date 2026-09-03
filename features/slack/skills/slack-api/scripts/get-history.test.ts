@@ -1,8 +1,9 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-import { Result } from "effect";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Result, Schema } from "effect";
 
 import type { WebClient } from "@slack/web-api";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import {
   appendDedupedMessages,
   capStateAfterPage,
@@ -13,17 +14,25 @@ import {
 
 type HistoryArgs = Parameters<WebClient["conversations"]["history"]>[0];
 
-interface HistoryPage {
-  readonly messages?: readonly unknown[];
-  readonly response_metadata?: {
-    readonly next_cursor?: string;
-  };
-}
+const HistoryPageSchema = Schema.Struct({
+  messages: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  response_metadata: Schema.optionalKey(
+    Schema.Struct({
+      next_cursor: Schema.optionalKey(Schema.String),
+    })
+  ),
+});
 
-interface FakeClient {
-  readonly calls: HistoryArgs[];
-  readonly client: WebClient;
-}
+type HistoryPage = typeof HistoryPageSchema.Type;
+
+const FakeClientSchema = Schema.Struct({
+  calls: Schema.mutable(
+    Schema.Array(opaqueSchema<HistoryArgs>("FakeClient.calls"))
+  ),
+  client: opaqueSchema<WebClient>("FakeClient.client"),
+});
+
+type FakeClient = typeof FakeClientSchema.Type;
 
 const fakeHistoryClient = (pages: readonly HistoryPage[]): FakeClient => {
   const calls: HistoryArgs[] = [];
@@ -44,10 +53,12 @@ const fakeHistoryClient = (pages: readonly HistoryPage[]): FakeClient => {
   };
 };
 
-interface HistoryPayload {
-  readonly hasMore: boolean;
-  readonly messages: readonly unknown[];
-}
+const HistoryPayloadSchema = Schema.Struct({
+  hasMore: Schema.Boolean,
+  messages: Schema.Array(Schema.Unknown),
+});
+
+type HistoryPayload = typeof HistoryPayloadSchema.Type;
 
 const isHistoryPayload = (value: unknown): value is HistoryPayload => {
   if (typeof value !== "object" || value === null) {

@@ -1,13 +1,13 @@
 import { Effect } from "effect";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 
 import {
   BLOCKER_ACTION_ID,
   blockerBlocks,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 import { makeInteractions } from "./interactions.ts";
 import {
   ELICITATION_ACTION_ID,

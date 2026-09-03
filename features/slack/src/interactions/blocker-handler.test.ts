@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the fake stands in for the Slack SDK shape */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
@@ -10,7 +10,7 @@ import { makeFakeSlackClient } from "#src/client/client-test-support.ts";
 import {
   BLOCKER_ACTION_ID,
   encodeChoice,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 import { registerBlockerHandlers } from "./blocker-handler.ts";
 import { BlockersMemory } from "./blocker.ts";
 import { makeInteractions } from "./interactions.ts";

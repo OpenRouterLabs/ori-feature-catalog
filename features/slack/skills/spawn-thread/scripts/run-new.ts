@@ -1,9 +1,10 @@
-import { Option, Result } from "effect";
+import { Option, Result, Schema } from "effect";
 
 import type { KnownBlock } from "@slack/types";
 
 import type { FetchLike } from "./spawn-thread.ts";
 
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 import { isString } from "#skills/slack-api/scripts/result.ts";
 import { buildSlackThreadUrl } from "./guards.ts";
 import { postMessage } from "./post-message.ts";
@@ -12,16 +13,39 @@ import { updateMessage } from "./update-message.ts";
 
 const ANCHOR_PLACEHOLDER_TEXT = ":link: _spawning a new thread…_";
 
-interface RunNewOpts {
-  channel: string;
-  opener: string;
-  prompt: string;
-  depth: number;
-  env: Record<string, string | undefined>;
-  postMessageImpl?: typeof postMessage | undefined;
-  updateMessageImpl?: typeof updateMessage | undefined;
-  fetchImpl?: FetchLike | undefined;
-}
+const RunNewOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  opener: Schema.mutableKey(Schema.String),
+  prompt: Schema.mutableKey(Schema.String),
+  depth: Schema.mutableKey(Schema.Number),
+  env: Schema.mutableKey(
+    Schema.Record(
+      Schema.String,
+      Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+    )
+  ),
+  postMessageImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        functionSchema<typeof postMessage>("RunNewOpts.postMessageImpl")
+      )
+    )
+  ),
+  updateMessageImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        functionSchema<typeof updateMessage>("RunNewOpts.updateMessageImpl")
+      )
+    )
+  ),
+  fetchImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(functionSchema<FetchLike>("RunNewOpts.fetchImpl"))
+    )
+  ),
+});
+
+type RunNewOpts = typeof RunNewOptsSchema.Type;
 
 const buildAnchorFinalText = (newThreadUrl: string): string =>
   `:link: <${newThreadUrl}|spawned thread>`;
@@ -96,10 +120,12 @@ export const buildOpenerBlocks = ({
   return [sectionBlock, actionsBlock];
 };
 
-interface OriginThread {
-  readonly channel: string;
-  readonly threadTs: string;
-}
+const OriginThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  threadTs: Schema.String,
+});
+
+type OriginThread = typeof OriginThreadSchema.Type;
 
 const resolveOriginThread = (
   env: Record<string, string | undefined>
@@ -115,12 +141,14 @@ const resolveOriginThread = (
   return undefined;
 };
 
-interface PostOpenerArgs {
-  readonly postFn: typeof postMessage;
-  readonly channel: string;
-  readonly opener: string;
-  readonly blocks: readonly KnownBlock[];
-}
+const PostOpenerArgsSchema = Schema.Struct({
+  postFn: functionSchema<typeof postMessage>("PostOpenerArgs.postFn"),
+  channel: Schema.String,
+  opener: Schema.String,
+  blocks: Schema.Array(opaqueSchema<KnownBlock>("PostOpenerArgs.blocks")),
+});
+
+type PostOpenerArgs = typeof PostOpenerArgsSchema.Type;
 
 const postOpener = async (
   args: PostOpenerArgs
@@ -144,13 +172,15 @@ const postOpener = async (
   );
 };
 
-interface RewriteAnchorArgs {
-  readonly updateFn: typeof updateMessage;
-  readonly origin: OriginThread;
-  readonly anchorTs: string;
-  readonly targetChannel: string;
-  readonly newThreadTs: string;
-}
+const RewriteAnchorArgsSchema = Schema.Struct({
+  updateFn: functionSchema<typeof updateMessage>("RewriteAnchorArgs.updateFn"),
+  origin: OriginThreadSchema,
+  anchorTs: Schema.String,
+  targetChannel: Schema.String,
+  newThreadTs: Schema.String,
+});
+
+type RewriteAnchorArgs = typeof RewriteAnchorArgsSchema.Type;
 
 const rewriteAnchorToNewThread = async (
   args: RewriteAnchorArgs
@@ -166,16 +196,20 @@ const rewriteAnchorToNewThread = async (
   });
 };
 
-export interface SpawnedThread {
-  readonly channel: string;
-  readonly thread_ts: string;
-}
+export const SpawnedThreadSchema = Schema.Struct({
+  channel: Schema.String,
+  thread_ts: Schema.String,
+});
 
-interface DispatchNewThreadArgs {
-  readonly postFn: typeof postMessage;
-  readonly opts: RunNewOpts;
-  readonly newTs: string;
-}
+export type SpawnedThread = typeof SpawnedThreadSchema.Type;
+
+const DispatchNewThreadArgsSchema = Schema.Struct({
+  postFn: functionSchema<typeof postMessage>("DispatchNewThreadArgs.postFn"),
+  opts: RunNewOptsSchema,
+  newTs: Schema.String,
+});
+
+type DispatchNewThreadArgs = typeof DispatchNewThreadArgsSchema.Type;
 
 const dispatchNewThread = async (
   args: DispatchNewThreadArgs

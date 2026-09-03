@@ -1,12 +1,12 @@
 import type { App } from "@slack/bolt";
 import type { Chat, StateStore as OriStateStore } from "ori";
 
-import { Context, Effect, Layer, Scope } from "effect";
+import { Context, Effect, Layer, Schema, Scope } from "effect";
 
-import { bestEffort } from "./helpers/best-effort.ts";
+import { bestEffort } from "./helpers/index.ts";
 
-import type { SlackClientShape } from "./client/index.ts";
-import type { RawSlackMessage } from "./client/listeners.ts";
+import type { SlackClientShape } from "./client/client.ts";
+import type { RawSlackMessage } from "./surface/listeners.ts";
 import type { SlackReceiver } from "./client/receiver.ts";
 import type { SlackConfig } from "./config.ts";
 import type {
@@ -19,11 +19,12 @@ import type { ThreadRef } from "./thread/thread.ts";
 import type { IncomingMessage } from "./turn/listening/gates.ts";
 import type { TurnRouteDeps, TurnRoutes } from "./turn/turn-routes.ts";
 
-import { makeSurfaceEventHandlers, SlackClient } from "./client/index.ts";
-import { goLive, makeBoltApp, makeStop } from "./client/bolt-lifecycle.ts";
-import { makeDashboardRoute } from "./dashboard/dashboard.ts";
+import { SlackClient, SlackClientShapeSchema } from "./client/client.ts";
+import { makeStop } from "./surface/bolt-lifecycle.ts";
+import { makeSurface } from "./surface/index.ts";
+import { makeDashboardRoute } from "./dashboard/index.ts";
 import { readSlackConfig } from "./config.ts";
-import { forkWith } from "./fork.ts";
+import { functionSchema, opaqueSchema } from "./schema-support.ts";
 import { registerBlockerHandlers } from "./interactions/blocker-handler.ts";
 import { registerCustomButtons } from "./interactions/custom.ts";
 import { Blockers } from "./interactions/blocker.ts";
@@ -44,27 +45,55 @@ import {
   startStatus,
 } from "./notes.ts";
 import { cancelTurn } from "./thread/registry.ts";
-import { makeTurnRoutes } from "./turn/turn-routes.ts";
+import { makeTurnRoutes } from "./turn/index.ts";
 
-export interface SlackLogger {
-  readonly error: (message: string, ...rest: readonly unknown[]) => void;
-  readonly info: (message: string, ...rest: readonly unknown[]) => void;
-  readonly warn: (message: string, ...rest: readonly unknown[]) => void;
-}
+const SlackLoggerSchema = Schema.Struct({
+  error:
+    functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+      "SlackLogger.error"
+    ),
+  info:
+    functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+      "SlackLogger.info"
+    ),
+  warn:
+    functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+      "SlackLogger.warn"
+    ),
+});
 
-export interface SlackRuntime {
-  readonly handleAskRequest: (request: Request) => Promise<Response>;
-  readonly slack: SlackClientShape;
-  readonly handleDispatchRequest: (request: Request) => Promise<Response>;
-  readonly handleEventsRequest: (request: Request) => Promise<Response>;
-  readonly handleCarryRequest: (request: Request) => Promise<Response>;
-  readonly handleAttachRequest: (request: Request) => Promise<Response>;
-  readonly handleChartRequest: (request: Request) => Promise<Response>;
-  readonly handleDashboardRequest: (request: Request) => Promise<Response>;
-  readonly handleImageRequest: (request: Request) => Promise<Response>;
-  readonly handleQuestionsRequest: (request: Request) => Promise<Response>;
-  readonly stop: () => Promise<void>;
-}
+export type SlackLogger = typeof SlackLoggerSchema.Type;
+
+type RequestHandler = (request: Request) => Promise<Response>;
+
+const requestHandlerSchema = (
+  identifier: string
+): Schema.declare<RequestHandler, RequestHandler> =>
+  functionSchema<RequestHandler>(identifier);
+
+const SlackRuntimeSchema = Schema.Struct({
+  context:
+    opaqueSchema<Context.Context<SlackServices>>("SlackRuntime.context"),
+  handleAskRequest: requestHandlerSchema("SlackRuntime.handleAskRequest"),
+  slack: SlackClientShapeSchema,
+  handleDispatchRequest: requestHandlerSchema(
+    "SlackRuntime.handleDispatchRequest"
+  ),
+  handleEventsRequest: requestHandlerSchema("SlackRuntime.handleEventsRequest"),
+  handleCarryRequest: requestHandlerSchema("SlackRuntime.handleCarryRequest"),
+  handleAttachRequest: requestHandlerSchema("SlackRuntime.handleAttachRequest"),
+  handleChartRequest: requestHandlerSchema("SlackRuntime.handleChartRequest"),
+  handleDashboardRequest: requestHandlerSchema(
+    "SlackRuntime.handleDashboardRequest"
+  ),
+  handleImageRequest: requestHandlerSchema("SlackRuntime.handleImageRequest"),
+  handleQuestionsRequest: requestHandlerSchema(
+    "SlackRuntime.handleQuestionsRequest"
+  ),
+  stop: functionSchema<() => Promise<void>>("SlackRuntime.stop"),
+});
+
+export type SlackRuntime = typeof SlackRuntimeSchema.Type;
 
 const buildContext = (input: {
   readonly botName: () => string;
@@ -106,12 +135,14 @@ const messageOf = (event: RawSlackMessage): IncomingMessage => ({
   userId: event.user,
 });
 
-interface SlackIdentity {
-  readonly botName: string;
-  readonly botId: string | undefined;
-  readonly botUserId: string | undefined;
-  readonly teamId: string;
-}
+const SlackIdentitySchema = Schema.Struct({
+  botName: Schema.String,
+  botId: Schema.UndefinedOr(Schema.String),
+  botUserId: Schema.UndefinedOr(Schema.String),
+  teamId: Schema.String,
+});
+
+type SlackIdentity = typeof SlackIdentitySchema.Type;
 
 const UNKNOWN_IDENTITY: SlackIdentity = {
   botName: "this bot",
@@ -246,62 +277,61 @@ const openForTraffic = async (input: {
     logger: input.logger,
   });
 
-  const { app, receiver } = makeBoltApp({
+  const surface = await makeSurface({
+    context: input.context,
+    ...interactionDispatchers(input.context, interactions),
     identity: input.identity,
     logger: input.logger,
     signingSecret: input.config.signingSecret,
     token: input.config.token,
-  });
+    wireTurns: () => {
+      const routes = makeTurnRoutes(
+        turnRouteDeps({
+          bridge: input.bridge,
+          config: input.config,
+          context: input.context,
+          identity: input.identity,
+          isStopping: input.isStopping,
+          logger: input.logger,
+        })
+      );
 
-  const routes = makeTurnRoutes(
-    turnRouteDeps({
-      bridge: input.bridge,
-      config: input.config,
-      context: input.context,
-      identity: input.identity,
-      isStopping: input.isStopping,
-      logger: input.logger,
-    })
-  );
-
-  registerQuestionHandlers({
-    continueTurn: (form, prompt) => {
-      routes.runTurnSafely({
-        ref: form.ref,
-        text: prompt,
-        userId: "",
+      registerQuestionHandlers({
+        continueTurn: (form, prompt) => {
+          routes.runTurnSafely({
+            ref: form.ref,
+            text: prompt,
+            userId: "",
+          });
+        },
+        forms: Context.get(input.context, Questionnaires),
+        interactions,
+        slack: Context.get(input.context, SlackClient),
       });
-    },
-    forms: Context.get(input.context, Questionnaires),
-    interactions,
-    slack: Context.get(input.context, SlackClient),
-  });
 
-  await goLive({
-    app,
-    ...interactionDispatchers(input.context, interactions),
-    ...makeSurfaceEventHandlers({
-      context: input.context,
-      runWith: forkWith(input.context),
-    }),
-    logger: input.logger,
-    startTurn: routes.startTurnSafely,
+      return {
+        routes,
+        startTurn: routes.startTurnSafely,
+      };
+    },
   });
 
   return {
-    app,
-    receiver,
-    routes,
+    app: surface.app,
+    receiver: surface.receiver,
+    routes: surface.turns.routes,
   };
 };
 
 const runtimeOf = (input: {
+  readonly context: Context.Context<SlackServices>;
   readonly receiver: SlackReceiver;
   readonly routes: TurnRoutes;
   readonly dashboard: (request: Request) => Promise<Response>;
   readonly slack: SlackClientShape;
   readonly stop: () => Promise<void>;
 }): SlackRuntime => ({
+  context: input.context,
   handleAskRequest: input.routes.handleAsk,
   handleCarryRequest: input.routes.handleCarry,
   handleAttachRequest: input.routes.handleAttach,
@@ -346,6 +376,7 @@ export const startSlackRuntime = async (input: {
   });
 
   return runtimeOf({
+    context,
     dashboard: makeDashboardRoute(Context.get(context, StateStore)),
     receiver,
     routes,

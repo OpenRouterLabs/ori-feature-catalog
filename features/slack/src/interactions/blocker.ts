@@ -1,20 +1,35 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
-interface OpenAsk {
-  readonly answered: Promise<string>;
-  readonly askId: string;
-}
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
-export interface BlockersShape {
-  readonly abandon: (askId: string, reason: string) => Effect.Effect<void>;
-  readonly answer: (askId: string, value: string) => Effect.Effect<boolean>;
-  readonly count: () => Effect.Effect<number>;
-  readonly abandonThread: (
-    threadKey: string,
-    reason: string
-  ) => Effect.Effect<void>;
-  readonly open: (threadKey: string) => Effect.Effect<OpenAsk>;
-}
+const OpenAskSchema = Schema.Struct({
+  answered: opaqueSchema<Promise<string>>("OpenAsk.answered"),
+  askId: Schema.String,
+});
+
+type OpenAsk = typeof OpenAskSchema.Type;
+
+const BlockersShapeSchema = Schema.Struct({
+  abandon:
+    functionSchema<(askId: string, reason: string) => Effect.Effect<void>>(
+      "BlockersShape.abandon"
+    ),
+  answer:
+    functionSchema<(askId: string, value: string) => Effect.Effect<boolean>>(
+      "BlockersShape.answer"
+    ),
+  count: functionSchema<() => Effect.Effect<number>>("BlockersShape.count"),
+  abandonThread:
+    functionSchema<(threadKey: string, reason: string) => Effect.Effect<void>>(
+      "BlockersShape.abandonThread"
+    ),
+  open:
+    functionSchema<(threadKey: string) => Effect.Effect<OpenAsk>>(
+      "BlockersShape.open"
+    ),
+});
+
+export type BlockersShape = typeof BlockersShapeSchema.Type;
 
 export class Blockers extends Context.Service<Blockers, BlockersShape>()(
   "ori/slack/Blockers"
@@ -24,10 +39,12 @@ const MAX_PENDING_ASKS = 200;
 
 const BOOT_ID_CHARS = 8;
 
-interface Pending {
-  readonly resolve: (value: string) => void;
-  readonly threadKey: string;
-}
+const PendingSchema = Schema.Struct({
+  resolve: functionSchema<(value: string) => void>("Pending.resolve"),
+  threadKey: Schema.String,
+});
+
+type Pending = typeof PendingSchema.Type;
 
 const settle = (
   pending: Map<string, Pending>,

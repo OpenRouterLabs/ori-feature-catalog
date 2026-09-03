@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import { Effect } from "effect";
 
@@ -8,7 +8,7 @@ import {
   decodeChoice,
   encodeChoice,
   blockerBlocks,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 import { BlockersMemory } from "./blocker.ts";
 
 const blockers = (): Effect.Effect<BlockersShape> => BlockersMemory;

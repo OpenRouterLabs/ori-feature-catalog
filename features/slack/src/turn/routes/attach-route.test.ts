@@ -1,16 +1,18 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 
 import { makeAttachRoute } from "./attach-route.ts";
 
-interface Attached {
-  readonly comment: string | undefined;
-  readonly filename: string;
-  readonly title: string | undefined;
-}
+const AttachedSchema = Schema.Struct({
+  comment: Schema.UndefinedOr(Schema.String),
+  filename: Schema.String,
+  title: Schema.UndefinedOr(Schema.String),
+});
+
+type Attached = typeof AttachedSchema.Type;
 
 const harness = (
   options: {

@@ -1,4 +1,6 @@
-import { Context, Effect, Ref } from "effect";
+import { Context, Effect, Ref, Schema } from "effect";
+
+import { functionSchema } from "#src/schema-support.ts";
 
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { RunState } from "./run-state.ts";
@@ -6,20 +8,29 @@ import type { RunState } from "./run-state.ts";
 import { initialRunState, RunPhase } from "./run-state.ts";
 import { settle } from "./settle.ts";
 
-export interface RunOptions {
-  readonly superseded?: () => boolean;
-  readonly recipientUserId?: string;
-}
+const RunOptionsSchema = Schema.Struct({
+  superseded: Schema.optionalKey(
+    functionSchema<() => boolean>("RunOptions.superseded")
+  ),
+  recipientUserId: Schema.optionalKey(Schema.String),
+});
 
-interface MessageStreamShape {
-  readonly run: (
-    reply: MessageReplyShape,
-    turn: (
-      advance: (next: RunState) => Effect.Effect<void>
-    ) => Effect.Effect<void>,
-    options?: RunOptions
-  ) => Effect.Effect<void>;
-}
+export type RunOptions = typeof RunOptionsSchema.Type;
+
+const MessageStreamShapeSchema = Schema.Struct({
+  run:
+    functionSchema<
+      (
+        reply: MessageReplyShape,
+        turn: (
+          advance: (next: RunState) => Effect.Effect<void>
+        ) => Effect.Effect<void>,
+        options?: RunOptions
+      ) => Effect.Effect<void>
+    >("MessageStreamShape.run"),
+});
+
+type MessageStreamShape = typeof MessageStreamShapeSchema.Type;
 
 export class MessageStream extends Context.Service<
   MessageStream,

@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { InteractionPayload } from "./interactions.ts";
 
@@ -15,11 +15,13 @@ import {
   registerPermissionHandlers,
 } from "./permissions.ts";
 
-interface ButtonElement {
-  readonly action_id: string;
-  readonly text: { readonly text: string };
-  readonly value?: string;
-}
+const ButtonElementSchema = Schema.Struct({
+  action_id: Schema.String,
+  text: Schema.Struct({ text: Schema.String }),
+  value: Schema.optionalKey(Schema.String),
+});
+
+type ButtonElement = typeof ButtonElementSchema.Type;
 
 const buttonsOf = (blocks: readonly unknown[]): readonly ButtonElement[] => {
   const actions = blocks.find(

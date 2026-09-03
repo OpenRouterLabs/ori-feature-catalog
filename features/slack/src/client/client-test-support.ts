@@ -2,22 +2,28 @@
 
 import type { WebClient } from "@slack/web-api";
 
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 
 import type { SlackClientShape } from "./client.ts";
 
-import { SlackClient } from "./client.ts";
+import { opaqueSchema } from "#src/schema-support.ts";
 
-export interface RecordedCall {
-  readonly args: unknown;
-  readonly op: string;
-}
+import { SlackClient, SlackClientShapeSchema } from "./client.ts";
 
-export interface FakeSlackClient {
-  readonly calls: RecordedCall[];
-  readonly shape: SlackClientShape;
-  readonly layer: Layer.Layer<SlackClient>;
-}
+const RecordedCallSchema = Schema.Struct({
+  args: Schema.Unknown,
+  op: Schema.String,
+});
+
+export type RecordedCall = typeof RecordedCallSchema.Type;
+
+const FakeSlackClientSchema = Schema.Struct({
+  calls: opaqueSchema<RecordedCall[]>("FakeSlackClient.calls"),
+  shape: SlackClientShapeSchema,
+  layer: opaqueSchema<Layer.Layer<SlackClient>>("FakeSlackClient.layer"),
+});
+
+export type FakeSlackClient = typeof FakeSlackClientSchema.Type;
 
 export type RawStubs = Readonly<Record<string, (args: never) => unknown>>;
 

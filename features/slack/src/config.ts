@@ -1,18 +1,22 @@
+import { Schema } from "effect";
+
 const DEFAULT_LOADING_EMOJI = ":braille-loader:";
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
-export interface SlackConfig {
-  readonly allowedUserIds: ReadonlySet<string>;
-  readonly botUserId: string | undefined;
-  readonly openRouterApiKey: string | undefined;
-  readonly chatterModel: string | undefined;
-  readonly imageModel: string | undefined;
-  readonly loadingEmoji: string;
-  readonly signingSecret: string;
-  readonly skipPrefixes: readonly string[];
-  readonly token: string;
-}
+const SlackConfigSchema = Schema.Struct({
+  allowedUserIds: Schema.ReadonlySet(Schema.String),
+  botUserId: Schema.UndefinedOr(Schema.String),
+  openRouterApiKey: Schema.UndefinedOr(Schema.String),
+  chatterModel: Schema.UndefinedOr(Schema.String),
+  imageModel: Schema.UndefinedOr(Schema.String),
+  loadingEmoji: Schema.String,
+  signingSecret: Schema.String,
+  skipPrefixes: Schema.Array(Schema.String),
+  token: Schema.String,
+});
+
+export type SlackConfig = typeof SlackConfigSchema.Type;
 
 const splitList = (raw: string | undefined): readonly string[] =>
   (raw ?? "")

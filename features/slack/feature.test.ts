@@ -15,9 +15,11 @@
 
 import type { ApiRouteContext } from "ori";
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { SlackRuntime } from "./src/index.ts";
+
+import { featureState } from "./src/feature-state.ts";
 
 import { api } from "./feature.ts";
 
@@ -86,7 +88,8 @@ const withRuntime = async (
     return Promise.resolve(new Response("ok"));
   };
 
-  globalThis.__oriSlackRuntime = {
+  featureState().runtime = {
+    context: undefined as unknown as SlackRuntime["context"],
     handleAskRequest: handler("handleAskRequest"),
     handleCarryRequest: handler("handleCarryRequest"),
     handleAttachRequest: handler("handleAttachRequest"),
@@ -112,7 +115,7 @@ const withRuntime = async (
       response,
     };
   } finally {
-    globalThis.__oriSlackRuntime = undefined;
+    featureState().runtime = undefined;
   }
 };
 
@@ -137,7 +140,7 @@ describe("slack route table", () => {
     });
 
     test(`${route} answers 503 before the surface is up`, async () => {
-      globalThis.__oriSlackRuntime = undefined;
+      featureState().runtime = undefined;
       const response = await routes[route](
         requestFor(route),
         contextFrom("127.0.0.1")

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-import { Result } from "effect";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Result, Schema } from "effect";
 
 import type { WebClient } from "@slack/web-api";
 
@@ -7,28 +7,38 @@ import type { SlackMember } from "./list-users.ts";
 
 import { filterMembersBySearch, listUsers } from "./list-users.ts";
 
-interface UsersListArgs {
-  readonly cursor?: string | undefined;
-  readonly limit?: number | undefined;
-}
+const UsersListArgsSchema = Schema.Struct({
+  cursor: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  limit: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+});
 
-interface FakeMember {
-  readonly deleted?: boolean;
-  readonly id?: string;
-  readonly is_bot?: boolean;
-  readonly profile?: {
-    readonly display_name?: string;
-    readonly real_name?: string;
-  };
-  readonly real_name?: string;
-}
+type UsersListArgs = typeof UsersListArgsSchema.Type;
 
-interface FakePage {
-  readonly members?: readonly FakeMember[];
-  readonly response_metadata?: {
-    readonly next_cursor?: string;
-  };
-}
+const FakeMemberSchema = Schema.Struct({
+  deleted: Schema.optionalKey(Schema.Boolean),
+  id: Schema.optionalKey(Schema.String),
+  is_bot: Schema.optionalKey(Schema.Boolean),
+  profile: Schema.optionalKey(
+    Schema.Struct({
+      display_name: Schema.optionalKey(Schema.String),
+      real_name: Schema.optionalKey(Schema.String),
+    })
+  ),
+  real_name: Schema.optionalKey(Schema.String),
+});
+
+type FakeMember = typeof FakeMemberSchema.Type;
+
+const FakePageSchema = Schema.Struct({
+  members: Schema.optionalKey(Schema.Array(FakeMemberSchema)),
+  response_metadata: Schema.optionalKey(
+    Schema.Struct({
+      next_cursor: Schema.optionalKey(Schema.String),
+    })
+  ),
+});
+
+type FakePage = typeof FakePageSchema.Type;
 
 const clientServing = (
   pages: readonly FakePage[],

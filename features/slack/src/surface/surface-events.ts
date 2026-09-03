@@ -1,16 +1,25 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
 import type { SlackServices } from "#src/layers.ts";
-import type { PaneContext } from "#src/thread/assistant.ts";
 import type { RawAssistantThreadStarted } from "./listeners.ts";
 
-import { AssistantThreads, keyOf } from "#src/thread/assistant.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import {
+  AssistantThreads,
+  keyOf,
+  PaneContextSchema,
+} from "#src/thread/assistant.ts";
 
-interface Pane {
-  readonly key: string;
-  readonly paneContext: PaneContext;
-  readonly ref: { readonly channelId: string; readonly threadTs: string };
-}
+const PaneSchema = Schema.Struct({
+  key: Schema.String,
+  paneContext: PaneContextSchema,
+  ref: Schema.Struct({
+    channelId: Schema.String,
+    threadTs: Schema.String,
+  }),
+});
+
+type Pane = typeof PaneSchema.Type;
 
 const paneOf = (event: RawAssistantThreadStarted): Pane | undefined => {
   const channelId = event.assistant_thread?.channel_id;
@@ -32,10 +41,18 @@ const paneOf = (event: RawAssistantThreadStarted): Pane | undefined => {
   };
 };
 
-interface SurfaceEventHandlers {
-  readonly changeAssistantContext: (event: RawAssistantThreadStarted) => void;
-  readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
-}
+const SurfaceEventHandlersSchema = Schema.Struct({
+  changeAssistantContext:
+    functionSchema<(event: RawAssistantThreadStarted) => void>(
+      "SurfaceEventHandlers.changeAssistantContext"
+    ),
+  openAssistantThread:
+    functionSchema<(event: RawAssistantThreadStarted) => void>(
+      "SurfaceEventHandlers.openAssistantThread"
+    ),
+});
+
+type SurfaceEventHandlers = typeof SurfaceEventHandlersSchema.Type;
 
 export const makeSurfaceEventHandlers = (input: {
   readonly context: Context.Context<SlackServices>;

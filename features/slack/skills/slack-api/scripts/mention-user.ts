@@ -1,12 +1,30 @@
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
+import { functionSchema } from "#src/schema-support.ts";
 import { listUsers } from "./list-users.ts";
 
-interface ResolveMentionOpts {
-  name: string;
-  env?: Record<string, string | undefined> | undefined;
-  listUsersImpl?: typeof listUsers | undefined;
-}
+const ResolveMentionOptsSchema = Schema.Struct({
+  name: Schema.mutableKey(Schema.String),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+  listUsersImpl: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        functionSchema<typeof listUsers>("ResolveMentionOpts.listUsersImpl")
+      )
+    )
+  ),
+});
+
+type ResolveMentionOpts = typeof ResolveMentionOptsSchema.Type;
 
 export const resolveUserMention = async (
   opts: ResolveMentionOpts

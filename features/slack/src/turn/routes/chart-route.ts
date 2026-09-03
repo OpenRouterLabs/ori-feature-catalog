@@ -1,40 +1,19 @@
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import type { ChartRequest } from "#src/helpers/charts/chart-request.ts";
-import type { ChartRenderFailure } from "#src/helpers/charts/rasterise.ts";
+import type { ChartPipelineShape } from "#src/helpers/charts/index.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
-import { parseChartBody } from "#src/helpers/charts/chart-request.ts";
-import { svgToPng } from "#src/helpers/charts/rasterise.ts";
+import { makeChartPipeline } from "#src/helpers/charts/index.ts";
+import { functionSchema } from "#src/schema-support.ts";
 import { loopbackRoute, refuse } from "./loopback-route.ts";
 
 const HTTP_BAD_GATEWAY = 502;
 const HTTP_UNPROCESSABLE = 422;
 
 const MAX_FILENAME_CHARS = 48;
-
-type Rendered =
-  | { readonly ok: false; readonly reason: string }
-  | { readonly ok: true; readonly png: Blob };
-
-const render = Effect.fn("Slack.chart.render")(function* (
-  svg: string
-): Effect.fn.Return<Rendered> {
-  return yield* svgToPng(svg).pipe(
-    Effect.map((png): Rendered => ({
-      ok: true,
-      png,
-    })),
-    Effect.catch((error: ChartRenderFailure) =>
-      Effect.succeed<Rendered>({
-        ok: false,
-        reason: error.message,
-      })
-    )
-  );
-});
 
 const upload = Effect.fn("Slack.chart.upload")(function* (input: {
   readonly png: Blob;
@@ -57,19 +36,24 @@ const upload = Effect.fn("Slack.chart.upload")(function* (input: {
     );
 });
 
-interface ChartRouteDeps {
-  readonly replyFor: (ref: ThreadRef) => Promise<MessageReplyShape>;
-  readonly workspaceTeamId: string;
-}
+const ChartRouteDepsSchema = Schema.Struct({
+  replyFor: functionSchema<(ref: ThreadRef) => Promise<MessageReplyShape>>(
+    "ChartRouteDeps.replyFor"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+type ChartRouteDeps = typeof ChartRouteDepsSchema.Type;
 
 const handleChart = Effect.fn("Slack.chart.handle")(function* (input: {
+  readonly charts: ChartPipelineShape;
   readonly deps: ChartRouteDeps;
   readonly ref: ThreadRef;
   readonly request: ChartRequest;
 }): Effect.fn.Return<Result.Result<Record<string, never>, Refusal>> {
   const reply = yield* Effect.promise(() => input.deps.replyFor(input.ref));
 
-  const rendered = yield* render(input.request.svg);
+  const rendered = yield* input.charts.render(input.request.svg);
   if (!rendered.ok) {
     return refuse(
       HTTP_UNPROCESSABLE,
@@ -90,20 +74,23 @@ const handleChart = Effect.fn("Slack.chart.handle")(function* (input: {
 
 export const makeChartRoute = (
   deps: ChartRouteDeps
-): ((request: Request) => Promise<Response>) =>
-  loopbackRoute<ChartRequest, Record<string, never>>({
+): ((request: Request) => Promise<Response>) => {
+  const charts = makeChartPipeline();
+  return loopbackRoute<ChartRequest, Record<string, never>>({
     capKiB: 64,
     handle: ({ ref, request }) =>
       handleChart({
+        charts,
         deps,
         ref,
         request,
       }),
     parse: (raw): Result.Result<ChartRequest, string> => {
-      const parsed = parseChartBody(raw);
+      const parsed = charts.parse(raw);
       return parsed.ok
         ? Result.succeed(parsed.request)
         : Result.fail(parsed.error);
     },
     workspaceTeamId: deps.workspaceTeamId,
   });
+};

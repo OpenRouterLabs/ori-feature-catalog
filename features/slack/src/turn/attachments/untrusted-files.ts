@@ -12,13 +12,15 @@ const SlackFileSchema = Schema.Struct({
 
 const decodeFiles = Schema.decodeUnknownOption(Schema.Array(SlackFileSchema));
 
-export interface AttachedFile {
-  readonly filetype: string;
-  readonly id: string;
-  readonly label: string;
-  readonly path?: string | undefined;
-  readonly urlPrivate: string;
-}
+const AttachedFileSchema = Schema.Struct({
+  filetype: Schema.String,
+  id: Schema.String,
+  label: Schema.String,
+  path: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  urlPrivate: Schema.String,
+});
+
+export type AttachedFile = typeof AttachedFileSchema.Type;
 
 export const attachedFiles = (event: unknown): readonly AttachedFile[] => {
   if (typeof event !== "object" || event === null || !("files" in event)) {
@@ -35,6 +37,22 @@ export const attachedFiles = (event: unknown): readonly AttachedFile[] => {
     label: sanitizeThreadContent(
       (file.title ?? "").trim() || (file.name ?? "").trim() || "untitled"
     ),
+  }));
+};
+
+export const downloadableFiles = (
+  files: readonly AttachedFile[]
+): readonly AttachedFile[] =>
+  files.filter((file) => file.urlPrivate !== "" && file.id !== "");
+
+export const withDownloadedPaths = (
+  files: readonly AttachedFile[],
+  downloaded: readonly { readonly id: string; readonly path: string }[]
+): readonly AttachedFile[] => {
+  const pathById = new Map(downloaded.map((file) => [file.id, file.path]));
+  return files.map((file) => ({
+    ...file,
+    path: pathById.get(file.id),
   }));
 };
 

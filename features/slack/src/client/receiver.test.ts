@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion typescript/explicit-function-return-type eslint/max-lines-per-function eslint/require-await eslint/no-unsafe-optional-chaining typescript/no-invalid-void-type promise/avoid-new promise/param-names unicorn/consistent-function-scoping -- test doubles assert on recorded `unknown` args and stand in for Slack SDK shapes; cases read better whole than split */
 import type { App, ReceiverEvent } from "@slack/bolt";
 
-import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
 import { createHmac } from "node:crypto";
 
 import { SlackReceiver } from "./receiver.ts";
@@ -102,6 +102,15 @@ describe("signature verification", () => {
 
     expect(response.status).toBe(200);
     expect(seen).toHaveLength(1);
+  });
+
+  test("a JSON array body is refused rather than treated as an event", async () => {
+    const { receiver, seen } = await startedReceiver();
+
+    const response = await receiver.handleRequest(request({ body: "[]" }));
+
+    expect(response.status).toBe(400);
+    expect(seen).toHaveLength(0);
   });
 
   test("rejects a tampered body without dispatching", async () => {

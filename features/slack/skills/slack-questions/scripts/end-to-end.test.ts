@@ -1,8 +1,8 @@
 /* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- cases read better whole than split */
 
-import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
 import { makeQuestionsRoute } from "#src/turn/routes/questions-route.ts";
@@ -27,10 +27,12 @@ const END_YOUR_TURN =
   "Asked. END YOUR TURN now — say what you are blocked on. You will be " +
   "started again on this thread with their answers when they reply.\n";
 
-interface Daemon {
-  readonly bodies: readonly unknown[];
-  readonly port: number;
-}
+const DaemonSchema = Schema.Struct({
+  bodies: Schema.Array(Schema.Unknown),
+  port: Schema.Number,
+});
+
+type Daemon = typeof DaemonSchema.Type;
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
 
@@ -85,11 +87,13 @@ const routeDaemon = (options: { live?: boolean } = {}): Daemon => {
   return daemon((request) => route(request));
 };
 
-interface RunResult {
-  readonly code: number;
-  readonly stderr: string;
-  readonly stdout: string;
-}
+const RunResultSchema = Schema.Struct({
+  code: Schema.Number,
+  stderr: Schema.String,
+  stdout: Schema.String,
+});
+
+type RunResult = typeof RunResultSchema.Type;
 
 const run = async (input: {
   readonly args?: readonly string[];
@@ -217,6 +221,33 @@ describe("what the model is told when nothing was asked", () => {
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("must be a JSON array");
+    expect(fake.bodies).toHaveLength(0);
+  });
+
+  test("a question missing its prompt is refused, not forwarded", async () => {
+    const fake = daemon();
+
+    const result = await run({
+      args: [INTRO, JSON.stringify([{ id: "one" }])],
+      daemon: fake,
+    });
+
+    expect(result.code).toBe(1);
+    expect(fake.bodies).toHaveLength(0);
+  });
+
+  test("a question whose kind is not one Slack renders is refused", async () => {
+    const fake = daemon();
+
+    const result = await run({
+      args: [
+        INTRO,
+        JSON.stringify([{ id: "one", kind: "dropdown", prompt: "Which?" }]),
+      ],
+      daemon: fake,
+    });
+
+    expect(result.code).toBe(1);
     expect(fake.bodies).toHaveLength(0);
   });
 

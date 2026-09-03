@@ -1,22 +1,37 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
-import type { Question } from "#src/helpers/blockers/questions.ts";
-import type { ThreadRef } from "#src/thread/thread.ts";
+import { QuestionsSchema } from "#src/helpers/blockers/questions.ts";
+import { functionSchema } from "#src/schema-support.ts";
+import { ThreadRefSchema } from "#src/thread/thread.ts";
 
-export interface PendingForm {
-  readonly askId: string;
-  readonly intro: string;
-  readonly messageTs: string | undefined;
-  readonly questions: readonly Question[];
-  readonly ref: ThreadRef;
-}
+const PendingFormSchema = Schema.Struct({
+  askId: Schema.String,
+  intro: Schema.String,
+  messageTs: Schema.UndefinedOr(Schema.String),
+  questions: QuestionsSchema,
+  ref: ThreadRefSchema,
+});
 
-export interface QuestionnairesShape {
-  readonly clear: (askId: string) => Effect.Effect<void>;
-  readonly get: (askId: string) => Effect.Effect<PendingForm | undefined>;
-  readonly pending: () => Effect.Effect<number>;
-  readonly put: (form: PendingForm) => Effect.Effect<void>;
-}
+export type PendingForm = typeof PendingFormSchema.Type;
+
+export const QuestionnairesShapeSchema = Schema.Struct({
+  clear:
+    functionSchema<(askId: string) => Effect.Effect<void>>(
+      "QuestionnairesShape.clear"
+    ),
+  get:
+    functionSchema<(askId: string) => Effect.Effect<PendingForm | undefined>>(
+      "QuestionnairesShape.get"
+    ),
+  pending:
+    functionSchema<() => Effect.Effect<number>>("QuestionnairesShape.pending"),
+  put:
+    functionSchema<(form: PendingForm) => Effect.Effect<void>>(
+      "QuestionnairesShape.put"
+    ),
+});
+
+export type QuestionnairesShape = typeof QuestionnairesShapeSchema.Type;
 
 export class Questionnaires extends Context.Service<
   Questionnaires,

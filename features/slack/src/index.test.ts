@@ -1,8 +1,8 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -20,37 +20,14 @@ const indexesUnder = (dir: string, found: string[] = []): string[] => {
   return found;
 };
 
-const indexes = indexesUnder(SRC);
-
-describe("every directory index", () => {
-  test("one exists for each directory", () => {
-    const directories = indexesUnder(SRC).map((file) => dirname(file));
-    const missing: string[] = [];
-    const visit = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-        const child = join(dir, entry.name);
-        if (!directories.includes(child)) {
-          missing.push(relative(SRC, child));
-        }
-        visit(child);
-      }
-    };
-    visit(SRC);
-    expect(missing).toEqual([]);
-  });
-
-  for (const file of indexes) {
+describe("a directory index builds what the directory provides", () => {
+  for (const file of indexesUnder(SRC)) {
     const name = relative(SRC, dirname(file));
-    test(`${name} links and re-exports live names`, async () => {
-      const loaded = (await import(file)) as Record<string, unknown>;
-      const names = Object.keys(loaded).filter((key) => key !== "default");
-      expect(names.length).toBeGreaterThan(0);
-      for (const exported of names) {
-        expect(loaded[exported]).toBeDefined();
-      }
+    const source = readFileSync(file, "utf8");
+
+    test(`${name} is a module, not a re-export of its siblings`, () => {
+      expect(source).not.toMatch(/^export \* from/mu);
+      expect(source.trim()).not.toBe("");
     });
   }
 });

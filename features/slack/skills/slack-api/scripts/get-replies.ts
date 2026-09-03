@@ -1,20 +1,38 @@
 import type { WebClient } from "@slack/web-api";
 
-import { Result } from "effect";
+import { Result, Schema } from "effect";
 
+import { opaqueSchema } from "#src/schema-support.ts";
 import { makeClient } from "./helpers.ts";
 import { tryCatchAsync } from "./result.ts";
 
 const DEFAULT_LIMIT = 50;
 const PER_PAGE_MAX = 200;
 
-export interface GetRepliesOpts {
-  channel: string;
-  ts: string;
-  limit?: number | undefined;
-  env?: Record<string, string | undefined> | undefined;
-  client?: WebClient | undefined;
-}
+const GetRepliesOptsSchema = Schema.Struct({
+  channel: Schema.mutableKey(Schema.String),
+  ts: Schema.mutableKey(Schema.String),
+  limit: Schema.mutableKey(
+    Schema.optionalKey(Schema.UndefinedOr(Schema.Number))
+  ),
+  env: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(
+        Schema.Record(
+          Schema.String,
+          Schema.mutableKey(Schema.UndefinedOr(Schema.String))
+        )
+      )
+    )
+  ),
+  client: Schema.mutableKey(
+    Schema.optionalKey(
+      Schema.UndefinedOr(opaqueSchema<WebClient>("GetRepliesOpts.client"))
+    )
+  ),
+});
+
+export type GetRepliesOpts = typeof GetRepliesOptsSchema.Type;
 
 export const getThreadReplies = async (
   opts: GetRepliesOpts

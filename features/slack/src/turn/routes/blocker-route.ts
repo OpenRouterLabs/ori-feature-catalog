@@ -1,8 +1,8 @@
 import { Effect, Result, Schema } from "effect";
 
-import { bestEffort } from "#src/helpers/best-effort.ts";
+import { bestEffort } from "#src/helpers/index.ts";
 
-import type { SlackBlock } from "#src/helpers/block-kit/blocks.ts";
+import type { SlackBlock } from "#src/helpers/block-kit/index.ts";
 import type { BlockersShape } from "#src/interactions/blocker.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
@@ -10,7 +10,7 @@ import type { ThreadRef } from "#src/thread/thread.ts";
 import {
   blockerAnsweredBlocks,
   blockerBlocks,
-} from "#src/helpers/blockers/blockers.ts";
+} from "#src/helpers/blockers/index.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_ASK_BODY_KIB = 16;
@@ -40,13 +40,20 @@ const AskBody = Schema.Struct({
 });
 const decodeBody = Schema.decodeUnknownResult(AskBody);
 
-export interface AskRequest {
-  readonly channel: string;
-  readonly choices: readonly { readonly id: string; readonly label: string }[];
-  readonly question: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-}
+export const AskRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  choices: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      label: Schema.String,
+    })
+  ),
+  question: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+});
+
+export type AskRequest = typeof AskRequestSchema.Type;
 
 export type AskParse =
   | { readonly ok: true; readonly request: AskRequest }
@@ -103,10 +110,12 @@ export const parseAskBody = (raw: unknown): AskParse =>
 const NO_TS: string | undefined = undefined;
 const NO_ANSWER: string | undefined = undefined;
 
-interface AskOutcome {
-  readonly timedOut: boolean;
-  readonly value: string;
-}
+const AskOutcomeSchema = Schema.Struct({
+  timedOut: Schema.Boolean,
+  value: Schema.String,
+});
+
+type AskOutcome = typeof AskOutcomeSchema.Type;
 
 const answerLabel = (request: AskRequest, value: string): string =>
   request.choices.find((choice) => choice.id === value)?.label ?? value;

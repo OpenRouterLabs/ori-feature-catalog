@@ -1,13 +1,15 @@
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
-import { Result } from "effect";
+import { describe, expect, test } from "#src/test-support/index.ts";
+import { Result, Schema } from "effect";
 
 import type { WebClient } from "@slack/web-api";
 
 import { openDm } from "./open-dm.ts";
 
-interface OpenArgs {
-  readonly users: string;
-}
+const OpenArgsSchema = Schema.Struct({
+  users: Schema.String,
+});
+
+type OpenArgs = typeof OpenArgsSchema.Type;
 
 const OPEN_RESPONSE = {
   channel: {

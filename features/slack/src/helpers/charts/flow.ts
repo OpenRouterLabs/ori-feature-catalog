@@ -1,5 +1,7 @@
 import { charsThatFit, escape, truncate, wrapText } from "./text.ts";
 
+import { Schema } from "effect";
+
 const WIDTH = 760;
 const NODE_HEIGHT = 52;
 const ROW_GAP = 34;
@@ -47,31 +49,53 @@ const KIND_STROKE = {
   step: "#333941",
 } as const;
 
-type FlowNodeKind = keyof typeof KIND_FILL;
+export const FlowNodeSchema = Schema.Struct({
+  detail: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  id: Schema.String,
+  kind: Schema.optionalKey(
+    Schema.UndefinedOr(
+      Schema.Literals(["decision", "end", "error", "start", "step"])
+    )
+  ),
+  label: Schema.String,
+});
 
-export interface FlowNode {
-  readonly detail?: string | undefined;
-  readonly id: string;
-  readonly kind?: FlowNodeKind | undefined;
-  readonly label: string;
-}
+export type FlowNode = typeof FlowNodeSchema.Type;
 
-export interface FlowEdge {
-  readonly from: string;
-  readonly label?: string | undefined;
-  readonly to: string;
-}
+type AssertAssignable<A extends B, B> = A;
 
-interface Placed {
-  readonly detail: readonly string[];
-  readonly height: number;
-  readonly label: readonly string[];
-  readonly node: FlowNode;
-  readonly row: number;
-  readonly width: number;
-  readonly x: number;
-  readonly y: number;
-}
+type FlowNodeKindsMatchTheirFills = AssertAssignable<
+  NonNullable<FlowNode["kind"]>,
+  keyof typeof KIND_FILL
+>;
+
+type FillsMatchTheirFlowNodeKinds = AssertAssignable<
+  keyof typeof KIND_FILL,
+  NonNullable<FlowNode["kind"]>
+>;
+
+export type { FlowNodeKindsMatchTheirFills, FillsMatchTheirFlowNodeKinds };
+
+export const FlowEdgeSchema = Schema.Struct({
+  from: Schema.String,
+  label: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  to: Schema.String,
+});
+
+export type FlowEdge = typeof FlowEdgeSchema.Type;
+
+const PlacedSchema = Schema.Struct({
+  detail: Schema.Array(Schema.String),
+  height: Schema.Number,
+  label: Schema.Array(Schema.String),
+  node: FlowNodeSchema,
+  row: Schema.Number,
+  width: Schema.Number,
+  x: Schema.Number,
+  y: Schema.Number,
+});
+
+type Placed = typeof PlacedSchema.Type;
 
 const rowsOf = (
   nodes: readonly FlowNode[],

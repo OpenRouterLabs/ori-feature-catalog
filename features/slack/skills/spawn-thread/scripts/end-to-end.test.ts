@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "#src/test-support/effect-test.ts";
+import { afterEach, describe, expect, test } from "#src/test-support/index.ts";
+import { Schema } from "effect";
 import { join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "index.ts");
@@ -9,15 +10,19 @@ const THREAD_TS = "1748900000.001900";
 const HTTP_ACCEPTED = 202;
 const HTTP_BAD_REQUEST = 400;
 
-interface DispatchCall {
-  readonly body: unknown;
-  readonly path: string;
-}
+const DispatchCallSchema = Schema.Struct({
+  body: Schema.Unknown,
+  path: Schema.String,
+});
 
-interface FakeDaemon {
-  readonly calls: readonly DispatchCall[];
-  readonly port: string;
-}
+type DispatchCall = typeof DispatchCallSchema.Type;
+
+const FakeDaemonSchema = Schema.Struct({
+  calls: Schema.Array(DispatchCallSchema),
+  port: Schema.String,
+});
+
+type FakeDaemon = typeof FakeDaemonSchema.Type;
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
 
@@ -48,11 +53,13 @@ const fakeDaemon = (
   };
 };
 
-interface RunResult {
-  readonly code: number;
-  readonly stderr: string;
-  readonly stdout: string;
-}
+const RunResultSchema = Schema.Struct({
+  code: Schema.Number,
+  stderr: Schema.String,
+  stdout: Schema.String,
+});
+
+type RunResult = typeof RunResultSchema.Type;
 
 const run = async (input: {
   readonly args: readonly string[];

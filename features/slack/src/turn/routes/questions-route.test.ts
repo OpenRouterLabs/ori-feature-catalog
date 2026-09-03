@@ -1,11 +1,11 @@
 /* oxlint-disable typescript/explicit-function-return-type eslint/max-lines-per-function -- typing every local helper buys nothing here, and cases read better whole than split */
 
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import { QuestionnairesMemory } from "#src/interactions/questionnaires.ts";
-import { makeQuestionsRoute, parseAskBody } from "./questions-route.ts";
+import { makeQuestionsRoute, parseQuestionsBody } from "./questions-route.ts";
 
 const BYTES_PER_KIB = 1024;
 const MAX_BODY_KIB = 32;
@@ -35,10 +35,12 @@ const ask = (raw: unknown, headers: Record<string, string> = {}): Request =>
     method: "POST",
   });
 
-interface Posted {
-  readonly blocks: readonly unknown[];
-  readonly fallback: string;
-}
+const PostedSchema = Schema.Struct({
+  blocks: Schema.Array(Schema.Unknown),
+  fallback: Schema.String,
+});
+
+type Posted = typeof PostedSchema.Type;
 
 const routeWith = (options: { failPost?: boolean; live?: boolean } = {}) =>
   Effect.gen(function* () {
@@ -80,9 +82,9 @@ const errorOf = (response: Response): Effect.Effect<string> =>
       : "";
   });
 
-describe("parseAskBody", () => {
+describe("parseQuestionsBody", () => {
   test("a well-formed batch is accepted, and the intro loses its whitespace", () => {
-    const parsed = parseAskBody(
+    const parsed = parseQuestionsBody(
       body({
         intro: "  Two things before I start.  ",
         team: "T9",
@@ -98,7 +100,7 @@ describe("parseAskBody", () => {
   });
 
   test("no questions is refused — a form with nothing in it asks nothing", () => {
-    const parsed = parseAskBody(body({ questions: [] }));
+    const parsed = parseQuestionsBody(body({ questions: [] }));
 
     expect(parsed.ok).toBe(false);
     expect(!parsed.ok && parsed.error).toContain("at least one question");
@@ -110,7 +112,7 @@ describe("parseAskBody", () => {
       prompt: `Question ${index}?`,
     }));
 
-    const parsed = parseAskBody(body({ questions: many }));
+    const parsed = parseQuestionsBody(body({ questions: many }));
 
     expect(parsed.ok).toBe(false);
     expect(!parsed.ok && parsed.error).toContain("11 questions");
@@ -123,11 +125,11 @@ describe("parseAskBody", () => {
       prompt: `Question ${index}?`,
     }));
 
-    expect(parseAskBody(body({ questions: ten })).ok).toBe(true);
+    expect(parseQuestionsBody(body({ questions: ten })).ok).toBe(true);
   });
 
   test("two questions sharing an id is refused — one answer would be lost", () => {
-    const parsed = parseAskBody(
+    const parsed = parseQuestionsBody(
       body({
         questions: [
           QUESTION,
@@ -145,10 +147,10 @@ describe("parseAskBody", () => {
 
   test("a shape it cannot read is refused rather than guessed at", () => {
     const refusals = [
-      parseAskBody(null),
-      parseAskBody(body({ questions: ["Rebase or close?"] })),
-      parseAskBody(body({ questions: [{ prompt: "No id here" }] })),
-      parseAskBody(
+      parseQuestionsBody(null),
+      parseQuestionsBody(body({ questions: ["Rebase or close?"] })),
+      parseQuestionsBody(body({ questions: [{ prompt: "No id here" }] })),
+      parseQuestionsBody(
         body({
           questions: [
             {
@@ -158,7 +160,7 @@ describe("parseAskBody", () => {
           ],
         })
       ),
-      parseAskBody(
+      parseQuestionsBody(
         body({
           questions: [
             {
@@ -168,7 +170,7 @@ describe("parseAskBody", () => {
           ],
         })
       ),
-      parseAskBody(body({ thread_ts: undefined })),
+      parseQuestionsBody(body({ thread_ts: undefined })),
     ];
 
     for (const parsed of refusals) {
@@ -183,7 +185,7 @@ describe("parseAskBody", () => {
 
   test("an empty channel is accepted, which the blocker route refuses", () => {
     expect(
-      parseAskBody(
+      parseQuestionsBody(
         body({
           channel: "",
           thread_ts: "",
@@ -193,7 +195,7 @@ describe("parseAskBody", () => {
   });
 
   test("an empty intro is accepted, and Slack refuses the block it becomes", () => {
-    const parsed = parseAskBody(body({ intro: "   " }));
+    const parsed = parseQuestionsBody(body({ intro: "   " }));
 
     expect(parsed.ok).toBe(true);
     expect(parsed.ok && parsed.request.intro).toBe("");
@@ -310,7 +312,7 @@ describe("the questions route", () => {
 
   test("an id carrying the block-id separator is accepted, and the answer is lost", () => {
     expect(
-      parseAskBody(
+      parseQuestionsBody(
         body({
           questions: [
             {
@@ -325,7 +327,7 @@ describe("the questions route", () => {
 
   test("an empty id is accepted, and its answer is lost the same way", () => {
     expect(
-      parseAskBody(
+      parseQuestionsBody(
         body({
           questions: [
             {

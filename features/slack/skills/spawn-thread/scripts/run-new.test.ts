@@ -1,8 +1,10 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- block payloads are typed `unknown[]` at the seam and are inspected as the Block Kit they are */
-import { describe, expect, test } from "#src/test-support/effect-test.ts";
+import { describe, expect, test } from "#src/test-support/index.ts";
 
 import type { KnownBlock } from "@slack/types";
-import { Option, Result } from "effect";
+import { Option, Result, Schema } from "effect";
+
+import { opaqueSchema } from "#src/schema-support.ts";
 
 import type { PostMessageResponse } from "./post-message.ts";
 
@@ -10,19 +12,25 @@ import type { FetchLike } from "./spawn-thread.ts";
 
 import { buildOpenerBlocks, runNew } from "./run-new.ts";
 
-interface PostCall {
-  readonly blocks?: readonly KnownBlock[] | undefined;
-  readonly channel: string;
-  readonly noThread?: boolean | undefined;
-  readonly text?: string | undefined;
-  readonly threadTs?: string | undefined;
-}
+const PostCallSchema = Schema.Struct({
+  blocks: Schema.optionalKey(
+    Schema.UndefinedOr(Schema.Array(opaqueSchema<KnownBlock>("PostCall.blocks")))
+  ),
+  channel: Schema.String,
+  noThread: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  text: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  threadTs: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+});
 
-interface UpdateCall {
-  readonly channel: string;
-  readonly text: string;
-  readonly ts: string;
-}
+type PostCall = typeof PostCallSchema.Type;
+
+const UpdateCallSchema = Schema.Struct({
+  channel: Schema.String,
+  text: Schema.String,
+  ts: Schema.String,
+});
+
+type UpdateCall = typeof UpdateCallSchema.Type;
 
 const ORIGIN = {
   SLACK_CHANNEL_ID: "C-ORIGIN",
@@ -31,10 +39,12 @@ const ORIGIN = {
 
 const NEW_TS = "1800.2";
 
-interface Harness {
-  readonly posts: PostCall[];
-  readonly updates: UpdateCall[];
-}
+const HarnessSchema = Schema.Struct({
+  posts: Schema.mutable(Schema.Array(PostCallSchema)),
+  updates: Schema.mutable(Schema.Array(UpdateCallSchema)),
+});
+
+type Harness = typeof HarnessSchema.Type;
 
 type PostReply = Result.Result<Option.Option<PostMessageResponse>, Error>;
 

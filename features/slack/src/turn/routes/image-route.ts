@@ -1,11 +1,12 @@
 import { Effect, Result, Schema } from "effect";
 
-import type { GeneratedImage } from "#src/helpers/images-ai/generate.ts";
+import type { GeneratedImage } from "#src/helpers/images-ai/index.ts";
 import type { MessageReplyShape } from "#src/message-reply/reply.ts";
 import type { ThreadRef } from "#src/thread/thread.ts";
 import type { Refusal } from "./loopback-route.ts";
 
-import { generateImage } from "#src/helpers/images-ai/generate.ts";
+import { generateImage } from "#src/helpers/images-ai/index.ts";
+import { functionSchema } from "#src/schema-support.ts";
 import { loopbackRoute, refuse, threadFields } from "./loopback-route.ts";
 
 const MAX_PROMPT_CHARS = 1000;
@@ -25,13 +26,15 @@ const nonEmpty = (value: string | undefined): string | undefined => {
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
 };
 
-interface ImageRequest {
-  readonly channel: string;
-  readonly prompt: string;
-  readonly team: string | undefined;
-  readonly threadTs: string;
-  readonly title: string;
-}
+const ImageRequestSchema = Schema.Struct({
+  channel: Schema.String,
+  prompt: Schema.String,
+  team: Schema.UndefinedOr(Schema.String),
+  threadTs: Schema.String,
+  title: Schema.String,
+});
+
+type ImageRequest = typeof ImageRequestSchema.Type;
 
 type ImageParse =
   | { readonly ok: true; readonly request: ImageRequest }
@@ -64,13 +67,19 @@ const parseImageBody = (raw: unknown): ImageParse =>
     },
   });
 
-interface ImageRouteDeps {
-  readonly apiKey: () => string;
-  readonly fetch?: typeof globalThis.fetch;
-  readonly model?: string | undefined;
-  readonly replyFor: (ref: ThreadRef) => Promise<MessageReplyShape>;
-  readonly workspaceTeamId: string;
-}
+const ImageRouteDepsSchema = Schema.Struct({
+  apiKey: functionSchema<() => string>("ImageRouteDeps.apiKey"),
+  fetch: Schema.optionalKey(
+    functionSchema<typeof globalThis.fetch>("ImageRouteDeps.fetch")
+  ),
+  model: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  replyFor: functionSchema<(ref: ThreadRef) => Promise<MessageReplyShape>>(
+    "ImageRouteDeps.replyFor"
+  ),
+  workspaceTeamId: Schema.String,
+});
+
+type ImageRouteDeps = typeof ImageRouteDepsSchema.Type;
 
 const upload = Effect.fn("Slack.image.upload")(function* (input: {
   readonly image: GeneratedImage;
