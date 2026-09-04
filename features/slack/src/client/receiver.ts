@@ -4,7 +4,9 @@ import type { App, Receiver, ReceiverEvent } from "@slack/bolt";
 
 import { verifySlackRequest } from "@slack/bolt";
 
-import { functionSchema } from "#src/schema-support.ts";
+import { readDispatch } from "./dispatch-note.ts";
+
+import { functionSchema, opaqueSchema } from "#src/schema-support.ts";
 
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
@@ -34,7 +36,11 @@ const isUrlVerification = (body: unknown): body is UrlVerification =>
   Result.isSuccess(decodeUrlVerification(body));
 
 const EventEnvelopeSchema = Schema.Struct({
+  event: Schema.optionalKey(
+    Schema.Struct({ type: Schema.optionalKey(Schema.String) })
+  ),
   event_id: Schema.optionalKey(Schema.String),
+  type: Schema.optionalKey(Schema.String),
 });
 
 const decodeEventEnvelope = Schema.decodeUnknownResult(EventEnvelopeSchema);
@@ -42,6 +48,18 @@ const decodeEventEnvelope = Schema.decodeUnknownResult(EventEnvelopeSchema);
 const eventIdOf = (body: unknown): string | undefined => {
   const decoded = decodeEventEnvelope(body);
   return Result.isSuccess(decoded) ? decoded.success.event_id : undefined;
+};
+
+/**
+ * The inner `event.type` names what happened; the outer `type` names the
+ * envelope, and only stands in when there is no inner event to read.
+ */
+const eventTypeOf = (body: unknown): string | undefined => {
+  const decoded = decodeEventEnvelope(body);
+  if (Result.isFailure(decoded)) {
+    return undefined;
+  }
+  return decoded.success.event?.type ?? decoded.success.type;
 };
 
 const decodeJsonObject = Schema.decodeUnknownResult(
@@ -63,17 +81,59 @@ const parseBody = (raw: string): Record<string, unknown> | undefined => {
   return form === null ? undefined : readJsonObject(form);
 };
 
+const SlackRetrySchema = Schema.Struct({
+  num: Schema.UndefinedOr(Schema.Number),
+  reason: Schema.UndefinedOr(Schema.String),
+});
+
+type SlackRetry = typeof SlackRetrySchema.Type;
+
+const retryOf = (request: Request): SlackRetry => ({
+  num: Number(request.headers.get("x-slack-retry-num") ?? "") || undefined,
+  reason: request.headers.get("x-slack-retry-reason") ?? undefined,
+});
+
+const elapsedMsSince = (mark: number): number =>
+  Math.round(performance.now() - mark);
+
+const ReceiptOutcomeSchema = Schema.Literals([
+  "challenge",
+  "deduped",
+  "dispatched",
+  "errored",
+  "listener_failed",
+  "not_started",
+  "too_large",
+  "unparseable",
+  "unverified",
+]);
+
+type ReceiptOutcome = typeof ReceiptOutcomeSchema.Type;
+
+const AnswerSchema = Schema.Struct({
+  addressed: Schema.optionalKey(Schema.UndefinedOr(Schema.Boolean)),
+  eventId: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  eventType: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+  outcome: ReceiptOutcomeSchema,
+  queueMs: Schema.optionalKey(Schema.UndefinedOr(Schema.Number)),
+  response: opaqueSchema<Response>("Answer.response"),
+});
+
+type Answer = typeof AnswerSchema.Type;
+
+const logLevelSchema = (level: string) =>
+  functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
+    `SlackReceiverOptions.logger.${level}`
+  );
+
 const SlackReceiverOptionsSchema = Schema.Struct({
   signingSecret: Schema.String,
   logger: Schema.Struct({
-    error:
-      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
-        "SlackReceiverOptions.logger.error"
-      ),
-    warn:
-      functionSchema<(message: string, ...rest: readonly unknown[]) => void>(
-        "SlackReceiverOptions.logger.warn"
-      ),
+    error: logLevelSchema("error"),
+    // The per-event receipt line is written here, so `info` joins the levels
+    // the receiver already needed.
+    info: logLevelSchema("info"),
+    warn: logLevelSchema("warn"),
   }),
 });
 
@@ -135,10 +195,14 @@ export class SlackReceiver implements Receiver {
 
   async #verifiedBody(
     request: Request
-  ): Promise<{ readonly raw: string } | { readonly rejected: Response }> {
+  ): Promise<
+    | { readonly raw: string }
+    | { readonly outcome: ReceiptOutcome; readonly rejected: Response }
+  > {
     const declaredLength = Number(request.headers.get("content-length") ?? "");
     if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
       return {
+        outcome: "too_large",
         rejected: new Response("payload too large", {
           status: HTTP_PAYLOAD_TOO_LARGE,
         }),
@@ -148,6 +212,7 @@ export class SlackReceiver implements Receiver {
     const raw = await request.text();
     if (raw.length > MAX_BODY_BYTES) {
       return {
+        outcome: "too_large",
         rejected: new Response("payload too large", {
           status: HTTP_PAYLOAD_TOO_LARGE,
         }),
@@ -158,6 +223,7 @@ export class SlackReceiver implements Receiver {
     const timestamp = request.headers.get("x-slack-request-timestamp");
     if (signature === null || timestamp === null) {
       return {
+        outcome: "unverified",
         rejected: new Response("missing signature headers", {
           status: HTTP_UNAUTHORIZED,
         }),
@@ -189,6 +255,7 @@ export class SlackReceiver implements Receiver {
     );
     if (!admitted) {
       return {
+        outcome: "unverified",
         rejected: new Response("invalid signature", {
           status: HTTP_UNAUTHORIZED,
         }),
@@ -198,53 +265,109 @@ export class SlackReceiver implements Receiver {
     return { raw };
   }
 
-  async handleRequest(request: Request): Promise<Response> {
+  async #answer(request: Request, retry: SlackRetry): Promise<Answer> {
     const app = this.#app;
     if (app === undefined) {
-      return Response.json(
-        { error: "slack receiver not started" },
-        { status: HTTP_SERVICE_UNAVAILABLE }
-      );
+      return {
+        outcome: "not_started",
+        response: Response.json(
+          { error: "slack receiver not started" },
+          { status: HTTP_SERVICE_UNAVAILABLE }
+        ),
+      };
     }
 
     const verified = await this.#verifiedBody(request);
     if ("rejected" in verified) {
-      return verified.rejected;
+      return {
+        outcome: verified.outcome,
+        response: verified.rejected,
+      };
     }
 
     const body = parseBody(verified.raw);
     if (body === undefined) {
-      return new Response("unparseable body", { status: HTTP_BAD_REQUEST });
+      return {
+        outcome: "unparseable",
+        response: new Response("unparseable body", {
+          status: HTTP_BAD_REQUEST,
+        }),
+      };
     }
 
     if (isUrlVerification(body)) {
-      return Response.json({ challenge: body.challenge });
+      return {
+        eventType: body.type,
+        outcome: "challenge",
+        response: Response.json({ challenge: body.challenge }),
+      };
     }
 
     const eventId = eventIdOf(body);
+    const eventType = eventTypeOf(body);
     if (!this.#admit(eventId)) {
-      return new Response("", { status: HTTP_OK });
+      return {
+        eventId,
+        eventType,
+        outcome: "deduped",
+        response: new Response("", { status: HTTP_OK }),
+      };
     }
 
     const event: ReceiverEvent = {
       ack: () => Promise.resolve(),
       body,
-      retryNum:
-        Number(request.headers.get("x-slack-retry-num") ?? "") || undefined,
-      retryReason: request.headers.get("x-slack-retry-reason") ?? undefined,
+      retryNum: retry.num,
+      retryReason: retry.reason,
     };
 
-    await Effect.runPromise(
+    const handoff = performance.now();
+    const outcome = await Effect.runPromise(
       Effect.tryPromise(() => app.processEvent(event)).pipe(
+        Effect.map((): ReceiptOutcome => "dispatched"),
         Effect.catch((error) =>
-          Effect.sync(() => {
+          Effect.sync((): ReceiptOutcome => {
             this.#release(eventId);
             this.#options.logger.error("[slack] listener failed", error);
+            return "listener_failed";
           })
         )
       )
     );
 
-    return new Response("", { status: HTTP_OK });
+    const dispatch = readDispatch(body);
+
+    return {
+      addressed: dispatch?.addressed,
+      eventId,
+      eventType,
+      outcome,
+      queueMs:
+        dispatch === undefined ? undefined : Math.round(dispatch.at - handoff),
+      response: new Response("", { status: HTTP_OK }),
+    };
+  }
+
+  async handleRequest(request: Request): Promise<Response> {
+    const mark = performance.now();
+    const retry = retryOf(request);
+    let answer: Answer | undefined;
+
+    try {
+      answer = await this.#answer(request, retry);
+      return answer.response;
+    } finally {
+      this.#options.logger.info("[slack] event received", {
+        ack_ms: elapsedMsSince(mark),
+        addressed: answer?.addressed,
+        event_id: answer?.eventId,
+        event_type: answer?.eventType,
+        outcome: answer?.outcome ?? "errored",
+        queue_ms: answer?.queueMs,
+        retry_num: retry.num,
+        retry_reason: retry.reason,
+        status: answer?.response.status,
+      });
+    }
   }
 }

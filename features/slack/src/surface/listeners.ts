@@ -7,6 +7,8 @@ import type {
   ViewSubmissionPayload,
 } from "#src/interactions/interactions.ts";
 
+import { noteDispatch } from "#src/client/dispatch-note.ts";
+
 const OptionalString = Schema.optional(Schema.String);
 
 const RawAssistantThreadStartedSchema = Schema.Struct({
@@ -112,7 +114,8 @@ export const registerListeners = (input: {
   readonly openAssistantThread: (event: RawAssistantThreadStarted) => void;
   readonly startTurn: (event: RawSlackMessage, addressed: boolean) => void;
 }): void => {
-  input.app.event("app_mention", ({ event }) => {
+  input.app.event("app_mention", ({ body, event }) => {
+    noteDispatch(body, true);
     input.startTurn(event as RawSlackMessage, true);
     return Promise.resolve();
   });
@@ -127,13 +130,15 @@ export const registerListeners = (input: {
     return Promise.resolve();
   });
 
-  input.app.message(({ message }) => {
+  input.app.message(({ body, message }) => {
     const raw = message as RawSlackMessage;
     if (raw.channel_type === "im") {
+      noteDispatch(body, true);
       input.startTurn(raw, true);
       return Promise.resolve();
     }
     if (raw.thread_ts !== undefined) {
+      noteDispatch(body, false);
       input.startTurn(raw, false);
     }
     return Promise.resolve();
