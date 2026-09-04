@@ -84,7 +84,7 @@ const withSlack = async (
       },
     });
   } finally {
-    server.stop(true);
+    await server.stop(true);
   }
 };
 
