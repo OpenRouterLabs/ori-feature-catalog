@@ -1,0 +1,6 @@
+{
+  "name": "@ori-monorepo/google-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module"
+}
