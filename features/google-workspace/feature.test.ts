@@ -14,12 +14,20 @@ describe("google-workspace prompt contribution", () => {
     );
   });
 
-  it("names the skill and forbids asking for or sending a credential", () => {
+  it("names every skill and forbids asking for or sending a credential", () => {
     const text =
       typeof GOOGLE_WORKSPACE_PROMPT === "string"
         ? GOOGLE_WORKSPACE_PROMPT
         : GOOGLE_WORKSPACE_PROMPT.text;
-    expect(text).toContain("`google-workspace` skill");
+    for (const skill of [
+      "gmail",
+      "google-calendar",
+      "google-drive",
+      "google-docs",
+      "google-sheets",
+    ]) {
+      expect(text).toContain(skill);
+    }
     expect(text).toContain("Never ask anyone for Google credentials");
     expect(text).toContain("never set an Authorization header");
     expect(text).toContain("401 or 403");

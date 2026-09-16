@@ -6,16 +6,16 @@
  * Google's API host. Authentication happens outside this script; no
  * credential is read, held, or sent here.
  *
- *   bun features/google-workspace/skills/google-workspace/scripts/cli.ts whoami
- *   bun features/google-workspace/skills/google-workspace/scripts/cli.ts request GET https://gmail.googleapis.com/gmail/v1/users/me/labels
- *   bun features/google-workspace/skills/google-workspace/scripts/cli.ts request POST <url> --json '<body>' | --json @file
+ *   bun features/google-workspace/src/cli.ts whoami
+ *   bun features/google-workspace/src/cli.ts request GET https://gmail.googleapis.com/gmail/v1/users/me/labels
+ *   bun features/google-workspace/src/cli.ts request POST <url> --json '<body>' | --json @file
  *
  * Exit 0 on success (JSON to stdout); exit 1 on failure (error on stderr).
  */
 
 export const ACT_AS_HEADER = "x-openrouter-act-as";
-const SCRIPT = "features/google-workspace/skills/google-workspace/scripts/cli.ts";
-const SKILL_DOC = "features/google-workspace/skills/google-workspace/SKILL.md";
+const SCRIPT = "features/google-workspace/src/cli.ts";
+const SKILL_DOC = "features/google-workspace/README.md";
 const LINK_HINT =
   "Ask the person to link their Google account under Your accounts on the Interns page of the OpenRouter dashboard, then try again.";
 

@@ -47,9 +47,10 @@ you fork anything here: create a directory with the same name.
 
 - **[google-workspace](features/google-workspace)** — Gmail, Calendar, Drive, Docs, and
   Sheets as the person the intern is talking to, through their own linked Google account.
-  One skill (`google-workspace`) and a prompt rule. Holds no credential: OpenRouter
-  authenticates each request for the person's linked account. Requires `SLACK_USER_ID`
-  and `SLACK_BOT_TOKEN` to resolve who the intern acts as.
+  Five skills, one per app (`gmail`, `google-calendar`, `google-drive`, `google-docs`,
+  `google-sheets`), over one shared command, plus a prompt rule. Holds no credential:
+  OpenRouter authenticates each request for the person's linked account. Requires
+  `SLACK_USER_ID` and `SLACK_BOT_TOKEN` to resolve who the intern acts as.
 - **[slack](features/slack)** — Slack chat surface. Bolt Events API bridge, threaded
   replies, a typing indicator driven by tool calls, and seven skills (`slack-api`,
   `slack-ask`, `slack-chart`, `slack-image`, `slack-questions`, `slack-status`,
