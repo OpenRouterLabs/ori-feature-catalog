@@ -17,8 +17,8 @@ ori dev --features github.com/OpenRouterLabs/ori-feature-catalog
 
 `--features` takes a *features root*, and a bare repo root resolves to its nested
 `features/`. Normalization descends one level only, so pointing at
-`.../ori-feature-catalog/features/slack` would treat that directory as the root and
-enumerate `src` and `skills` as features — not `slack`.
+`.../ori-feature-catalog/features/google-workspace` would treat that directory as the
+root and enumerate `src` and `skills` as features, not `google-workspace`.
 
 Pin a tag or commit SHA with `@<ref>`; omit it to track the default branch:
 
@@ -51,10 +51,11 @@ you fork anything here: create a directory with the same name.
   `google-sheets`), over one shared command, plus a prompt rule. Holds no credential:
   OpenRouter authenticates each request for the person's linked account. Requires
   `SLACK_USER_ID` and `SLACK_BOT_TOKEN` to resolve who the intern acts as.
-- **[slack](features/slack)** — Slack chat surface. Bolt Events API bridge, threaded
-  replies, a typing indicator driven by tool calls, and seven skills (`slack-api`,
-  `slack-ask`, `slack-chart`, `slack-image`, `slack-questions`, `slack-status`,
-  `spawn-thread`). Requires `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET`.
+
+Slack is provided by Ori's built-in Slack feature, not by this catalog. Use the
+built-in implementation for Slack chat and skills. Existing checkouts pinned to an
+older catalog revision still contain the catalog copy; update the revision to stop
+loading it. Google Workspace's Slack identity environment variables remain in use.
 
 ## Develop
 
