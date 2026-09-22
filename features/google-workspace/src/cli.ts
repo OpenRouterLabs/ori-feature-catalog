@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
- * cli.ts — Google Workspace requests as the person you act as.
+ * cli.ts — Google Workspace requests as the person you are talking to.
  *
- * Thin: it names the acting member on the request and forwards it to
- * Google's API host. Authentication happens outside this script; no
- * credential is read, held, or sent here.
+ * Thin: it forwards a request to Google's API host, and OpenRouter
+ * authenticates it as the person the conversation came from. No
+ * credential is read, held, or sent here, and no account is chosen here.
  *
  *   bun features/google-workspace/src/cli.ts whoami
  *   bun features/google-workspace/src/cli.ts request GET https://gmail.googleapis.com/gmail/v1/users/me/labels
@@ -14,6 +14,7 @@
  */
 
 export const ACT_AS_HEADER = "x-openrouter-act-as";
+export const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const SCRIPT = "features/google-workspace/src/cli.ts";
 const SKILL_DOC = "features/google-workspace/README.md";
 const LINK_HINT =
@@ -30,8 +31,8 @@ export interface CliDeps {
 }
 
 const USAGE = `Usage:
-  bun ${SCRIPT} whoami [--as email]
-  bun ${SCRIPT} request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json '<body>' | --json @file] [--as email]
+  bun ${SCRIPT} whoami
+  bun ${SCRIPT} request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json '<body>' | --json @file]
 
 See ${SKILL_DOC}.`;
 
@@ -43,6 +44,18 @@ interface Parsed {
   readonly command: string;
   readonly positional: string[];
   readonly flags: Record<string, string>;
+}
+
+interface GoogleRequest {
+  readonly method: string;
+  readonly url: string;
+  readonly body: string | null;
+}
+
+interface GoogleAnswer {
+  readonly status: number;
+  readonly ok: boolean;
+  readonly text: string;
 }
 
 function parseArgv(argv: string[]): Parsed {
@@ -80,28 +93,16 @@ export function isGoogleApiUrl(raw: string): boolean {
   }
 }
 
-/** The acting member's email: an explicit --as, else the Slack user this turn came from, resolved through Slack. */
-async function resolveActAsEmail(
-  deps: CliDeps,
-  override: string | undefined
-): Promise<string> {
-  if (override !== undefined && override !== "") {
-    if (!override.includes("@")) {
-      throw new Error(`--as must be an email address, got "${override}".`);
-    }
-    return override.toLowerCase();
-  }
+/**
+ * The email of the Slack user this turn came from, when the turn came from
+ * Slack and Slack can say. Null otherwise: a request without it is still
+ * attributed to the person the conversation came from.
+ */
+async function resolveSlackEmail(deps: CliDeps): Promise<string | null> {
   const slackUserId = deps.env.SLACK_USER_ID ?? "";
   const botToken = deps.env.SLACK_BOT_TOKEN ?? "";
-  if (slackUserId === "") {
-    throw new Error(
-      "SLACK_USER_ID is not set. Run this from a Slack-attributed session, or pass --as <email>."
-    );
-  }
-  if (botToken === "") {
-    throw new Error(
-      "SLACK_BOT_TOKEN is not set, so the Slack user cannot be resolved to an email. Pass --as <email>."
-    );
+  if (slackUserId === "" || botToken === "") {
+    return null;
   }
   const res = await deps.fetchImpl(
     `https://slack.com/api/users.info?user=${encodeURIComponent(slackUserId)}`,
@@ -110,8 +111,8 @@ async function resolveActAsEmail(
   const body: unknown = await res.json().catch(() => null);
   const email = readEmail(body);
   if (email === null) {
-    throw new Error(
-      `Could not resolve Slack user ${slackUserId} to an email (users.info needs the users:read.email scope). Pass --as <email>.`
+    deps.err(
+      `Could not resolve Slack user ${slackUserId} to an email (users.info needs the users:read.email scope); continuing without it.`
     );
   }
   return email;
@@ -146,8 +147,52 @@ async function readJsonBody(
   return raw;
 }
 
-async function cmdWhoami(deps: CliDeps, parsed: Parsed): Promise<number> {
-  const email = await resolveActAsEmail(deps, parsed.flags.as);
+async function sendGoogleRequest(
+  deps: CliDeps,
+  request: GoogleRequest
+): Promise<GoogleAnswer> {
+  const email = await resolveSlackEmail(deps);
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (email !== null) {
+    headers[ACT_AS_HEADER] = `email:${email}`;
+  }
+  if (request.body !== null) {
+    headers["content-type"] = "application/json";
+  }
+  const res = await deps.fetchImpl(request.url, {
+    method: request.method,
+    headers,
+    body: request.body ?? undefined,
+  });
+  return { status: res.status, ok: res.ok, text: await res.text() };
+}
+
+function reportFailure(
+  deps: CliDeps,
+  request: GoogleRequest,
+  answer: GoogleAnswer
+): number {
+  const hint =
+    answer.status === HTTP_UNAUTHORIZED || answer.status === HTTP_FORBIDDEN
+      ? ` ${LINK_HINT}`
+      : "";
+  deps.err(
+    `Google answered ${answer.status} for ${request.method} ${request.url}.${hint}\n${answer.text}`
+  );
+  return 1;
+}
+
+async function cmdWhoami(deps: CliDeps): Promise<number> {
+  const request: GoogleRequest = { method: "GET", url: USERINFO_URL, body: null };
+  const answer = await sendGoogleRequest(deps, request);
+  if (!answer.ok) {
+    return reportFailure(deps, request, answer);
+  }
+  const email = field(parseJson(answer.text), "email");
+  if (typeof email !== "string") {
+    deps.err(`Google did not name an account.\n${answer.text}`);
+    return 1;
+  }
   deps.out(JSON.stringify({ email }));
   return 0;
 }
@@ -163,41 +208,27 @@ async function cmdRequest(deps: CliDeps, parsed: Parsed): Promise<number> {
     deps.err(`request only reaches https://*.googleapis.com; refused ${url}`);
     return 1;
   }
-  const email = await resolveActAsEmail(deps, parsed.flags.as);
   const body = await readJsonBody(deps, parsed.flags.json);
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    [ACT_AS_HEADER]: `email:${email}`,
-  };
-  if (body !== null) {
-    headers["content-type"] = "application/json";
+  const request: GoogleRequest = { method, url, body };
+  const answer = await sendGoogleRequest(deps, request);
+  if (!answer.ok) {
+    return reportFailure(deps, request, answer);
   }
-  const res = await deps.fetchImpl(url, {
-    method,
-    headers,
-    body: body ?? undefined,
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    const hint =
-      res.status === HTTP_UNAUTHORIZED || res.status === HTTP_FORBIDDEN
-        ? ` ${LINK_HINT}`
-        : "";
-    deps.err(
-      `Google answered ${res.status} for ${method} ${url}.${hint}\n${text}`
-    );
-    return 1;
-  }
-  deps.out(prettyJson(text));
+  deps.out(prettyJson(answer.text));
   return 0;
 }
 
-function prettyJson(text: string): string {
+function parseJson(text: string): unknown {
   try {
-    return JSON.stringify(JSON.parse(text), null, 2);
+    return JSON.parse(text);
   } catch {
-    return text;
+    return null;
   }
+}
+
+function prettyJson(text: string): string {
+  const parsed = parseJson(text);
+  return parsed === null ? text : JSON.stringify(parsed, null, 2);
 }
 
 const COMMANDS: Record<
@@ -221,6 +252,12 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<number> {
   const handler = COMMANDS[parsed.command];
   if (handler === undefined) {
     deps.err(`Unknown command "${parsed.command}".\n${USAGE}`);
+    return 1;
+  }
+  if (parsed.flags.as !== undefined) {
+    deps.err(
+      "--as is not supported: every request acts as the person you are talking to, and no other account can be named."
+    );
     return 1;
   }
   try {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { CliDeps } from "./cli.ts";
 
-import { ACT_AS_HEADER, isGoogleApiUrl, runCli } from "./cli.ts";
+import { ACT_AS_HEADER, USERINFO_URL, isGoogleApiUrl, runCli } from "./cli.ts";
 
 interface Call {
   readonly url: string;
@@ -42,6 +42,10 @@ const slackUser = (email: string): Response =>
   });
 
 const isSlack = (url: string): boolean => url.startsWith("https://slack.com/");
+const isGoogle = (url: string): boolean => url.includes("googleapis.com");
+
+const googleHeaders = (calls: Call[]): Headers =>
+  new Headers(calls.find((call) => isGoogle(call.url))?.init?.headers);
 
 describe("isGoogleApiUrl", () => {
   it("accepts Google API hosts over https and nothing else", () => {
@@ -59,7 +63,7 @@ describe("isGoogleApiUrl", () => {
 });
 
 describe("runCli request", () => {
-  it("names the acting member from the Slack user and never sends a credential", async () => {
+  it("names the Slack user the turn came from and never sends a credential", async () => {
     const { deps, calls, out } = makeDeps((url) =>
       isSlack(url)
         ? slackUser("Pat@Example.com")
@@ -69,11 +73,33 @@ describe("runCli request", () => {
     );
     const code = await runCli(["request", "GET", LABELS_URL], deps);
     expect(code).toBe(0);
-    const google = calls.find((call) => call.url.includes("googleapis.com"));
-    const headers = new Headers(google?.init?.headers);
+    const headers = googleHeaders(calls);
     expect(headers.get(ACT_AS_HEADER)).toBe("email:pat@example.com");
     expect(headers.has("authorization")).toBe(false);
     expect(out.join("\n")).toContain('"INBOX"');
+  });
+
+  it("names nobody when the turn did not come from Slack", async () => {
+    const { deps, calls, out, err } = makeDeps(
+      () => new Response('{"labels":[]}', { status: 200 }),
+      {}
+    );
+    expect(await runCli(["request", "GET", LABELS_URL], deps)).toBe(0);
+    expect(calls.filter((call) => isSlack(call.url))).toHaveLength(0);
+    expect(googleHeaders(calls).has(ACT_AS_HEADER)).toBe(false);
+    expect(out.join("\n")).toContain("labels");
+    expect(err).toHaveLength(0);
+  });
+
+  it("goes on without a name when Slack cannot say, and says so", async () => {
+    const { deps, calls, err } = makeDeps((url) =>
+      isSlack(url)
+        ? new Response(JSON.stringify({ ok: true, user: { id: "U_PAT" } }))
+        : new Response("{}", { status: 200 })
+    );
+    expect(await runCli(["request", "GET", LABELS_URL], deps)).toBe(0);
+    expect(googleHeaders(calls).has(ACT_AS_HEADER)).toBe(false);
+    expect(err.join("\n")).toContain("users:read.email");
   });
 
   it("forwards a JSON body, inline or from a file, with the content type", async () => {
@@ -102,7 +128,7 @@ describe("runCli request", () => {
       ],
       deps
     );
-    const posts = calls.filter((call) => call.url.includes("googleapis.com"));
+    const posts = calls.filter((call) => isGoogle(call.url));
     expect(posts[0]?.init?.body).toBe('{"items":[]}');
     expect(new Headers(posts[0]?.init?.headers).get("content-type")).toBe(
       "application/json"
@@ -119,11 +145,11 @@ describe("runCli request", () => {
       deps
     );
     expect(code).toBe(1);
-    expect(calls.filter((call) => !isSlack(call.url))).toHaveLength(0);
+    expect(calls).toHaveLength(0);
     expect(err.join("\n")).toContain("JSON");
   });
 
-  it("refuses hosts other than Google's APIs before resolving anyone", async () => {
+  it("refuses hosts other than Google's APIs before asking anyone", async () => {
     const { deps, calls, err } = makeDeps(() => new Response("{}"));
     const code = await runCli(["request", "GET", "https://example.com/"], deps);
     expect(code).toBe(1);
@@ -179,44 +205,56 @@ describe("runCli request", () => {
   });
 });
 
-describe("runCli whoami and the acting member", () => {
-  it("uses --as instead of Slack when given, lower-cased", async () => {
-    const { deps, calls, out } = makeDeps(() => new Response("{}"));
-    expect(await runCli(["whoami", "--as", "Sam@Example.com"], deps)).toBe(0);
-    expect(calls).toHaveLength(0);
-    expect(out).toEqual(['{"email":"sam@example.com"}']);
-  });
-
-  it("rejects an --as that is not an email address", async () => {
-    const { deps, err } = makeDeps(() => new Response("{}"));
-    expect(await runCli(["whoami", "--as", "sam"], deps)).toBe(1);
-    expect(err.join("\n")).toContain("--as must be an email address");
-  });
-
-  it("fails clearly without a Slack user or without a bot token", async () => {
-    const noUser = makeDeps(() => new Response("{}"), {});
-    expect(await runCli(["whoami"], noUser.deps)).toBe(1);
-    expect(noUser.err.join("\n")).toContain("SLACK_USER_ID");
-    const noToken = makeDeps(() => new Response("{}"), {
-      SLACK_USER_ID: "U_PAT",
-    });
-    expect(await runCli(["whoami"], noToken.deps)).toBe(1);
-    expect(noToken.err.join("\n")).toContain("SLACK_BOT_TOKEN");
-  });
-
-  it("fails clearly when Slack does not return an email for the user", async () => {
-    const noProfile = makeDeps(
-      () => new Response(JSON.stringify({ ok: true, user: { id: "U_PAT" } }))
+describe("runCli whoami", () => {
+  it("asks Google which account answers, through the same attributed request", async () => {
+    const { deps, calls, out } = makeDeps((url) =>
+      isSlack(url)
+        ? slackUser("pat@example.com")
+        : new Response(JSON.stringify({ email: "pat@example.com", name: "Pat" }), {
+            status: 200,
+          })
     );
-    expect(await runCli(["whoami"], noProfile.deps)).toBe(1);
-    expect(noProfile.err.join("\n")).toContain("users:read.email");
-    const notJson = makeDeps(() => new Response("gateway timeout"));
-    expect(await runCli(["whoami"], notJson.deps)).toBe(1);
-    expect(notJson.err.join("\n")).toContain("Could not resolve Slack user");
+    expect(await runCli(["whoami"], deps)).toBe(0);
+    const google = calls.find((call) => isGoogle(call.url));
+    expect(google?.url).toBe(USERINFO_URL);
+    expect(google?.init?.method).toBe("GET");
+    expect(googleHeaders(calls).get(ACT_AS_HEADER)).toBe("email:pat@example.com");
+    expect(googleHeaders(calls).has("authorization")).toBe(false);
+    expect(out).toEqual(['{"email":"pat@example.com"}']);
+  });
+
+  it("works without a Slack user, since the request is attributed for it", async () => {
+    const { deps, calls, out } = makeDeps(
+      () => new Response(JSON.stringify({ email: "pat@example.com" }), { status: 200 }),
+      {}
+    );
+    expect(await runCli(["whoami"], deps)).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(googleHeaders(calls).has(ACT_AS_HEADER)).toBe(false);
+    expect(out).toEqual(['{"email":"pat@example.com"}']);
+  });
+
+  it("points at the dashboard link step when no account is linked", async () => {
+    const { deps, err } = makeDeps(
+      () => new Response('{"error":"invalid_token"}', { status: 401 }),
+      {}
+    );
+    expect(await runCli(["whoami"], deps)).toBe(1);
+    expect(err.join("\n")).toContain("Your accounts");
+  });
+
+  it("fails when Google answers without an email", async () => {
+    const { deps, err } = makeDeps(() => new Response("{}", { status: 200 }), {});
+    expect(await runCli(["whoami"], deps)).toBe(1);
+    expect(err.join("\n")).toContain("did not name an account");
   });
 
   it("asks Slack with the bot token, for the given user", async () => {
-    const { deps, calls } = makeDeps(() => slackUser("pat@example.com"));
+    const { deps, calls } = makeDeps((url) =>
+      isSlack(url)
+        ? slackUser("pat@example.com")
+        : new Response(JSON.stringify({ email: "pat@example.com" }))
+    );
     await runCli(["whoami"], deps);
     expect(calls[0]?.url).toBe("https://slack.com/api/users.info?user=U_PAT");
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe(
@@ -241,12 +279,23 @@ describe("runCli dispatch", () => {
     expect(err.join("\n")).toContain('Unknown command "send"');
   });
 
+  it("refuses --as on every command without sending anything", async () => {
+    const { deps, calls, err } = makeDeps(() => new Response("{}"));
+    expect(
+      await runCli(["request", "GET", LABELS_URL, "--as", "sam@example.com"], deps)
+    ).toBe(1);
+    expect(await runCli(["whoami", "--as", "sam@example.com"], deps)).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(err.join("\n")).toContain("--as is not supported");
+    expect(err.join("\n")).toContain("the person you are talking to");
+  });
+
   it("treats a flag with no value as empty, and keeps later positionals", async () => {
     const { deps, calls } = makeDeps((url) =>
       isSlack(url) ? slackUser("pat@example.com") : new Response("{}")
     );
     expect(
-      await runCli(["request", "--as", "--json", "GET", LABELS_URL], deps)
+      await runCli(["request", "--json", "--pretty", "GET", LABELS_URL], deps)
     ).toBe(1);
     expect(calls).toHaveLength(0);
   });

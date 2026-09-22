@@ -5,7 +5,7 @@ description: Read, search, draft, and (with explicit go-ahead) send Gmail as the
 
 # Gmail
 
-Calls the Gmail API as the person you are talking to. Authentication is handled for you: you never hold, request, or send a credential. You only say who you act as. The other Google apps have their own skills (google-calendar, google-drive, google-docs, google-sheets); they all share this command.
+Calls the Gmail API as the person you are talking to. Authentication is handled for you: you never hold, request, or send a credential. The person the conversation came from is who every request acts as, whether they wrote from Slack or from the dashboard; you never choose or name an account. The other Google apps have their own skills (google-calendar, google-drive, google-docs, google-sheets); they all share this command.
 
 ## Prerequisites
 
@@ -17,12 +17,12 @@ Both are done in the OpenRouter dashboard, not here. If either is missing the re
 ## Usage
 
 ```bash
-bun features/google-workspace/src/cli.ts whoami                                   # the account you act as
+bun features/google-workspace/src/cli.ts whoami                                   # the linked account that answers
 bun features/google-workspace/src/cli.ts request GET <gmail url>
 bun features/google-workspace/src/cli.ts request POST <gmail url> --json '<body>'
 ```
 
-`request` accepts `https://*.googleapis.com` URLs only. It acts as the Slack user the conversation came from (`$SLACK_USER_ID`, resolved to their email); pass `--as someone@example.com` only when the user explicitly asks you to act as a different linked account they own. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
+`request` accepts `https://*.googleapis.com` URLs only. It acts as the person the conversation came from; there is no flag to act as anyone else, and if the person asks you to use another account, tell them that is not possible from here. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
 
 API base: `https://gmail.googleapis.com/gmail/v1/users/me`. A read-only grant allows only the GET calls; the rest answer 403.
 
