@@ -31,5 +31,6 @@ describe("google-workspace prompt contribution", () => {
     expect(text).toContain("Never ask anyone for Google credentials");
     expect(text).toContain("never set an Authorization header");
     expect(text).toContain("401 or 403");
+    expect(text).toContain("has shared it with everyone who can talk to this intern");
   });
 });
