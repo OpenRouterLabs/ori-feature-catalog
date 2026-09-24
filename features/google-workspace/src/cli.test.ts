@@ -342,11 +342,13 @@ describe("runCli --account", () => {
     expect(err.join("\n")).toContain("--account must be an email address");
   });
 
-  it("says the owner has not given this intern access when Google refuses", async () => {
-    const { deps, err } = makeDeps(() => new Response("denied", { status: 401 }));
-    expect(
-      await runCli(["request", "GET", LABELS_URL, "--account", "sam@example.com"], deps)
-    ).toBe(1);
-    expect(err.join("\n")).toContain("has not given this intern access");
+  it("says the owner has not given this intern access on 401 and 403", async () => {
+    for (const status of [401, 403]) {
+      const { deps, err } = makeDeps(() => new Response("denied", { status }));
+      expect(
+        await runCli(["request", "GET", LABELS_URL, "--account", "sam@example.com"], deps)
+      ).toBe(1);
+      expect(err.join("\n")).toContain("has not given this intern access");
+    }
   });
 });
