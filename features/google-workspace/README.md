@@ -11,7 +11,7 @@ Gmail, Google Calendar, Drive, Docs, and Sheets as the person the intern is talk
 
 ## How access works
 
-The skills hold no credential and send none. OpenRouter authenticates each request as the person the conversation came from, whether they wrote from Slack or from the dashboard, against that person's own linked Google account. `--account <email>` names someone else's account instead, and it works only when that person turned this intern on for their Google account in the dashboard (Your accounts → Google → Interns). No one can grant an intern another person's account, and a request that carries its own `Authorization` header is refused.
+The skills hold no credential and send none. OpenRouter authenticates each request as the person the conversation came from, whether they wrote from Slack or from the dashboard, against that person's own linked Google account. `--account <email>` names someone else's account instead, and it works only when that person turned this intern on for their Google account in the dashboard (Your accounts → Google → Interns). No one can grant an intern another person's account. Turning an intern on shares the account with everyone who can talk to that intern, and the skills treat it that way: the intern answers anyone's request about a delegated account without asking the owner again. A request that carries its own `Authorization` header is refused.
 
 Two things have to be true in the OpenRouter dashboard before a request succeeds, and neither is done from the intern:
 
