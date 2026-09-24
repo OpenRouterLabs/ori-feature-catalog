@@ -4,7 +4,8 @@
  *
  * Thin: it forwards a request to Google's API host, and OpenRouter
  * authenticates it as the person the conversation came from. No
- * credential is read, held, or sent here, and no account is chosen here.
+ * credential is read, held, or sent here. `--account <email>` names another
+ * person's account, which works only if that person gave this intern access.
  *
  *   bun features/google-workspace/src/cli.ts whoami
  *   bun features/google-workspace/src/cli.ts request GET https://gmail.googleapis.com/gmail/v1/users/me/labels
@@ -14,11 +15,14 @@
  */
 
 export const ACT_AS_HEADER = "x-openrouter-act-as";
+export const ACCOUNT_HEADER = "x-openrouter-google-account";
 export const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const SCRIPT = "features/google-workspace/src/cli.ts";
 const SKILL_DOC = "features/google-workspace/README.md";
 const LINK_HINT =
   "Ask the person to link their Google account under Your accounts on the Interns page of the OpenRouter dashboard, then try again.";
+const ACCOUNT_HINT =
+  "The owner of that account has not given this intern access. Ask them to turn this intern on under Your accounts → Google → Interns on the OpenRouter dashboard.";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -31,8 +35,8 @@ export interface CliDeps {
 }
 
 const USAGE = `Usage:
-  bun ${SCRIPT} whoami
-  bun ${SCRIPT} request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json '<body>' | --json @file]
+  bun ${SCRIPT} whoami [--account email]
+  bun ${SCRIPT} request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json '<body>' | --json @file] [--account email]
 
 See ${SKILL_DOC}.`;
 
@@ -50,6 +54,8 @@ interface GoogleRequest {
   readonly method: string;
   readonly url: string;
   readonly body: string | null;
+  /** Another person's account, named with --account; null acts as the person you are talking to. */
+  readonly account: string | null;
 }
 
 interface GoogleAnswer {
@@ -151,10 +157,14 @@ async function sendGoogleRequest(
   deps: CliDeps,
   request: GoogleRequest
 ): Promise<GoogleAnswer> {
-  const email = await resolveSlackEmail(deps);
   const headers: Record<string, string> = { accept: "application/json" };
-  if (email !== null) {
-    headers[ACT_AS_HEADER] = `email:${email}`;
+  if (request.account !== null) {
+    headers[ACCOUNT_HEADER] = request.account;
+  } else {
+    const email = await resolveSlackEmail(deps);
+    if (email !== null) {
+      headers[ACT_AS_HEADER] = `email:${email}`;
+    }
   }
   if (request.body !== null) {
     headers["content-type"] = "application/json";
@@ -172,18 +182,23 @@ function reportFailure(
   request: GoogleRequest,
   answer: GoogleAnswer
 ): number {
-  const hint =
-    answer.status === HTTP_UNAUTHORIZED || answer.status === HTTP_FORBIDDEN
-      ? ` ${LINK_HINT}`
-      : "";
+  const isAuthFailure =
+    answer.status === HTTP_UNAUTHORIZED || answer.status === HTTP_FORBIDDEN;
+  const hintText = request.account === null ? LINK_HINT : ACCOUNT_HINT;
+  const hint = isAuthFailure ? ` ${hintText}` : "";
   deps.err(
     `Google answered ${answer.status} for ${request.method} ${request.url}.${hint}\n${answer.text}`
   );
   return 1;
 }
 
-async function cmdWhoami(deps: CliDeps): Promise<number> {
-  const request: GoogleRequest = { method: "GET", url: USERINFO_URL, body: null };
+async function cmdWhoami(deps: CliDeps, parsed: Parsed): Promise<number> {
+  const request: GoogleRequest = {
+    method: "GET",
+    url: USERINFO_URL,
+    body: null,
+    account: accountOf(parsed),
+  };
   const answer = await sendGoogleRequest(deps, request);
   if (!answer.ok) {
     return reportFailure(deps, request, answer);
@@ -209,13 +224,19 @@ async function cmdRequest(deps: CliDeps, parsed: Parsed): Promise<number> {
     return 1;
   }
   const body = await readJsonBody(deps, parsed.flags.json);
-  const request: GoogleRequest = { method, url, body };
+  const request: GoogleRequest = { method, url, body, account: accountOf(parsed) };
   const answer = await sendGoogleRequest(deps, request);
   if (!answer.ok) {
     return reportFailure(deps, request, answer);
   }
   deps.out(prettyJson(answer.text));
   return 0;
+}
+
+/** The --account email, lowercased; null when the flag is absent. Validated in runCli. */
+function accountOf(parsed: Parsed): string | null {
+  const account = parsed.flags.account;
+  return account === undefined ? null : account.trim().toLowerCase();
 }
 
 function parseJson(text: string): unknown {
@@ -256,8 +277,13 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<number> {
   }
   if (parsed.flags.as !== undefined) {
     deps.err(
-      "--as is not supported: every request acts as the person you are talking to, and no other account can be named."
+      "--as is not supported. Use --account <email> to use an account whose owner gave this intern access."
     );
+    return 1;
+  }
+  const account = parsed.flags.account;
+  if (account !== undefined && !/^[^\s@]+@[^\s@]+$/u.test(account.trim())) {
+    deps.err(`--account must be an email address, got "${account}".`);
     return 1;
   }
   try {

@@ -2,7 +2,13 @@ import { describe, expect, it } from "bun:test";
 
 import type { CliDeps } from "./cli.ts";
 
-import { ACT_AS_HEADER, USERINFO_URL, isGoogleApiUrl, runCli } from "./cli.ts";
+import {
+  ACCOUNT_HEADER,
+  ACT_AS_HEADER,
+  USERINFO_URL,
+  isGoogleApiUrl,
+  runCli,
+} from "./cli.ts";
 
 interface Call {
   readonly url: string;
@@ -287,7 +293,7 @@ describe("runCli dispatch", () => {
     expect(await runCli(["whoami", "--as", "sam@example.com"], deps)).toBe(1);
     expect(calls).toHaveLength(0);
     expect(err.join("\n")).toContain("--as is not supported");
-    expect(err.join("\n")).toContain("the person you are talking to");
+    expect(err.join("\n")).toContain("--account <email>");
   });
 
   it("treats a flag with no value as empty, and keeps later positionals", async () => {
@@ -298,5 +304,49 @@ describe("runCli dispatch", () => {
       await runCli(["request", "--json", "--pretty", "GET", LABELS_URL], deps)
     ).toBe(1);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("runCli --account", () => {
+  it("names the delegated account and skips the Slack lookup", async () => {
+    const { deps, calls } = makeDeps(
+      () => new Response(JSON.stringify({ labels: [] }), { status: 200 })
+    );
+    const code = await runCli(
+      ["request", "GET", LABELS_URL, "--account", " Sam@Example.com "],
+      deps
+    );
+    expect(code).toBe(0);
+    const headers = googleHeaders(calls);
+    expect(headers.get(ACCOUNT_HEADER)).toBe("sam@example.com");
+    expect(headers.has(ACT_AS_HEADER)).toBe(false);
+    expect(headers.has("authorization")).toBe(false);
+    expect(calls.some((call) => isSlack(call.url))).toBe(false);
+  });
+
+  it("names the account on whoami too", async () => {
+    const { deps, calls, out } = makeDeps(
+      () => new Response(JSON.stringify({ email: "sam@example.com" }), { status: 200 })
+    );
+    expect(await runCli(["whoami", "--account", "sam@example.com"], deps)).toBe(0);
+    expect(calls[0]?.url).toBe(USERINFO_URL);
+    expect(googleHeaders(calls).get(ACCOUNT_HEADER)).toBe("sam@example.com");
+    expect(out.join("\n")).toContain("sam@example.com");
+  });
+
+  it("refuses a value that is not an email without sending anything", async () => {
+    const { deps, calls, err } = makeDeps(() => new Response("{}"));
+    expect(await runCli(["request", "GET", LABELS_URL, "--account", "sam"], deps)).toBe(1);
+    expect(await runCli(["whoami", "--account"], deps)).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(err.join("\n")).toContain("--account must be an email address");
+  });
+
+  it("says the owner has not given this intern access when Google refuses", async () => {
+    const { deps, err } = makeDeps(() => new Response("denied", { status: 401 }));
+    expect(
+      await runCli(["request", "GET", LABELS_URL, "--account", "sam@example.com"], deps)
+    ).toBe(1);
+    expect(err.join("\n")).toContain("has not given this intern access");
   });
 });

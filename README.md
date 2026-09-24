@@ -50,8 +50,9 @@ you fork anything here: create a directory with the same name.
   Five skills, one per app (`gmail`, `google-calendar`, `google-drive`, `google-docs`,
   `google-sheets`), over one shared command, plus a prompt rule. Holds no credential:
   OpenRouter authenticates each request as the person the conversation came from,
-  whether they wrote from Slack or from the dashboard. The intern never names or
-  chooses an account.
+  whether they wrote from Slack or from the dashboard. The intern names another
+  person's account only with `--account`, and only an account whose owner gave that
+  intern access.
 
 Slack is provided by Ori's built-in Slack feature, not by this catalog. Use the
 built-in implementation for Slack chat and skills. Existing checkouts pinned to an
