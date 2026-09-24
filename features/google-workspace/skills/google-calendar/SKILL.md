@@ -5,7 +5,7 @@ description: Read and manage Google Calendar as the person you are talking to, t
 
 # Google Calendar
 
-Calls the Calendar API as the person you are talking to. Authentication is handled for you: you never hold, request, or send a credential. The person the conversation came from is who every request acts as, whether they wrote from Slack or from the dashboard; you never choose or name an account. The other Google apps have their own skills (gmail, google-drive, google-docs, google-sheets); they all share this command.
+Calls the Calendar API as the person you are talking to. Authentication is handled for you: you never hold, request, or send a credential. The person the conversation came from is who every request acts as, whether they wrote from Slack or from the dashboard; you name another account only with `--account`, and only when the task is about that person's account. The other Google apps have their own skills (gmail, google-drive, google-docs, google-sheets); they all share this command.
 
 ## Prerequisites
 
@@ -18,11 +18,12 @@ Both are done in the OpenRouter dashboard, not here. If either is missing the re
 
 ```bash
 bun features/google-workspace/src/cli.ts whoami                                   # the linked account that answers
+bun features/google-workspace/src/cli.ts whoami --account sam@example.com           # check another person gave you access
 bun features/google-workspace/src/cli.ts request GET <calendar url>
 bun features/google-workspace/src/cli.ts request POST <calendar url> --json '<body>'
 ```
 
-`request` accepts `https://*.googleapis.com` URLs only. It acts as the person the conversation came from; there is no flag to act as anyone else, and if the person asks you to use another account, tell them that is not possible from here. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
+`request` accepts `https://*.googleapis.com` URLs only. It acts as the person the conversation came from. Add `--account <email>` only when the task is about another person's account ("send this from Sam's inbox", a schedule that works through someone's calendar): it succeeds only if that person turned this intern on for their Google account in the OpenRouter dashboard, and otherwise fails with 401 or 403. Never guess an account or try several; name the one the task is about, and if it is refused, tell the person to ask its owner to give this intern access. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
 
 API base: `https://www.googleapis.com/calendar/v3`. A read-only grant allows the GET calls and `freeBusy`; creating or changing events answers 403.
 
