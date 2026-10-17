@@ -86,6 +86,9 @@ Search from a shell with `grep -ri "staging" memory/log`.
 
 - Search is keyword matching: every word of the query must appear in the memory. There is no ranking by meaning.
 - Nothing consolidates memories yet. Duplicates and stale facts stay until the model or a person forgets them.
+- A workspace checked out with `git clone --separate-git-dir` keeps no record of
+  its main checkout in git's metadata, so a session worktree in that layout
+  cannot find the intern root automatically: set `ORI_INTERN_WORKSPACE_ROOT`.
 - The tools find the intern root from the run's environment, but the `## Memory` section can only use the daemon's own directory and environment, because prompt providers do not receive the run's workspace. If a run sets a different `ORI_INTERN_WORKSPACE_ROOT` than the daemon, saves still work and `memory_recall` finds them, but the section reads the daemon's log. Run the daemon from the intern root, or set `ORI_INTERN_WORKSPACE_ROOT` on the daemon itself.
 - The intern decides what to save during the conversation. Nothing extracts memories from past sessions afterwards.
 

@@ -9,6 +9,8 @@ import { defineTool, Schema, ToolResultSchema } from "ori";
 
 import type { MemoryTurn } from "#src/memory-tools/index.ts";
 
+import type { TurnEnv } from "#src/intern-root/index.ts";
+
 import { sessionMemoryBrief } from "#src/brief/index.ts";
 import { MEMORY_ID_PATTERN, MEMORY_KINDS } from "#src/line/index.ts";
 import {
@@ -27,6 +29,13 @@ const turnOf = (context: ToolCallContext): MemoryTurn => ({
 const textResult = (text: string): ToolResult => ({
   content: [{ type: "text", text }],
 });
+
+const promptHint = (): string => globalThis.process.cwd();
+const promptEnv = (): TurnEnv => globalThis.process.env;
+
+// Prompt providers receive no run workspace, so the brief necessarily reads the
+// daemon's own root. Tools resolve the root per run instead, which can differ
+// when a run exports another ORI_INTERN_WORKSPACE_ROOT; the README documents it.
 
 export const tools = [
   defineTool({
@@ -83,8 +92,8 @@ export const prompt = async (
     sessionId: context.sessionId,
     render: () =>
       memoryBrief({
-        hint: globalThis.process.cwd(),
-        env: globalThis.process.env,
+        hint: promptHint(),
+        env: promptEnv(),
       }),
   });
   return text === "" ? [] : [{ name: "memory", order: 900, text }];

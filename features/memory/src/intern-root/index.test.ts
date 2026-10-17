@@ -45,3 +45,35 @@ test("the exported intern root wins, and a plain directory resolves to itself", 
     ).toBe(directory);
   });
 });
+
+test("a save from a linked worktree with a separate git dir stays in the session, not the metadata dir", async () => {
+  await withTempDir(async (base) => {
+    const gits = path.join(base, "srv", "git");
+    const main = path.join(base, "srv", "intern");
+    await mkdir(gits, { recursive: true });
+    git(base, "init", "--quiet", "--initial-branch=master", "--bare", path.join(gits, "seed.git"));
+    git(base, "init", "--quiet", "--initial-branch=master", path.join(base, "wk"));
+    git(path.join(base, "wk"), "commit", "--quiet", "--allow-empty", "-m", "init");
+    git(path.join(base, "wk"), "push", "--quiet", path.join(gits, "seed.git"), "master");
+    const clone = Bun.spawnSync(
+      [
+        "git",
+        "clone",
+        "--quiet",
+        "--separate-git-dir",
+        path.join(gits, "intern.git"),
+        path.join(gits, "seed.git"),
+        main,
+      ],
+      { cwd: base, stdout: "pipe", stderr: "pipe" }
+    );
+    if (clone.exitCode !== 0) {
+      throw new Error(clone.stderr.toString());
+    }
+    const session = path.join(base, "sess");
+    git(main, "worktree", "add", "--quiet", "--detach", session);
+
+    expect(await resolveInternRoot({ hint: session, env: {} })).toBe(session);
+    expect(await resolveInternRoot({ hint: main, env: {} })).toBe(main);
+  });
+});

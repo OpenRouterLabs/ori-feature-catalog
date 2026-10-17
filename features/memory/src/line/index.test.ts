@@ -77,3 +77,39 @@ test("lines that are not memories are skipped instead of failing the read", () =
     parseMemoryLog(log).map((line) => line.op === "save" && line.text)
   ).toEqual(["Kept."]);
 });
+
+test("a hand-edited forget line with irregular spacing still retires its target", () => {
+  const log = [
+    "- 2026-10-13T14:05Z m-a81x0c todo @local | Send Q3 report Friday.",
+    "- 2026-10-14T09:10Z  m-q2w9zz  forget  m-a81x0c  @local | done: report sent",
+  ].join("\n");
+  const parsed = parseMemoryLog(log);
+  expect(parsed[1]).toEqual({
+    op: "forget",
+    id: "m-q2w9zz",
+    at: "2026-10-14T09:10Z",
+    target: "m-a81x0c",
+    author: "@local",
+    reason: "done: report sent",
+  });
+  const retired = parsed.filter(
+    (line) => line.op === "forget" && line.target === "m-a81x0c"
+  );
+  expect(retired).toHaveLength(1);
+});
+
+test("a save line with irregular spacing still reads as the same memory", () => {
+  expect(
+    parseMemoryLine(
+      "  -  2026-10-13T14:02Z  m-7f3k2q  pin  @slack:T01:U02  #C0123  | Matthew prefers short bullet replies."
+    )
+  ).toEqual({
+    op: "save",
+    id: "m-7f3k2q",
+    at: "2026-10-13T14:02Z",
+    kind: "pin",
+    author: "@slack:T01:U02",
+    channel: "#C0123",
+    text: "Matthew prefers short bullet replies.",
+  });
+});
