@@ -59,6 +59,13 @@ you fork anything here: create a directory with the same name.
   500 tokens and frozen per session to keep the prompt cache warm. Three kinds: `pin`,
   `todo`, `note`. The `memory_save` description carries the rule for what belongs in a
   memory and what belongs in the task that uses it.
+- **[working-with-github](features/working-with-github)** — GitHub for an intern that
+  owns a repository. Mints a short-lived GitHub App installation token per command,
+  changes its own code from a worktree with signed commits, files issues, merges its
+  own pull requests, and cleans up merged worktrees. Tokens are only minted against
+  allowlisted installation owners (`GH_APP_ALLOWED_ORGS`, else the owner of
+  `GITHUB_REPO`). Two skills (`register-gh-app`, `cleanup-worktrees`) and two
+  schedules (`gh-auth-health`, `worktree-cleanup`) that skip when no App is set.
 
 Slack is provided by Ori's built-in Slack feature, not by this catalog. Use the
 built-in implementation for Slack chat and skills. Existing checkouts pinned to an

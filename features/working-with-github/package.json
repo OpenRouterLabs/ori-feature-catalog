@@ -1,0 +1,19 @@
+{
+  "name": "@ori-monorepo/working-with-github",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./gh-app-token.ts": "./gh-app-token.ts",
+    "./gh-app-token-mint.ts": "./gh-app-token-mint.ts",
+    "./gh-app-registry.ts": "./gh-app-registry.ts",
+    "./post-alert.ts": "./post-alert.ts",
+    "./commit-api-core.ts": "./scripts/commit-api-core.ts",
+    "./cleanup-worktrees-core.ts": "./scripts/cleanup-worktrees-core.ts",
+    "./cleanup-worktrees.ts": "./scripts/cleanup-worktrees.ts"
+  },
+  "dependencies": {
+    "@slack/web-api": "7.15.0",
+    "effect": "4.0.0-beta.90"
+  }
+}
