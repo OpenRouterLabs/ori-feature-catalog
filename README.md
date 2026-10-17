@@ -53,6 +53,12 @@ you fork anything here: create a directory with the same name.
   whether they wrote from Slack or from the dashboard. The intern names another
   person's account only with `--account`, and only an account whose owner gave that
   intern access.
+- **[memory](features/memory)** — cross-session memory: `memory_save`, `memory_recall`, and
+  `memory_forget` over plain markdown logs in the intern workspace (`memory/log/<month>.md`,
+  union-merged), plus a `## Memory` prompt section with pins and open todos, capped near
+  500 tokens and frozen per session to keep the prompt cache warm. Three kinds: `pin`,
+  `todo`, `note`. The `memory_save` description carries the rule for what belongs in a
+  memory and what belongs in the task that uses it.
 
 Slack is provided by Ori's built-in Slack feature, not by this catalog. Use the
 built-in implementation for Slack chat and skills. Existing checkouts pinned to an
