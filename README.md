@@ -45,6 +45,14 @@ you fork anything here: create a directory with the same name.
 
 ## Features
 
+- **[github-access](features/github-access)** — how an agent reaches GitHub: through the
+  shell with the credential the egress proxy attaches to `api.github.com` and
+  `codeload.github.com`, never through a credential it asks for or holds; and how
+  it enumerates every repository the connection can read — the installation list
+  unioned with a crawl of `GET /orgs/{org}/repos?type=all` for each readable org,
+  de-duplicated, with a direct `GET /repos/{owner}/{repo}` before concluding a
+  repo does not exist. A `x-openrouter-github-as: member` request acts as the
+  person who opened the conversation, and only as them.
 - **[google-workspace](features/google-workspace)** — Gmail, Calendar, Drive, Docs, and
   Sheets as the person the intern is talking to, through their own linked Google account.
   Five skills, one per app (`gmail`, `google-calendar`, `google-drive`, `google-docs`,
