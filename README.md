@@ -59,6 +59,14 @@ you fork anything here: create a directory with the same name.
   500 tokens and frozen per session to keep the prompt cache warm. Three kinds: `pin`,
   `todo`, `note`. The `memory_save` description carries the rule for what belongs in a
   memory and what belongs in the task that uses it.
+- **[artifacts](features/artifacts)** — save work as a self-contained HTML page in the
+  workspace under `artifacts/<name>/` and reply with its link: three commands the skill
+  drives (`artifact save`, `artifact list`, `artifact delete`), one `artifacts` skill, and
+  a prompt fragment. The command layer is the `ori artifact` builtin moved into the
+  feature: the same inlining pipeline (CDN files put inside the page, the network-block
+  CSP written into its head, the 16 MiB limit, the same refusal codes) and the same
+  workspace store (`v<N>.html` plus `artifact.json`, per-name save locks, versions never
+  overwritten), reached through the feature's own commands instead of the ori CLI.
 - **[working-with-github](features/working-with-github)** — GitHub for an intern that
   owns a repository. Mints a short-lived GitHub App installation token per command,
   changes its own code from a worktree with signed commits, files issues, merges its
