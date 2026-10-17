@@ -19,6 +19,67 @@ import type {
   InstallationToken,
 } from "@ori-monorepo/working-with-github/gh-app-token.ts";
 
+/** The outcome of a completed health check — which access mode was proven and,
+ *  in ambient mode, whether the host's GitHub access is reachable at all. */
+export type HealthMode = "app-token" | "ambient";
+
+/** What "healthy" means in ambient mode: a bare `GET /` on the API resolves.
+ *  The workspace credential — when the host's proxy attaches one — rides the
+ *  request automatically; there is no token to inspect, so the check proves
+ *  reachability, not identity. `limited` carries GitHub's `x-oauth-scopes`
+ *  hint when the response provides one. */
+export interface AmbientProbeOk {
+  readonly mode: "ambient";
+  /** `x-oauth-scopes` from the response headers, when present. */
+  readonly scopes: string | undefined;
+}
+
+/** Ambient-mode failure: GitHub is unreachable or answers with a server error.
+ *  A 401/403/404 on `GET /` is reported as healthy-but-unauthenticated, not as
+ *  a breakage — on a host with no proxy credential those are the honest
+ *  answer, and the schedule has nothing to alert about. */
+export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
+  readonly detail: string;
+}> {}
+
+/**
+ * Bare `GET https://api.github.com/` — the ambient-mode probe. Sends no
+ * Authorization header: on hosts that attach a workspace credential through an
+ * egress proxy it still reaches GitHub (and echoes the effective scopes); on
+ * hosts without one it lands on the anonymous rate limit, which is healthy.
+ */
+export const ambientGitHubReachable = (input: {
+  readonly fetchImpl?: FetchLike;
+}): Effect.Effect<AmbientProbeOk, AmbientProbeError> => {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  return Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetchImpl("https://api.github.com/", {
+          headers: {
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        }),
+      catch: (error) =>
+        new AmbientProbeError({
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+    });
+    if (response.status >= 500) {
+      return yield* new AmbientProbeError({
+        detail: `GET / answered HTTP ${String(response.status)}`,
+      });
+    }
+    const scopes =
+      typeof response.headers.get("x-oauth-scopes") === "string" &&
+      response.headers.get("x-oauth-scopes") !== ""
+        ? (response.headers.get("x-oauth-scopes") ?? undefined)
+        : undefined;
+    return { mode: "ambient", scopes } satisfies AmbientProbeOk;
+  });
+};
+
 /** The subset of `fetch` this module uses — narrow so tests can inject a fake
  *  without satisfying Bun's full `typeof fetch` (which requires `preconnect`).
  *  `fetch` is a platform API; we wrap it with `Effect.tryPromise` at the seam. */

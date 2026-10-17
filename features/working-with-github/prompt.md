@@ -5,9 +5,12 @@ order: 0
 
 # Working with GitHub
 
-You have access to a full shell and the `gh` CLI. `gh` and `git` are **not** pre-authenticated — you must mint and inject a token yourself for every GitHub call (see below). Use them freely to look things up, run commands, query APIs, and take action.
+You have access to a full shell and the `gh` CLI. Use them freely to look things up, run commands, query APIs, and take action. How you authenticate depends on which of the two access models this workspace runs — detect it, never assume.
 
-Your own repo is in the `GITHUB_REPO` env var. Use `gh` for all GitHub operations against `$GITHUB_REPO` (or any other repo the team asks about).
+- **App mode** — `GH_APP_ID` is set: `gh` and `git` are **not** pre-authenticated. You mint a short-lived installation token and inject it yourself for every GitHub call (see below).
+- **Ambient mode** — `GH_APP_ID` is unset: the machine holds no local credentials by design. Many hosts run an egress proxy that attaches a workspace credential to `api.github.com` and `codeload.github.com` requests automatically. A bare `curl` to the API then just works, and this is the primary GitHub path. Detect it by calling the API and letting the response tell you; missing local tooling (`gh`, tokens, SSH keys) says nothing about your access.
+
+In either mode, **source on GitHub is the primary evidence for how a system works.** When a question touches code, architecture, configuration, or what changed, read the repository before answering. Issue trackers, docs, and chat describe intent; the repository shows what shipped.
 
 ## Where this feature's scripts live
 
@@ -17,13 +20,26 @@ The commands below run scripts that ship with this feature. Its directory depend
 WWG=$(find features .ori/remote-features -type d -name working-with-github -print -quit 2>/dev/null)
 ```
 
-## When no GitHub App is configured
+In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.
 
-If `GH_APP_ID` is unset, this workspace holds no App key and `mint-token.ts` fails. GitHub may still be reachable: some hosts route `api.github.com` through an egress proxy that attaches the workspace's credential to each request. Call the REST API directly (`curl -s https://api.github.com/repos/{owner}/{repo}`) and let the response tell you what you can do. Missing local tooling (`gh`, tokens, SSH keys) says nothing about your access. The worktree and signed-commit sections below need an App and do not apply.
+## Access mode 1 — ambient credential (no `GH_APP_ID`)
 
-## How GitHub auth works — explicit ephemeral tokens (mint → inject → discard)
+Some hosts route GitHub traffic through an egress proxy that attaches this workspace's credential to every `api.github.com` and `codeload.github.com` request automatically. In that mode GitHub is used through the **REST API with plain `curl`** — no `gh auth login`, no token minting, no SSH keys, no `git clone`. If a `curl` to `https://api.github.com/` succeeds without an `Authorization` header, you are here.
+
+- **Read the repository before answering.** Issue trackers, docs, and chat describe intent; the repository shows what shipped.
+- Read a file: `curl -sL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}`. Get a whole tree to grep: `mkdir -p {dir} && curl -sL https://api.github.com/repos/{owner}/{repo}/tarball/{ref} | tar xz -C {dir}`. Use `/search/code`, `/pulls`, and `/commits` for the rest.
+- **Typical grants when GitHub is connected:** repository read and pull request write. Creating branches or commits, and cloning over git, are usually not available; work through the REST API.
+- **To find out whether you can act on a repository, call the REST API and check the result.** When a user asks about GitHub capabilities, verify via the API first, then answer in plain terms without describing the plumbing.
+- **To find every repository this connection can read, never trust one endpoint alone.** `/installation/repositories` only lists repos the GitHub App installation selected directly — it silently omits repos reachable through org grants, so a repo can be fully readable yet invisible there. Crawl org endpoints too: `GET /orgs/{org}/repos?type=all&per_page=100` (follow `Link` headers on pagination) for each org the connection can read, then union the results with the installation list and de-duplicate by `full_name`. When a user asks about a repo by name and it is not in the union, try `GET /repos/{owner}/{repo}` directly before concluding it does not exist — a 404 from a listing only means the listing is incomplete.
+- **Acting as the person asking.** Some hosts attach the person's own linked GitHub identity when you add the header `x-github-as: member` (or the host's equivalent) to a request — check your workspace's host-specific prompt for the exact header name. A 401 on such a request means their linked identity could not complete it: they may not have linked a GitHub account, their link may have expired, or they may have asked from a place that cannot vouch for who they are. Say the request could not be made under their name, and offer to do it as the workspace instead.
+
+If ambient requests are denied (401/403/404 on a repo you expect to reach), that is the answer: this workspace's credential does not reach that repo. Say so plainly; do not hunt for local credentials that were never there.
+
+## Access mode 2 — explicit ephemeral tokens (mint → inject → discard), when `GH_APP_ID` is set
 
 This pattern is mandatory whenever `GH_APP_ID` is set. `gh` and `git` are **not** auto-authenticated: there is no `/usr/local/bin/gh` wrapper, no git credential helper, and no `~/.config/gh/hosts.yml`. A bare `gh ...` or `git fetch` will fail with an auth error. The only secret at rest is the GitHub App private key in the service env (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`); the App's installation is discovered at mint time (matching the `GITHUB_REPO` org), so no installation id is configured. Every token is derived on demand and discarded when the process exits.
+
+Your own repo is in the `GITHUB_REPO` env var. Use `gh` for all GitHub operations against `$GITHUB_REPO` (or any other repo the team asks about).
 
 To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_TOKEN` into the single command that needs it** — `scripts/mint-token.ts` prints the token to stdout:
 
