@@ -126,3 +126,41 @@ test("a hand-edited log without a trailing newline keeps both lines on the next 
     );
   });
 });
+
+test("a save that draws an existing id is refused instead of silently discarded", async () => {
+  await withTempDir(async (root) => {
+    const turn = turnAt(root);
+    const first = await saveMemory(turn, { text: "First memory." });
+    const firstId = savedId(first);
+    const original = globalThis.crypto;
+    let drawn = false;
+    globalThis.crypto = {
+      ...original,
+      getRandomValues: (array: Uint8Array): Uint8Array => {
+        if (!drawn) {
+          drawn = true;
+          const id = firstId.slice(2);
+          for (let index = 0; index < 6; index++) {
+            array[index] = Number.parseInt(id[index], 36);
+          }
+        } else {
+          for (let index = 0; index < array.length; index++) {
+            array[index] = 42 + index;
+          }
+        }
+        return array;
+      },
+    } as typeof globalThis.crypto;
+    try {
+      await expect(
+        saveMemory(turn, { text: "Second memory." })
+      ).rejects.toThrow(`Memory id ${firstId} already exists`);
+      await saveMemory(turn, { text: "Third memory." });
+    } finally {
+      globalThis.crypto = original;
+    }
+    const live = (await monthLog(root)).trimEnd().split("\n");
+    expect(live).toHaveLength(2);
+    expect(live[1]).toContain("Third memory.");
+  });
+});

@@ -30,11 +30,11 @@ const ID = String.raw`([mh]-[a-z0-9]{6,})`;
 const AUTHOR = String.raw`(@\S+)`;
 
 const SAVE_LINE = new RegExp(
-  String.raw`^- ${STAMP} ${ID} (pin|todo|note) ${AUTHOR}(?: (#\S+))? \| (.+)$`,
+  String.raw`^\s*-\s+${STAMP}\s+${ID}\s+(pin|todo|note)\s+${AUTHOR}(?:\s+(#\S+))?\s*\|\s*(.+)$`,
   "u"
 );
 const FORGET_LINE = new RegExp(
-  String.raw`^- ${STAMP} ${ID} forget ${ID} ${AUTHOR} \| ?(.*)$`,
+  String.raw`^\s*-\s+${STAMP}\s+${ID}\s+forget\s+${ID}\s+${AUTHOR}\s*\| ?(.*)$`,
   "u"
 );
 const BARE_LINE = /^[-*] (.+)$/u;

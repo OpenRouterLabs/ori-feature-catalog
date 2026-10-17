@@ -24,6 +24,9 @@ const newMemoryId = (): string =>
     .map((byte) => ID_ALPHABET[byte % ID_ALPHABET.length])
     .join("")}`;
 
+const savedIds = (lines: readonly MemoryLine[]): ReadonlySet<string> =>
+  new Set(lines.flatMap((line) => (line.op === "save" ? [line.id] : [])));
+
 const present = (value: string | undefined): string | undefined => {
   const trimmed = value?.replaceAll(/\s+/gu, "") ?? "";
   return trimmed === "" ? undefined : trimmed;
@@ -60,8 +63,14 @@ export const saveMemory = async (
     );
   }
   const kind = input.kind ?? "note";
-  const id = newMemoryId();
   const log = await openTurnLog(turn);
+  const taken = savedIds(await log.read());
+  const id = newMemoryId();
+  if (taken.has(id)) {
+    throw new Error(
+      `Memory id ${id} already exists. Save again: this log keeps every id unique.`
+    );
+  }
   await log.append(
     [
       {
