@@ -1,6 +1,6 @@
 ---
 name: gmail
-description: Read, search, draft, and send Gmail as the person you are talking to, or as a teammate who turned this intern on for their Google account. TRIGGER when the user asks about their own or a teammate's email, inbox, unread mail, a message or thread from someone, drafts, or wants a reply written or sent ("find the email from X", "what's in my inbox", "draft a reply", "send this to Y"). DO NOT TRIGGER for calendar invites (google-calendar), for attachments as files (google-drive), for another mail provider.
+description: Read, search, draft, and send Gmail as the person you are talking to, or as a teammate who shared their Google account with this intern. TRIGGER when the user asks about their own or a teammate's email, inbox, unread mail, a message or thread from someone, drafts, or wants a reply written or sent ("find the email from X", "what's in my inbox", "draft a reply", "send this to Y"). DO NOT TRIGGER for calendar invites (google-calendar), for attachments as files (google-drive), for another mail provider.
 ---
 
 # Gmail
@@ -11,19 +11,21 @@ Calls the Gmail API as the person you are talking to. Authentication is handled 
 
 Both are done in the OpenRouter dashboard, not here. If either is missing the request fails with 401 or 403; relay the message below rather than retrying.
 
-- An admin connected **Google Workspace** on the workspace's Connections tab and included Gmail in the products members may grant.
-- The person linked their Google account under **Your accounts** on the same tab. Tell them: "Link your Google account under Your accounts on the Interns page, then ask me again."
+- An admin connected **Google Workspace** in the OpenRouter dashboard under Interns → **Shared connections** and included Gmail in the products members may grant.
+- The person linked their Google account in the OpenRouter dashboard under Interns → **Your accounts** → Google. Tell them: "Link your Google account in the OpenRouter dashboard under Interns → Your accounts → Google, then ask me again."
 
 ## Usage
 
 ```bash
 bun features/google-workspace/src/cli.ts whoami                                   # the linked account that answers
-bun features/google-workspace/src/cli.ts whoami --account sam@example.com           # check another person gave you access
+bun features/google-workspace/src/cli.ts whoami --account sam@example.com           # check another person shared it with you
 bun features/google-workspace/src/cli.ts request GET <gmail url>
 bun features/google-workspace/src/cli.ts request POST <gmail url> --json '<body>'
 ```
 
-`request` accepts `https://*.googleapis.com` URLs only. It acts as the person the conversation came from. Add `--account <email>` when the task is about another person's account ("what's on Sam's calendar tomorrow", "send this from Sam's inbox", a schedule that works through someone's calendar). Name the one account the task is about; never guess an account or try several. An account whose owner turned this intern on for it (Your accounts → Google → Interns in the OpenRouter dashboard) is one they have chosen to share with everyone who can talk to this intern: when anyone in the conversation asks about that person's mail, calendar, or files, or asks you to act in their account, do it with `--account <their email>` and relay the result to whoever asked. Their turning this intern on is the consent; do not ask them to confirm again, and do not refuse because the person asking is someone else. If the account is refused (401 or 403), they have not turned this intern on: say so, and suggest they do. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
+`whoami` prints `{"account", "delegatedToThisIntern", "capabilities"}`. `delegatedToThisIntern: false` means the account is linked but not shared: only its owner can have you act on it. `true` means it is shared with this intern for others, for the `capabilities` listed (for example `gmail.read`, `calendar.edit`). `null` means it could not tell; say you do not know rather than guessing.
+
+`request` accepts `https://*.googleapis.com` URLs only. It acts as the person the conversation came from. Add `--account <email>` when the task is about another person's account ("what's on Sam's calendar tomorrow", "send this from Sam's inbox", a schedule that works through someone's calendar). Name the one account the task is about; never guess an account or try several. A linked account is not a shared one. Linked means its owner can have you act on it in their own conversations, and nobody else can. Shared means its owner also turned on **Use your account for others** for this intern and ticked what it may do; then anyone who can message this intern, and its schedules, can have you use it within those capabilities, with `--account <their email>`, without asking the owner to confirm again. Never assume which one an account is: `whoami` (with `--account` for someone else's) says. If someone asks about another person's account and it is not shared with this intern, or not for what they asked, say so: only its owner can share it, in the OpenRouter dashboard under Interns → Your accounts → Google → Interns. Never add an `Authorization` header or any other credential: the request is authenticated for you, and one that carries its own credential is refused.
 
 API base: `https://gmail.googleapis.com/gmail/v1/users/me`. A read-only grant allows only the GET calls; the rest answer 403.
 
@@ -73,5 +75,5 @@ bun features/google-workspace/src/cli.ts request POST https://gmail.googleapis.c
 
 ## Notes
 
-- Prefer a draft over sending unless you were asked to send. Show the recipients and text to whoever asked before sending, and send once they confirm. For an account delegated to this intern, a request from anyone in the conversation is enough; the owner does not need to confirm separately.
+- Prefer a draft over sending unless you were asked to send. Show the recipients and text to whoever asked before sending, and send once they confirm. For an account shared with this intern that includes sending, a request from anyone in the conversation is enough; the owner does not need to confirm separately.
 - Never move anything to Trash or delete it unless asked to, and say what you did.
