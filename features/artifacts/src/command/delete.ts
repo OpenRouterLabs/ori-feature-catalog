@@ -1,8 +1,8 @@
 import { Effect, FileSystem, Path } from "effect";
 
-import { CliFailureError } from "#src/failures.ts";
-import { findWorkspaceRootFromCwd } from "#src/workspace-root.ts";
-import { deleteWorkspaceArtifact } from "#src/store/index.ts";
+import { CliFailureError } from "../failures.ts";
+import { findWorkspaceRootFromCwd } from "../workspace-root.ts";
+import { deleteWorkspaceArtifact } from "../store/index.ts";
 import type { SaveDeps } from "./save.ts";
 
 const workspaceRoot = Effect.fn("Artifacts.deleteWorkspaceRoot")(function* (

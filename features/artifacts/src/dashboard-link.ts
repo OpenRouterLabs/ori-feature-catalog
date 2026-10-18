@@ -2,8 +2,8 @@ import { Effect, Option, Schema } from "effect";
 import type { Layer } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
-import { CliFailureError } from "#src/failures.ts";
-import { isOkStatus } from "#src/http.ts";
+import { CliFailureError } from "./failures.ts";
+import { isOkStatus } from "./http.ts";
 
 const ORI_INTERN_ID_ENV = "ORI_INTERN_ID";
 const OPENROUTER_DASHBOARD_ORIGIN = "https://openrouter.ai";

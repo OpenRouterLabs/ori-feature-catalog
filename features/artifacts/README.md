@@ -4,7 +4,7 @@ Save an intern's work as a self-contained HTML page in its own workspace, under 
 
 ## What it contributes
 
-- three commands the skill drives: `artifact save <file> --name <name> --title <title>`, `artifact list`, `artifact delete <name>`
+- three commands the skill drives: `artifact-save <file> --name <name> --title <title>`, `artifact-list`, `artifact-delete <name>`
 - one skill, `artifacts`, carrying when a page reads better than a chat message and the rules a page must follow
 - one prompt fragment naming the commands, the page rules and the CDN list
 - api: none, chat: none, mcp: none, tools: none
@@ -17,7 +17,7 @@ The commands are feature `command` contributions, so the agent reaches them thro
 
 ## Environment
 
-`ORI_INTERN_ID` is optional. On a hosted intern the daemon exports it, and `artifact save` prints the dashboard link; without it the command prints the saved file's path.
+`ORI_INTERN_ID` is optional. On a hosted intern the daemon exports it, and `artifact-save` prints the dashboard link; without it the command prints the saved file's path.
 
 ## Develop
 

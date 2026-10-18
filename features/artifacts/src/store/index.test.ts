@@ -1,7 +1,7 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Option, Schema } from "effect";
 
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 import {
   ArtifactManifestSchema,

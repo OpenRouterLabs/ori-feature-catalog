@@ -5,8 +5,8 @@ import {
   type CdnFile,
   scriptedCdnHttpClientLayer,
   POLICY_META,
-} from "#src/inline-page/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 import { inlinePage } from "./index.ts";
 

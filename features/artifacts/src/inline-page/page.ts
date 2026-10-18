@@ -5,7 +5,7 @@ import { decodeHTMLAttribute } from "entities";
 import type {
   PageElement,
   ResourceRefusal,
-} from "#src/inline-page/plan.ts";
+} from "./plan.ts";
 
 import {
   ElementAction,
@@ -13,11 +13,11 @@ import {
   foreignStyleImportRefusals,
   moduleImportRefusals,
   planElement,
-} from "#src/inline-page/plan.ts";
-import { serializeSrcset } from "#src/inline-page/srcset.ts";
-import { CliFailureError } from "#src/failures.ts";
-import { ARTIFACT_CONTENT_SECURITY_POLICY } from "#src/store/index.ts";
-import { formatUnknownError } from "#src/format-unknown.ts";
+} from "./plan.ts";
+import { serializeSrcset } from "./srcset.ts";
+import { CliFailureError } from "../failures.ts";
+import { ARTIFACT_CONTENT_SECURITY_POLICY } from "../store/index.ts";
+import { formatUnknownError } from "../format-unknown.ts";
 
 export interface PageScan {
   readonly actions: readonly ElementAction[];

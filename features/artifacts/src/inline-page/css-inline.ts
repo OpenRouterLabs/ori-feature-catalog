@@ -3,21 +3,21 @@ import type { HttpClient } from "effect/http";
 import { Effect, Option, Predicate } from "effect";
 import { Base64 } from "effect/encoding";
 
-import type { DownloadedResource } from "#src/inline-page/fetch.ts";
-import type { ResourceRefusal } from "#src/inline-page/plan.ts";
+import type { DownloadedResource } from "./fetch.ts";
+import type { ResourceRefusal } from "./plan.ts";
 
 import {
   ResourceAddress,
   classifyAddress,
-} from "#src/inline-page/address.ts";
+} from "./address.ts";
 import {
   CssReference,
   replaceCssReferences,
   scanCssReferences,
   wrapImportedCss,
-} from "#src/inline-page/css.ts";
-import { downloadResource } from "#src/inline-page/fetch.ts";
-import { CliFailureError } from "#src/failures.ts";
+} from "./css.ts";
+import { downloadResource } from "./fetch.ts";
+import { CliFailureError } from "../failures.ts";
 
 const MAX_IMPORT_DEPTH = 8;
 const DOWNLOAD_CONCURRENCY = 6;

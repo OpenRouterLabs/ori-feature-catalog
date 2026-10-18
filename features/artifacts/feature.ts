@@ -2,7 +2,7 @@
  * feature.ts — the artifacts feature's contribution entry.
  *
  * The work is the `artifacts` skill plus three commands the skill drives:
- * `artifact save`, `artifact list`, and `artifact delete`. The skill is the
+ * `artifact-save`, `artifact-list`, and `artifact-delete`. The skill is the
  * guidance; the commands carry the inlining rules and the workspace store,
  * so an intern can save a page without the `ori` CLI exposing a builtin.
  */
@@ -21,7 +21,7 @@ import {
   runArtifactList,
   runArtifactSave,
   type SaveDeps,
-} from "#src/command/index.ts";
+} from "./src/command/index.ts";
 
 const depsOf = (ctx: {
   readonly cwd: string;
@@ -42,8 +42,8 @@ const depsOf = (ctx: {
 export const ARTIFACTS_PROMPT: PromptFragment = {
   name: "artifacts",
   text: [
-    "The artifacts skill turns work into a single self-contained HTML page saved under artifacts/<name>/ in this workspace, through the artifact commands (artifact save, artifact list, artifact delete).",
-    "Save with `artifact save <file> --name <name> --title <title>`, reply with the link it prints, and save again under the same name to revise.",
+    "The artifacts skill turns work into a single self-contained HTML page saved under artifacts/<name>/ in this workspace, through the artifact commands (artifact-save, artifact-list, artifact-delete).",
+    "Save with `artifact-save <file> --name <name> --title <title>`, reply with the link it prints, and save again under the same name to revise.",
     "The page follows the skill's rules: one file, libraries and fonts only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com, fonts.googleapis.com and fonts.gstatic.com (which saving puts inside the page), no frames and no live data, readable on a phone, light and dark themes, real numbers as numbers, at most 16 MiB.",
     "A page that names any other address is refused with that address; move the file to one of the CDNs, inline it, or remove it.",
   ].join(" "),
@@ -67,6 +67,7 @@ const flag = (args: Readonly<Record<string, unknown>>, name: string) =>
 
 export const commands: readonly CommandContribution[] = [
   defineCommand({
+    name: "artifact-save",
     description: describeSave,
     arguments: {
       file: {
@@ -122,6 +123,7 @@ export const commands: readonly CommandContribution[] = [
     },
   }),
   defineCommand({
+    name: "artifact-list",
     description: describeList,
     run: async (ctx) => {
       const result = await Effect.runPromise(
@@ -155,6 +157,7 @@ export const commands: readonly CommandContribution[] = [
     },
   }),
   defineCommand({
+    name: "artifact-delete",
     description: describeDelete,
     arguments: {
       name: {

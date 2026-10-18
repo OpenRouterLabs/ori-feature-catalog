@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Path } from "effect";
 
-import { findWorkspaceRootFromCwd } from "#src/workspace-root.ts";
-import { listWorkspaceArtifacts } from "#src/store/index.ts";
+import { findWorkspaceRootFromCwd } from "../workspace-root.ts";
+import { listWorkspaceArtifacts } from "../store/index.ts";
 import type { SaveDeps } from "./save.ts";
 
 const workspaceRoot = Effect.fn("Artifacts.listWorkspaceRoot")(function* (

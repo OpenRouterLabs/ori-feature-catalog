@@ -1,9 +1,9 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Option } from "effect";
 
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
-import { CliFailureError } from "#src/failures.ts";
+import { CliFailureError } from "../failures.ts";
 import { runArtifactDelete, runArtifactList, runArtifactSave, type SaveDeps } from "./index.ts";
 
 const deps = (root: string): SaveDeps => {

@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { ARTIFACT_CONTENT_SECURITY_POLICY } from "#src/store/index.ts";
+import { ARTIFACT_CONTENT_SECURITY_POLICY } from "../store/index.ts";
 
 export const POLICY_META = `<meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CONTENT_SECURITY_POLICY}">`;
 
