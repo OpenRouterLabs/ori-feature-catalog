@@ -18,6 +18,7 @@ import type { HealthCheckOk } from "./gh-auth-health.ts";
 import { readGhAuthHealthConfig } from "./config.ts";
 import {
   HealthCheckError,
+  ambientGitHubReachable,
   formatHealthErrorLog,
   formatHealthOkLog,
   ghAuthHealthCheck,
@@ -426,5 +427,104 @@ describe("readGhAuthHealthConfig", () => {
       GH_AUTH_HEALTH_ALERT_CHANNEL_ID: "",
     });
     expect(config.alertChannelId).toBeUndefined();
+  });
+});
+
+// ─── ambientGitHubReachable (the no-App probe) ────────────────────────────────
+
+/** A `Response` with controllable status and `x-oauth-scopes` header. */
+const githubRootResponse = (
+  status: number,
+  scopes?: string
+): Response =>
+  new Response(JSON.stringify({}), {
+    headers: scopes === undefined ? {} : { "x-oauth-scopes": scopes },
+    status,
+  });
+
+describe("ambientGitHubReachable", () => {
+  test("succeeds and echoes the scopes when the proxy attaches a credential", async () => {
+    let sentAuth = "";
+    let calledUrl = "";
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: (url, init) => {
+          calledUrl = url;
+          const headers = init?.headers;
+          if (typeof headers === "object" && headers !== null) {
+            sentAuth = (headers as Record<string, string>).Authorization ?? "";
+          }
+          return Promise.resolve(
+            githubRootResponse(200, "repo, read:org")
+          );
+        },
+      })
+    );
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.value.mode).toBe("ambient");
+      expect(outcome.value.scopes).toBe("repo, read:org");
+    }
+    // The probe sends no Authorization header — the proxy attaches the
+    // credential, so the client must not try to.
+    expect(sentAuth).toBe("");
+    expect(calledUrl).toBe("https://api.github.com/");
+  });
+
+  test("succeeds with no scopes on a 401 (host attaches no credential)", async () => {
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: () => Promise.resolve(githubRootResponse(401)),
+      })
+    );
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.value.scopes).toBeUndefined();
+    }
+  });
+
+  test("a 404 is healthy, not a breakage (rate-limit style answers)", async () => {
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: () => Promise.resolve(githubRootResponse(404)),
+      })
+    );
+    expect(outcome.ok).toBe(true);
+  });
+
+  test("an empty scopes header reads as absent", async () => {
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: () => Promise.resolve(githubRootResponse(200, "")),
+      })
+    );
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.value.scopes).toBeUndefined();
+    }
+  });
+
+  test("a 5xx fails with the status in the detail", async () => {
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: () => Promise.resolve(githubRootResponse(502)),
+      })
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.detail).toContain("502");
+    }
+  });
+
+  test("a network error is captured in the failure channel, not thrown", async () => {
+    const outcome = await runToOutcome(
+      ambientGitHubReachable({
+        fetchImpl: () => Promise.reject(new Error("ENOTFOUND api.github.com")),
+      })
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.detail).toContain("ENOTFOUND");
+    }
   });
 });

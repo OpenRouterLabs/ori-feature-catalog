@@ -67,13 +67,16 @@ you fork anything here: create a directory with the same name.
   CSP written into its head, the 16 MiB limit, the same refusal codes) and the same
   workspace store (`v<N>.html` plus `artifact.json`, per-name save locks, versions never
   overwritten), reached through the feature's own commands instead of the ori CLI.
-- **[working-with-github](features/working-with-github)** — GitHub for an intern that
-  owns a repository. Mints a short-lived GitHub App installation token per command,
-  changes its own code from a worktree with signed commits, files issues, merges its
-  own pull requests, and cleans up merged worktrees. Tokens are only minted against
-  allowlisted installation owners (`GH_APP_ALLOWED_ORGS`, else the owner of
-  `GITHUB_REPO`). Two skills (`register-gh-app`, `cleanup-worktrees`) and two
-  schedules (`gh-auth-health`, `worktree-cleanup`) that skip when no App is set.
+- **[working-with-github](features/working-with-github)** — GitHub for an intern
+  workspace in either access mode. Ambient mode (`GH_APP_ID` unset): REST-first
+  access through the host's proxy credential — read the repo before answering,
+  capability probing, repo discovery, and acting as the person asking where the
+  host supports it. App mode: mints a short-lived GitHub App installation token
+  per command (only against allowlisted installation owners — `GH_APP_ALLOWED_ORGS`,
+  else the owner of `GITHUB_REPO`), changes its own code from a worktree with
+  signed commits, files issues, merges its own pull requests, and cleans up merged
+  worktrees. Two skills (`register-gh-app`, `cleanup-worktrees`), two schedules
+  (`gh-auth-health` probes ambient reachability with no App set, `worktree-cleanup`).
 
 Slack is provided by Ori's built-in Slack feature, not by this catalog. Use the
 built-in implementation for Slack chat and skills. Existing checkouts pinned to an
