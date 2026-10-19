@@ -1,16 +1,16 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, Fiber, FileSystem, Layer, Schedule } from "effect";
 
-import { bunProcessGroupsLayer } from "#src/process-groups/bun/index.ts";
+import { bunProcessGroupsLayer } from "./index.ts";
 import {
   type DetachedSpawn,
   ProcessGroups,
-} from "#src/process-groups/index.ts";
-import { killGroup } from "#src/process/index.ts";
-import { bunTcpProbeLayer } from "#src/tcp-probe/bun/index.ts";
-import { TcpProbe } from "#src/tcp-probe/index.ts";
-import { encodeUnknownJson } from "#src/json.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../index.ts";
+import { killGroup } from "../../process/index.ts";
+import { bunTcpProbeLayer } from "../../tcp-probe/bun/index.ts";
+import { TcpProbe } from "../../tcp-probe/index.ts";
+import { encodeUnknownJson } from "../../json.ts";
+import { describe, expect, it } from "../../effect-bun-test.ts";
 
 const SERVER_SCRIPT = `const server=Bun.serve({hostname:"127.0.0.1",port:0,idleTimeout:0,fetch:()=>new Response("ready from the group")});console.log("port="+server.port);`;
 

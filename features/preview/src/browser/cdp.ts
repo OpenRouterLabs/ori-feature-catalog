@@ -2,8 +2,8 @@ import { Effect, Option, Schema } from "effect";
 import { HttpClient } from "effect/http";
 import { Socket } from "effect/socket";
 
-import { PreviewError } from "#src/errors.ts";
-import { localUrl, PREVIEW_CDP_PORT } from "#src/paths.ts";
+import { PreviewError } from "../errors.ts";
+import { localUrl, PREVIEW_CDP_PORT } from "../paths.ts";
 
 const TargetSchema = Schema.Struct({
   id: Schema.String,

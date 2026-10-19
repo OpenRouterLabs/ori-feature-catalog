@@ -1,5 +1,5 @@
-import { PREVIEW_SANDBOX_ROOT, previewPaths } from "#src/paths.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { PREVIEW_SANDBOX_ROOT, previewPaths } from "./paths.ts";
+import { describe, expect, it } from "./effect-bun-test.ts";
 
 describe("previewPaths", () => {
   const paths = previewPaths("/workspace");

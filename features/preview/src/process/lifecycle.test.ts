@@ -4,7 +4,7 @@ import { Effect, FileSystem, Layer } from "effect";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
+} from "../process-groups/test-support.ts";
 import {
   ensurePortFree,
   killGroup,
@@ -12,9 +12,9 @@ import {
   shellCommand,
   spawnDetached,
   tailLog,
-} from "#src/process/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const spawn = (logPath: string) => ({
   command: shellCommand("true"),

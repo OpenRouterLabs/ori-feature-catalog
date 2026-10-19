@@ -3,15 +3,15 @@ import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { Effect, FileSystem, Layer, Option } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { previewPaths, PREVIEW_REPOS_ENV } from "#src/paths.ts";
+import { previewPaths, PREVIEW_REPOS_ENV } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { readPreviewStatus, writePreviewStatus } from "#src/status/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { connectedRepos, reconcilePreviews } from "#src/warm/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { readPreviewStatus, writePreviewStatus } from "../status/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { connectedRepos, reconcilePreviews } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const githubRefusing = (requested: string[] = []) =>
   Layer.succeed(HttpClient.HttpClient)(

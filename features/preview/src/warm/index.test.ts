@@ -1,13 +1,13 @@
-import type { PreviewStatus } from "#src/schemas.ts";
+import type { PreviewStatus } from "../schemas.ts";
 
-import { PREVIEW_ENABLED_ENV, PREVIEW_REPOS_ENV } from "#src/paths.ts";
+import { PREVIEW_ENABLED_ENV, PREVIEW_REPOS_ENV } from "../paths.ts";
 import {
   configuredRepos,
   pickWarmSet,
   previewEnabledInEnv,
   sweepCandidates,
-} from "#src/warm/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const status = (repo: string, lastUsedAt?: string): PreviewStatus => ({
   repo,

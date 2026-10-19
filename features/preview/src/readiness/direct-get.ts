@@ -1,6 +1,6 @@
 import { Effect, Predicate } from "effect";
 
-import { PreviewError } from "#src/errors.ts";
+import { PreviewError } from "../errors.ts";
 
 export const MAX_BODY_BYTES = 512 * 1024;
 

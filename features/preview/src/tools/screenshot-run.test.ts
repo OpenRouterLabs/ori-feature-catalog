@@ -4,18 +4,18 @@ import { afterAll, beforeAll } from "bun:test";
 import { Effect, FileSystem, Layer } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import type { ScreenshotArgs } from "#src/tools/screenshot.ts";
+import type { ScreenshotArgs } from "./screenshot.ts";
 
-import { scriptedDaemonCredentialsLayer } from "#src/daemon-credentials/test-support.ts";
-import { previewPaths } from "#src/paths.ts";
+import { scriptedDaemonCredentialsLayer } from "../daemon-credentials/test-support.ts";
+import { previewPaths } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { writePreviewStatus } from "#src/status/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { runPreviewScreenshot } from "#src/tools/screenshot.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { writePreviewStatus } from "../status/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { runPreviewScreenshot } from "./screenshot.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const HEAD = "0123456789abcdef0123456789abcdef01234567";

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-import { bunTcpProbe } from "#src/tcp-probe/bun/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { bunTcpProbe } from "./index.ts";
+import { describe, expect, it } from "../../effect-bun-test.ts";
 
 const listenOn = (hostname: string, port: number) =>
   Bun.listen({ hostname, port, socket: { data: () => undefined } });

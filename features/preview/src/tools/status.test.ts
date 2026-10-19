@@ -1,12 +1,12 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Layer } from "effect";
 
-import { devLogPath, previewPaths, PREVIEW_REPOS_ENV } from "#src/paths.ts";
-import { recordingProcessGroupsLayer } from "#src/process-groups/test-support.ts";
-import { writeAlternate, writePreviewStatus } from "#src/status/index.ts";
-import { runPreviewStatus } from "#src/tools/status.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { devLogPath, previewPaths, PREVIEW_REPOS_ENV } from "../paths.ts";
+import { recordingProcessGroupsLayer } from "../process-groups/test-support.ts";
+import { writeAlternate, writePreviewStatus } from "../status/index.ts";
+import { runPreviewStatus } from "./status.ts";
+import { fetchHttpClientLayer } from "../http.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const LIVE_PID = 601;
 

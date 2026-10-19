@@ -3,14 +3,14 @@ import type { FeatureLogger } from "ori";
 
 import { Effect, FileSystem, Layer } from "effect";
 
-import { scriptedPreviewHostLayer } from "#src/host-test-support.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
+import { scriptedPreviewHostLayer } from "./host-test-support.ts";
+import { fetchHttpClientLayer } from "./http.ts";
 import {
   makePreviewSchedule,
   PREVIEW_SCHEDULE_CRON,
   PREVIEW_SKIPPED_SUMMARY,
-} from "#src/feature.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./feature.ts";
+import { describe, expect, it } from "./effect-bun-test.ts";
 
 const ignore = (): void => undefined;
 

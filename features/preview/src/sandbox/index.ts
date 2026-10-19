@@ -1,10 +1,10 @@
 import { Effect, FileSystem } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
+import type { PreviewPaths } from "../paths.ts";
 
-import { PreviewError } from "#src/errors.ts";
-import { PREVIEW_UID } from "#src/paths.ts";
-import { runToLog } from "#src/process/index.ts";
+import { PreviewError } from "../errors.ts";
+import { PREVIEW_UID } from "../paths.ts";
+import { runToLog } from "../process/index.ts";
 
 export type HostEnv = Readonly<Record<string, string | undefined>>;
 

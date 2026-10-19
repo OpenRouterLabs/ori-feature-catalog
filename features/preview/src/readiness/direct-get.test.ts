@@ -1,5 +1,5 @@
-import { isComplete } from "#src/readiness/direct-get.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { isComplete } from "./direct-get.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 describe("isComplete", () => {
   it("is complete once the declared content length has arrived", () => {

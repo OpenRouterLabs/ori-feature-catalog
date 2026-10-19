@@ -8,15 +8,15 @@ import {
   Schema,
 } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { ProcessGroups } from "#src/process-groups/index.ts";
-import type { ProcessRef } from "#src/process/index.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { ProcessGroups } from "../process-groups/index.ts";
+import type { ProcessRef } from "../process/index.ts";
 
-import { PreviewError } from "#src/errors.ts";
-import { repoSlug } from "#src/paths.ts";
-import { currentProcess, isAlive } from "#src/process/index.ts";
-import { ProcessRefJson } from "#src/schemas.ts";
-import { readJsonFile } from "#src/status/index.ts";
+import { PreviewError } from "../errors.ts";
+import { repoSlug } from "../paths.ts";
+import { currentProcess, isAlive } from "../process/index.ts";
+import { ProcessRefJson } from "../schemas.ts";
+import { readJsonFile } from "../status/index.ts";
 
 const LOCK_OWNER_FILE = "owner.json";
 

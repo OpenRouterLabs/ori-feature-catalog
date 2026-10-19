@@ -1,12 +1,12 @@
 import { Effect, Layer, Option } from "effect";
 
-import { PreviewError } from "#src/errors.ts";
+import { PreviewError } from "../../errors.ts";
 import {
   type DetachedSpawn,
   ProcessGroups,
   type ProcessGroupsShape,
-} from "#src/process-groups/index.ts";
-import { markOomFirst, oomFirstArgv } from "#src/oom-first-child.ts";
+} from "../index.ts";
+import { markOomFirst, oomFirstArgv } from "../../oom-first-child.ts";
 
 const sendSignal = (pid: number, signal: NodeJS.Signals | 0): boolean =>
   Option.isSome(

@@ -1,11 +1,11 @@
 import { Effect, FileSystem, Option } from "effect";
 
-import type { ProcessRef } from "#src/process/index.ts";
-import type { HostEnv } from "#src/sandbox/index.ts";
-import type { PreviewRecipe } from "#src/schemas.ts";
+import type { ProcessRef } from "../process/index.ts";
+import type { HostEnv } from "../sandbox/index.ts";
+import type { PreviewRecipe } from "../schemas.ts";
 
-import { PreviewError } from "#src/errors.ts";
-import { localUrl, LOOPBACK_HOSTS, PORT_PLACEHOLDER } from "#src/paths.ts";
+import { PreviewError } from "../errors.ts";
+import { localUrl, LOOPBACK_HOSTS, PORT_PLACEHOLDER } from "../paths.ts";
 import {
   ensurePortFree,
   isAlive,
@@ -14,17 +14,17 @@ import {
   shellCommand,
   spawnDetached,
   tailLog,
-} from "#src/process/index.ts";
-import { judgeResponse, waitForHttp } from "#src/readiness/index.ts";
+} from "../process/index.ts";
+import { judgeResponse, waitForHttp } from "../readiness/index.ts";
 import {
   boundPreviewValue,
   isWithheld,
   sandboxed,
   sandboxEnv,
-} from "#src/sandbox/index.ts";
-import { untrusted } from "#src/untrusted/index.ts";
+} from "../sandbox/index.ts";
+import { untrusted } from "../untrusted/index.ts";
 
-export type { HostEnv } from "#src/sandbox/index.ts";
+export type { HostEnv } from "../sandbox/index.ts";
 
 export const missingEnv = (
   recipe: PreviewRecipe,

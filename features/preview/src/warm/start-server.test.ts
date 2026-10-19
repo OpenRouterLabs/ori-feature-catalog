@@ -1,5 +1,5 @@
-import { missingEnv, serverEnv, withPort } from "#src/warm/start-server.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { missingEnv, serverEnv, withPort } from "./start-server.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const recipe = {
   dev: "npm run dev",

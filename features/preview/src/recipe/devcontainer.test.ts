@@ -1,8 +1,8 @@
 import {
   applyDevcontainer,
   stripJsonComments,
-} from "#src/recipe/devcontainer.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./devcontainer.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const base = { install: "npm install", dev: "npm run dev" };
 

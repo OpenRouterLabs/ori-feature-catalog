@@ -6,8 +6,8 @@ import {
   previewPaths,
   repoCheckout,
   syncMarkerPath,
-} from "#src/paths.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./paths.ts";
+import { describe, expect, it } from "./effect-bun-test.ts";
 
 describe("per-repository paths", () => {
   const paths = previewPaths("/workspace");

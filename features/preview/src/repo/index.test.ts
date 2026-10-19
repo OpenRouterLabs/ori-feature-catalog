@@ -1,8 +1,8 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem } from "effect";
 
-import { hasCheckout, isTransientGithubFailure } from "#src/repo/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { hasCheckout, isTransientGithubFailure } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 describe("hasCheckout", () => {
   it.effect(
