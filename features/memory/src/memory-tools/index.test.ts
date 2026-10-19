@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { parseMemoryLog } from "#src/line/index.ts";
-import { withTempDir } from "#src/test-support/index.ts";
+import { parseMemoryLog } from "../line/index.ts";
+import { withTempDir } from "../test-support/index.ts";
 
 import type { MemoryTurn } from "./index.ts";
 

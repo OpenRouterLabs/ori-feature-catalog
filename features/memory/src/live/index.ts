@@ -1,4 +1,4 @@
-import type { MemoryLine, SavedMemory } from "#src/line/index.ts";
+import type { MemoryLine, SavedMemory } from "../line/index.ts";
 
 export const RECALL_LIMIT = 20;
 

@@ -8,9 +8,9 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 
-import type { MemoryLine } from "#src/line/index.ts";
+import type { MemoryLine } from "../line/index.ts";
 
-import { formatMemoryLine, parseMemoryLog } from "#src/line/index.ts";
+import { formatMemoryLine, parseMemoryLog } from "../line/index.ts";
 
 export const MEMORY_DIRECTORY = "memory";
 export const UNION_MERGE_ATTRIBUTE = "log/*.md merge=union";

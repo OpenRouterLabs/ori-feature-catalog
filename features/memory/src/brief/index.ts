@@ -1,6 +1,6 @@
 import type { StateStore } from "ori";
 
-import type { SavedMemory } from "#src/line/index.ts";
+import type { SavedMemory } from "../line/index.ts";
 
 export const BRIEF_TOKEN_BUDGET = 500;
 

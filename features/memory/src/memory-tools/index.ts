@@ -1,15 +1,15 @@
-import type { TurnEnv } from "#src/intern-root/index.ts";
-import type { MemoryKind, MemoryLine } from "#src/line/index.ts";
+import type { TurnEnv } from "../intern-root/index.ts";
+import type { MemoryKind, MemoryLine } from "../line/index.ts";
 
-import { renderMemoryBrief } from "#src/brief/index.ts";
-import { resolveInternRoot } from "#src/intern-root/index.ts";
-import { MEMORY_TEXT_LIMIT, minuteStamp, singleLine } from "#src/line/index.ts";
+import { renderMemoryBrief } from "../brief/index.ts";
+import { resolveInternRoot } from "../intern-root/index.ts";
+import { MEMORY_TEXT_LIMIT, minuteStamp, singleLine } from "../line/index.ts";
 import {
   describeMemory,
   foldMemoryLog,
   recallMemories,
-} from "#src/live/index.ts";
-import { memoryLogAt } from "#src/memory-log/index.ts";
+} from "../live/index.ts";
+import { memoryLogAt } from "../memory-log/index.ts";
 
 export interface MemoryTurn {
   readonly hint: string;
