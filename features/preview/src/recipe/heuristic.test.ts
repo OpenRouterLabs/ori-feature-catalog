@@ -1,17 +1,17 @@
-import type { PackageJson } from "#src/recipe/heuristic.ts";
+import type { PackageJson } from "./heuristic.ts";
 
 import {
   detectPackageManager,
   heuristicRecipe,
   pinnedPort,
   takesPortFlag,
-} from "#src/recipe/heuristic.ts";
+} from "./heuristic.ts";
 import {
   describe,
   expect,
   it,
   test,
-} from "#src/effect-bun-test.ts";
+} from "../effect-bun-test.ts";
 
 const nextApp: PackageJson = {
   scripts: { dev: "next dev", build: "next build" },

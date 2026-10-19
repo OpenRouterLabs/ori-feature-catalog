@@ -6,9 +6,9 @@ import {
   ownerReposUrl,
   rankInstallationRepos,
   unionInstallationAndOwnerRepos,
-} from "#src/repo/discover.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./discover.ts";
+import { fetchHttpClientLayer } from "../http.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 describe("rankInstallationRepos", () => {
   it("orders the installation's repos by most recent push, so the repo people are working in warms first", () => {

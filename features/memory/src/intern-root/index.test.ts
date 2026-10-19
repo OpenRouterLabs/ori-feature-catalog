@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { saveMemory } from "#src/memory-tools/index.ts";
-import { git, withTempDir } from "#src/test-support/index.ts";
+import { saveMemory } from "../memory-tools/index.ts";
+import { git, withTempDir } from "../test-support/index.ts";
 
 import { INTERN_ROOT_ENV, resolveInternRoot } from "./index.ts";
 

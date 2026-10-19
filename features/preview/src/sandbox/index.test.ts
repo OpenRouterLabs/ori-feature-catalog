@@ -1,16 +1,16 @@
-import { PREVIEW_UID } from "#src/paths.ts";
+import { PREVIEW_UID } from "../paths.ts";
 import {
   chownTree,
   isWithheld,
   sandboxed,
   sandboxEnv,
-} from "#src/sandbox/index.ts";
+} from "./index.ts";
 import {
   describe,
   expect,
   it,
   test,
-} from "#src/effect-bun-test.ts";
+} from "../effect-bun-test.ts";
 
 describe("sandboxed", () => {
   it("drops to the preview uid with no groups, no capabilities, and no way back up before the command runs", () => {

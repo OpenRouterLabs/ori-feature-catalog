@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 
-import { refusedResponse } from "#src/readiness/direct-get.ts";
+import { refusedResponse } from "../readiness/direct-get.ts";
 
 import { TcpProbe, type TcpProbeShape } from "./index.ts";
 

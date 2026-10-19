@@ -1,8 +1,8 @@
 import { Effect, Option } from "effect";
 
-import { assignPort, parseStartTime } from "#src/process/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { assignPort, parseStartTime } from "./index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const statLine = (comm: string, start: string): string =>
   `4242 (${comm}) S 1 4242 4242 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 ${start} 1000 50 18446744073709551615`;

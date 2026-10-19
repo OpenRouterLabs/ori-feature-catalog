@@ -1,8 +1,5 @@
 {
   "name": "memory",
   "private": true,
-  "type": "module",
-  "imports": {
-    "#src/*": "./src/*"
-  }
+  "type": "module"
 }

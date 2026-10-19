@@ -1,7 +1,7 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Option } from "effect";
 
-import { alternatePath, previewPaths, statusPath } from "#src/paths.ts";
+import { alternatePath, previewPaths, statusPath } from "../paths.ts";
 import {
   claimedPorts,
   clearAlternate,
@@ -11,8 +11,8 @@ import {
   touchPreview,
   writeAlternate,
   writePreviewStatus,
-} from "#src/status/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const alternate = {
   repo: "acme/web",

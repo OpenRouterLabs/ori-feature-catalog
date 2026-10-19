@@ -1,6 +1,6 @@
 import { Predicate, Schema } from "effect";
 
-import { formatUnknownError } from "#src/format-unknown.ts";
+import { formatUnknownError } from "./format-unknown.ts";
 
 export class CliFailureError extends Schema.TaggedError<CliFailureError>()(
   "CliFailureError",

@@ -2,9 +2,9 @@ import type { HttpClient } from "effect/http";
 
 import { Effect, Predicate } from "effect";
 
-import type { InlinedText } from "#src/inline-page/css-inline.ts";
-import type { RewrittenPage } from "#src/inline-page/page.ts";
-import type { CliFailureError } from "#src/failures.ts";
+import type { InlinedText } from "./css-inline.ts";
+import type { RewrittenPage } from "./page.ts";
+import type { CliFailureError } from "../failures.ts";
 
 import {
   dataUri,
@@ -12,15 +12,15 @@ import {
   inlineCss,
   makeInlineSession,
   refusalFailure,
-} from "#src/inline-page/css-inline.ts";
+} from "./css-inline.ts";
 import {
   rewritePage,
   scanPage,
-} from "#src/inline-page/page.ts";
+} from "./page.ts";
 import {
   ElementAction,
   moduleImportRefusals,
-} from "#src/inline-page/plan.ts";
+} from "./plan.ts";
 
 const DOWNLOAD_CONCURRENCY = 6;
 

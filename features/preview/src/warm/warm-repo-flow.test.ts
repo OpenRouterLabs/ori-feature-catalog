@@ -3,21 +3,21 @@ import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { DateTime, Effect, FileSystem, Layer, Option } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import type { PreviewStatus } from "#src/schemas.ts";
+import type { PreviewStatus } from "../schemas.ts";
 
-import { scriptedDaemonCredentialsLayer } from "#src/daemon-credentials/test-support.ts";
-import { previewPaths } from "#src/paths.ts";
+import { scriptedDaemonCredentialsLayer } from "../daemon-credentials/test-support.ts";
+import { previewPaths } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { readPreviewStatus, writePreviewStatus } from "#src/status/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { runPreviewSaveRecipe } from "#src/tools/save-recipe.ts";
-import { runPreviewScreenshot } from "#src/tools/screenshot.ts";
-import { runPreviewWarm } from "#src/tools/warm.ts";
-import { warmRepo } from "#src/warm/warm-repo.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { readPreviewStatus, writePreviewStatus } from "../status/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { runPreviewSaveRecipe } from "../tools/save-recipe.ts";
+import { runPreviewScreenshot } from "../tools/screenshot.ts";
+import { runPreviewWarm } from "../tools/warm.ts";
+import { warmRepo } from "./warm-repo.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const HEAD = "0123456789abcdef0123456789abcdef01234567";

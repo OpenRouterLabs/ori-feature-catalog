@@ -9,22 +9,22 @@ import {
 } from "effect";
 import { Base64 } from "effect/encoding";
 
-import type { CdpSession } from "#src/browser/cdp.ts";
-import type { PreviewPaths } from "#src/paths.ts";
+import type { CdpSession } from "./cdp.ts";
+import type { PreviewPaths } from "../paths.ts";
 
 import {
   attach,
   closeTarget,
   createTarget,
   listTargets,
-} from "#src/browser/cdp.ts";
-import { PreviewError } from "#src/errors.ts";
-import { PREVIEW_CDP_PORT } from "#src/paths.ts";
-import { ensurePortFree, isAlive, spawnDetached } from "#src/process/index.ts";
-import { prepareSandbox, sandboxed, sandboxEnv } from "#src/sandbox/index.ts";
-import { ProcessRefJson } from "#src/schemas.ts";
-import { readJsonFile, writeFileAtomic } from "#src/status/index.ts";
-import { untrusted } from "#src/untrusted/index.ts";
+} from "./cdp.ts";
+import { PreviewError } from "../errors.ts";
+import { PREVIEW_CDP_PORT } from "../paths.ts";
+import { ensurePortFree, isAlive, spawnDetached } from "../process/index.ts";
+import { prepareSandbox, sandboxed, sandboxEnv } from "../sandbox/index.ts";
+import { ProcessRefJson } from "../schemas.ts";
+import { readJsonFile, writeFileAtomic } from "../status/index.ts";
+import { untrusted } from "../untrusted/index.ts";
 
 export const CHROMIUM_BIN_ENV = "ORI_PREVIEW_CHROMIUM";
 

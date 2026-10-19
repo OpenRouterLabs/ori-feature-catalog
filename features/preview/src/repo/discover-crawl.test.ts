@@ -1,8 +1,8 @@
 import { Effect, Layer } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { discoverInstallationRepos } from "#src/repo/discover.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { discoverInstallationRepos } from "./discover.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const github = (route: (url: string) => Response, requested: string[] = []) =>
   Layer.succeed(HttpClient.HttpClient)(

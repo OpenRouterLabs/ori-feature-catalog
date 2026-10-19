@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 
-import type { SavedMemory } from "#src/line/index.ts";
+import type { SavedMemory } from "../line/index.ts";
 
-import { memoryBrief, saveMemory } from "#src/memory-tools/index.ts";
-import { inMemoryStateStore, withTempDir } from "#src/test-support/index.ts";
+import { memoryBrief, saveMemory } from "../memory-tools/index.ts";
+import { inMemoryStateStore, withTempDir } from "../test-support/index.ts";
 
 import {
   BRIEF_TOKEN_BUDGET,

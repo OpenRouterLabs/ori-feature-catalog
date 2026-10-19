@@ -5,15 +5,15 @@ import { HttpClient, HttpClientResponse } from "effect/http";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { previewPaths, syncMarkerPath } from "#src/paths.ts";
+} from "../process-groups/test-support.ts";
+import { previewPaths, syncMarkerPath } from "../paths.ts";
 import {
   checkedOutSha,
   hasCheckout,
   isTransientGithubFailure,
   resolveHead,
-} from "#src/repo/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const SHA = "0123456789abcdef0123456789abcdef01234567";

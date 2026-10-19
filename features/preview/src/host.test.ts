@@ -1,14 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
-import { scriptedDaemonCredentials } from "#src/daemon-credentials/test-support.ts";
-import { PREVIEW_SCHEDULE_CRON } from "#src/feature.ts";
+import { scriptedDaemonCredentials } from "./daemon-credentials/test-support.ts";
+import { PREVIEW_SCHEDULE_CRON } from "./feature.ts";
 import {
   makePreviewContributions,
   previewEnabled,
   previewHosted,
   previewHostLayer,
   previewWorkspaceRoot,
-} from "#src/host.ts";
+} from "./host.ts";
 
 const hostedEnv = { ORI_INTERN_PACKED: "1", ORI_PREVIEW_ENABLED: "1" };
 

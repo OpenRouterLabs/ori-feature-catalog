@@ -1,29 +1,29 @@
 import { DateTime, Effect, Option, Predicate } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { PreviewStatus, ResolvedRecipe } from "#src/schemas.ts";
-import type { HostEnv } from "#src/warm/start-server.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { PreviewStatus, ResolvedRecipe } from "../schemas.ts";
+import type { HostEnv } from "./start-server.ts";
 
-import { capturePage, ensureBrowser } from "#src/browser/index.ts";
-import { PreviewError } from "#src/errors.ts";
+import { capturePage, ensureBrowser } from "../browser/index.ts";
+import { PreviewError } from "../errors.ts";
 import {
   devLogPath,
   installLogPath,
   PREVIEW_PORT_RANGE,
   repoCheckout,
-} from "#src/paths.ts";
-import { assignPort, isAlive, killGroup } from "#src/process/index.ts";
-import { resolveRecipe } from "#src/recipe/index.ts";
-import { resolveHead, syncRepo } from "#src/repo/index.ts";
-import { prepareSandbox } from "#src/sandbox/index.ts";
+} from "../paths.ts";
+import { assignPort, isAlive, killGroup } from "../process/index.ts";
+import { resolveRecipe } from "../recipe/index.ts";
+import { resolveHead, syncRepo } from "../repo/index.ts";
+import { prepareSandbox } from "../sandbox/index.ts";
 import {
   claimedPorts,
   readPreviewStatus,
   writePreviewStatus,
-} from "#src/status/index.ts";
-import { TcpProbe } from "#src/tcp-probe/index.ts";
-import { untrusted } from "#src/untrusted/index.ts";
-import { missingEnv, runInstall, startServer } from "#src/warm/start-server.ts";
+} from "../status/index.ts";
+import { TcpProbe } from "../tcp-probe/index.ts";
+import { untrusted } from "../untrusted/index.ts";
+import { missingEnv, runInstall, startServer } from "./start-server.ts";
 
 const HEAD_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 

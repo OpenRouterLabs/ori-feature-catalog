@@ -1,8 +1,8 @@
 import { Effect, Layer } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { closeTarget, createTarget, listTargets } from "#src/browser/cdp.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { closeTarget, createTarget, listTargets } from "./cdp.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const tab = {
   id: "TAB1",

@@ -11,8 +11,5 @@
   },
   "devDependencies": {
     "@types/bun": "1.3.3"
-  },
-  "imports": {
-    "#src/*": "./src/*"
   }
 }

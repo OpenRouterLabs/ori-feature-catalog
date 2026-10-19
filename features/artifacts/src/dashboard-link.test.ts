@@ -1,10 +1,10 @@
 import { Effect, Layer } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { describe, expect, it } from "./effect-bun-test.ts";
 import { Option } from "effect";
 
-import { CliFailureError } from "#src/failures.ts";
+import { CliFailureError } from "./failures.ts";
 
 import { artifactDashboardLink, hostedInternId } from "./dashboard-link.ts";
 

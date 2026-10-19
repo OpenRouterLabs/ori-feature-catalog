@@ -1,11 +1,11 @@
 import { layer as BunFileSystemLayer } from "@effect/platform-bun/BunFileSystem";
 import { Effect, Layer, Option } from "effect";
 
-import { postShotsToThread, slackThreadFor } from "#src/slack/index.ts";
-import { scriptedDaemonCredentialsLayer } from "#src/daemon-credentials/test-support.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { decodeUnknownJson, jsonResponse } from "#src/json.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { postShotsToThread, slackThreadFor } from "./index.ts";
+import { scriptedDaemonCredentialsLayer } from "../daemon-credentials/test-support.ts";
+import { fetchHttpClientLayer } from "../http.ts";
+import { decodeUnknownJson, jsonResponse } from "../json.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const DAEMON_TOKEN = "preview-test-daemon-token";
 

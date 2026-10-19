@@ -1,10 +1,10 @@
 import { Effect, FileSystem, Option, Path } from "effect";
 
-import { CliFailureError } from "#src/failures.ts";
-import { artifactDashboardLink, hostedInternId } from "#src/dashboard-link.ts";
-import { findWorkspaceRootFromCwd } from "#src/workspace-root.ts";
-import { inlinePage } from "#src/inline-page/index.ts";
-import { isArtifactName, saveWorkspaceArtifact } from "#src/store/index.ts";
+import { CliFailureError } from "../failures.ts";
+import { artifactDashboardLink, hostedInternId } from "../dashboard-link.ts";
+import { findWorkspaceRootFromCwd } from "../workspace-root.ts";
+import { inlinePage } from "../inline-page/index.ts";
+import { isArtifactName, saveWorkspaceArtifact } from "../store/index.ts";
 
 export interface SaveDeps {
   readonly cwd: string;

@@ -7,18 +7,18 @@ import type {
 
 import { defineTool, Schema, ToolResultSchema } from "ori";
 
-import type { MemoryTurn } from "#src/memory-tools/index.ts";
+import type { MemoryTurn } from "./src/memory-tools/index.ts";
 
-import type { TurnEnv } from "#src/intern-root/index.ts";
+import type { TurnEnv } from "./src/intern-root/index.ts";
 
-import { sessionMemoryBrief } from "#src/brief/index.ts";
-import { MEMORY_ID_PATTERN, MEMORY_KINDS } from "#src/line/index.ts";
+import { sessionMemoryBrief } from "./src/brief/index.ts";
+import { MEMORY_ID_PATTERN, MEMORY_KINDS } from "./src/line/index.ts";
 import {
   forgetMemories,
   memoryBrief,
   recallMemory,
   saveMemory,
-} from "#src/memory-tools/index.ts";
+} from "./src/memory-tools/index.ts";
 
 const turnOf = (context: ToolCallContext): MemoryTurn => ({
   hint: context.workspace.root,

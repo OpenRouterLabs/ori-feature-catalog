@@ -4,14 +4,14 @@ import { HttpClient, HttpClientResponse } from "effect/http";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { PREVIEW_UID, previewPaths, repoCheckout } from "#src/paths.ts";
-import { checkedOutSha, MAX_ARCHIVE_BYTES, syncRepo } from "#src/repo/index.ts";
+} from "../process-groups/test-support.ts";
+import { PREVIEW_UID, previewPaths, repoCheckout } from "../paths.ts";
+import { checkedOutSha, MAX_ARCHIVE_BYTES, syncRepo } from "./index.ts";
 import {
   chownRecordingServicesLayer,
   chownRefusedServicesLayer,
-} from "#src/sandbox/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../sandbox/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const SHA = "0123456789abcdef0123456789abcdef01234567";

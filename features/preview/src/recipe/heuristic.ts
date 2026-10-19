@@ -1,8 +1,8 @@
 import { Option, Predicate, Schema } from "effect";
 
-import type { PreviewRecipe } from "#src/schemas.ts";
+import type { PreviewRecipe } from "../schemas.ts";
 
-import { PORT_PLACEHOLDER } from "#src/paths.ts";
+import { PORT_PLACEHOLDER } from "../paths.ts";
 
 const PackageJsonSchema = Schema.Struct({
   scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),

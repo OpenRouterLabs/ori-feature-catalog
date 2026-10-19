@@ -2,25 +2,25 @@ import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { Arbitrary, Effect, FileSystem, Layer, Predicate } from "effect";
 
-import type { DirectResponse } from "#src/readiness/direct-get.ts";
-import type { PreviewServices } from "#src/tools/context.ts";
-import type { PreviewToolSpec } from "#src/tools/index.ts";
+import type { DirectResponse } from "../readiness/direct-get.ts";
+import type { PreviewServices } from "./context.ts";
+import type { PreviewToolSpec } from "./index.ts";
 import type { ThreadId, ToolCallContext, ToolResult, WorkspaceId } from "ori";
 
-import { previewPaths } from "#src/paths.ts";
+import { previewPaths } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { ProcessRefSchema } from "#src/schemas.ts";
-import { writePreviewStatus } from "#src/status/index.ts";
-import { TcpProbe } from "#src/tcp-probe/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { previewToolHandler, textResult } from "#src/tools/context.ts";
-import { makePreviewTools } from "#src/tools/index.ts";
-import { scriptedDaemonCredentialsLayer } from "#src/daemon-credentials/test-support.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { ProcessRefSchema } from "../schemas.ts";
+import { writePreviewStatus } from "../status/index.ts";
+import { TcpProbe } from "../tcp-probe/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { previewToolHandler, textResult } from "./context.ts";
+import { makePreviewTools } from "./index.ts";
+import { scriptedDaemonCredentialsLayer } from "../daemon-credentials/test-support.ts";
+import { fetchHttpClientLayer } from "../http.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const callContext = (root: string): ToolCallContext => ({
   signal: new AbortController().signal,

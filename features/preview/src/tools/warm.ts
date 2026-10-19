@@ -1,13 +1,13 @@
 import { Effect, Option } from "effect";
 
-import type { PreviewToolContext } from "#src/tools/context.ts";
+import type { PreviewToolContext } from "./context.ts";
 
-import { PreviewError } from "#src/errors.ts";
-import { withRepoLock } from "#src/lock/index.ts";
-import { readPreviewStatus, touchPreview } from "#src/status/index.ts";
-import { textResult } from "#src/tools/context.ts";
-import { makeRoom, PREVIEW_SLOT_LOCK } from "#src/warm/index.ts";
-import { warmRepo } from "#src/warm/warm-repo.ts";
+import { PreviewError } from "../errors.ts";
+import { withRepoLock } from "../lock/index.ts";
+import { readPreviewStatus, touchPreview } from "../status/index.ts";
+import { textResult } from "./context.ts";
+import { makeRoom, PREVIEW_SLOT_LOCK } from "../warm/index.ts";
+import { warmRepo } from "../warm/warm-repo.ts";
 
 export const WARM_WAIT_NOTE =
   "Warming runs install and the first compile, which can take a few minutes on a cold repo. Post a status in the thread before calling this on one that is not warm yet.";

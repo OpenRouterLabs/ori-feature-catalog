@@ -4,18 +4,18 @@ import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { Effect, Layer } from "effect";
 
-import type { PreviewServices } from "#src/tools/context.ts";
+import type { PreviewServices } from "./tools/context.ts";
 
 import {
   DaemonCredentials,
   type DaemonCredentialsShape,
-} from "#src/daemon-credentials/index.ts";
-import { makePreviewSchedule } from "#src/feature.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { bunProcessGroupsLayer } from "#src/process-groups/bun/index.ts";
-import { bunTcpProbeLayer } from "#src/tcp-probe/bun/index.ts";
-import { type DefinePreviewTool, makePreviewTools } from "#src/tools/index.ts";
-import { previewEnabledInEnv } from "#src/warm/index.ts";
+} from "./daemon-credentials/index.ts";
+import { makePreviewSchedule } from "./feature.ts";
+import { fetchHttpClientLayer } from "./http.ts";
+import { bunProcessGroupsLayer } from "./process-groups/bun/index.ts";
+import { bunTcpProbeLayer } from "./tcp-probe/bun/index.ts";
+import { type DefinePreviewTool, makePreviewTools } from "./tools/index.ts";
+import { previewEnabledInEnv } from "./warm/index.ts";
 
 type HostEnv = Readonly<Record<string, string | undefined>>;
 

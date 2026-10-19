@@ -3,15 +3,15 @@ import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import type { ThreadId, ToolCallContext, ToolResult, WorkspaceId } from "ori";
 import { Effect, FileSystem, Layer } from "effect";
 
-import type { PreviewServices } from "#src/tools/context.ts";
+import type { PreviewServices } from "./context.ts";
 
-import { scriptedDaemonCredentialsLayer } from "#src/daemon-credentials/test-support.ts";
-import { PreviewError } from "#src/errors.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
-import { recordingProcessGroupsLayer } from "#src/process-groups/test-support.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { previewToolHandler, textResult } from "#src/tools/context.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { scriptedDaemonCredentialsLayer } from "../daemon-credentials/test-support.ts";
+import { PreviewError } from "../errors.ts";
+import { fetchHttpClientLayer } from "../http.ts";
+import { recordingProcessGroupsLayer } from "../process-groups/test-support.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { previewToolHandler, textResult } from "./context.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const services = Layer.mergeAll(
   BunServicesLayer,

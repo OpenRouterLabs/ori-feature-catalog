@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import type { MemoryLine, SavedMemory } from "#src/line/index.ts";
+import type { MemoryLine, SavedMemory } from "../line/index.ts";
 
 import { foldMemoryLog, RECALL_LIMIT, recallMemories } from "./index.ts";
 

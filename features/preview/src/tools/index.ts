@@ -1,18 +1,18 @@
 import { Effect, Schema } from "effect";
 
-import type { PreviewServices } from "#src/tools/context.ts";
+import type { PreviewServices } from "./context.ts";
 import type { ToolDefinition, ToolHandler, ToolInitContext } from "ori";
 
-import { PreviewRecipeSchema } from "#src/schemas.ts";
-import { previewToolHandler } from "#src/tools/context.ts";
-import { runPreviewSaveRecipe } from "#src/tools/save-recipe.ts";
+import { PreviewRecipeSchema } from "../schemas.ts";
+import { previewToolHandler } from "./context.ts";
+import { runPreviewSaveRecipe } from "./save-recipe.ts";
 import {
   RepoField,
   runPreviewScreenshot,
   ScreenshotParameters,
-} from "#src/tools/screenshot.ts";
-import { runPreviewStatus } from "#src/tools/status.ts";
-import { runPreviewWarm, WARM_WAIT_NOTE } from "#src/tools/warm.ts";
+} from "./screenshot.ts";
+import { runPreviewStatus } from "./status.ts";
+import { runPreviewWarm, WARM_WAIT_NOTE } from "./warm.ts";
 
 type HostEnv = Readonly<Record<string, string | undefined>>;
 

@@ -4,12 +4,12 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import {
   classifyAddress,
   ResourceAddress,
-} from "#src/inline-page/address.ts";
+} from "./address.ts";
 import {
   CliFailureError,
   makeCliFailureFromCause,
-} from "#src/failures.ts";
-import { isOkStatus } from "#src/http.ts";
+} from "../failures.ts";
+import { isOkStatus } from "../http.ts";
 
 const NO_REDIRECTS: globalThis.RequestInit = { redirect: "manual" };
 const MAX_REDIRECTS = 5;

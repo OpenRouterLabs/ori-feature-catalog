@@ -1,6 +1,6 @@
 import { Effect, Layer, Predicate, Result } from "effect";
 
-import type { PreviewError } from "#src/errors.ts";
+import type { PreviewError } from "../../errors.ts";
 
 import {
   type DirectResponse,
@@ -10,8 +10,8 @@ import {
   requestText,
   settledResponse,
   targetOf,
-} from "#src/readiness/direct-get.ts";
-import { TcpProbe, type TcpProbeShape } from "#src/tcp-probe/index.ts";
+} from "../../readiness/direct-get.ts";
+import { TcpProbe, type TcpProbeShape } from "../index.ts";
 
 const ADDRESS_UNAVAILABLE: ReadonlySet<string> = new Set([
   "EADDRNOTAVAIL",

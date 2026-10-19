@@ -4,10 +4,10 @@ import { Effect, FileSystem, Layer } from "effect";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { PREVIEW_UID, previewPaths } from "#src/paths.ts";
-import { assertFenced, chownTree, FENCE_MISSING } from "#src/sandbox/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { PREVIEW_UID, previewPaths } from "../paths.ts";
+import { assertFenced, chownTree, FENCE_MISSING } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const fixture = (exitCode: number, recording = emptyProcessGroupsRecording()) =>
   Layer.mergeAll(BunServicesLayer, recordingProcessGroupsLayer(recording, { ownPid: 1, exitCode }));

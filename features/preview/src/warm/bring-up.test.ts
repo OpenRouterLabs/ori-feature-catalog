@@ -2,17 +2,17 @@ import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { Effect, FileSystem, Layer, Option } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { PREVIEW_CDP_PORT, PREVIEW_UID, previewPaths, repoCheckout } from "#src/paths.ts";
+import { PREVIEW_CDP_PORT, PREVIEW_UID, previewPaths, repoCheckout } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { PREVIEW_JSON } from "#src/recipe/index.ts";
-import { chownRecordingServicesLayer } from "#src/sandbox/test-support.ts";
-import { readPreviewStatus } from "#src/status/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { warmRepo } from "#src/warm/warm-repo.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { PREVIEW_JSON } from "../recipe/index.ts";
+import { chownRecordingServicesLayer } from "../sandbox/test-support.ts";
+import { readPreviewStatus } from "../status/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { warmRepo } from "./warm-repo.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const HEAD = "0123456789abcdef0123456789abcdef01234567";

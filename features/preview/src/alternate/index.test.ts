@@ -1,16 +1,16 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Layer, Option } from "effect";
 
-import { startAlternate } from "#src/alternate/index.ts";
-import { PREVIEW_UID, previewPaths, repoCheckout } from "#src/paths.ts";
+import { startAlternate } from "./index.ts";
+import { PREVIEW_UID, previewPaths, repoCheckout } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { chownRecordingServicesLayer } from "#src/sandbox/test-support.ts";
-import { readAlternate, writeAlternate } from "#src/status/index.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { chownRecordingServicesLayer } from "../sandbox/test-support.ts";
+import { readAlternate, writeAlternate } from "../status/index.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const LIVE_PID = 801;
 

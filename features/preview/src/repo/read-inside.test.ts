@@ -1,8 +1,8 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Option } from "effect";
 
-import { readInside } from "#src/repo/read-inside.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { readInside } from "./read-inside.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 describe("readInside", () => {
   it.effect("reads a file that lives inside the checkout", () =>

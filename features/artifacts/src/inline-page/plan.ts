@@ -1,16 +1,16 @@
 import { Data, Predicate } from "effect";
 
-import type { SrcsetCandidate } from "#src/inline-page/srcset.ts";
+import type { SrcsetCandidate } from "./srcset.ts";
 
 import {
   ResourceAddress,
   classifyAddress,
-} from "#src/inline-page/address.ts";
+} from "./address.ts";
 import {
   CssReference,
   scanCssReferences,
-} from "#src/inline-page/css.ts";
-import { parseSrcset } from "#src/inline-page/srcset.ts";
+} from "./css.ts";
+import { parseSrcset } from "./srcset.ts";
 
 export interface ResourceRefusal {
   readonly reason: string;

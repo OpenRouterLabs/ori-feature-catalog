@@ -1,21 +1,21 @@
 import { Effect, FileSystem, Option, Schema, Stream } from "effect";
 import { HttpClient } from "effect/http";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { ProcessGroups } from "#src/process-groups/index.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { ProcessGroups } from "../process-groups/index.ts";
 
-import { PreviewError } from "#src/errors.ts";
+import { PreviewError } from "../errors.ts";
 import {
   PREVIEW_UID,
   repoCheckout,
   repoSlug,
   syncMarkerPath,
-} from "#src/paths.ts";
-import { runToLog } from "#src/process/index.ts";
-import { readInside } from "#src/repo/read-inside.ts";
-import { sandboxed, sandboxEnv } from "#src/sandbox/index.ts";
-import { writeFileAtomic } from "#src/status/index.ts";
-import { isOkStatus } from "#src/http.ts";
+} from "../paths.ts";
+import { runToLog } from "../process/index.ts";
+import { readInside } from "./read-inside.ts";
+import { sandboxed, sandboxEnv } from "../sandbox/index.ts";
+import { writeFileAtomic } from "../status/index.ts";
+import { isOkStatus } from "../http.ts";
 
 const RepoSchema = Schema.Struct({ default_branch: Schema.String });
 const CommitSchema = Schema.Struct({
