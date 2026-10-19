@@ -1,6 +1,6 @@
 import { Option, Predicate, Schema } from "effect";
 
-import type { PreviewRecipe } from "#src/schemas.ts";
+import type { PreviewRecipe } from "../schemas.ts";
 
 const CommandSchema = Schema.Union([
   Schema.String,

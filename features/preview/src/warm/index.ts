@@ -1,27 +1,27 @@
 import { Effect, Option, Schema } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { ConnectedRepos, PreviewStatus } from "#src/schemas.ts";
-import type { HostEnv } from "#src/warm/start-server.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { ConnectedRepos, PreviewStatus } from "../schemas.ts";
+import type { HostEnv } from "./start-server.ts";
 
-import { withRepoLock } from "#src/lock/index.ts";
+import { withRepoLock } from "../lock/index.ts";
 import {
   PREVIEW_ENABLED_ENV,
   PREVIEW_MAX_WARM,
   PREVIEW_REPOS_ENV,
-} from "#src/paths.ts";
-import { killGroup } from "#src/process/index.ts";
-import { discoverInstallationRepos } from "#src/repo/discover.ts";
-import { prepareSandbox } from "#src/sandbox/index.ts";
-import { ConnectedReposSchema, REPO_NAME_PATTERN } from "#src/schemas.ts";
+} from "../paths.ts";
+import { killGroup } from "../process/index.ts";
+import { discoverInstallationRepos } from "../repo/discover.ts";
+import { prepareSandbox } from "../sandbox/index.ts";
+import { ConnectedReposSchema, REPO_NAME_PATTERN } from "../schemas.ts";
 import {
   clearAlternate,
   readAllPreviewStatuses,
   readAlternate,
   readPreviewStatus,
   writePreviewStatus,
-} from "#src/status/index.ts";
-import { warmRepo } from "#src/warm/warm-repo.ts";
+} from "../status/index.ts";
+import { warmRepo } from "./warm-repo.ts";
 
 const decodeRepoList = Schema.decodeUnknownOption(ConnectedReposSchema);
 

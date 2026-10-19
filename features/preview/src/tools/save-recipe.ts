@@ -1,16 +1,16 @@
 import { Effect, Schema } from "effect";
 
-import type { PreviewRecipe } from "#src/schemas.ts";
-import type { PreviewToolContext } from "#src/tools/context.ts";
+import type { PreviewRecipe } from "../schemas.ts";
+import type { PreviewToolContext } from "./context.ts";
 
-import { withRepoLock } from "#src/lock/index.ts";
-import { recipeCachePath } from "#src/paths.ts";
-import { PREVIEW_JSON } from "#src/recipe/index.ts";
-import { PreviewRecipeSchema } from "#src/schemas.ts";
-import { writeFileAtomic } from "#src/status/index.ts";
-import { textResult } from "#src/tools/context.ts";
-import { runPreviewWarm } from "#src/tools/warm.ts";
-import { park } from "#src/warm/index.ts";
+import { withRepoLock } from "../lock/index.ts";
+import { recipeCachePath } from "../paths.ts";
+import { PREVIEW_JSON } from "../recipe/index.ts";
+import { PreviewRecipeSchema } from "../schemas.ts";
+import { writeFileAtomic } from "../status/index.ts";
+import { textResult } from "./context.ts";
+import { runPreviewWarm } from "./warm.ts";
+import { park } from "../warm/index.ts";
 
 const encodeRecipe = Schema.encodeEffect(
   Schema.fromJsonString(PreviewRecipeSchema, { space: 2 })

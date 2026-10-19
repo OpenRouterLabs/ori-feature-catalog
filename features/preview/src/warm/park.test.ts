@@ -1,19 +1,19 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Layer, Option } from "effect";
 
-import { previewPaths } from "#src/paths.ts";
+import { previewPaths } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
+} from "../process-groups/test-support.ts";
 import {
   readAlternate,
   readPreviewStatus,
   writeAlternate,
   writePreviewStatus,
-} from "#src/status/index.ts";
-import { makeRoom, park, stopAlternate } from "#src/warm/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../status/index.ts";
+import { makeRoom, park, stopAlternate } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const fixture = (recording = emptyProcessGroupsRecording()) =>
   Layer.merge(BunServicesLayer, recordingProcessGroupsLayer(recording));

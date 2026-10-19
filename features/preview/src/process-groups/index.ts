@@ -1,6 +1,6 @@
 import { Context, type Effect } from "effect";
 
-import type { PreviewError } from "#src/errors.ts";
+import type { PreviewError } from "../errors.ts";
 
 export interface DetachedSpawn {
   readonly command: readonly string[];

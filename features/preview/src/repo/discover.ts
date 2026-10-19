@@ -1,10 +1,10 @@
 import { Effect, Option, Schema } from "effect";
 import { HttpClient } from "effect/http";
 
-import type { ConnectedRepos } from "#src/schemas.ts";
+import type { ConnectedRepos } from "../schemas.ts";
 
-import { RepoNameSchema } from "#src/schemas.ts";
-import { isOkStatus } from "#src/http.ts";
+import { RepoNameSchema } from "../schemas.ts";
+import { isOkStatus } from "../http.ts";
 
 const INSTALLATION_REPOS_URL =
   "https://api.github.com/installation/repositories?per_page=100";

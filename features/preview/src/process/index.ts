@@ -1,11 +1,11 @@
 import { Effect, FileSystem, Option, Predicate } from "effect";
 
-import { PreviewError } from "#src/errors.ts";
+import { PreviewError } from "../errors.ts";
 import {
   type DetachedSpawn,
   ProcessGroups,
-} from "#src/process-groups/index.ts";
-import { TcpProbe } from "#src/tcp-probe/index.ts";
+} from "../process-groups/index.ts";
+import { TcpProbe } from "../tcp-probe/index.ts";
 
 export interface ProcessRef {
   readonly pid: number;

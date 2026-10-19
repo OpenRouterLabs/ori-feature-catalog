@@ -1,7 +1,7 @@
 import { Effect, Option, Predicate, Schedule } from "effect";
 
-import { PreviewError } from "#src/errors.ts";
-import { TcpProbe } from "#src/tcp-probe/index.ts";
+import { PreviewError } from "../errors.ts";
+import { TcpProbe } from "../tcp-probe/index.ts";
 
 const ERROR_OVERLAY_MARKERS = [
   "vite-error-overlay",

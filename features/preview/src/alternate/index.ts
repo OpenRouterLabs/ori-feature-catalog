@@ -1,29 +1,29 @@
 import { Effect, Option } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { AlternateServer } from "#src/schemas.ts";
-import type { HostEnv } from "#src/warm/start-server.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { AlternateServer } from "../schemas.ts";
+import type { HostEnv } from "../warm/start-server.ts";
 
-import { PreviewError } from "#src/errors.ts";
+import { PreviewError } from "../errors.ts";
 import {
   alternateLogPath,
   PREVIEW_PORT_RANGE,
   repoCheckout,
-} from "#src/paths.ts";
+} from "../paths.ts";
 import {
   assignPort,
   isAlive,
   killGroup,
   runToLog,
-} from "#src/process/index.ts";
-import { resolveRecipe } from "#src/recipe/index.ts";
-import { chownTree, prepareSandbox } from "#src/sandbox/index.ts";
+} from "../process/index.ts";
+import { resolveRecipe } from "../recipe/index.ts";
+import { chownTree, prepareSandbox } from "../sandbox/index.ts";
 import {
   claimedPorts,
   readAlternate,
   writeAlternate,
-} from "#src/status/index.ts";
-import { runInstall, startServer } from "#src/warm/start-server.ts";
+} from "../status/index.ts";
+import { runInstall, startServer } from "../warm/start-server.ts";
 
 const handToSandbox = Effect.fn("Preview.alternate.handToSandbox")(function* (
   paths: PreviewPaths,

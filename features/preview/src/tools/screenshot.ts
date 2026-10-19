@@ -10,21 +10,21 @@ import {
 } from "effect";
 import { Base64 } from "effect/encoding";
 
-import type { PageCapture } from "#src/browser/index.ts";
-import type { SlackShot } from "#src/slack/index.ts";
-import type { PreviewToolContext } from "#src/tools/context.ts";
+import type { PageCapture } from "../browser/index.ts";
+import type { SlackShot } from "../slack/index.ts";
+import type { PreviewToolContext } from "./context.ts";
 import type { ToolContent } from "ori";
 
-import { startAlternate } from "#src/alternate/index.ts";
-import { capturePage, ensureBrowser } from "#src/browser/index.ts";
-import { PreviewError } from "#src/errors.ts";
-import { withRepoLock } from "#src/lock/index.ts";
-import { repoSlug } from "#src/paths.ts";
-import { RepoNameSchema } from "#src/schemas.ts";
-import { postShotsToThread, slackThreadFor } from "#src/slack/index.ts";
-import { warmAndRead } from "#src/tools/warm.ts";
-import { untrusted } from "#src/untrusted/index.ts";
-import { stopAlternate } from "#src/warm/index.ts";
+import { startAlternate } from "../alternate/index.ts";
+import { capturePage, ensureBrowser } from "../browser/index.ts";
+import { PreviewError } from "../errors.ts";
+import { withRepoLock } from "../lock/index.ts";
+import { repoSlug } from "../paths.ts";
+import { RepoNameSchema } from "../schemas.ts";
+import { postShotsToThread, slackThreadFor } from "../slack/index.ts";
+import { warmAndRead } from "./warm.ts";
+import { untrusted } from "../untrusted/index.ts";
+import { stopAlternate } from "../warm/index.ts";
 
 export const RepoField = RepoNameSchema.annotate({
   description: "The GitHub repository as owner/name.",

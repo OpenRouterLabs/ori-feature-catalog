@@ -1,7 +1,7 @@
 import { Context, type Effect } from "effect";
 
-import type { PreviewError } from "#src/errors.ts";
-import type { DirectResponse } from "#src/readiness/direct-get.ts";
+import type { PreviewError } from "../errors.ts";
+import type { DirectResponse } from "../readiness/direct-get.ts";
 
 export interface TcpProbeShape {
   readonly isPortFree: (port: number) => Effect.Effect<boolean>;

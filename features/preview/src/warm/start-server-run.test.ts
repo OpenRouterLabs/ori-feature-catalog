@@ -1,16 +1,16 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Layer } from "effect";
 
-import type { DirectResponse } from "#src/readiness/direct-get.ts";
+import type { DirectResponse } from "../readiness/direct-get.ts";
 
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { runInstall, startServer } from "#src/warm/start-server.ts";
-import { PreviewError } from "#src/errors.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { runInstall, startServer } from "./start-server.ts";
+import { PreviewError } from "../errors.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const SERVER_PID = 701;
 const PORT = 41_000;

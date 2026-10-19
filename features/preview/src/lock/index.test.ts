@@ -1,10 +1,10 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem, Layer, Option } from "effect";
 
-import { withRepoLock } from "#src/lock/index.ts";
-import { previewPaths, repoSlug } from "#src/paths.ts";
-import { recordingProcessGroupsLayer } from "#src/process-groups/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { withRepoLock } from "./index.ts";
+import { previewPaths, repoSlug } from "../paths.ts";
+import { recordingProcessGroupsLayer } from "../process-groups/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 const OTHER_PID = 4242;

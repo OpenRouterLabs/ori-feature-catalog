@@ -1,14 +1,14 @@
 import { Effect, Layer, Option } from "effect";
 
-import { judgeResponse, waitForHttp } from "#src/readiness/index.ts";
-import { bunTcpProbeLayer } from "#src/tcp-probe/bun/index.ts";
-import { fetchHttpClientLayer } from "#src/http.ts";
+import { judgeResponse, waitForHttp } from "./index.ts";
+import { bunTcpProbeLayer } from "../tcp-probe/bun/index.ts";
+import { fetchHttpClientLayer } from "../http.ts";
 import {
   describe,
   expect,
   it,
   test,
-} from "#src/effect-bun-test.ts";
+} from "../effect-bun-test.ts";
 
 describe("judgeResponse", () => {
   it("accepts a page that rendered", () => {

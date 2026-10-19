@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-import { browserEnv, consoleErrors } from "#src/browser/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { browserEnv, consoleErrors } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const sessionWith = (events: readonly unknown[]) => ({
   send: () => Effect.succeed(undefined),

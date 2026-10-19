@@ -1,15 +1,15 @@
 import { Effect, FileSystem, Option, Schema } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { ResolvedRecipe } from "#src/schemas.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { ResolvedRecipe } from "../schemas.ts";
 
-import { PreviewError } from "#src/errors.ts";
-import { PORT_PLACEHOLDER, repoSlug } from "#src/paths.ts";
-import { applyDevcontainer } from "#src/recipe/devcontainer.ts";
-import { decodePackageJson, heuristicRecipe } from "#src/recipe/heuristic.ts";
-import { readInside } from "#src/repo/read-inside.ts";
-import { PreviewRecipeSchema } from "#src/schemas.ts";
-import { untrusted } from "#src/untrusted/index.ts";
+import { PreviewError } from "../errors.ts";
+import { PORT_PLACEHOLDER, repoSlug } from "../paths.ts";
+import { applyDevcontainer } from "./devcontainer.ts";
+import { decodePackageJson, heuristicRecipe } from "./heuristic.ts";
+import { readInside } from "../repo/read-inside.ts";
+import { PreviewRecipeSchema } from "../schemas.ts";
+import { untrusted } from "../untrusted/index.ts";
 
 const recipeFileName = (repo: string): string => `${repoSlug(repo)}.json`;
 

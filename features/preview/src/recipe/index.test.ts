@@ -1,9 +1,9 @@
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { Effect, FileSystem } from "effect";
 
-import { previewPaths, recipeCachePath } from "#src/paths.ts";
-import { PREVIEW_JSON, resolveRecipe } from "#src/recipe/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { previewPaths, recipeCachePath } from "../paths.ts";
+import { PREVIEW_JSON, resolveRecipe } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const REPO = "acme/web";
 

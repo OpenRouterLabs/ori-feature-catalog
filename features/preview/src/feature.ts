@@ -1,15 +1,15 @@
 import { Effect } from "effect";
 
-import type { PreviewServices } from "#src/tools/context.ts";
+import type { PreviewServices } from "./tools/context.ts";
 import type {
   ScheduleDefinition,
   ScheduleHandlerArgs,
   ScheduleRunSummary,
 } from "ori";
 
-import { previewPaths } from "#src/paths.ts";
-import { UNTRUSTED_NOTE } from "#src/untrusted/index.ts";
-import { reconcilePreviews } from "#src/warm/index.ts";
+import { previewPaths } from "./paths.ts";
+import { UNTRUSTED_NOTE } from "./untrusted/index.ts";
+import { reconcilePreviews } from "./warm/index.ts";
 
 export const PREVIEW_SCHEDULE_CRON = "* * * * *";
 

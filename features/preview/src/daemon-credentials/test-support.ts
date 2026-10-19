@@ -1,11 +1,11 @@
-import type { DaemonAuthorization } from "ori";
+import type { DaemonAuthorization } from "./index.ts";
 
 import { Layer } from "effect";
 
 import {
   DaemonCredentials,
   type DaemonCredentialsShape,
-} from "#src/daemon-credentials/index.ts";
+} from "./index.ts";
 
 const nonBlank = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();

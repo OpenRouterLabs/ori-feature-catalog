@@ -1,9 +1,9 @@
 import { Option } from "effect";
 
-import type { PreviewStatus } from "#src/schemas.ts";
+import type { PreviewStatus } from "../schemas.ts";
 
-import { failedRecentlyAtHead, needsInstall } from "#src/warm/warm-repo.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { failedRecentlyAtHead, needsInstall } from "./warm-repo.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const installed = Option.some<PreviewStatus>({
   repo: "acme/web",

@@ -1,12 +1,12 @@
 import { Effect, FileSystem, Option, Predicate } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
 
-import type { HostEnv } from "#src/sandbox/index.ts";
+import type { HostEnv } from "../sandbox/index.ts";
 
-import type { DaemonAuthorization } from "ori";
+import type { DaemonAuthorization } from "../daemon-credentials/index.ts";
 
-import { DaemonCredentials } from "#src/daemon-credentials/index.ts";
-import { isOkStatus } from "#src/http.ts";
+import { DaemonCredentials } from "../daemon-credentials/index.ts";
+import { isOkStatus } from "../http.ts";
 
 const DEFAULT_RUNTIME_PORT = 3141;
 

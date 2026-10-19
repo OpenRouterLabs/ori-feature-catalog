@@ -1,10 +1,10 @@
-import { joinUrl } from "#src/tools/screenshot.ts";
+import { joinUrl } from "./screenshot.ts";
 import {
   describe,
   expect,
   it,
   test,
-} from "#src/effect-bun-test.ts";
+} from "../effect-bun-test.ts";
 
 describe("joinUrl", () => {
   it("keeps the warm url when no path is asked for", () => {

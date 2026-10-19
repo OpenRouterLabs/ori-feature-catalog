@@ -5,14 +5,14 @@ import type { Socket } from "effect/socket";
 
 import { Effect } from "effect";
 
-import type { PreviewError } from "#src/errors.ts";
-import type { PreviewPaths } from "#src/paths.ts";
-import type { ProcessGroups } from "#src/process-groups/index.ts";
-import type { TcpProbe } from "#src/tcp-probe/index.ts";
-import type { DaemonCredentials } from "#src/daemon-credentials/index.ts";
+import type { PreviewError } from "../errors.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { ProcessGroups } from "../process-groups/index.ts";
+import type { TcpProbe } from "../tcp-probe/index.ts";
+import type { DaemonCredentials } from "../daemon-credentials/index.ts";
 import type { ToolHandler, ToolResult, ToolRunInput } from "ori";
 
-import { previewPaths } from "#src/paths.ts";
+import { previewPaths } from "../paths.ts";
 
 export type PreviewServices =
   | FileSystem.FileSystem

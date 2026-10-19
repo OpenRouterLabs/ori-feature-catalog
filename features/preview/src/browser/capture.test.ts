@@ -4,14 +4,14 @@ import { afterAll, beforeAll } from "bun:test";
 import { Effect, FileSystem, Layer } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { capturePage, ensureBrowser } from "#src/browser/index.ts";
-import { previewPaths } from "#src/paths.ts";
+import { capturePage, ensureBrowser } from "./index.ts";
+import { previewPaths } from "../paths.ts";
 import {
   emptyProcessGroupsRecording,
   recordingProcessGroupsLayer,
-} from "#src/process-groups/test-support.ts";
-import { scriptedTcpProbeLayer } from "#src/tcp-probe/test-support.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+} from "../process-groups/test-support.ts";
+import { scriptedTcpProbeLayer } from "../tcp-probe/test-support.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 const PNG_BYTES = new Uint8Array([137, 80, 78, 71]);
 const PAGE_URL = "http://127.0.0.1:41000/";

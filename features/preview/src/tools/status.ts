@@ -1,14 +1,14 @@
 import { Effect, Option, Predicate } from "effect";
 
-import type { PreviewStatus } from "#src/schemas.ts";
-import type { PreviewToolContext } from "#src/tools/context.ts";
+import type { PreviewStatus } from "../schemas.ts";
+import type { PreviewToolContext } from "./context.ts";
 
-import { devLogPath } from "#src/paths.ts";
-import { isAlive, tailLog } from "#src/process/index.ts";
-import { readAlternate, readAllPreviewStatuses } from "#src/status/index.ts";
-import { textResult } from "#src/tools/context.ts";
-import { untrusted } from "#src/untrusted/index.ts";
-import { connectedRepos } from "#src/warm/index.ts";
+import { devLogPath } from "../paths.ts";
+import { isAlive, tailLog } from "../process/index.ts";
+import { readAlternate, readAllPreviewStatuses } from "../status/index.ts";
+import { textResult } from "./context.ts";
+import { untrusted } from "../untrusted/index.ts";
+import { connectedRepos } from "../warm/index.ts";
 
 const describeStatus = (status: PreviewStatus, alive: boolean): string => {
   const phase = alive ? status.phase : "warm (process gone; run preview-warm)";

@@ -1,10 +1,10 @@
 import { DateTime, Effect, FileSystem, Option, Schema } from "effect";
 
-import type { PreviewPaths } from "#src/paths.ts";
-import type { AlternateServer, PreviewStatus } from "#src/schemas.ts";
+import type { PreviewPaths } from "../paths.ts";
+import type { AlternateServer, PreviewStatus } from "../schemas.ts";
 
-import { alternatePath, statusPath } from "#src/paths.ts";
-import { AlternateServerSchema, PreviewStatusSchema } from "#src/schemas.ts";
+import { alternatePath, statusPath } from "../paths.ts";
+import { AlternateServerSchema, PreviewStatusSchema } from "../schemas.ts";
 
 const decodeStatus = Schema.decodeUnknownEffect(
   Schema.fromJsonString(PreviewStatusSchema)

@@ -1,5 +1,5 @@
-import { untrusted } from "#src/untrusted/index.ts";
-import { describe, expect, it } from "#src/effect-bun-test.ts";
+import { untrusted } from "./index.ts";
+import { describe, expect, it } from "../effect-bun-test.ts";
 
 describe("untrusted", () => {
   it("fences repository text so the agent reads it as data", () => {
