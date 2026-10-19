@@ -36,5 +36,10 @@ const loadContributions = async () => {
 
 const contributions = await loadContributions();
 export const tools = contributions.tools;
-export const schedule = contributions.schedule;
-export const prompt = contributions.tools.length === 0 ? undefined : PREVIEW_PROMPT;
+export const schedule = contributions.schedule ?? Ori.defineSchedule({
+  cron: "* * * * *",
+  disabled: true,
+  run: async () => ({ skipped: "previews_disabled" }),
+});
+export const prompt: Ori.PromptProvider = () =>
+  contributions.tools.length === 0 ? [] : [{ name: "preview", text: PREVIEW_PROMPT }];

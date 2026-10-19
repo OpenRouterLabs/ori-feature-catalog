@@ -20,5 +20,7 @@ test("disabled previews do not need the newer SDK credential helpers", () => {
   });
   expect(result.stderr.toString()).toBe("");
   expect(result.exitCode).toBe(0);
-  expect(JSON.parse(result.stdout.toString())).toEqual({ tools: [] });
+  expect(JSON.parse(result.stdout.toString())).toEqual({
+    tools: [], schedule: { cron: "* * * * *", disabled: true }
+  });
 });
