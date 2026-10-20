@@ -1,7 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import type { FeatureLogger } from "ori";
 
 import { scriptedDaemonCredentials } from "#src/daemon-credentials/test-support.ts";
-import { PREVIEW_SCHEDULE_CRON } from "#src/feature.ts";
+import {
+  PREVIEW_DISABLED_SUMMARY,
+  PREVIEW_PROMPT,
+  PREVIEW_SCHEDULE_CRON,
+} from "#src/feature.ts";
 import {
   makePreviewContributions,
   previewEnabled,
@@ -9,6 +14,17 @@ import {
   previewHostLayer,
   previewWorkspaceRoot,
 } from "#src/host.ts";
+
+const ignore = (): void => undefined;
+
+const silentLogger: FeatureLogger = {
+  child: () => silentLogger,
+  trace: ignore,
+  debug: ignore,
+  info: ignore,
+  warn: ignore,
+  error: ignore,
+};
 
 const hostedEnv = { ORI_INTERN_PACKED: "1", ORI_PREVIEW_ENABLED: "1" };
 
@@ -57,14 +73,20 @@ describe("previewWorkspaceRoot", () => {
 describe("makePreviewContributions", () => {
   const layer = previewHostLayer(scriptedDaemonCredentials);
 
-  it("contributes nothing when previews are off", async () => {
+  it("contributes no tools, no prompt and a disabled schedule when previews are off, so the loader has nothing undefined to reject", async () => {
     const contributions = await makePreviewContributions({
       cwd: "/cwd",
       defineTool: (spec) => spec.name,
       env: {},
       layer,
     });
-    expect(contributions).toEqual({ schedule: undefined, tools: [] });
+    expect(contributions.tools).toEqual([]);
+    expect(contributions.prompt).toEqual([]);
+    expect(contributions.schedule.cron).toBe(PREVIEW_SCHEDULE_CRON);
+    expect(contributions.schedule.disabled).toBe(true);
+    expect(await contributions.schedule.run({ logger: silentLogger })).toEqual(
+      PREVIEW_DISABLED_SUMMARY
+    );
   });
 
   it("contributes the four tools and the warm-up schedule when previews are on", async () => {
@@ -80,6 +102,10 @@ describe("makePreviewContributions", () => {
       "preview-screenshot",
       "preview-save-recipe",
     ]);
-    expect(contributions.schedule?.cron).toBe(PREVIEW_SCHEDULE_CRON);
+    expect(contributions.schedule.cron).toBe(PREVIEW_SCHEDULE_CRON);
+    expect(contributions.schedule.disabled).toBeUndefined();
+    expect(contributions.prompt).toHaveLength(1);
+    const [provider] = contributions.prompt;
+    expect(provider?.()).toBe(PREVIEW_PROMPT);
   });
 });

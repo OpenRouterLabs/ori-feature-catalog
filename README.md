@@ -61,7 +61,7 @@ you fork anything here: create a directory with the same name.
   memory and what belongs in the task that uses it.
 - **[artifacts](features/artifacts)** — save work as a self-contained HTML page in the
   workspace under `artifacts/<name>/` and reply with its link: three commands the skill
-  drives (`artifact save`, `artifact list`, `artifact delete`), one `artifacts` skill, and
+  drives (`artifacts-o-save`, `artifacts-o-list`, `artifacts-o-delete`), one `artifacts` skill, and
   a prompt fragment. The command layer is the `ori artifact` builtin moved into the
   feature: the same inlining pipeline (CDN files put inside the page, the network-block
   CSP written into its head, the 16 MiB limit, the same refusal codes) and the same

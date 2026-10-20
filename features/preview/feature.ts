@@ -5,7 +5,6 @@ import {
   ToolResultSchema,
 } from "ori";
 
-import { PREVIEW_PROMPT } from "#src/feature.ts";
 import { makePreviewContributions, previewHostLayer } from "#src/host.ts";
 
 const contributions = await makePreviewContributions({
@@ -23,4 +22,4 @@ export const tools = contributions.tools;
 
 export const schedule = contributions.schedule;
 
-export const prompt = contributions.tools.length === 0 ? undefined : PREVIEW_PROMPT;
+export const prompt = contributions.prompt;
