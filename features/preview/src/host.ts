@@ -1,5 +1,3 @@
-import type { ScheduleDefinition } from "ori";
-
 import { layer as BunServicesLayer } from "@effect/platform-bun/BunServices";
 import { layerWebSocketConstructor } from "@effect/platform-bun/BunSocket";
 import { Effect, Layer } from "effect";
@@ -10,7 +8,12 @@ import {
   DaemonCredentials,
   type DaemonCredentialsShape,
 } from "#src/daemon-credentials/index.ts";
-import { makePreviewSchedule } from "#src/feature.ts";
+import {
+  makePreviewSchedule,
+  PREVIEW_DISABLED_SCHEDULE,
+  PREVIEW_PROMPT,
+  type PreviewSchedule,
+} from "#src/feature.ts";
 import { fetchHttpClientLayer } from "#src/http.ts";
 import { bunProcessGroupsLayer } from "#src/process-groups/bun/index.ts";
 import { bunTcpProbeLayer } from "#src/tcp-probe/bun/index.ts";
@@ -20,9 +23,12 @@ import { previewEnabledInEnv } from "#src/warm/index.ts";
 type HostEnv = Readonly<Record<string, string | undefined>>;
 
 export interface PreviewContributions<Tool> {
-  readonly schedule: ScheduleDefinition | undefined;
+  readonly prompt: readonly (() => string)[];
+  readonly schedule: PreviewSchedule;
   readonly tools: readonly Tool[];
 }
+
+const previewPrompt = (): string => PREVIEW_PROMPT;
 
 export interface MakePreviewContributionsInput<Tool> {
   readonly cwd: string;
@@ -63,6 +69,7 @@ export const makePreviewContributions = <Tool>(
   previewEnabled(input.env)
     ? Effect.runPromise(
         Effect.all({
+          prompt: Effect.succeed([previewPrompt]),
           schedule: makePreviewSchedule({
             env: input.env,
             workspaceRoot: previewWorkspaceRoot(input.env, input.cwd),
@@ -70,4 +77,8 @@ export const makePreviewContributions = <Tool>(
           tools: makePreviewTools(input.env, input.defineTool),
         }).pipe(Effect.provide(input.layer))
       )
-    : Promise.resolve({ schedule: undefined, tools: [] });
+    : Promise.resolve({
+        prompt: [],
+        schedule: PREVIEW_DISABLED_SCHEDULE,
+        tools: [],
+      });

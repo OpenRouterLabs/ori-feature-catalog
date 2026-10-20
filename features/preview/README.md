@@ -2,7 +2,7 @@
 
 A catalog feature that keeps a hosted intern's connected GitHub repositories running on localhost and gives the agent a persistent headless Chromium to screenshot them through. It is written against the public `ori` SDK only; Effect and its Bun platform layers are its own dependencies.
 
-It contributes only on a hosted intern (`ORI_INTERN_PACKED=1` or a nonblank `ORI_DAEMON_TOKEN`) that opted in with `ORI_PREVIEW_ENABLED=1` or a nonempty `ORI_PREVIEW_REPOS`. Anywhere else it contributes no tools, no schedule, and no prompt.
+It contributes only on a hosted intern (`ORI_INTERN_PACKED=1` or a nonblank `ORI_DAEMON_TOKEN`) that opted in with `ORI_PREVIEW_ENABLED=1` or a nonempty `ORI_PREVIEW_REPOS`. Anywhere else it contributes no tools and no prompt, and its schedule is contributed disabled (`disabled: true`, a run that reports `skipped: previews_disabled`), because the loader rejects an undefined `schedule` export and would then drop the whole feature.
 
 ## What it contributes
 

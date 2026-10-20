@@ -17,10 +17,22 @@ export const PREVIEW_SKIPPED_SUMMARY: ScheduleRunSummary = {
   skipped: "no_preview_repos",
 };
 
+export const PREVIEW_DISABLED_SUMMARY: ScheduleRunSummary = {
+  skipped: "previews_disabled",
+};
+
 export type PreviewSchedule = Omit<ScheduleDefinition, "run"> & {
   readonly run: (
     args: Pick<ScheduleHandlerArgs, "logger">
   ) => Promise<ScheduleRunSummary>;
+};
+
+export const PREVIEW_DISABLED_SCHEDULE: PreviewSchedule = {
+  cron: PREVIEW_SCHEDULE_CRON,
+  overlap: "skip",
+  catchUp: false,
+  disabled: true,
+  run: () => Promise.resolve(PREVIEW_DISABLED_SUMMARY),
 };
 
 export interface MakePreviewScheduleInput {
