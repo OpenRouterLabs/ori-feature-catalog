@@ -1,11 +1,11 @@
 ---
 name: artifacts
-description: Turn work into a web page saved in the workspace and reply with its link. Use when a comparison, a report, a dashboard, a walkthrough of a change or a set of options to choose between would read better as a page than as a chat message, or when someone asks for a page, a chart, a visual, a report "as a page" or an HTML file. Saves with `artifact save`, which prints a dashboard link only people who can see this intern can open. Not for a short answer, and not for attaching a file to Slack.
+description: Turn work into a web page saved in the workspace and reply with its link. Use when a comparison, a report, a dashboard, a walkthrough of a change or a set of options to choose between would read better as a page than as a chat message, or when someone asks for a page, a chart, a visual, a report "as a page" or an HTML file. Saves with the `artifacts-o-save` command, which returns a dashboard link only people who can see this intern can open. Not for a short answer, and not for attaching a file to Slack.
 ---
 
 # Artifacts
 
-A page is one HTML file saved in this workspace under `artifacts/<name>/`. Save it with `artifact save` and reply with the link it prints. On a hosted intern that link opens the page in the dashboard for anyone who can see this intern, and nobody else. On a laptop it is the saved file's path.
+A page is one HTML file saved in this workspace under `artifacts/<name>/`. Save it with the `artifacts-o-save` command and reply with the link it returns. On a hosted intern that link opens the page in the dashboard for anyone who can see this intern, and nobody else. On a laptop it is the saved file's path.
 
 ## When a page is worth it
 
@@ -32,20 +32,19 @@ A styled page costs more output than the same content as text, and every version
 
 ## Save and reply
 
-Run it from the workspace through the harness command surface:
+The commands are this feature's own, not shell programs and not the `ori` CLI. Call `artifacts-o-save` through its `command-artifacts-o-save` tool with `file` (the HTML file's path), `name` and `title`. A person typing it in chat writes:
 
-```bash
-artifact save /tmp/vendor-comparison.html \
-  --name vendor-comparison --title "Vendor comparison"
+```text
+/artifacts-o-save /tmp/vendor-comparison.html --name vendor-comparison --title "Vendor comparison"
 ```
 
-It prints the link on stdout. Reply with that link and one or two sentences on what the page shows.
+Its result is the link. Reply with that link and one or two sentences on what the page shows.
 
 - **Changing the page:** edit the file and save again with the same `--name`. That adds the next version behind the same link, and anyone with it open sees the new version within 10 seconds. Do not pick a new name for a revision.
 - **Names** start with a lowercase letter or digit, then up to 62 more lowercase letters, digits or hyphens.
-- **Finding pages:** `artifact list` prints this workspace's pages with their versions.
-- **Deleting a page** when someone asks: `artifact delete <name>`.
-- `--json` prints the result as a JSON envelope with `name`, `version`, `file` and `link`.
+- **Finding pages:** `artifacts-o-list` (tool `command-artifacts-o-list`) returns this workspace's pages with their versions.
+- **Deleting a page** when someone asks: `artifacts-o-delete <name>` (tool `command-artifacts-o-delete` with `name`).
+- The save result's data carries `name`, `version`, `file`, `link`, `bytes` and `inlined`.
 
 ## When saving refuses
 
