@@ -5,18 +5,18 @@ Gmail, Google Calendar, Drive, Docs, and Sheets as the person the intern is talk
 ## What it contributes
 
 - five skills, one per Google app, each with its own triggers and recipes: `gmail`, `google-calendar`, `google-drive`, `google-docs`, `google-sheets`
-- one shared command behind them, `src/cli.ts`: `whoami` says which linked account answers, and `request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json <body>|@file]` calls Google's REST APIs; both take `--account <email>`
+- one shared command behind them, `src/cli.ts`: `whoami` says which linked account answers and whether it is shared with this intern for others, and `request <GET|POST|PUT|PATCH|DELETE> <https://*.googleapis.com/...> [--json <body>|@file]` calls Google's REST APIs; both take `--account <email>`
 - `prompt`: one standing rule, that Google is reached through those skills and never through a credential the agent asks for or holds
 - api: none, chat: none, mcp: none
 
 ## How access works
 
-The skills hold no credential and send none. OpenRouter authenticates each request as the person the conversation came from, whether they wrote from Slack or from the dashboard, against that person's own linked Google account. `--account <email>` names someone else's account instead, and it works only when that person turned this intern on for their Google account in the dashboard (Your accounts → Google → Interns). No one can grant an intern another person's account. Turning an intern on shares the account with everyone who can talk to that intern, and the skills treat it that way: the intern answers anyone's request about a delegated account without asking the owner again. A request that carries its own `Authorization` header is refused.
+The skills hold no credential and send none. OpenRouter authenticates each request as the person the conversation came from, whether they wrote from Slack or from the dashboard, against that person's own linked Google account. `--account <email>` names someone else's account instead. Linking an account does not share it: a linked account is used only on its owner's own turns. It is shared only when its owner also turns on **Use your account for others** for this intern in the dashboard (Interns → Your accounts → Google → Interns) and ticks what it may do; then anyone who can message that intern, and its schedules, can reach the account within those capabilities, without asking the owner again. No one can share an intern another person's account. `whoami` reports which state an account is in (`delegatedToThisIntern` and `capabilities`), and the prompt tells the intern to report that rather than infer it. A request that carries its own `Authorization` header is refused.
 
 Two things have to be true in the OpenRouter dashboard before a request succeeds, and neither is done from the intern:
 
-1. An admin connected **Google Workspace** on the workspace's Connections tab and chose the products members may grant.
-2. The person linked their Google account under **Your accounts** on the same tab.
+1. An admin connected **Google Workspace** under Interns → **Shared connections** and chose the products members may grant.
+2. The person linked their Google account under Interns → **Your accounts** → Google.
 
 Until then Google answers 401 or 403, and every skill relays the step to take. A product the admin left out, or the person granted read-only, answers 403 on the calls it does not cover.
 

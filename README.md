@@ -51,8 +51,8 @@ you fork anything here: create a directory with the same name.
   `google-sheets`), over one shared command, plus a prompt rule. Holds no credential:
   OpenRouter authenticates each request as the person the conversation came from,
   whether they wrote from Slack or from the dashboard. The intern names another
-  person's account only with `--account`, and only an account whose owner gave that
-  intern access.
+  person's account only with `--account`, and only an account whose owner shared it with that
+  intern.
 - **[memory](features/memory)** — cross-session memory: `memory_save`, `memory_recall`, and
   `memory_forget` over plain markdown logs in the intern workspace (`memory/log/<month>.md`,
   union-merged), plus a `## Memory` prompt section with pins and open todos, capped near

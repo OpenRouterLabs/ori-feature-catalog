@@ -5,7 +5,7 @@
  * Thin: it forwards a request to Google's API host, and OpenRouter
  * authenticates it as the person the conversation came from. No
  * credential is read, held, or sent here. `--account <email>` names another
- * person's account, which works only if that person gave this intern access.
+ * person's account, which works only if that person shared it with this intern.
  *
  *   bun features/google-workspace/src/cli.ts whoami
  *   bun features/google-workspace/src/cli.ts request GET https://gmail.googleapis.com/gmail/v1/users/me/labels
@@ -16,13 +16,14 @@
 
 export const ACT_AS_HEADER = "x-openrouter-act-as";
 export const ACCOUNT_HEADER = "x-openrouter-google-account";
+export const DELEGATION_HEADER = "x-openrouter-google-delegation";
 export const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const SCRIPT = "features/google-workspace/src/cli.ts";
 const SKILL_DOC = "features/google-workspace/README.md";
 const LINK_HINT =
-  "Ask the person to link their Google account under Your accounts on the Interns page of the OpenRouter dashboard, then try again.";
+  "Ask the person to link their Google account in the OpenRouter dashboard under Interns → Your accounts → Google, then try again.";
 const ACCOUNT_HINT =
-  "The owner of that account has not given this intern access. Ask them to turn this intern on under Your accounts → Google → Interns on the OpenRouter dashboard.";
+  "The owner of that account has not shared it with this intern. Only they can: in the OpenRouter dashboard under Interns → Your accounts → Google → Interns, they turn on Use your account for others for this intern.";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -62,6 +63,15 @@ interface GoogleAnswer {
   readonly status: number;
   readonly ok: boolean;
   readonly text: string;
+  /** What the account's owner shares with this intern for others, as OpenRouter reported it; null when it did not say. */
+  readonly delegation: string | null;
+}
+
+/** What `whoami` prints. Null means OpenRouter did not say, never "not shared". */
+export interface Whoami {
+  readonly account: string;
+  readonly delegatedToThisIntern: boolean | null;
+  readonly capabilities: readonly string[] | null;
 }
 
 function parseArgv(argv: string[]): Parsed {
@@ -174,7 +184,12 @@ async function sendGoogleRequest(
     headers,
     body: request.body ?? undefined,
   });
-  return { status: res.status, ok: res.ok, text: await res.text() };
+  return {
+    status: res.status,
+    ok: res.ok,
+    text: await res.text(),
+    delegation: res.headers.get(DELEGATION_HEADER),
+  };
 }
 
 function reportFailure(
@@ -208,8 +223,24 @@ async function cmdWhoami(deps: CliDeps, parsed: Parsed): Promise<number> {
     deps.err(`Google did not name an account.\n${answer.text}`);
     return 1;
   }
-  deps.out(JSON.stringify({ email }));
+  deps.out(JSON.stringify(whoamiOf(email, answer.delegation)));
   return 0;
+}
+
+/** `none` is linked but not shared; a list is shared with those capabilities; no value is unknown. */
+export function whoamiOf(account: string, delegation: string | null): Whoami {
+  if (delegation === null) {
+    return { account, delegatedToThisIntern: null, capabilities: null };
+  }
+  const capabilities = delegation
+    .split(",")
+    .map((capability) => capability.trim())
+    .filter((capability) => capability !== "" && capability !== "none");
+  return {
+    account,
+    delegatedToThisIntern: capabilities.length > 0,
+    capabilities,
+  };
 }
 
 async function cmdRequest(deps: CliDeps, parsed: Parsed): Promise<number> {
@@ -277,7 +308,7 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<number> {
   }
   if (parsed.flags.as !== undefined) {
     deps.err(
-      "--as is not supported. Use --account <email> to use an account whose owner gave this intern access."
+      "--as is not supported. Use --account <email> to use an account whose owner shared it with this intern."
     );
     return 1;
   }

@@ -5,9 +5,11 @@ import type { CliDeps } from "./cli.ts";
 import {
   ACCOUNT_HEADER,
   ACT_AS_HEADER,
+  DELEGATION_HEADER,
   USERINFO_URL,
   isGoogleApiUrl,
   runCli,
+  whoamiOf,
 } from "./cli.ts";
 
 interface Call {
@@ -226,7 +228,7 @@ describe("runCli whoami", () => {
     expect(google?.init?.method).toBe("GET");
     expect(googleHeaders(calls).get(ACT_AS_HEADER)).toBe("email:pat@example.com");
     expect(googleHeaders(calls).has("authorization")).toBe(false);
-    expect(out).toEqual(['{"email":"pat@example.com"}']);
+    expect(out).toEqual(['{"account":"pat@example.com","delegatedToThisIntern":null,"capabilities":null}']);
   });
 
   it("works without a Slack user, since the request is attributed for it", async () => {
@@ -237,7 +239,25 @@ describe("runCli whoami", () => {
     expect(await runCli(["whoami"], deps)).toBe(0);
     expect(calls).toHaveLength(1);
     expect(googleHeaders(calls).has(ACT_AS_HEADER)).toBe(false);
-    expect(out).toEqual(['{"email":"pat@example.com"}']);
+    expect(out).toEqual(['{"account":"pat@example.com","delegatedToThisIntern":null,"capabilities":null}']);
+  });
+
+  it("reports whether the account is shared with this intern, and for what", async () => {
+    const answer = (delegation: string): Response =>
+      new Response(JSON.stringify({ email: "pat@example.com" }), {
+        status: 200,
+        headers: { [DELEGATION_HEADER]: delegation },
+      });
+    const linkedOnly = makeDeps(() => answer("none"), {});
+    expect(await runCli(["whoami"], linkedOnly.deps)).toBe(0);
+    expect(linkedOnly.out).toEqual([
+      '{"account":"pat@example.com","delegatedToThisIntern":false,"capabilities":[]}',
+    ]);
+    const shared = makeDeps(() => answer("gmail.read,calendar.read"), {});
+    expect(await runCli(["whoami"], shared.deps)).toBe(0);
+    expect(shared.out).toEqual([
+      '{"account":"pat@example.com","delegatedToThisIntern":true,"capabilities":["gmail.read","calendar.read"]}',
+    ]);
   });
 
   it("points at the dashboard link step when no account is linked", async () => {
@@ -246,7 +266,7 @@ describe("runCli whoami", () => {
       {}
     );
     expect(await runCli(["whoami"], deps)).toBe(1);
-    expect(err.join("\n")).toContain("Your accounts");
+    expect(err.join("\n")).toContain("Interns → Your accounts → Google");
   });
 
   it("fails when Google answers without an email", async () => {
@@ -342,13 +362,33 @@ describe("runCli --account", () => {
     expect(err.join("\n")).toContain("--account must be an email address");
   });
 
-  it("says the owner has not given this intern access on 401 and 403", async () => {
+  it("says the owner has not shared the account with this intern on 401 and 403", async () => {
     for (const status of [401, 403]) {
       const { deps, err } = makeDeps(() => new Response("denied", { status }));
       expect(
         await runCli(["request", "GET", LABELS_URL, "--account", "sam@example.com"], deps)
       ).toBe(1);
-      expect(err.join("\n")).toContain("has not given this intern access");
+      expect(err.join("\n")).toContain("has not shared it with this intern");
+      expect(err.join("\n")).toContain("Use your account for others");
     }
+  });
+});
+
+describe("whoamiOf", () => {
+  it("never reads a missing answer as not shared", () => {
+    expect(whoamiOf("pat@example.com", null)).toEqual({
+      account: "pat@example.com",
+      delegatedToThisIntern: null,
+      capabilities: null,
+    });
+  });
+
+  it("reads none as linked but not shared, and a list as shared for those capabilities", () => {
+    expect(whoamiOf("pat@example.com", "none").delegatedToThisIntern).toBe(false);
+    expect(whoamiOf("pat@example.com", " gmail.read , drive.read ")).toEqual({
+      account: "pat@example.com",
+      delegatedToThisIntern: true,
+      capabilities: ["gmail.read", "drive.read"],
+    });
   });
 });
