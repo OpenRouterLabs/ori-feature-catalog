@@ -61,12 +61,19 @@ you fork anything here: create a directory with the same name.
   memory and what belongs in the task that uses it.
 - **[artifacts](features/artifacts)** — save work as a self-contained HTML page in the
   workspace under `artifacts/<name>/` and reply with its link: three commands the skill
-  drives (`artifact save`, `artifact list`, `artifact delete`), one `artifacts` skill, and
+  drives (`artifacts-o-save`, `artifacts-o-list`, `artifacts-o-delete`), one `artifacts` skill, and
   a prompt fragment. The command layer is the `ori artifact` builtin moved into the
   feature: the same inlining pipeline (CDN files put inside the page, the network-block
   CSP written into its head, the 16 MiB limit, the same refusal codes) and the same
   workspace store (`v<N>.html` plus `artifact.json`, per-name save locks, versions never
   overwritten), reached through the feature's own commands instead of the ori CLI.
+- **[preview](features/preview)** — warm localhost previews of the intern's connected
+  GitHub repositories, with a persistent headless Chromium: `preview-status`,
+  `preview-warm`, `preview-screenshot` (before/after pairs for a fix, posted to the Slack
+  thread), and `preview-save-recipe`, an every-minute warm-up schedule, and a prompt
+  fragment. Repository code runs sandboxed as its own uid behind the platform's host
+  firewall, with an allowlisted env. Contributes only on a hosted intern with
+  `ORI_PREVIEW_ENABLED=1` or `ORI_PREVIEW_REPOS` set.
 - **[working-with-github](features/working-with-github)** — GitHub for an intern
   workspace in either access mode. Ambient mode (`GH_APP_ID` unset): REST-first
   access through the host's proxy credential — read the repo before answering,

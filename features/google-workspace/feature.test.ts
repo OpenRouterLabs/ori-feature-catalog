@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import { GOOGLE_WORKSPACE_PROMPT, prompt } from "./feature.ts";
+import { prompt } from "./feature.ts";
+import { GOOGLE_WORKSPACE_PROMPT } from "./src/prompt.ts";
 
 describe("google-workspace prompt contribution", () => {
   it("is a single provider that returns the standing rule", () => {
