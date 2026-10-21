@@ -27,3 +27,10 @@ Registered alternate Apps live in a SQLite registry under `~/.config/<intern>/gh
 ```sh
 bun test features/working-with-github
 ```
+
+Run from the repo root — `bun test` from inside the feature directory does not
+resolve `effect` there (the catalog declares it as a feature dependency and
+installs it into the root `node_modules`), so the path filter form is the only
+reliable gate. In a workspace that vendors the catalog as `file:` dependencies,
+the feature lives under `node_modules/@ori-monorepo/working-with-github` — run
+that path instead: `bun test node_modules/@ori-monorepo/working-with-github`.

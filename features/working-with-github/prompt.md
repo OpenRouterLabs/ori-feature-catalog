@@ -17,7 +17,7 @@ In either mode, **source on GitHub is the primary evidence for how a system work
 The commands below run scripts that ship with this feature. Its directory depends on how the workspace loaded it (a local `features/` folder or the remote-features cache), so resolve it once per shell from the workspace root:
 
 ```bash
-WWG=$(find features .ori/remote-features -type d -name working-with-github -print -quit 2>/dev/null)
+WWG=$(find features .ori/remote-features node_modules -type d -name working-with-github -not -path "*/.bun/*" -print -quit 2>/dev/null)
 ```
 
 In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.

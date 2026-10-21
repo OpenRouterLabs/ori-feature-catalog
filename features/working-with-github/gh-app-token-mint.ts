@@ -8,12 +8,14 @@
 
 import { Effect, Layer } from "effect";
 
+import { DEFAULT_PURPOSE, orgOf } from "./gh-app-registry.ts";
+
 import type {
   FetchLike,
   GhAppError,
   InstallationToken,
 } from "./gh-app-github-api.ts";
-import type { InstallationCache } from "./gh-app-registry.ts";
+import type { GhAppKeyNames, InstallationCache } from "./gh-app-registry.ts";
 import type { GhAppConfigDeps, RegistryResolver } from "./gh-app-token.ts";
 
 import {
@@ -46,7 +48,27 @@ interface MintDeps {
    * from `GH_APP_ALLOWED_ORGS`, else the four-org secure default.
    */
   readonly allowedOrgs?: readonly string[];
+  /** Diagnostic sink for routing decisions (which App identity a mint targets).
+   *  Defaults to `process.stderr.write` — stdout stays token-only. */
+  readonly diag?: (text: string) => void;
 }
+
+/**
+ * One stderr line naming the App identity a mint targets — the ONLY place
+ * routing is surfaced (stdout stays token-only for `$(...)` capture). "default"
+ * where the caller intended a registered App is the signature of a wrong or
+ * missing registry row; without this line that fallback is invisible.
+ */
+const formatMintRoute = (resolved: {
+  readonly org: string;
+  readonly purpose: string;
+  readonly registered: boolean;
+}): string =>
+  `gh-app-token: minting as ${
+    resolved.registered
+      ? `registered app org=${resolved.org} purpose=${resolved.purpose}`
+      : "default GH_APP_*"
+  }\n`;
 
 /**
  * Default production resolver: open the SQLite registry and resolve (org,
@@ -72,7 +94,7 @@ const defaultRegistryResolver: RegistryResolver = (org, purpose) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     process.stderr.write(
-      `gh-app-token: registry lookup for ${org} (${purpose}) failed (${detail}); falling back to the default GH_APP_*\n`
+      `gh-app-token: registry lookup for ${org} (${purpose}) failed (${detail}); falling back to the default GH_APP_*\n`,
     );
     return null;
   }
@@ -92,13 +114,26 @@ const defaultRegistryResolver: RegistryResolver = (org, purpose) => {
  * that build the dependency graph from explicit deps.
  */
 export const mintInstallationToken = (
-  deps: MintDeps = {}
+  deps: MintDeps = {},
 ): Effect.Effect<InstallationToken, GhAppError> => {
-  const registry =
-    deps.registry ??
-    (deps.targetRepo !== undefined && deps.targetRepo !== ""
-      ? defaultRegistryResolver
-      : undefined);
+  const diag = deps.diag ?? ((text) => process.stderr.write(text));
+  const org = deps.targetRepo === undefined ? "" : orgOf(deps.targetRepo);
+  const baseRegistry: RegistryResolver | undefined =
+    deps.registry ?? (org !== "" ? defaultRegistryResolver : undefined);
+  const registry: RegistryResolver | undefined =
+    baseRegistry === undefined
+      ? undefined
+      : (requestedOrg, requestedPurpose) => {
+          const keys = baseRegistry(requestedOrg, requestedPurpose);
+          diag(
+            formatMintRoute({
+              registered: keys !== null,
+              org: requestedOrg,
+              purpose: requestedPurpose,
+            }),
+          );
+          return keys;
+        };
   // undefined → production SQLite cache; explicit null → caching disabled.
   const cache =
     deps.cache === null ? undefined : (deps.cache ?? sqliteInstallationCache);
