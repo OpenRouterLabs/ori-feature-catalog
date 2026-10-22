@@ -31,7 +31,12 @@ import { Effect, Schema } from "effect";
 
 import type { FetchLike, RunGit } from "./commit-api-core.ts";
 
-import { GITHUB_API, defaultRunGit, ghJson } from "./commit-api-core.ts";
+import {
+  CommitApiError,
+  GITHUB_API,
+  defaultRunGit,
+  ghJson,
+} from "./commit-api-core.ts";
 
 export type WorktreeDecision =
   | "removed"
@@ -155,6 +160,19 @@ const PullRequestPage = Schema.Array(
   })
 );
 
+/** The PR lookup failed: a network error or an HTTP error status (403 rate
+ *  limit, 5xx, …). Distinct from "no PR for this branch", which is a real
+ *  answer, so the removal decision can tell the two apart. */
+class PrLookupError extends Error {
+  constructor(
+    readonly status: number | undefined,
+    message: string
+  ) {
+    super(message);
+    this.name = "PrLookupError";
+  }
+}
+
 /** `GET /repos/{repo}/pulls?head={owner}:{branch}&state=all` — the most recent
  *  PR for `branch`, or `undefined` when none exists. GitHub's PR `state` is
  *  only ever "open"/"closed"; `merged_at` doesn't change the removal decision,
@@ -175,12 +193,24 @@ const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
       token: input.token,
       url,
     }).pipe(
-      // An empty page is "no PR for this branch", which is a real answer here —
-      // not the decode failure the tolerance below absorbs.
+      // An empty page is "no PR for this branch", which is a real answer here.
+      // A response GitHub's own schema never promised (an unexpected `state`
+      // value) degrades to "no PR found" — the branch that keeps the worktree.
+      // A network failure or an HTTP error status (403 rate limit, 5xx) is
+      // NOT "no PR": it is raised so the sweep reports an error outcome rather
+      // than silently skipping a worktree whose PR state is simply unknown.
       Effect.map((page): PrLookup | undefined =>
         page.length === 0 ? undefined : page[0]
       ),
-      Effect.orElseSucceed((): PrLookup | undefined => undefined)
+      Effect.catchIf(
+        (error): error is CommitApiError =>
+          error instanceof CommitApiError && error.stage !== "http",
+        () => Effect.succeed<PrLookup | undefined>(undefined)
+      ),
+      Effect.mapError(
+        (error: CommitApiError) =>
+          new PrLookupError(error.status, error.message)
+      )
     );
   }
 );
@@ -243,12 +273,28 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
     readonly token: string;
   }) {
     const { tracked, options, runGit, fetchImpl, token } = input;
+    // A lookup failure (403 rate limit, 5xx, network) is NOT "no PR": the
+    // branch's PR state is unknown, so the worktree is reported as an error
+    // and left untouched — never silently skipped as if it had no PR.
     const pr = yield* findPrForBranch({
       branch: tracked.branch,
       fetchImpl,
       repo: options.repo,
       token,
-    });
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.succeed<WorktreeOutcome>(
+          outcomeFor(
+            tracked,
+            "error",
+            `PR lookup failed: ${error instanceof Error ? error.message : String(error)}`
+          )
+        )
+      )
+    );
+    if (pr !== undefined && "decision" in pr) {
+      return pr;
+    }
     if (pr === undefined) {
       return outcomeFor(
         tracked,
