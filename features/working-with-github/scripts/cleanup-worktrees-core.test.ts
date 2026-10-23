@@ -543,3 +543,51 @@ describe("head filter URL encoding", () => {
       ]);
     }));
 });
+
+// ─── PR lookup failure reporting ────────────────────────────────────────────
+// A failed lookup (403 rate limit, 5xx, network) must surface as an error
+// outcome — never "skipped-no-pr", which silently skips the worktree and
+// exits 0 while nothing was actually looked up.
+describe("PR lookup failure reporting", () => {
+  test("an HTTP error on the PR lookup (e.g. a 403 rate limit) is an error outcome, not skipped-no-pr", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+      });
+      const fetchImpl = (): Promise<Response> =>
+        jsonFetch({ message: "API rate limit exceeded" }, 403);
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirEmpty,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The branch state is unknown — the worktree is reported as an error and
+      // left untouched, never silently skipped as if it had no PR. The head=
+      // filter value is URL-encoded on current main (`owner%3Abranch-a`).
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "error",
+          detail:
+            "PR lookup failed: GET https://api.github.com/repos/owner/repo/pulls?head=owner%3Abranch-a&state=all: API rate limit exceeded",
+          path,
+        },
+      ]);
+    }));
+});
