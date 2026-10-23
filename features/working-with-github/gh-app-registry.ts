@@ -164,12 +164,20 @@ const rowToKeyNames = (row: RawRow): GhAppKeyNames => ({
 
 /** Upsert the (org, purpose) → key-names mapping. */
 export const registerApp = (db: Database, input: RegisterAppInput): void => {
+  // Normalize the org to the owner segment the mint path looks up: the CLI
+  // accepts (and the feature prompt documents) the same spellings for
+  // `--org` that `mint-token.ts --repo` accepts, so `acme-corp/widgets` /
+  // `https://github.com/acme-corp/widgets.git` / `git@github.com:…` must all
+  // persist as `acme-corp` — `mintInstallationToken` derives its registry key
+  // via `orgOf(targetRepo)` and a raw repo-shaped org never matches, silently
+  // falling back to the default App instead of the registered one.
+  const org = orgOf(input.org);
   db.run(
     `INSERT OR REPLACE INTO gh_app_registry
        (org, purpose, app_id_key, private_key_key, registered_at)
      VALUES (?, ?, ?, ?, ?)`,
     [
-      input.org,
+      org,
       input.purpose,
       input.appIdKey,
       input.privateKeyKey,
@@ -391,7 +399,28 @@ export const sqliteInstallationCache: InstallationCache = {
 
 /** Extract the org from an `owner/repo` (or full GitHub URL) string. */
 export const orgOf = (repo: string): string => {
-  const cleaned = repo.trim().replace(/\.git$/u, "");
-  const match = /(?:github\.com[/:])?([^/]+)\/[^/]+$/u.exec(cleaned);
+  // Trim trailing slashes as well as whitespace: `acme/widgets/` is the same
+  // repo as `acme/widgets`, and the bare-match alternative below keys on
+  // exactly two segments — a trailing slash left it unmatchable, so a
+  // registered org never resolved and minting silently fell back to the
+  // default App.
+  const cleaned = repo
+    .trim()
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "");
+  // `git@`-prefixed ssh spellings (`git@github.com:owner/repo`) otherwise
+  // feed the org capture `git@github.com:owner` — the host is not optional
+  // enough to skip the user segment.
+  const match = /(?:git@)?(?:github\.com[/:])?([^/]+)\/[^/]+$/u.exec(cleaned);
+  // An ORG URL — `https://github.com/<org>` (no repo segment) — misses the
+  // repo regex above and falls through as the raw URL, so a
+  // `register --org https://github.com/<org>` row persists under a key the
+  // mint path can never look up (it derives its key from a repo string via
+  // this same function), and every mint silently falls back to the default
+  // App. Strip the host down to its org segment first.
+  const orgMatch = /(?:github\.com[/:])([^/]+)$/u.exec(cleaned);
+  if (orgMatch?.[1] !== undefined) {
+    return orgMatch[1];
+  }
   return match?.[1] ?? cleaned;
 };
