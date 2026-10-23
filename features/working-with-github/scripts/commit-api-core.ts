@@ -127,7 +127,17 @@ const parseStatusEntry = (entry: string): ChangedFile => {
  * deleted.
  */
 export const parseStatusZ = (output: string): ChangedFile[] => {
-  const files: ChangedFile[] = [];
+  // Keyed by path: git's index holds exactly ONE entry per path, so one
+  // worktree operation can emit TWO porcelain records for the same path — a
+  // staged deletion (`D <path>` from `git rm --cached`) plus an untracked
+  // re-create on disk (`?? <path>`) — where `git add -A` stages exactly one
+  // entry: the new blob. Emitting both as separate tree entries sends the
+  // Git-Data API a duplicate-path array its contract does not define (tree
+  // entries overwrite base-tree items BY path); the LAST record for a path
+  // must win, exactly like the index `git add -A` writes. A Map keyed on
+  // path, filled in the order git emits, preserves the collapse and keeps
+  // unrelated paths in porcelain order.
+  const files = new Map<string, ChangedFile>();
   // Records are `XY␠path` joined by NUL; a rename adds a trailing NUL + oldpath.
   const fields = output.split("\0");
   let i = 0;
@@ -145,22 +155,23 @@ export const parseStatusZ = (output: string): ChangedFile[] => {
       // Next field is the old path (rename source) → a deletion.
       const oldPath = fields[i + 1];
       if (oldPath !== undefined && oldPath !== "") {
-        files.push({
+        files.set(oldPath, {
           path: oldPath,
           deleted: true,
         });
       }
-      files.push({
+      files.set(path, {
         path,
         deleted: false,
       });
       i += RENAME_FIELD_OFFSET;
       continue;
     }
-    files.push(parseStatusEntry(entry));
+    const parsed = parseStatusEntry(entry);
+    files.set(parsed.path, parsed);
     i += 1;
   }
-  return files;
+  return Array.from(files.values());
 };
 
 // #endregion
