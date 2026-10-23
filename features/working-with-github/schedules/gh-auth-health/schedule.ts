@@ -33,6 +33,7 @@
 import { Data, Effect } from "effect";
 import { defineSchedule } from "ori";
 
+import { resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 import { postAlert } from "@ori-monorepo/working-with-github/post-alert.ts";
 
@@ -60,22 +61,6 @@ class AlertPostError extends Data.TaggedError("AlertPostError")<{
       : String(this.cause);
   }
 }
-
-/** Resolve `owner/repo` from `GITHUB_REPO`, tolerating a full https URL. */
-const resolveRepo = (
-  env: Readonly<Record<string, string | undefined>>
-): string => {
-  // Trim trailing slashes as well as whitespace: `acme/widgets/` is the
-  // same repo as `acme/widgets`, and the `GET /repos/<repo>/` round-trip
-  // answers 404 on the doubled slash.
-  const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
-  const withoutSuffix = raw.replace(/\.git$/u, "");
-  const match = /github\.com[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
-  if (match?.[1] !== undefined) {
-    return match[1];
-  }
-  return withoutSuffix;
-};
 
 /** Success log for the ambient probe — mirrors `formatHealthOkLog`'s shape. */
 const formatAmbientOkLog = (ok: { readonly scopes: string | undefined }) =>
@@ -159,7 +144,7 @@ export const schedule = defineSchedule({
 
         // App mode: mint + repo round-trip.
         // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
-        const repo = resolveRepo(process.env);
+        const repo = resolveRepoFromEnv(process.env);
         if (repo === "") {
           return yield* Effect.die(
             new Error(
