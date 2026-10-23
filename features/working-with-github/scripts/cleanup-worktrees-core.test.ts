@@ -492,3 +492,54 @@ describe("cleanupWorktrees", () => {
       expect(summary.outcomes).toEqual([]);
     }));
 });
+
+// ─── head= filter encoding ───────────────────────────────────────────────────
+// A branch name may carry query-reserved characters (git accepts them); the
+// head= filter must arrive percent-encoded or its PR is unfindable.
+describe("head filter URL encoding", () => {
+  test("a branch name with a plus still matches its PR (the head filter is URL-encoded)", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "fix+lint");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/fix+lint\n\n`,
+        },
+      });
+      const fetchImpl = (url: string | URL): Promise<Response> => {
+        // GitHub decodes an unencoded `+` in a query value as a space, so the
+        // head filter must arrive percent-encoded to match the branch.
+        const head = new URL(String(url)).searchParams.get("head");
+        return Promise.resolve(
+          jsonFetch(
+            head === "owner:fix+lint" ? [{ number: 5, state: "closed" }] : []
+          )
+        );
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: fetchImpl as never,
+            readDir: readDirEmpty,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: true,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "fix+lint",
+          decision: "removed",
+          detail: "dry-run — would remove (PR #5 closed, tree clean)",
+          path,
+        },
+      ]);
+    }));
+});
