@@ -1156,3 +1156,157 @@ describe("PR lookup failure reporting", () => {
       ]);
     }));
 });
+
+describe("locked and detached worktrees (the porcelain attributes git really emits)", () => {
+  test("a locked worktree is skipped with a dedicated decision, never a `git worktree remove` error", () =>
+    withRealTmpDir(async (root) => {
+      // `git worktree add --lock` emits `locked <reason>` after the branch
+      // line. `git worktree remove` refuses a locked worktree without
+      // `--force --force`, so pre-fix a closed-PR clean-tree locked worktree
+      // produced a permanent `[error] git worktree remove failed: ... is a
+      // locked working tree` on EVERY sweep — reported, never actionable.
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
+        "worktree list": {
+          stdout: [
+            `worktree ${path}`,
+            "HEAD abc",
+            "branch refs/heads/branch-a",
+            "locked added with --lock",
+            "",
+          ].join("\n"),
+        },
+      });
+      let lookedUpPr = false;
+      const fetchImpl = (): Promise<Response> => {
+        lookedUpPr = true;
+        return jsonFetch([{ number: 7, state: "closed" }]);
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirWithBranchA,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The lock wins before any PR lookup: no network round-trip, and the
+      // decision names the unlock command the operator can run.
+      expect(lookedUpPr).toBe(false);
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "skipped-locked",
+          detail:
+            "locked worktree (git worktree unlock <path> to let the sweep manage it)",
+          path,
+        },
+      ]);
+    }));
+
+  test("a locked worktree is skipped even with no lock reason on the line", () =>
+    withRealTmpDir(async (root) => {
+      // `git worktree lock` with no reason emits a bare `locked` line.
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: [
+            `worktree ${path}`,
+            "HEAD abc",
+            "branch refs/heads/branch-a",
+            "locked",
+            "",
+          ].join("\n"),
+        },
+      });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: readDirWithBranchA,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "skipped-locked",
+          detail:
+            "locked worktree (git worktree unlock <path> to let the sweep manage it)",
+          path,
+        },
+      ]);
+    }));
+
+  test("a detached worktree is reported as detached, not as a stray unknown to git", () =>
+    withRealTmpDir(async (root) => {
+      // A detached worktree (git worktree add --detach) emits a `detached`
+      // line and NO branch line. Pre-fix the parser dropped the entry
+      // entirely, so the on-disk directory fell through to the stray
+      // report — whose detail ("unknown to `git worktree list`", "run
+      // `git worktree prune`") was factually wrong for a worktree git
+      // fully knows about, on every sweep.
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: [
+            `worktree ${path}`,
+            "HEAD abc",
+            "detached",
+            "",
+          ].join("\n"),
+        },
+      });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: readDirWithBranchA,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "",
+          decision: "skipped-detached",
+          detail:
+            "detached HEAD (no branch checked out) — nothing to match a PR against",
+          path,
+        },
+      ]);
+      expect(
+        summary.outcomes.some((o) => o.decision === "skipped-stray")
+      ).toBe(false);
+    }));
+});

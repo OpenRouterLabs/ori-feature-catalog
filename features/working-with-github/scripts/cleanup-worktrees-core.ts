@@ -36,9 +36,11 @@ import { CommitApiError, GITHUB_API, defaultRunGit, ghJson } from "./commit-api-
 export type WorktreeDecision =
   | "removed"
   | "skipped-dirty"
+  | "skipped-locked"
   | "skipped-open-pr"
   | "skipped-no-pr"
   | "skipped-stray"
+  | "skipped-detached"
   | "error";
 
 export interface WorktreeOutcome {
@@ -98,17 +100,27 @@ const defaultReadDir = async (path: string): Promise<readonly string[]> => {
     .map((entry) => entry.name);
 };
 
-/** One `git worktree list --porcelain` entry: a worktree path plus its checked-out branch. */
+/** One `git worktree list --porcelain` entry: a worktree path plus its
+ *  checked-out branch and the optional attributes git reports for it. */
 interface TrackedWorktree {
   readonly path: string;
-  readonly branch: string;
+  /** Undefined for a detached/bare entry (no branch checked out). */
+  readonly branch?: string;
+  /** True when the block carries a `locked` line (git's `--lock` marker). */
+  readonly locked?: boolean;
+  /** True when the block carries a `detached` line (no branch checked out). */
+  readonly detached?: boolean;
 }
 
 /**
  * Parse `git worktree list --porcelain` output. Each worktree is a blank-line
  * separated block; `branch refs/heads/<name>` is present for a normal
- * checkout, absent for a detached/bare entry (skipped — nothing to match a PR
- * against).
+ * checkout, absent for a detached/bare entry. A detached entry carries no
+ * branch to match a PR against, so it stays out of the removal candidates —
+ * but it is STILL a worktree git knows about, so it must stay out of the
+ * stray set too (a stray is by definition unknown to `git worktree list`).
+ * The `locked`/`detached` attributes travel with every entry so callers can
+ * tell a deliberate operator lock from an unknown directory.
  */
 export const parseWorktreeList = (
   output: string
@@ -116,15 +128,21 @@ export const parseWorktreeList = (
   const entries: TrackedWorktree[] = [];
   let path: string | undefined;
   let branch: string | undefined;
+  let locked = false;
+  let detached = false;
   const flush = (): void => {
-    if (path !== undefined && branch !== undefined) {
+    if (path !== undefined) {
       entries.push({
-        branch,
+        ...(branch === undefined ? {} : { branch }),
+        ...(detached ? { detached: true } : {}),
+        ...(locked ? { locked: true } : {}),
         path,
       });
     }
     path = undefined;
     branch = undefined;
+    locked = false;
+    detached = false;
   };
   for (const line of output.split("\n")) {
     if (line === "") {
@@ -133,6 +151,14 @@ export const parseWorktreeList = (
     }
     if (line.startsWith("worktree ")) {
       path = line.slice("worktree ".length);
+      continue;
+    }
+    if (line === "detached") {
+      detached = true;
+      continue;
+    }
+    if (line.startsWith("locked")) {
+      locked = true;
       continue;
     }
     if (line.startsWith("branch refs/heads/")) {
@@ -296,7 +322,7 @@ const outcomeFor = (
   decision: WorktreeDecision,
   detail: string
 ): WorktreeOutcome => ({
-  branch: tracked.branch,
+  branch: tracked.branch ?? "",
   decision,
   detail,
   path: tracked.path,
@@ -321,7 +347,11 @@ const removeWorktree = (input: {
   // Best-effort: the branch has served its purpose once its PR merged/closed.
   // "branch not found" (already deleted, e.g. by a squash-merge cleanup) is
   // not an error here — the goal (branch gone) already holds.
-  runGit(["branch", "-D", tracked.branch], options.repoDir);
+  // A detached entry never reaches here (no branch → skipped up front), but
+  // the type system cannot see that, so the undefined case is a no-op.
+  if (tracked.branch !== undefined) {
+    runGit(["branch", "-D", tracked.branch], options.repoDir);
+  }
   return outcomeFor(
     tracked,
     "removed",
@@ -342,6 +372,34 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
     readonly token?: string;
   }) {
     const { tracked, options, runGit, fetchImpl, token } = input;
+    // A locked worktree is an explicit operator signal ("do not touch this
+    // one" — `git worktree add --lock`). `git worktree remove` refuses it
+    // without `--force --force`, so pre-fix a locked worktree whose PR was
+    // closed and tree clean turned into a permanent `[error] git worktree
+    // remove failed: ... is a locked working tree` line on EVERY sweep —
+    // reported, never actionable, never resolving. The lock wins: skip with a
+    // dedicated decision before any PR lookup or git probe, leaving the
+    // unlock to the operator (the only one who can legitimately lift it).
+    if (tracked.locked === true) {
+      return outcomeFor(
+        tracked,
+        "skipped-locked",
+        "locked worktree (git worktree unlock <path> to let the sweep manage it)"
+      );
+    }
+    // A detached worktree (no branch checked out) has no branch to match a
+    // PR against. Pre-fix the parser dropped the whole entry, so the
+    // worktree fell through to the stray report — with a detail that was
+    // factually wrong ("unknown to git worktree list") on a worktree git
+    // fully knows about, inviting an operator to "inspect manually" a
+    // healthy checkout on every sweep. Report it for what it is instead.
+    if (tracked.branch === undefined) {
+      return outcomeFor(
+        tracked,
+        "skipped-detached",
+        "detached HEAD (no branch checked out) — nothing to match a PR against"
+      );
+    }
     // A lookup failure (403 rate limit, 5xx, network) is NOT "no PR": the
     // branch's PR state is unknown, so the worktree is reported as an error
     // and left untouched — never silently skipped as if it had no PR.
