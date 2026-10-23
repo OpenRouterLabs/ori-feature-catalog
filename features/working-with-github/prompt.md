@@ -17,8 +17,15 @@ In either mode, **source on GitHub is the primary evidence for how a system work
 The commands below run scripts that ship with this feature. Its directory depends on how the workspace loaded it (a local `features/` folder or the remote-features cache), so resolve it once per shell from the workspace root:
 
 ```bash
-WWG=$(find features .ori/remote-features node_modules -type d -name working-with-github -not -path "*/.bun/*" -print -quit 2>/dev/null)
+WWG=$(find -L features .ori/remote-features node_modules \
+  -name .bun -prune -o -type d -name working-with-github -print -quit 2>/dev/null)
 ```
+
+The `-L` follows the symlink a vendored install resolves through, and
+`node_modules` is searched so a workspace that vendors this catalog as a
+`file:` dependency (the standard composed-intern layout) resolves — while the
+`.bun` store copies stay pruned, so the same file inside the store is never
+chosen over the workspace's real one.
 
 In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.
 
@@ -39,23 +46,30 @@ If ambient requests are denied (401/403/404 on a repo you expect to reach), that
 
 This pattern is mandatory whenever `GH_APP_ID` is set. `gh` and `git` are **not** auto-authenticated: there is no `/usr/local/bin/gh` wrapper, no git credential helper, and no `~/.config/gh/hosts.yml`. A bare `gh ...` or `git fetch` will fail with an auth error. The only secret at rest is the GitHub App private key in the service env (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`); the App's installation is discovered at mint time (matching the `GITHUB_REPO` org), so no installation id is configured. Every token is derived on demand and discarded when the process exits.
 
-Your own repo is in the `GITHUB_REPO` env var. Use `gh` for all GitHub operations against `$GITHUB_REPO` (or any other repo the team asks about).
+Your own repo is in the `GITHUB_REPO` env var. Use `gh` for all GitHub operations against it (or any other repo the team asks about). `GITHUB_REPO` may carry any of the spellings the sibling resolvers in this feature tolerate (bare `owner/repo`, a full `https://` URL, an optional `.git` suffix, a trailing slash), but `gh --repo`, the `repos/{owner}/{repo}` API routes, and the `github.com/…` fetch URL all take bare `owner/repo` only — so normalize once per shell and interpolate `$REPO` in every recipe below.
 
 To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_TOKEN` into the single command that needs it** — `scripts/mint-token.ts` prints the token to stdout:
 
 ```bash
+# Normalize GITHUB_REPO to bare owner/repo (tolerating a full https URL, an
+# optional .git suffix, or a trailing slash — the spellings every resolver in
+# this feature accepts): gh --repo, the repos/{owner}/{repo} API routes, and
+# the github.com fetch URL take owner/repo only, and the raw env var breaks
+# all three under a URL spelling.
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#\.git$##; s#/$##; s#^/##')
+
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
-  gh pr list --repo "$GITHUB_REPO" --limit 20
+  gh pr list --repo "$REPO" --limit 20
 
 # Capture once, reuse across several calls in the same shell (still ephemeral — gone when the shell exits):
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-GH_TOKEN="$TOKEN" gh issue list --repo "$GITHUB_REPO" --state all --limit 20
+GH_TOKEN="$TOKEN" gh issue list --repo "$REPO" --state all --limit 20
 curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-  "https://api.github.com/repos/$GITHUB_REPO"
+  "https://api.github.com/repos/$REPO"
 
 # For git fetch/push, embed the token in the remote URL for that one command (do not persist it in git config):
-git fetch "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPO}.git" main
+git fetch "https://x-access-token:${TOKEN}@github.com/${REPO}.git" main
 ```
 
 **Token-handling rules — mandatory, never bypass:**
@@ -85,10 +99,18 @@ That routing only works once the alternate App is **registered** (a one-time ste
 
 ## Filing issues
 
+How you file follows the access mode: in App mode use the `gh` commands below
+with a minted token; in ambient mode `gh` is not authenticated (and may not
+even be installed) — use the REST API with plain `curl` instead
+(`GET /repos/{owner}/{repo}/issues?state=all` for the duplicate check, and
+`POST /repos/{owner}/{repo}/issues` to file; anonymous filing works on public
+repos when the host attaches no write credential — verify with one POST and
+report the blockage rather than silently dropping the finding).
+
 Before filing a new issue, do a duplicate check:
 
 1. Extract 3-5 keywords from the proposed issue.
-2. Search open and closed issues: `gh issue list --repo "$GITHUB_REPO" --state all --search "KEYWORDS" --limit 20`
+2. Search open and closed issues: `gh issue list --repo "$REPO" --state all --search "KEYWORDS" --limit 20`
 3. If a matching closed issue exists, check whether the fix is still in the codebase. If fixed → say so. If regressed → reopen.
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
@@ -110,18 +132,24 @@ When changing code — yours or an upstream's — **never edit the main checkout
 
 The whole flow (shown for your own repo, `$GITHUB_REPO`; for a composed feature, replace **every** `$GITHUB_REPO` below with the upstream `$UPSTREAM` — the `git fetch` remote URL, each `repos/$GITHUB_REPO/...` API path, and the `--repo "$UPSTREAM"` flag on **both** `mint-token.ts` and `commit-via-api.ts`, so the token is minted and the commit is created against the upstream, not your own repo):
 
-First, mint a token once for this whole flow (inject it into each `gh`/`git`/`curl` call below):
+First, mint a token once for this whole flow, and normalize the repo string once for the same shell (inject the token into each `gh`/`git`/`curl` call below; interpolate `$REPO` in every route — a URL-shaped `GITHUB_REPO` interpolates raw into `repos/https://…` 404s and `github.com/https://…` fetch URLs):
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#\.git$##; s#/$##; s#^/##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:
 
    ```bash
-   SLUG=${GITHUB_REPO//\//-}          # owner/repo -> owner-repo
+   # $REPO was normalized in the first step; slug it for the worktree path:
+   # the cleanup sweep scopes itself to the slug of the NORMALIZED repo
+   # (resolveRepoFromEnv → / → -), so slugging the raw env var would key
+   # worktrees under e.g. `https:--github.com-o-r` — a slug dir the daily
+   # sweep never lists, and the worktree is never swept.
+   SLUG=${REPO//\//-}                 # owner/repo -> owner-repo
    WT=/tmp/worktrees/$SLUG/branch-name  # e.g. /tmp/worktrees/acme-corp-intern-base/fix-linear-typo
-   git fetch "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPO}.git" main
+   git fetch "https://x-access-token:${TOKEN}@github.com/${REPO}.git" main
    git worktree add "$WT" -b branch-name FETCH_HEAD
    ```
 
@@ -136,7 +164,10 @@ TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
 4. **Test and lint** in the worktree before committing — all must pass. Add `ori features validate` whenever a feature's shape changed (a new `features/<id>/`, or an edit to a `feature.ts` / `SKILL.md` / `package.json`):
 
    ```bash
-   cd "$WT" && bun test && bun check
+   # `bun run typecheck` is this repo's lint entry (`tsc --noEmit`); a bare
+   # `bun check` fails with "Script not found" — a `check` script only exists
+   # at the workspace root, not in the repo this feature ships in.
+   cd "$WT" && bun test && bun run typecheck
    ori features validate   # when a feature's shape changed
    ```
 
@@ -144,8 +175,8 @@ TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
 
    ```bash
    # Create the remote branch from main (the Git Data API commits against an existing remote ref).
-   BASE_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${GITHUB_REPO}/git/ref/heads/main" --jq '.object.sha')
-   GH_TOKEN="$TOKEN" gh api "repos/${GITHUB_REPO}/git/refs" \
+   BASE_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/main" --jq '.object.sha')
+   GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs" \
      --method POST --field ref='refs/heads/branch-name' --field sha="$BASE_SHA"
 
    # Stage all worktree changes (adds / modifies / deletes / renames) into ONE signed commit.
@@ -163,7 +194,7 @@ TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
 6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues):
 
    ```bash
-   PR_URL=$(GH_TOKEN="$TOKEN" gh api "repos/${GITHUB_REPO}/pulls" --method POST \
+   PR_URL=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls" --method POST \
      --field title='your PR title' \
      --field head='branch-name' \
      --field base='main' \
@@ -177,7 +208,7 @@ TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
 7. **Verify the commits are signed**, then clean up the worktree:
 
    ```bash
-   GH_TOKEN="$TOKEN" gh api "repos/${GITHUB_REPO}/commits?sha=branch-name&per_page=10" \
+   GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits?sha=branch-name&per_page=10" \
      --jq '[.[] | {sha: .sha[:7], verified: .commit.verification.verified}]'
    # Every entry must show "verified": true.
    git worktree remove "$WT"
@@ -195,7 +226,7 @@ You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly
 When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment:
 
 ```bash
-GH_TOKEN="$TOKEN" gh api "repos/${GITHUB_REPO}/pulls/PR_NUMBER/merge" \
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
   --method PUT --field merge_method='squash'
 ```
 

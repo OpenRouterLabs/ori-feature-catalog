@@ -1,4 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { Effect } from "effect";
 
@@ -58,6 +63,29 @@ const fakeRunGit =
       stdout: r.stdout ?? "",
       stderr: r.stderr ?? "",
     };
+  };
+
+/**
+ * A `runGit` whose `status` call runs against the REAL repo in `cwd` (so the
+ * genuine porcelain output is parsed), while `ls-files --stage` answers the
+ * scripted stale index row. The exec-bit fallback must then read the worktree
+ * file's actual on-disk mode.
+ */
+const realStatusWithStage =
+  (stage: { readonly stageStdout: string }) =>
+  (args: readonly string[], cwd: string): FakeRunGitResult => {
+    if (args[0] === "status") {
+      const result = spawnSync("git", [...args], { cwd, encoding: "utf-8" });
+      return {
+        ok: result.status === 0,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? "",
+      };
+    }
+    if (args[0] === "ls-files") {
+      return { ok: true, stdout: stage.stageStdout, stderr: "" };
+    }
+    return { ok: true, stdout: "", stderr: "" };
   };
 
 /** True if `value` looks like a `{ tree: TreeEntry[] }` body — used to narrow the
@@ -414,6 +442,153 @@ describe("commitViaApi", () => {
     if (!result.ok) {
       expect(result.error.stage).toBe("http");
       expect(result.error.status).toBe(404);
+    }
+  });
+
+  test("a newly added executable file keeps its exec bit (mode 100755)", async () => {
+    // The exec-bit fallback reads the file's real on-disk mode, so stage a
+    // genuine executable file (mode 0o755) in a temp dir and clean it up.
+    const dir = await mkdtemp(join(tmpdir(), "commit-exec-bit-"));
+    try {
+      const filePath = join(dir, "new-script.ts");
+      await writeFile(filePath, "#!/usr/bin/env bun\n");
+      await chmod(filePath, 0o755);
+
+      let treeBody: unknown;
+      const fetchImpl = (
+        url: string,
+        init?: RequestInit
+      ): Promise<Response> => {
+        if (url.includes("/git/ref/heads/")) {
+          return Promise.resolve(Response.json({ object: { sha: "h" } }));
+        }
+        if (url.includes("/git/commits/h")) {
+          return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+        }
+        if (url.endsWith("/git/blobs")) {
+          return Promise.resolve(Response.json({ sha: "b" }));
+        }
+        if (url.endsWith("/git/trees")) {
+          treeBody =
+            typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+          return Promise.resolve(Response.json({ sha: "nt" }));
+        }
+        if (url.endsWith("/git/commits")) {
+          return Promise.resolve(Response.json({ sha: "nc" }));
+        }
+        return Promise.resolve(Response.json({ object: { sha: "nc" } }));
+      };
+
+      const result = await runFold(
+        commitViaApi(
+          {
+            worktree: dir,
+            branch: "feat",
+            message: "m",
+            repo: "owner/repo",
+          },
+          {
+            token: "t",
+            fetchImpl,
+            readFile: () =>
+              Promise.resolve(new TextEncoder().encode("x").buffer),
+            runGit: fakeRunGit({
+              // An untracked (newly added) file with the exec bit set on disk.
+              status: { stdout: "?? new-script.ts\0" },
+              // `git ls-files --stage` has no index row for an untracked file.
+              "ls-files": { stdout: "" },
+            }),
+          }
+        )
+      );
+      expect(result.ok).toBe(true);
+      if (isTreeBody(treeBody)) {
+        expect(treeBody.tree[0]?.mode).toBe("100755");
+      } else {
+        throw new Error("expected a tree body");
+      }
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  test("a tracked file chmod-ed 755 in the worktree keeps its exec bit (mode 100755)", async () => {
+    // The index row for a tracked file carries the OLD mode (100644) — git
+    // does not restage a chmod until `git add`. Trusting the index row alone
+    // would commit the file's new contents with the stale non-exec mode.
+    // The on-disk mode must win for the exec bit.
+    const dir = await mkdtemp(join(tmpdir(), "commit-exec-bit-tracked-"));
+    try {
+      const filePath = join(dir, "run.sh");
+      await writeFile(filePath, "#!/usr/bin/env bun\nold\n");
+      await chmod(filePath, 0o644);
+      // A real (throwaway) repo so `git add`/`commit` behave exactly as they
+      // would in a worktree.
+      execFileSync("git", ["init", "-q", "."], { cwd: dir });
+      execFileSync("git", ["config", "user.email", "t@t"], { cwd: dir });
+      execFileSync("git", ["config", "user.name", "t"], { cwd: dir });
+      execFileSync("git", ["add", "run.sh"], { cwd: dir });
+      execFileSync("git", ["commit", "-qm", "one"], { cwd: dir });
+      // The tracked file is modified AND chmod-ed 755 in the worktree —
+      // exactly the state a `git add` would record as 100755, but the index
+      // still says 100644 until then.
+      await writeFile(filePath, "#!/usr/bin/env bun\nnew\n");
+      await chmod(filePath, 0o755);
+
+      let treeBody: unknown;
+      const fetchImpl = (
+        url: string,
+        init?: RequestInit
+      ): Promise<Response> => {
+        if (url.includes("/git/ref/heads/")) {
+          return Promise.resolve(Response.json({ object: { sha: "h" } }));
+        }
+        if (url.includes("/git/commits/h")) {
+          return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+        }
+        if (url.endsWith("/git/blobs")) {
+          return Promise.resolve(Response.json({ sha: "b" }));
+        }
+        if (url.endsWith("/git/trees")) {
+          treeBody =
+            typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+          return Promise.resolve(Response.json({ sha: "nt" }));
+        }
+        if (url.endsWith("/git/commits")) {
+          return Promise.resolve(Response.json({ sha: "nc" }));
+        }
+        return Promise.resolve(Response.json({ object: { sha: "nc" } }));
+      };
+
+      const result = await runFold(
+        commitViaApi(
+          {
+            worktree: dir,
+            branch: "feat",
+            message: "m",
+            repo: "owner/repo",
+          },
+          {
+            token: "t",
+            fetchImpl,
+            readFile: () =>
+              Promise.resolve(new TextEncoder().encode("x").buffer),
+            runGit: realStatusWithStage({
+              // The real `git ls-files --stage -- run.sh` output here is the
+              // STALE index row: `100644 <sha> 0\trun.sh`.
+              stageStdout: "100644 c1b0730e0133447badcfd47fd144e254807b06e1 0\trun.sh\n",
+            }),
+          }
+        )
+      );
+      expect(result.ok).toBe(true);
+      if (isTreeBody(treeBody)) {
+        expect(treeBody.tree[0]?.mode).toBe("100755");
+      } else {
+        throw new Error("expected a tree body");
+      }
+    } finally {
+      await rm(dir, { force: true, recursive: true });
     }
   });
 });

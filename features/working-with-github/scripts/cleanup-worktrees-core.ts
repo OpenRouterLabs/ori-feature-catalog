@@ -25,18 +25,13 @@
  */
 
 import { readdir, realpath } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { Effect, Schema } from "effect";
 
 import type { FetchLike, RunGit } from "./commit-api-core.ts";
 
-import {
-  CommitApiError,
-  GITHUB_API,
-  defaultRunGit,
-  ghJson,
-} from "./commit-api-core.ts";
+import { CommitApiError, GITHUB_API, defaultRunGit, ghJson } from "./commit-api-core.ts";
 
 export type WorktreeDecision =
   | "removed"
@@ -62,17 +57,38 @@ export interface CleanupOptions {
   readonly repoDir: string;
   readonly worktreesRoot: string;
   readonly dryRun: boolean;
+  /**
+   * Only worktrees under `<worktreesRoot>/<repo-slug>/` are candidates —
+   * the layout this feature's own worktree-creation flow writes. The sweep
+   * never touches another repo's slug directory: a branch name is unique
+   * per-repo (and git branch names may collide across repos), so a PR lookup
+   * against `--repo other/repo` for a worktree that belongs to a sibling
+   * repo is not a removal signal for it. When omitted, the sweep stays
+   * scoped by `git worktree list` output alone (a branch whose repo cannot
+   * be assumed is reported, never removed).
+   */
+  readonly repoSlug?: string;
 }
 
 export interface CleanupDeps {
   readonly runGit?: RunGit;
   readonly fetchImpl?: FetchLike;
   readonly readDir?: (path: string) => Promise<readonly string[]>;
-  readonly token: string;
+  /**
+   * Bearer token for the PR lookup. Optional for ambient mode (`GH_APP_ID`
+   * unset): the lookup then goes bare, and the host's egress proxy attaches
+   * the workspace credential — the same ambient REST discipline the feature
+   * prompt teaches and `gh-auth-health` implements. A bare lookup GitHub
+   * answers 401/403 (no ambient credential) surfaces as an error outcome
+   * per worktree, never a silent skip.
+   */
+  readonly token?: string;
 }
 
 export interface CleanupSummary {
   readonly outcomes: readonly WorktreeOutcome[];
+  /** True when the sweep could not run: `git worktree list` itself failed. */
+  readonly gitListFailed?: boolean;
 }
 
 const defaultReadDir = async (path: string): Promise<readonly string[]> => {
@@ -149,17 +165,6 @@ interface PrLookup {
   readonly number: number;
 }
 
-/** The two fields of a `GET /repos/{repo}/pulls` entry the removal decision
- *  reads. A `state` outside the pair below is a shape this code has never
- *  reasoned about; the tolerance at the call site turns it into "no PR found",
- *  which keeps the worktree. */
-const PullRequestPage = Schema.Array(
-  Schema.Struct({
-    number: Schema.Number,
-    state: Schema.Literals(["open", "closed"]),
-  })
-);
-
 /** The PR lookup failed: a network error or an HTTP error status (403 rate
  *  limit, 5xx, …). Distinct from "no PR for this branch", which is a real
  *  answer, so the removal decision can tell the two apart. */
@@ -173,54 +178,108 @@ class PrLookupError extends Error {
   }
 }
 
-/** `GET /repos/{repo}/pulls?head={owner}:{branch}&state=all` — the most recent
- *  PR for `branch`, or `undefined` when none exists. GitHub's PR `state` is
- *  only ever "open"/"closed"; `merged_at` doesn't change the removal decision,
- *  so it's not read here. */
+/** The two fields of a `GET /repos/{repo}/pulls` entry the removal decision
+ *  reads. A `state` outside the pair below is a shape this code has never
+ *  reasoned about; the tolerance at the call site turns it into "no PR found",
+ *  which keeps the worktree. */
+const PullRequestPage = Schema.Array(
+  Schema.Struct({
+    number: Schema.Number,
+    state: Schema.Literals(["open", "closed"]),
+  })
+);
+
+/** `GET /repos/{repo}/pulls?head={owner}:{branch}&state=all` — the branch's
+ *  deciding PR, or `undefined` when none exists. A branch can carry several
+ *  PRs across its history (a PR closed as superseded, then a fresh one
+ *  re-opened from the same branch), and GitHub returns the pages newest-first:
+ *  keying on the first entry alone would let a NEW closed PR mask an OLDER
+ *  still-open one and remove a worktree whose work is back in review. An open
+ *  PR anywhere in the pages always wins; with none open, the newest entry
+ *  decides. The pages are walked until one comes back short (the same
+ *  short-page-is-last-page discipline as the installation discovery in
+ *  `gh-app-github-api.ts`): a branch whose PR history crosses the page
+ *  boundary — the newest closed PR on page one, the still-open re-opened PR
+ *  behind it — is decided by page one alone otherwise, and its worktree is
+ *  removed mid-review. GitHub's PR `state` is only ever "open"/"closed";
+ *  `merged_at` doesn't change the removal decision, so it's not read here. */
+
+/** One page of the PR list: 100 entries, the largest page GitHub serves. */
+const PULLS_PAGE_SIZE = 100;
+
 const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
   function* (input: {
     readonly fetchImpl: FetchLike;
-    readonly token: string;
+    /** Optional for ambient mode — see CleanupDeps.token. */
+    readonly token?: string;
     readonly repo: string;
     readonly branch: string;
   }) {
     const [owner = ""] = input.repo.split("/");
     // URL-encode the query value: a branch name may contain characters a query
     // string reserves (`+` decodes as a space, `&`/`#`/`%` break the URL
-    // itself), and an unencoded `+` silently fails the head= filter — GitHub
-    // then answers an empty page and the sweep reports "no PR found", never
-    // cleaning the worktree. The repo stays a raw `owner/repo` path segment:
-    // GitHub's route matches the separator literally, and %2F-encoding it
-    // answers 404.
+    // itself), and an unencoded `+` silently fails the head= filter — the
+    // sweep then reports "no PR found" and never cleans the worktree. The repo
+    // stays a raw `owner/repo` path segment: GitHub's route matches the
+    // separator literally, and %2F-encoding it answers 404 (verified live).
     const url = `${GITHUB_API}/repos/${input.repo}/pulls?head=${encodeURIComponent(
       `${owner}:${input.branch}`
-    )}&state=all`;
-    return yield* ghJson({
-      fetchImpl: input.fetchImpl,
-      method: "GET",
-      schema: PullRequestPage,
-      token: input.token,
-      url,
-    }).pipe(
-      // An empty page is "no PR for this branch", which is a real answer here.
-      // A response GitHub's own schema never promised (an unexpected `state`
-      // value) degrades to "no PR found" — the branch that keeps the worktree.
-      // A network failure or an HTTP error status (403 rate limit, 5xx) is
-      // NOT "no PR": it is raised so the sweep reports an error outcome rather
-      // than silently skipping a worktree whose PR state is simply unknown.
-      Effect.map((page): PrLookup | undefined =>
-        page.length === 0 ? undefined : page[0]
-      ),
-      Effect.catchIf(
-        (error): error is CommitApiError =>
-          error instanceof CommitApiError && error.stage !== "http",
-        () => Effect.succeed<PrLookup | undefined>(undefined)
-      ),
-      Effect.mapError(
-        (error: CommitApiError) =>
-          new PrLookupError(error.status, error.message)
-      )
-    );
+    )}&state=all&per_page=${PULLS_PAGE_SIZE}`;
+    /** One page of the branch's PRs, or `undefined` when the response was a
+     *  shape GitHub's own schema never promised (an unexpected `state` value)
+     *  — degraded to "no PR found", the branch that keeps the worktree. */
+    const fetchPage = (
+      page: number
+    ): Effect.Effect<readonly PrLookup[] | undefined, PrLookupError> =>
+      ghJson({
+        fetchImpl: input.fetchImpl,
+        method: "GET",
+        schema: PullRequestPage,
+        token: input.token,
+        url: `${url}&page=${page}`,
+      }).pipe(
+        Effect.catchIf(
+          (error): error is CommitApiError =>
+            error instanceof CommitApiError && error.stage !== "http",
+          () => Effect.succeed<readonly PrLookup[] | undefined>(undefined)
+        ),
+        // A network failure or an HTTP error status (403 rate limit, 5xx) is
+        // NOT "no PR": it is raised so the sweep reports an error outcome
+        // rather than silently skipping a worktree whose PR state is unknown.
+        Effect.mapError(
+          (error: CommitApiError) =>
+            new PrLookupError(error.status, error.message)
+        )
+      );
+    // Newest-first across pages: the first entry of the first non-empty page
+    // is the deciding PR when no page holds an open one.
+    let newest: PrLookup | undefined;
+    for (let page = 1; ; page += 1) {
+      const entries = yield* fetchPage(page);
+      // A degraded page (unexpected shape) is "no PR found" — stop here.
+      if (entries === undefined) {
+        break;
+      }
+      // An open PR anywhere in the pages always wins — stop the walk.
+      const open = entries.find((pr) => pr.state === "open");
+      if (open !== undefined) {
+        return open;
+      }
+      // An empty page is "no PR for this branch" beyond this point — a real
+      // answer, not an error.
+      if (entries.length === 0) {
+        break;
+      }
+      if (newest === undefined) {
+        newest = entries[0];
+      }
+      // A short page is the last page; a full one may have a deciding open PR
+      // behind it — keep walking.
+      if (entries.length < PULLS_PAGE_SIZE) {
+        break;
+      }
+    }
+    return newest;
   }
 );
 
@@ -279,7 +338,8 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
     readonly options: CleanupOptions;
     readonly runGit: RunGit;
     readonly fetchImpl: FetchLike;
-    readonly token: string;
+    /** Optional for ambient mode — see CleanupDeps.token. */
+    readonly token?: string;
   }) {
     const { tracked, options, runGit, fetchImpl, token } = input;
     // A lookup failure (403 rate limit, 5xx, network) is NOT "no PR": the
@@ -296,9 +356,7 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
           outcomeFor(
             tracked,
             "error",
-            `PR lookup failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`
+            `PR lookup failed: ${error instanceof Error ? error.message : String(error)}`
           )
         )
       )
@@ -343,23 +401,71 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
   }
 );
 
-/** Directories on disk under `resolvedRoot` that `git worktree list` has no
- *  record of — reported, never acted on directly (see module doc). Both sides
- *  of the comparison go through `resolvedRoot` so a symlinked root (e.g. macOS
- *  `/tmp` → `/private/tmp`) can't cause the same worktree to be reported twice. */
+/** Directories on disk under the swept scope that `git worktree list` has no
+ *  record of — reported, never acted on directly (see module doc). The sweep
+ *  lists ONE directory level: `scopeDir` when the sweep is slug-scoped (the
+ *  CLI and schedule always are — the per-branch checkouts live under
+ *  `<worktrees-root>/<repo-slug>/`, so THAT is the level whose on-disk dirs
+ *  must be checked against `git worktree list`), else `resolvedRoot` (the
+ *  historical unscoped behavior). Pre-fix this always listed the worktrees
+ *  root: a scoped sweep's only top-level candidate was the slug container
+ *  itself — excluded as the sweep's own healthy end-state — so the stray
+ *  report was EMPTY in every real invocation, and a branch dir unknown to
+ *  git (the exact case the report exists for) was never named. A directory
+ *  that is an ANCESTOR of a tracked worktree is not a stray: `git worktree
+ *  list` tracks the per-branch checkout, never a container it lives in —
+ *  without this exclusion every healthy layout was reported as a false stray
+ *  on every sweep. The sweep's own `scopeDir` container is never a stray
+ *  either (its contents stay in scope). Both sides of the comparison go
+ *  through `resolvedRoot`-style realpath resolution so a symlinked root
+ *  (e.g. macOS `/tmp` → `/private/tmp`) can't cause the same worktree to be
+ *  reported twice. */
 const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
   function* (input: {
     readonly resolvedRoot: string;
     readonly tracked: readonly TrackedWorktree[];
     readonly readDir: (path: string) => Promise<readonly string[]>;
+    /** Only strays under this directory are reported. Omitted → every stray
+     *  under `resolvedRoot` (the historical behavior). */
+    readonly scopeDir?: string;
   }) {
     const trackedPaths = new Set(input.tracked.map((entry) => entry.path));
-    const onDisk = yield* Effect.promise(() =>
-      input.readDir(input.resolvedRoot)
-    );
+    // List the SCOPE level, not the root: a slug-scoped sweep checks its own
+    // slug dir's children (the per-branch layout); an unscoped sweep keeps
+    // listing the root (the historical behavior the unscoped tests pin).
+    const listDir = input.scopeDir ?? input.resolvedRoot;
+    const onDisk = yield* Effect.promise(() => input.readDir(listDir));
     return onDisk
-      .map((name) => join(input.resolvedRoot, name))
+      .map((name) => join(listDir, name))
+      .filter(
+        (path) =>
+          input.scopeDir === undefined ||
+          path === input.scopeDir ||
+          path.startsWith(`${input.scopeDir}${sep}`)
+      )
+      .filter(
+        (path) =>
+          // The sweep's own slug container is never a stray. The flow's own
+          // layout is `<root>/<slug>/<branch>`: `git worktree list` tracks
+          // the per-branch checkout, never the container, and once every
+          // branch's worktree is removed (the sweep's own success path) only
+          // the emptied container remains — a healthy layout the sweep
+          // would otherwise report as a stray on EVERY subsequent run,
+          // exactly the #71 false-stray class for the ancestor case. Its
+          // CONTENTS stay in scope: a stray branch dir under it is still
+          // reported; only the container itself is excluded.
+          path !== input.scopeDir
+      )
       .filter((path) => !trackedPaths.has(path))
+      .filter(
+        (path) =>
+          // Keep the exclusion tight: a container holds tracked worktrees
+          // UNDER it, as a proper path prefix (not a string prefix —
+          // `/a/b` is not an ancestor of `/a/bc`).
+          !Array.from(trackedPaths).some((tracked) =>
+            tracked.startsWith(`${path}${sep}`)
+          )
+      )
       .map(
         (path): WorktreeOutcome => ({
           branch: "",
@@ -375,12 +481,22 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
 /** Real-path each `tracked` entry and keep only those really under
  *  `resolvedRoot` — everything else (the repo checkout itself, or anything
  *  unexpected) is simply out of scope for this sweep, not an error.
+ *  The repo checkout itself (`resolvedRepoDir`, resolved the same way) is
+ *  ALWAYS excluded too — the module doc promises it "never appears in the
+ *  result", but a checkout that sits under the worktrees root (an unusual
+ *  layout, or a `--worktrees-root` pointed at a directory containing it) is
+ *  otherwise admitted as a candidate, and the sweep would try `git worktree
+ *  remove` on the live checkout.
  *  Normalizing here (not just checking containment) keeps every downstream
  *  comparison — including `findStrayDirs`'s against real on-disk paths —
  *  working off the same resolved form, so a symlinked root (e.g. macOS `/tmp`
  *  → `/private/tmp`) can't cause the same worktree to be reported twice. */
 const resolveWithinRoot = Effect.fn("CleanupWorktrees.resolveWithinRoot")(
-  function* (tracked: readonly TrackedWorktree[], resolvedRoot: string) {
+  function* (
+    tracked: readonly TrackedWorktree[],
+    resolvedRoot: string,
+    resolvedRepoDir: string
+  ) {
     const resolved = yield* Effect.all(
       tracked.map((entry) =>
         toRealPath(entry.path).pipe(
@@ -391,8 +507,15 @@ const resolveWithinRoot = Effect.fn("CleanupWorktrees.resolveWithinRoot")(
         )
       )
     );
-    return resolved.filter((entry) =>
-      isUnderResolvedRoot(entry.path, resolvedRoot)
+    return resolved.filter(
+      (entry) =>
+        // The repo checkout is never a removal candidate (see above). Only
+        // the checkout itself is excluded — NOT everything under it: in the
+        // tests (and a `--repo-dir` == `--worktrees-root` layout) the root is
+        // the checkout, and its sibling worktrees are the whole point of the
+        // sweep.
+        entry.path !== resolvedRepoDir &&
+        isUnderResolvedRoot(entry.path, resolvedRoot)
     );
   }
 );
@@ -413,14 +536,54 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const readDir = deps.readDir ?? defaultReadDir;
 
     const resolvedRoot = yield* toRealPath(options.worktreesRoot);
+    // The repo checkout git runs from — resolved the same way as every other
+    // path, so a symlinked checkout can't dodge the exclusion.
+    const resolvedRepoDir = yield* toRealPath(options.repoDir);
+    let worktreeScope: readonly TrackedWorktree[] | undefined;
 
     runGit(["worktree", "prune"], options.repoDir);
     const listed = runGit(["worktree", "list", "--porcelain"], options.repoDir);
-    const tracked = listed.ok ? parseWorktreeList(listed.stdout) : [];
-    const withinRoot = yield* resolveWithinRoot(tracked, resolvedRoot);
+    if (!listed.ok) {
+      const detail = listed.stderr.trim();
+      const failure = outcomeFor(
+        {
+          branch: "",
+          path: options.worktreesRoot,
+        },
+        "error",
+        `git worktree list failed${detail === "" ? "" : `: ${detail}`}`
+      );
+      return {
+        gitListFailed: true,
+        outcomes: [failure],
+      } satisfies CleanupSummary;
+    }
+    const tracked = parseWorktreeList(listed.stdout);
+    const resolvedSlugDir =
+      options.repoSlug !== undefined
+        ? yield* toRealPath(join(options.worktreesRoot, options.repoSlug))
+        : undefined;
+    const withinRoot = yield* resolveWithinRoot(
+      tracked,
+      resolvedRoot,
+      resolvedRepoDir
+    );
+    if (resolvedSlugDir !== undefined) {
+      // Scoped to one repo's slug directory: a worktree under a different
+      // slug directory belongs to another repo — out of scope: reported by
+      // neither the outcome list nor the stray sweep below.
+      const scoped = withinRoot.filter((entry) => {
+        const rel = relative(resolvedSlugDir, entry.path);
+        return (
+          (rel !== "" && !rel.startsWith("..")) ||
+          entry.path === resolvedSlugDir
+        );
+      });
+      worktreeScope = scoped;
+    }
 
     const outcomes = yield* Effect.all(
-      withinRoot.map((entryTracked) =>
+      (worktreeScope ?? withinRoot).map((entryTracked) =>
         evaluateWorktree({
           fetchImpl,
           runGit,
@@ -435,7 +598,8 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const strays = yield* findStrayDirs({
       readDir,
       resolvedRoot,
-      tracked: withinRoot,
+      scopeDir: resolvedSlugDir,
+      tracked: worktreeScope ?? withinRoot,
     });
     return { outcomes: [...outcomes, ...strays] } satisfies CleanupSummary;
   }

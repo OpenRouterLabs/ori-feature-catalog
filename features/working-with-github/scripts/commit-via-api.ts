@@ -84,9 +84,48 @@ const parseFlagPair = (
       })
     );
   }
+  // Trim BEFORE the flag-shape check: a value that is a flag modulo
+  // surrounding whitespace (`--branch " --worktree "`) is the same omitted
+  // value, but the raw token passed the guard first, trimmed to "--worktree",
+  // and flowed on as a real branch — minting a token and creating blobs
+  // before dying on the 404 from `GET /git/ref/heads/--worktree`, the same
+  // late-failure class as the unpadded shape below. A following token that is
+  // itself a flag means the value was omitted (e.g. `--branch --worktree`) —
+  // the sibling CLIs (`mint-token.ts` `parseMintArgs`, `register-gh-app.ts`
+  // `readFlag`, `cleanup-worktrees.ts` `parseCleanupArgs`) all reject it here
+  // rather than persisting a garbage value. Accepted, it silently succeeds the
+  // parse (branch "--worktree") and fails much later — or commits to whatever
+  // branch literally carries that name.
+  if (value.trim().startsWith("--")) {
+    return Effect.fail(
+      new CommitApiError({
+        stage: "args",
+        message: `flag "${key}" is missing its value (got "${value}", which is a flag)`,
+      })
+    );
+  }
+  // An empty (or whitespace-only) value is unusable — the same class as the
+  // flag-shaped value above, and the same rule `mint-token.ts` applies to
+  // `--repo`/`--org`/`--purpose`. Pre-fix, `--branch ""` parsed clean and the
+  // flow failed LATE — after minting a token and creating blobs, on a 404
+  // from `GET /git/ref/heads/` — instead of failing at the parse, after side
+  // effects, with a message that never named the flag.
+  if (value.trim() === "") {
+    return Effect.fail(
+      new CommitApiError({
+        stage: "args",
+        message: `flag "${key}" is missing its value (got an empty string)`,
+      })
+    );
+  }
+  // Trim surrounding whitespace, matching `mint-token.ts`'s `read` and
+  // `register-gh-app.ts`'s `readFlag`: a padded value (`--branch " fix-x "`)
+  // otherwise goes through raw and the flow fails LATE — a 404 from
+  // `GET /git/ref/heads/ fix-x ` after minting a token and creating blobs —
+  // or commits to a branch that literally carries the padding.
   return Effect.succeed({
     key: key.slice(2),
-    value,
+    value: value.trim(),
   });
 };
 
@@ -107,7 +146,14 @@ export const parseCliArgs = (
     const worktree = flags.get("worktree");
     const branch = flags.get("branch");
     const messageFile = flags.get("message-file");
-    const repo = flags.get("repo") ?? resolveRepoFromEnv(env);
+    // `--repo` tolerates the same spellings `GITHUB_REPO` does (a full https
+    // URL with optional .git, or a bare owner/repo): the tool is unusable
+    // against any URL-shaped repo name otherwise — every Git Data API call
+    // 404s, since `/repos/https://github.com/o/r/...` is not a real route.
+    const repo = resolveRepoFromEnv({
+      ...env,
+      GITHUB_REPO: flags.get("repo") ?? env.GITHUB_REPO,
+    });
     const missing = [
       worktree === undefined ? "--worktree" : undefined,
       branch === undefined ? "--branch" : undefined,

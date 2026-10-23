@@ -86,7 +86,24 @@ export const runMint = (
 export interface MintArgs {
   readonly targetRepo?: string;
   readonly purpose?: string;
+  /** Parse-time usage error: an explicitly-passed --repo/--org/--purpose had
+   *  no usable value. Carried so the CLI entrypoint can fail loudly; never
+   *  reaches `mintInstallationToken`. */
+  readonly missingRepoValue?: boolean;
+  /** Parse-time usage error: an explicitly-passed `--purpose` had no usable
+   *  value (the same class as {@link missingRepoValue}, for the third
+   *  value-taking flag). Never reaches `mintInstallationToken`. */
+  readonly missingPurposeValue?: boolean;
 }
+
+/** True when `flag` appears in `argv` at all — used to distinguish an
+ *  explicitly-requested-but-valueless flag (a usage error) from an absent one
+ *  (the legitimate bare-default path). `--purpose` is deliberately NOT a
+ *  member of this list: a purposeless bare-default mint stays legitimate
+ *  (the registered (org, default) row is the fallback), so its usage error
+ *  is keyed on its own `missingPurposeValue` field instead. */
+const flagPresent = (argv: readonly string[], flag: string): boolean =>
+  argv.includes(flag);
 
 /**
  * Parse `--repo <owner/repo>` (alias `--org <org>`) and `--purpose <label>` out
@@ -100,29 +117,99 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
       return undefined;
     }
     const value = argv[i + 1];
-    // A following token that is itself a flag means the value was omitted
-    // (e.g. `--repo --purpose reviewer`) — treat it as absent, not the value.
-    if (value === undefined || value.startsWith("--")) {
+    // Trim BEFORE the flag-shape check: a value that is a flag modulo
+    // surrounding whitespace (`--repo " --purpose "`) is the same omitted
+    // value, and checking the raw token first let it trim to "--purpose" and
+    // flow on as a real target — a silent identity swap in the making.
+    const trimmedValue = value === undefined ? undefined : value.trim();
+    if (trimmedValue === undefined || trimmedValue.startsWith("--")) {
       return undefined;
     }
-    // Trim so whitespace (e.g. `--purpose "reviewer "`) still matches registry
-    // rows — the register CLI trims too. All-whitespace → absent.
-    const trimmed = value.trim();
-    return trimmed === "" ? undefined : trimmed;
+    // All-whitespace → absent.
+    return trimmedValue === "" ? undefined : trimmedValue;
   };
   const targetRepo = read("--repo") ?? read("--org");
   const purpose = read("--purpose");
+  // An explicitly-passed `--purpose` whose value is missing must fail the
+  // parse, exactly like `--repo`/`--org`: the caller asked for a role App's
+  // token, and silently minting the default App's instead is the same
+  // silent-identity-swap #98 closed for the repo flags. A flag with no value
+  // at all (`--purpose` trailing argv) and a flag whose slot was eaten by the
+  // next flag (`--purpose --repo acme/x`) both land here — `read` returns
+  // undefined for exactly those two shapes.
+  if (purpose === undefined && flagPresent(argv, "--purpose")) {
+    return { missingPurposeValue: true };
+  }
+  // An explicitly-passed --repo/--org whose value is missing must fail the
+  // parse, not silently mint the default App: the caller asked for a token
+  // routed to a target org, and the token they would silently get instead
+  // (the default App's) cannot see that target's repos — every later call
+  // 404s with no hint why. `--purpose`-without-an-org already fails loudly
+  // via resolveMintDeps; this closes the matching --repo gap.
+  if (
+    targetRepo === undefined &&
+    (flagPresent(argv, "--repo") || flagPresent(argv, "--org"))
+  ) {
+    return {
+      ...(purpose === undefined ? {} : { purpose }),
+      missingRepoValue: true,
+    };
+  }
   return {
     ...(targetRepo === undefined ? {} : { targetRepo }),
     ...(purpose === undefined ? {} : { purpose }),
   };
 };
 
+/** The mint deps the CLI passes to `mintInstallationToken`, after resolving the
+ *  own-org default for a purpose-only invocation. `--purpose` selects a role
+ *  App for the target org; without `--repo`/`--org` the target is the intern's
+ *  own repo (`GITHUB_REPO`) — the "distinct role in your own org" case the
+ *  feature prompt documents. Without this, the purpose was silently dropped:
+ *  `mintInstallationToken` only routes through the registry when a target
+ *  repo/org is given, so a registered (own-org, purpose) App was never
+ *  consulted and the bare default App was minted instead — a silent identity
+ *  swap (e.g. a reviewer-only request minting the maintainer App's token).
+ *  Returns null when a purpose is given but no org is derivable at all — the
+ *  purpose can never route then, so the CLI must fail loudly rather than mint
+ *  the default. */
+export const resolveMintDeps = (
+  args: MintArgs,
+  env: Readonly<Record<string, string | undefined>> = process.env
+): MintArgs | null => {
+  if (args.missingRepoValue === true || args.missingPurposeValue === true) {
+    return null;
+  }
+  if (args.purpose === undefined || args.targetRepo !== undefined) {
+    return args;
+  }
+  const ownOrg = (env.GITHUB_REPO ?? "").trim();
+  if (ownOrg === "") {
+    return null;
+  }
+  return { ...args, targetRepo: ownOrg };
+};
+
 // Only run the CLI when invoked directly (not when imported by a test).
 if (import.meta.main) {
   const args = parseMintArgs(process.argv.slice(2));
+  const mintDeps = resolveMintDeps(args);
+  if (mintDeps === null) {
+    // Either an explicitly-passed value-taking flag with no usable value
+    // (--repo/--org/--purpose) or a purpose with no derivable org (it can
+    // never route to a registered App) — minting the bare default instead
+    // would silently ignore the flag.
+    process.stderr.write(
+      args.missingRepoValue === true
+        ? "mint-token: --repo/--org needs a value (e.g. --repo owner/repo)\n"
+        : args.missingPurposeValue === true
+          ? "mint-token: --purpose needs a value (e.g. --purpose reviewer)\n"
+        : "mint-token: --purpose needs a target org: pass --repo/--org or set GITHUB_REPO\n"
+    );
+    process.exit(1);
+  }
   const code = await Effect.runPromise(
-    runMint(mintInstallationToken(args), {
+    runMint(mintInstallationToken(mintDeps), {
       out: (text) => {
         process.stdout.write(text);
       },

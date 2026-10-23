@@ -67,6 +67,45 @@ describe("gh-app-registry — register / lookup / list round-trip", () => {
     expect(listApps(db)).toHaveLength(1);
   });
 
+  test("normalizes a repo-shaped org before persisting, so the mint path can look it up", () => {
+    // The register CLI and the feature prompt document `--org` accepting the
+    // same spellings `mint-token.ts --repo` takes (a bare owner/repo, a full
+    // https URL with optional .git, an ssh/scp string). `mintInstallationToken`
+    // derives its registry key via `orgOf(targetRepo)`, so a raw
+    // `acme-corp/widgets` row is never matched and the mint silently falls
+    // back to the default App instead of the registered one.
+    for (const org of [
+      "acme-corp/widgets",
+      "https://github.com/acme-corp/widgets",
+      "https://github.com/acme-corp/widgets.git",
+      "git@github.com:acme-corp/widgets.git",
+    ]) {
+      registerApp(db, {
+        appIdKey: "TEAM_GH_APP_ID",
+        org,
+        privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+        purpose: "reviewer",
+      });
+      // Stored under the owner segment, not the repo-shaped raw value.
+      expect(lookupApp(db, "acme-corp", "reviewer")).toEqual({
+        appIdKey: "TEAM_GH_APP_ID",
+        privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+      });
+      // A raw repo-shaped lookup must not match either: the mint path never
+      // produces one (orgOf runs first), so the store must not keep a row
+      // only a bogus lookup could hit.
+      expect(lookupApp(db, org, "reviewer")).toBeNull();
+      // Every spelling upserts the one row — no duplicates accumulate.
+      expect(listApps(db)).toHaveLength(1);
+    }
+    // The exact resolver chain the mint path runs (orgOf → resolveApp with
+    // the purpose, then the default fallback) hits the row end to end.
+    expect(resolveApp(db, orgOf("acme-corp/widgets"), "reviewer")).toEqual({
+      appIdKey: "TEAM_GH_APP_ID",
+      privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+    });
+  });
+
   test("matches org and purpose case-insensitively (GitHub logins are)", () => {
     registerApp(db, {
       appIdKey: "TEAM_GH_APP_ID",
@@ -335,5 +374,79 @@ describe("resolveConfigDirName", () => {
 
   test("falls back to 'intern' when nothing is set", () => {
     expect(resolveConfigDirName({})).toBe("intern");
+  });
+});
+
+describe("gh-app-registry — SQLite busy contention", () => {
+  test("openGhAppRegistryDb arms a busy_timeout, and a blocked writer waits instead of failing instantly", () => {
+    // Two connections on one DB file, exactly what a register-gh-app CLI run
+    // and a concurrent mint's installation-cache put look like. SQLite's
+    // default busy_timeout is 0: with the write lock held, a second writer
+    // fails IMMEDIATELY with "database is locked" — and the registry/cache
+    // seams swallow that error as a no-op, so the write silently disappears.
+    const path = `/tmp/wwg-busy-test-${process.pid}-${Date.now()}.db`;
+    const holder = openGhAppRegistryDb(path);
+    const waiter = openGhAppRegistryDb(path);
+    try {
+      // (1) The opener must arm a real bounded wait, not SQLite's default 0.
+      const armed = waiter
+        .query<{ readonly timeout: number }, []>("PRAGMA busy_timeout")
+        .get();
+      expect(armed?.timeout ?? 0).toBeGreaterThanOrEqual(1000);
+      // (2) Behavioral: with the write lock held, a write from the second
+      // connection BLOCKS for the armed timeout instead of failing instantly
+      // (pre-fix: SQLITE_BUSY after ~0ms). The wait is shortened here only
+      // to keep the suite fast; the opener's own value is asserted in (1).
+      waiter.run("PRAGMA busy_timeout = 200");
+      holder.run("BEGIN IMMEDIATE");
+      const started = Date.now();
+      let threw = false;
+      try {
+        waiter.run(
+          "INSERT INTO gh_app_registry (org,purpose,app_id_key,private_key_key,registered_at) VALUES ('w','p','W_ID','W_PK',0)"
+        );
+      } catch {
+        threw = true;
+      }
+      const waitedMs = Date.now() - started;
+      // The lock is genuinely held for the whole window — the write cannot
+      // land; what must change is that it WAITED rather than failed at once.
+      expect(threw).toBeTrue();
+      expect(waitedMs).toBeGreaterThanOrEqual(150);
+      holder.run("ROLLBACK");
+    } finally {
+      holder.close();
+      waiter.close();
+      // Best-effort cleanup of the file and its WAL sidecars.
+      for (const suffix of ["", "-wal", "-shm"]) {
+        try {
+          require("node:fs").unlinkSync(`${path}${suffix}`);
+        } catch {
+          // tmp cleans up.
+        }
+      }
+    }
+  });
+});
+
+describe("resolveConfigDirName — trailing-slash GITHUB_REPO spellings", () => {
+  test("a trailing slash does not change the config dir name (bare owner/repo spelling)", () => {
+    expect(resolveConfigDirName({ GITHUB_REPO: "acme/widgets/" })).toBe(
+      resolveConfigDirName({ GITHUB_REPO: "acme/widgets" })
+    );
+    expect(resolveConfigDirName({ GITHUB_REPO: "acme/widgets" })).toBe(
+      "widgets"
+    );
+  });
+
+  test("a trailing slash does not change the config dir name (full URL spelling)", () => {
+    expect(
+      resolveConfigDirName({ GITHUB_REPO: "https://github.com/acme/widgets/" })
+    ).toBe(resolveConfigDirName({ GITHUB_REPO: "acme/widgets" }));
+    expect(
+      resolveConfigDirName({
+        GITHUB_REPO: "https://github.com/acme/widgets.git/",
+      })
+    ).toBe("widgets");
   });
 });

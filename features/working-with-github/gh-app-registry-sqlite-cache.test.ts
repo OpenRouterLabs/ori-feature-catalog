@@ -5,31 +5,29 @@ import { join } from "node:path";
 
 import { sqliteInstallationCache } from "./gh-app-registry.ts";
 
-const restoreEnv = (key: string, value: string | undefined): void => {
-  if (value === undefined) {
-    delete process.env[key];
-  } else {
-    process.env[key] = value;
-  }
-};
-
 describe("sqliteInstallationCache", () => {
-  let home = "";
-  let previousHome: string | undefined;
-  let previousInternName: string | undefined;
+  let dir = "";
+  let previousDir: string | undefined;
 
   beforeEach(() => {
-    previousHome = process.env.HOME;
-    home = mkdtempSync(join(tmpdir(), "wwg-cache-"));
-    process.env.HOME = home;
-    previousInternName = process.env.INTERN_NAME;
-    process.env.INTERN_NAME = home.split("/").at(-1);
+    // Redirect the registry DB via GH_APP_REGISTRY_DIR — the seam
+    // `openGhAppRegistryDb` honors. Pre-fix, this test reassigned
+    // `process.env.HOME`, but Bun's `os.homedir()` snapshots the real home at
+    // process start and ignores that, so every "isolated" test DB silently
+    // landed under the operator's real `~/.config/wwg-cache-*/` — a stray
+    // registry per run, hundreds accumulated on this workspace's home.
+    previousDir = process.env.GH_APP_REGISTRY_DIR;
+    dir = mkdtempSync(join(tmpdir(), "wwg-cache-"));
+    process.env.GH_APP_REGISTRY_DIR = dir;
   });
 
   afterEach(() => {
-    restoreEnv("HOME", previousHome);
-    restoreEnv("INTERN_NAME", previousInternName);
-    rmSync(home, { force: true, recursive: true });
+    if (previousDir === undefined) {
+      delete process.env.GH_APP_REGISTRY_DIR;
+    } else {
+      process.env.GH_APP_REGISTRY_DIR = previousDir;
+    }
+    rmSync(dir, { force: true, recursive: true });
   });
 
   test("round-trips an installation id through the on-disk registry", () => {

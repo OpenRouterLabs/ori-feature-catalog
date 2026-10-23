@@ -36,7 +36,28 @@ const readDirWithBranchA = (): Promise<readonly string[]> =>
   Promise.resolve(["branch-a"]);
 const readDirEmpty = (): Promise<readonly string[]> => Promise.resolve([]);
 
-/** A throwaway root dir with one "branch-a" subdir, cleaned up after `run`
+/** A real temp root laid out the way the feature's own docs specify:
+ *  `<worktrees-root>/<repo-slug>/<branch>` (see the "Modifying your own code"
+ *  flow in prompt.md and cleanup-worktrees.ts's own docstring). */
+const withRealSlugDir = async (
+  run: (root: string, slug: string) => Promise<void>
+): Promise<void> => {
+  const rawRoot = await mkdtemp(join(tmpdir(), "cleanup-worktrees-slug-"));
+  const slug = "acme-corp-helper-bot";
+  try {
+    await mkdir(join(rawRoot, slug, "branch-a"), {
+      recursive: true,
+    });
+    await run(await realpath(rawRoot), slug);
+  } finally {
+    await rm(rawRoot, {
+      force: true,
+      recursive: true,
+    });
+  }
+};
+
+/** A real temp root with one "branch-a" subdir, cleaned up after `run`
  *  resolves. `root` is real-pathed before handing it to `run`, so it matches
  *  what production code sees (`macOS` symlinks `/tmp` → `/private/tmp`, and the
  *  sweep canonicalizes every path it reports). */
@@ -56,6 +77,36 @@ const withRealTmpDir = async (
 };
 
 describe("cleanupWorktrees", () => {
+  test("a failed `git worktree list` is an error outcome, never a silent empty sweep", async () => {
+    // repoDir is NOT a git repository: `git worktree list` exits non-zero.
+    // Pre-fix: the failure read as "no worktrees" — the sweep reported
+    // nothing and the CLI exited 0 ("nothing under the worktrees root") as
+    // if the tree were empty.
+    const rawRoot = await mkdtemp(join(tmpdir(), "not-a-repo-root-"));
+    try {
+      const root = await realpath(rawRoot);
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          { readDir: readDirEmpty, token: "tok" },
+          {
+            dryRun: true,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+      expect(summary.gitListFailed).toBe(true);
+      expect(summary.outcomes).toHaveLength(1);
+      expect(summary.outcomes[0]?.decision).toBe("error");
+      expect(summary.outcomes[0]?.detail).toContain(
+        "git worktree list failed"
+      );
+    } finally {
+      await rm(rawRoot, { force: true, recursive: true });
+    }
+  });
+
   test("removes a worktree whose PR is closed and tree is clean", () =>
     withRealTmpDir(async (root) => {
       const path = join(root, "branch-a");
@@ -97,6 +148,243 @@ describe("cleanupWorktrees", () => {
           decision: "removed",
           detail: "removed (PR #7 closed, tree clean)",
           path,
+        },
+      ]);
+    }));
+
+  test("in the documented `<root>/<slug>/<branch>` layout, the slug dir is not a stray", () =>
+    withRealSlugDir(async (root, slug) => {
+      const path = join(root, slug, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+      });
+      const fetchImpl = (): Promise<Response> =>
+        jsonFetch([
+          {
+            number: 3,
+            state: "open",
+          },
+        ]);
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            // The on-disk view of `<root>` is just the slug directory; the
+            // sweep must descend one level to see the per-branch worktrees.
+            readDir: (dir: string): Promise<readonly string[]> =>
+              dir === root
+                ? Promise.resolve([slug])
+                : dir === join(root, slug)
+                  ? Promise.resolve(["branch-a"])
+                  : Promise.resolve([]),
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "acme-corp/helper-bot",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // Exactly one outcome: the open-PR skip for the tracked worktree. The slug
+      // directory is a container, not a stray.
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "skipped-open-pr",
+          detail: "PR #3 is still open",
+          path,
+        },
+      ]);
+    }));
+
+  test("the repo checkout itself is never a removal candidate, even when it sits under the worktrees root", () =>
+    withRealTmpDir(async (root) => {
+      // A layout where the repo checkout lives INSIDE the worktrees root
+      // (e.g. `--worktrees-root` pointed one level wide, or a checkout created
+      // under /tmp/worktrees/). `git worktree list --porcelain` tracks the
+      // checkout as a normal `branch refs/heads/main` entry, so the
+      // containment filter alone admits it; with its PR merged/closed and its
+      // tree clean the sweep then ran `git worktree remove` on the live
+      // checkout. Pre-fix outcome: a spurious `error` ("is a main working
+      // tree") — or a deleted checkout, had git not refused.
+      const checkout = join(root, "checkout");
+      await mkdir(checkout);
+      const wt = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
+        "worktree list": {
+          stdout:
+            `worktree ${checkout}\nHEAD abc\nbranch refs/heads/main\n\n` +
+            `worktree ${wt}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+        "worktree remove": { ok: true },
+      });
+      const removeTargets: string[] = [];
+      const fetchImpl = (): Promise<Response> =>
+        jsonFetch([{ number: 7, state: "closed" }]);
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirWithBranchA,
+            runGit: (args, cwd) => {
+              if (args[0] === "worktree" && args[1] === "remove") {
+                removeTargets.push(args[2] ?? "");
+              }
+              return runGit(args, cwd);
+            },
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: checkout,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The checkout is out of scope entirely — not an error, not a skip
+      // report, not present at all, exactly as the module doc promises. The
+      // sibling worktree is still swept normally.
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "removed",
+          detail: "removed (PR #7 closed, tree clean)",
+          path: wt,
+        },
+      ]);
+      expect(removeTargets).toEqual([wt]);
+    }));
+
+  test("a stray slug directory with no tracked worktree under it is still reported", () =>
+    withRealSlugDir(async (root, slug) => {
+      const runGit = fakeRunGit({ "worktree list": { stdout: "" } });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: (): Promise<readonly string[]> =>
+              Promise.resolve([slug]),
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "acme-corp/helper-bot",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "",
+          decision: "skipped-stray",
+          detail:
+            "on disk but unknown to `git worktree list` — run `git worktree prune` or inspect manually",
+          path: join(root, slug),
+        },
+      ]);
+    }));
+
+  test("the sweep's own emptied slug container is not a stray — its contents still are", () =>
+    withRealSlugDir(async (root, slug) => {
+      // The sweep's own success end-state: every worktree removed, only the
+      // emptied `<root>/<slug>/` container left. Pre-fix, the container
+      // itself was reported as a `skipped-stray` on EVERY sweep — a
+      // permanent false positive on a healthy layout, the same #71 class as
+      // the ancestor case. (The sweep's on-disk listing is single-level
+      // under the worktrees root, so only the container itself is ever a
+      // candidate; its nested branch dirs never enter the stray set.)
+      const runGit = fakeRunGit({ "worktree list": { stdout: "" } });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: (dir: string): Promise<readonly string[]> =>
+              dir === root
+                ? Promise.resolve([slug])
+                : Promise.resolve([]),
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "acme-corp/helper-bot",
+            repoDir: root,
+            repoSlug: slug,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The emptied container is the sweep's own healthy end-state: no
+      // outcome at all, not a stray on every run forever.
+      expect(summary.outcomes).toEqual([]);
+    }));
+
+  test("a branch dir unknown to git IS reported as a stray in a slug-scoped sweep — the stray report is not dead", () =>
+    withRealSlugDir(async (root, slug) => {
+      // The pre-fix dead-report class: the CLI and the schedule ALWAYS pass
+      // `repoSlug` (every real sweep is scoped), and the stray listing listed
+      // the worktrees ROOT, whose only candidate under the scoped layout
+      // `<root>/<slug>/<branch>` is the slug container itself — excluded as
+      // the sweep's own healthy end-state. The stray set was therefore EMPTY
+      // in every real invocation: a branch dir on disk that `git worktree
+      // list` has no record of (the exact case the module doc promises to
+      // report — e.g. one `rm -rf`'d behind git's back mid-add) was never
+      // named. The listing must run at the SCOPE level, the per-branch
+      // checkout dirs themselves.
+      const runGit = fakeRunGit({ "worktree list": { stdout: "" } });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: (dir: string): Promise<readonly string[]> =>
+              // The on-disk truth: the slug container holds one branch dir
+              // git does not know about (its worktree was `rm -rf`'d outside
+              // git — the documented stray case).
+              dir === join(root, slug)
+                ? Promise.resolve(["stray-branch"])
+                : dir === root
+                  ? Promise.resolve([slug])
+                  : Promise.resolve([]),
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "acme-corp/helper-bot",
+            repoDir: root,
+            repoSlug: slug,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The unknown branch dir is named as the stray — reported, never
+      // removed (dryRun:false, but strays are never removal candidates).
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "",
+          decision: "skipped-stray",
+          detail:
+            "on disk but unknown to `git worktree list` — run `git worktree prune` or inspect manually",
+          path: join(root, slug, "stray-branch"),
         },
       ]);
     }));
@@ -493,39 +781,40 @@ describe("cleanupWorktrees", () => {
     }));
 });
 
-// ─── head= filter encoding ───────────────────────────────────────────────────
-// A branch name may carry query-reserved characters (git accepts them); the
-// head= filter must arrive percent-encoded or its PR is unfindable.
-describe("head filter URL encoding", () => {
-  test("a branch name with a plus still matches its PR (the head filter is URL-encoded)", () =>
+
+describe("cleanupWorktrees (ambient mode)", () => {
+  test("sweeps with no token at all — the PR lookup goes bare and the closed-PR worktree is still removed", () =>
     withRealTmpDir(async (root) => {
-      const path = join(root, "fix+lint");
+      const path = join(root, "branch-a");
       const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
         "worktree list": {
-          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/fix+lint\n\n`,
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
         },
+        "worktree remove": { ok: true },
       });
-      const fetchImpl = (url: string | URL): Promise<Response> => {
-        // GitHub decodes an unencoded `+` in a query value as a space, so the
-        // head filter must arrive percent-encoded to match the branch.
-        const head = new URL(String(url)).searchParams.get("head");
-        return Promise.resolve(
-          jsonFetch(
-            head === "owner:fix+lint" ? [{ number: 5, state: "closed" }] : []
-          )
-        );
+      let sawAuthorization = false;
+      const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+        if (!url.includes("/pulls?")) {
+          return jsonFetch([]);
+        }
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        sawAuthorization = "Authorization" in headers;
+        return jsonFetch([{ number: 7, state: "closed" }]);
       };
 
       const summary = await Effect.runPromise(
         cleanupWorktrees(
           {
-            fetchImpl: fetchImpl as never,
-            readDir: readDirEmpty,
+            fetchImpl,
+            readDir: readDirWithBranchA,
             runGit,
-            token: "tok",
+            // NO token: ambient mode — the bare request carries whatever
+            // credential the host attaches (or none; the test proves the
+            // header contract and the sweep shape, not GitHub itself).
           },
           {
-            dryRun: true,
+            dryRun: false,
             repo: "owner/repo",
             repoDir: root,
             worktreesRoot: root,
@@ -533,22 +822,192 @@ describe("head filter URL encoding", () => {
         )
       );
 
+      expect(sawAuthorization).toBe(false);
       expect(summary.outcomes).toEqual([
         {
-          branch: "fix+lint",
+          branch: "branch-a",
           decision: "removed",
-          detail: "dry-run — would remove (PR #5 closed, tree clean)",
+          detail: "removed (PR #7 closed, tree clean)",
           path,
         },
       ]);
     }));
+
+  test("a bare lookup GitHub refuses (401) is an error outcome per worktree, never a silent skip", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+      });
+      const fetchImpl = (): Promise<Response> =>
+        jsonFetch({ message: "Requires authentication" }, 401);
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirWithBranchA,
+            runGit,
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toHaveLength(1);
+      expect(summary.outcomes[0]?.decision).toBe("error");
+      expect(summary.outcomes[0]?.detail).toContain("PR lookup failed");
+      expect(summary.outcomes[0]?.detail).toContain(
+        "Requires authentication"
+      );
+    }));
 });
 
-// ─── PR lookup failure reporting ────────────────────────────────────────────
-// A failed lookup (403 rate limit, 5xx, network) must surface as an error
-// outcome — never "skipped-no-pr", which silently skips the worktree and
-// exits 0 while nothing was actually looked up.
 describe("PR lookup failure reporting", () => {
+  test("a branch whose open PR sits past the first page of its history is kept, not removed — the PR lookup paginates", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "branch-a");
+      let removed = false;
+      const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+        "worktree remove": { ok: true },
+      });
+      // Page one: a FULL page of closed PRs (the newest, closed as
+      // superseded). Page two: the still-open PR the branch was re-opened
+      // from. Pre-fix: only page one was fetched — 100 closed entries fill
+      // it — so the sweep saw the newest closed PR, removed the worktree,
+      // and deleted the branch while its work was back in review.
+      const fullClosedPage = Array.from(
+        { length: 100 },
+        (_, i): { number: number; state: "closed" } => ({
+          number: 200 - i,
+          state: "closed",
+        })
+      );
+      const pages: ReadonlyArray<readonly unknown[]> = [
+        fullClosedPage,
+        [{ number: 5, state: "open" }],
+      ];
+      let call = 0;
+      const fetchImpl = (url: string): Promise<Response> => {
+        if (!url.includes("/pulls?")) {
+          return jsonFetch([]);
+        }
+        const page = new URL(url).searchParams.get("page") ?? "1";
+        expect(page).toBe(String(call + 1));
+        const body = pages[call] ?? [];
+        call += 1;
+        return jsonFetch(body);
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirWithBranchA,
+            runGit: (args, cwd) => {
+              if (args[0] === "worktree" && args[1] === "remove") {
+                removed = true;
+              }
+              return runGit(args, cwd);
+            },
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(removed).toBe(false);
+      expect(call).toBe(2);
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "skipped-open-pr",
+          detail: "PR #5 is still open",
+          path,
+        },
+      ]);
+    }));
+
+  test("a repoSlug option scopes the sweep to this repo's slug directory — a sibling repo's worktree is out of scope", () =>
+    withRealSlugDir(async (root, slug) => {
+      // The documented `<root>/<other-slug>/<branch>` layout for ANOTHER
+      // repo's worktree, plus this repo's own slug dir with none in it.
+      // Pre-fix: both were candidates, and the sweep ran its PR lookup (and
+      // potentially `git worktree remove`) against this sweep's repo.
+      const foreignPath = join(root, "other-repo-slug", "branch-a");
+      await mkdir(foreignPath, { recursive: true });
+      let removeCalled = false;
+      const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
+        "worktree list": {
+          stdout: `worktree ${foreignPath}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+        "worktree remove": { ok: true },
+      });
+      const trackingRunGit = (args: readonly string[], cwd: string) => {
+        if (args[0] === "worktree" && args[1] === "remove") {
+          removeCalled = true;
+        }
+        return runGit(args, cwd);
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> =>
+              // A PR lookup against THIS repo would find a closed PR for
+              // branch-a — the exact false removal signal for a foreign
+              // repo's worktree the slug scoping must prevent.
+              jsonFetch([{ number: 9, state: "closed" }]),
+            readDir: async (dir: string) =>
+              dir === root ? [slug, "other-repo-slug"] : [],
+            runGit: trackingRunGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "acme-corp/helper-bot",
+            repoSlug: slug,
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      // The foreign repo's worktree never appears, and nothing was removed.
+      expect(removeCalled).toBe(false);
+      expect(
+        summary.outcomes.some((o) => o.path === foreignPath)
+      ).toBe(false);
+      expect(summary.gitListFailed).toBeUndefined();
+      // The own (empty) slug container may be reported as a stray — an
+      // informational line, never a deletion — but the FOREIGN slug dir is
+      // out of scope entirely: it holds this sweep's own nothing, and the
+      // scoped sweep never even lists it.
+      expect(
+        summary.outcomes.some(
+          (o) =>
+            o.path === join(root, "other-repo-slug") &&
+            o.decision === "skipped-stray"
+        )
+      ).toBe(false);
+    }));
+
   test("an HTTP error on the PR lookup (e.g. a 403 rate limit) is an error outcome, not skipped-no-pr", () =>
     withRealTmpDir(async (root) => {
       const path = join(root, "branch-a");
@@ -578,14 +1037,120 @@ describe("PR lookup failure reporting", () => {
       );
 
       // The branch state is unknown — the worktree is reported as an error and
-      // left untouched, never silently skipped as if it had no PR. The head=
-      // filter value is URL-encoded on current main (`owner%3Abranch-a`).
+      // left untouched, never silently skipped as if it had no PR.
       expect(summary.outcomes).toEqual([
         {
           branch: "branch-a",
           decision: "error",
           detail:
-            "PR lookup failed: GET https://api.github.com/repos/owner/repo/pulls?head=owner%3Abranch-a&state=all: API rate limit exceeded",
+            // The lookup URL carries per_page=100 and page=1 (the paginated
+            // walk) — the pre-fix unpaginated URL shape is pinned by no test.
+            `PR lookup failed: GET https://api.github.com/repos/owner/repo/pulls?head=owner%3Abranch-a&state=all&per_page=100&page=1: API rate limit exceeded`,
+          path,
+        },
+      ]);
+    }));
+
+  test("a branch name with a plus still matches its PR (the head filter is URL-encoded)", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "fix+lint");
+      await mkdir(path);
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/fix+lint\n\n`,
+        },
+      });
+      const fetchImpl = (url: string | URL): Promise<Response> => {
+        // GitHub decodes an unencoded \+ in a query value as a space, so the
+        // head filter must arrive percent-encoded to match the branch.
+        const head = new URL(String(url)).searchParams.get("head");
+        return Promise.resolve(
+          jsonFetch(head === "owner:fix+lint" ? [{ number: 5, state: "closed" }] : [])
+        );
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: fetchImpl as never,
+            readDir: (): Promise<readonly string[]> => Promise.resolve([]),
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: true,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "fix+lint",
+          decision: "removed",
+          detail: "dry-run — would remove (PR #5 closed, tree clean)",
+          path,
+        },
+      ]);
+    }));
+
+  test("a branch with an open PR is kept even when a newer PR for the same branch is closed", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "branch-a");
+      let removed = false;
+      const runGit = fakeRunGit({
+        "status --porcelain": { stdout: "" },
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/branch-a\n\n`,
+        },
+        "worktree remove": { ok: true },
+      });
+      // `state=all` pages come back newest-first: a PR closed as superseded
+      // (#14) must not mask the still-open re-opened PR (#12) for the same
+      // branch — keying on `page[0]` alone removes a worktree whose work is
+      // back in review.
+      const fetchImpl = (): Promise<Response> =>
+        jsonFetch([
+          {
+            number: 14,
+            state: "closed",
+          },
+          {
+            number: 12,
+            state: "open",
+          },
+        ]);
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl,
+            readDir: readDirWithBranchA,
+            runGit: (args, cwd) => {
+              if (args[0] === "worktree" && args[1] === "remove") {
+                removed = true;
+              }
+              return runGit(args, cwd);
+            },
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(removed).toBe(false);
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "branch-a",
+          decision: "skipped-open-pr",
+          detail: "PR #12 is still open",
           path,
         },
       ]);

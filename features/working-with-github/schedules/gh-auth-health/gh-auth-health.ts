@@ -164,6 +164,22 @@ const verifyRepoAccess = (input: {
         }),
     });
 
+    if (!response.ok) {
+      // A non-2xx must be explained by its own envelope (or degrade to the
+      // status), never fail as a JSON parse complaint — which would drop the
+      // status the alert reader needs (5xx = GitHub/proxy down vs 401 =
+      // revoked). Parse the body only here, after `response.ok` is known,
+      // exactly like the sibling `readBodyJson` helpers in
+      // `gh-app-github-api.ts` / `commit-api-core.ts`.
+      const payload = yield* Effect.promise(() =>
+        response.json().catch(() => null)
+      );
+      return yield* new HealthCheckError({
+        stage: "round-trip",
+        detail: githubErrorDetail(payload, response.status),
+      });
+    }
+
     const payload = yield* Effect.tryPromise({
       try: (): Promise<unknown> => response.json(),
       catch: (error) =>
@@ -172,13 +188,6 @@ const verifyRepoAccess = (input: {
           detail: `repo response was not JSON: ${String(error)}`,
         }),
     });
-
-    if (!response.ok) {
-      return yield* new HealthCheckError({
-        stage: "round-trip",
-        detail: githubErrorDetail(payload, response.status),
-      });
-    }
 
     const body = yield* Schema.decodeUnknownEffect(RepoResponse, {
       errors: "all",

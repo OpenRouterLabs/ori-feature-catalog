@@ -212,6 +212,45 @@ describe("mintInstallationToken installation cache", () => {
     expect(store.get("111\nacme-interns")).toBe("999");
   });
 
+  test("a stale cached id whose re-discovery fails surfaces the ORIGINAL stale status, not the discovery noise", async () => {
+    // Pre-fix: a 401/404 token POST whose re-discovery fails (the App was
+    // uninstalled — zero installations) surfaced the discovery failure, hiding
+    // the actionable stale status the caller matches a retry on.
+    const { cache, calls } = makeFakeCache({
+      "111\nacme-interns": "stale",
+    });
+    const tokenPosts: string[] = [];
+    const outcome = await runToOutcome(
+      mintInstallationToken({
+        cache,
+        env: DEFAULT_ENV,
+        fetchImpl: (url) => {
+          if (url.includes("/app/installations?")) {
+            // Re-discovery finds the App uninstalled: zero installations.
+            return Promise.resolve(jsonResponse([]));
+          }
+          tokenPosts.push(url);
+          // The stale cached installation 401s (empty body — the 0-byte shape).
+          return Promise.resolve(
+            new Response("", { status: 401 }) as unknown as Response
+          );
+        },
+      })
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      // The ORIGINAL stale error (op:http, status 401) — not op:discover.
+      expect(outcome.error.op).toBe("http");
+      expect(outcome.error.status).toBe(401);
+      expect(outcome.error.message).toContain("HTTP 401");
+    }
+    // The stale row was still invalidated before the failed re-discovery.
+    expect(calls).toContain("delete:111\nacme-interns");
+    expect(tokenPosts).toEqual([
+      "https://api.github.com/app/installations/stale/access_tokens",
+    ]);
+  });
+
   test("a poisoned EMPTY-ORG cache row is never trusted: deleted, purged, and re-discovery fails closed", async () => {
     // Pre-fix poisoning: no GITHUB_REPO → empty org key → the foreign sole
     // installation's id was cached under "".
@@ -293,5 +332,101 @@ describe("mintInstallationToken installation cache", () => {
     }
     // The empty-org key carries no owner identity, so it must not be cached.
     expect(calls.some((c) => c.startsWith("put:"))).toBe(false);
+  });
+});
+
+describe("mintInstallationToken routing notes", () => {
+  test("a registered (org, purpose) notes the routing to stderr — stdout carries only the token", async () => {
+    const err: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((text: string) => {
+      err.push(text);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const outcome = await runToOutcome(
+        mintInstallationToken({
+          // cache:null disables the production SQLite cache. Pre-fix this
+          // omitted it: the mint opened the REAL registry DB
+          // (~/.config/<intern>/gh-app-registry.db) from inside the test —
+          // polluting production state (its own rows were observed there)
+          // and making the test depend on whatever rows it found.
+          cache: null,
+          env: {
+            GH_APP_ALLOWED_ORGS: "acme-interns acme-corp",
+            GH_APP_ID: "111",
+            GH_APP_PRIVATE_KEY: TEST_PEM_B64,
+            GITHUB_REPO: "acme-interns/helper-bot",
+            TEAM_GH_APP_ID: "222",
+            TEAM_GH_APP_PRIVATE_KEY: TEST_PEM_B64,
+          },
+          fetchImpl: (url: string) =>
+            url.includes("/app/installations?")
+              ? Promise.resolve(
+                  jsonResponse([{ account: { login: "acme-corp" }, id: 55 }])
+                )
+              : Promise.resolve(
+                  jsonResponse({ token: "ghs_reg", expires_at: "x" })
+                ),
+          registry: () => ({
+            appIdKey: "TEAM_GH_APP_ID",
+            privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+          }),
+          targetRepo: "acme-corp/widgets",
+          purpose: "reviewer",
+        })
+      );
+      // With no cache injected, the fetch fake answers both the discovery
+      // page and the token POST — the mint must succeed.
+      expect(outcome.ok).toBe(true);
+      const notes = err.join("");
+      expect(notes).toContain("acme-corp (reviewer)");
+      expect(notes).toContain("TEAM_GH_APP_ID");
+      expect(notes).toContain("TEAM_GH_APP_PRIVATE_KEY");
+      // Never the credential VALUES, only the env key NAMES.
+      expect(notes).not.toContain("222");
+      // stdout of the CLI wrapper carries only the token; this note is stderr.
+    } finally {
+      process.stderr.write = origWrite;
+    }
+  });
+
+  test("a missing registry row notes the default-app fallback instead of routing silently", async () => {
+    const err: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((text: string) => {
+      err.push(text);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const outcome = await runToOutcome(
+        mintInstallationToken({
+          // cache:null — same production-DB isolation as the registered-row
+          // test above; the routing NOTE under test is stderr-only.
+          cache: null,
+          env: {
+            GH_APP_ALLOWED_ORGS: "acme-interns acme-corp",
+            GH_APP_ID: "111",
+            GH_APP_PRIVATE_KEY: TEST_PEM_B64,
+            GITHUB_REPO: "acme-interns/helper-bot",
+          },
+          fetchImpl: (url: string) =>
+            url.includes("/app/installations?")
+              ? Promise.resolve(
+                  jsonResponse([{ account: { login: "acme-corp" }, id: 44 }])
+                )
+              : Promise.resolve(jsonResponse({ token: "ghs_fb", expires_at: "x" })),
+          registry: () => null,
+          targetRepo: "acme-corp/widgets",
+          purpose: "reviewer",
+        })
+      );
+      expect(outcome.ok).toBe(true);
+      const notes = err.join("");
+      expect(notes).toContain("falling back to the default");
+      expect(notes).toContain("acme-corp (reviewer)");
+    } finally {
+      process.stderr.write = origWrite;
+    }
   });
 });

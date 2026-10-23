@@ -102,6 +102,40 @@ describe("register-gh-app CLI", () => {
     expect(listApps(db)[0]?.purpose).toBe("default");
   });
 
+  test("the register confirmation echoes the normalized org, not the raw --org spelling", () => {
+    // Pre-fix: `--org https://github.com/acme-corp/widgets.git` printed
+    // `registered https://github.com/acme-corp/widgets.git (default) → …`
+    // while `registerApp` persisted the row under `orgOf(org)` =
+    // `acme-corp`. The success line named a key the registry never held, so
+    // the row a later `mint-token.ts --repo acme-corp/widgets` routed to did
+    // not match what the operator was told they had registered.
+    const { out, writers } = makeWriters();
+    const code = runRegisterCli({
+      argv: [
+        "register",
+        "--org",
+        "https://github.com/acme-corp/widgets.git",
+        "--app-id-key",
+        "TEAM_GH_APP_ID",
+        "--private-key-key",
+        "TEAM_GH_APP_PRIVATE_KEY",
+      ],
+      db,
+      env: ENV,
+      writers,
+    });
+    expect(code).toBe(0);
+    const line = out.join("");
+    expect(line).toContain("registered acme-corp (default)");
+    expect(line).not.toContain("https://github.com/acme-corp/widgets.git");
+    expect(listApps(db)).toEqual([
+      expect.objectContaining({
+        org: "acme-corp",
+        purpose: "default",
+      }),
+    ]);
+  });
+
   test("an empty (or whitespace) --purpose is coerced to 'default', not persisted as ''", () => {
     const { writers } = makeWriters();
     const code = runRegisterCli({
@@ -257,6 +291,34 @@ describe("register-gh-app CLI", () => {
     const [row] = listApps(db);
     expect(row?.org).toBe("acme-corp");
     expect(row?.purpose).toBe("reviewer");
+  });
+
+  test("a --purpose whose value slot was eaten by the next flag fails loudly, never persists the catch-all row", () => {
+    // Pre-fix: `--purpose --app-id-key X` read the FLAG as the value via
+    // readFlag (→ undefined → "default"), so the CLI silently registered the
+    // org-level CATCH-ALL row — overwriting any existing (org, default)
+    // mapping and routing every future mint without --purpose to that App.
+    // The same class as mint-token.ts #98/#107: the caller asked for a role
+    // App and silently got the default row instead.
+    const { err, writers } = makeWriters();
+    const code = runRegisterCli({
+      argv: [
+        "register",
+        "--org",
+        "acme-corp",
+        "--purpose",
+        "--app-id-key",
+        "TEAM_GH_APP_ID",
+        "--private-key-key",
+        "TEAM_GH_APP_PRIVATE_KEY",
+      ],
+      db,
+      env: ENV,
+      writers,
+    });
+    expect(code).toBe(1);
+    expect(listApps(db)).toEqual([]);
+    expect(err.join("")).toContain("--purpose");
   });
 
   test("a DB failure is rendered as a diagnostic + non-zero exit, not a crash", () => {

@@ -77,11 +77,30 @@ export const resolveAllowedOrgs = (
   override?: readonly string[],
   env?: Readonly<Record<string, string | undefined>>
 ): Set<string> => {
+  // An empty/whitespace-only var is treated as UNSET, not as an explicit
+  // allow-none: a cleared `Environment=GH_APP_ALLOWED_ORGS=` (systemd reset),
+  // a compose interpolation of an unset variable, or a blank env-file line
+  // must fall back to the documented default (the `GITHUB_REPO` owner), not
+  // fail every mint closed. A set var with real logins still wins.
+  const rawAllow = override === undefined ? env?.[ALLOWED_ORGS_ENV] : undefined;
   const fromEnv =
-    override === undefined && env?.[ALLOWED_ORGS_ENV] !== undefined
-      ? env[ALLOWED_ORGS_ENV]?.split(/[\s,]+/u)
+    rawAllow !== undefined && rawAllow.trim() !== ""
+      ? rawAllow.split(/[\s,]+/u)
       : undefined;
-  const repoOwner = env?.GITHUB_REPO?.split("/")[0];
+  // Tolerate the same `GITHUB_REPO` spellings the sibling resolvers do (a full
+  // https URL with optional .git suffix, or a bare owner/repo) — `split("/")[0]`
+  // would reduce a URL to "https:" and fail every mint closed.
+  // Trim trailing slashes as well as whitespace (a copy-pasted
+  // `https://github.com/acme/widgets.git/`): the repoMatch alternative
+  // below fails on the trailing slash, and the repoOwner fallback then
+  // reduces the URL to its scheme (`https:`) — a login no installation
+  // can ever carry, so every mint fails closed with no hint why.
+  const rawRepo = (env?.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/\/+$/u, "")
+    .replace(/\.git$/u, "");
+  const repoMatch = /github\.com[/:]([^/]+)\/[^/]+$/u.exec(rawRepo);
+  const repoOwner = repoMatch?.[1] ?? rawRepo.split("/")[0];
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
   const source = override ?? fromEnv ?? fromRepo;
   return new Set(
@@ -201,6 +220,17 @@ const githubErrorDetail = (payload: unknown, status: number): string => {
   const message = Option.isSome(decoded) ? decoded.value.message : undefined;
   return message ?? `HTTP ${status}`;
 };
+
+/**
+ * Read a response body as JSON, degrading to `null` when the body is not JSON
+ * at all (an HTML error page, a 0-byte body). Used before the `response.ok`
+ * branch: a non-2xx must be explained by its own envelope (or degrade to the
+ * status), never fail `op:"parse"` — which would both mislabel the failure
+ * and hide the 401/404 status `gh-app-token.ts` matches a stale-installation
+ * retry on.
+ */
+const readBodyJson = (response: Response): Promise<unknown> =>
+  response.json().catch(() => null);
 
 /**
  * `POST /app/installations/{id}/access_tokens`. Only the two fields the caller
@@ -411,24 +441,22 @@ export const requestInstallationToken = (
         ),
     });
 
-    const payload = yield* Effect.tryPromise({
-      catch: (cause) =>
-        new GhAppError({
-          cause,
-          message: `GitHub access-token response was not JSON: ${String(cause)}`,
-          op: "parse",
-        }),
-      try: (): Promise<unknown> => response.json(),
-    });
-
     // A non-2xx stays `op:"http"` with its status: `gh-app-token.ts` retries a
     // stale installation on exactly that shape, and a decode failure must not
     // be mistaken for one.
+    const payload = yield* Effect.promise(() => readBodyJson(response));
     if (!response.ok) {
       return yield* new GhAppError({
         message: `GitHub installation-token mint failed: ${githubErrorDetail(payload, response.status)}`,
         op: "http",
         status: response.status,
+      });
+    }
+
+    if (payload === null) {
+      return yield* new GhAppError({
+        message: "GitHub access-token response was not JSON",
+        op: "parse",
       });
     }
 
