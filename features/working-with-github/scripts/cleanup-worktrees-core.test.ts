@@ -493,6 +493,57 @@ describe("cleanupWorktrees", () => {
     }));
 });
 
+// ─── head= filter encoding ───────────────────────────────────────────────────
+// A branch name may carry query-reserved characters (git accepts them); the
+// head= filter must arrive percent-encoded or its PR is unfindable.
+describe("head filter URL encoding", () => {
+  test("a branch name with a plus still matches its PR (the head filter is URL-encoded)", () =>
+    withRealTmpDir(async (root) => {
+      const path = join(root, "fix+lint");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: `worktree ${path}\nHEAD abc\nbranch refs/heads/fix+lint\n\n`,
+        },
+      });
+      const fetchImpl = (url: string | URL): Promise<Response> => {
+        // GitHub decodes an unencoded `+` in a query value as a space, so the
+        // head filter must arrive percent-encoded to match the branch.
+        const head = new URL(String(url)).searchParams.get("head");
+        return Promise.resolve(
+          jsonFetch(
+            head === "owner:fix+lint" ? [{ number: 5, state: "closed" }] : []
+          )
+        );
+      };
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: fetchImpl as never,
+            readDir: readDirEmpty,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: true,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "fix+lint",
+          decision: "removed",
+          detail: "dry-run — would remove (PR #5 closed, tree clean)",
+          path,
+        },
+      ]);
+    }));
+});
+
 // ─── PR lookup failure reporting ────────────────────────────────────────────
 // A failed lookup (403 rate limit, 5xx, network) must surface as an error
 // outcome — never "skipped-no-pr", which silently skips the worktree and
@@ -527,13 +578,14 @@ describe("PR lookup failure reporting", () => {
       );
 
       // The branch state is unknown — the worktree is reported as an error and
-      // left untouched, never silently skipped as if it had no PR.
+      // left untouched, never silently skipped as if it had no PR. The head=
+      // filter value is URL-encoded on current main (`owner%3Abranch-a`).
       expect(summary.outcomes).toEqual([
         {
           branch: "branch-a",
           decision: "error",
           detail:
-            `PR lookup failed: GET https://api.github.com/repos/owner/repo/pulls?head=owner:branch-a&state=all: API rate limit exceeded`,
+            "PR lookup failed: GET https://api.github.com/repos/owner/repo/pulls?head=owner%3Abranch-a&state=all: API rate limit exceeded",
           path,
         },
       ]);

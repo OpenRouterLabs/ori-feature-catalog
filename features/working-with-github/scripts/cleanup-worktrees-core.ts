@@ -185,7 +185,16 @@ const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
     readonly branch: string;
   }) {
     const [owner = ""] = input.repo.split("/");
-    const url = `${GITHUB_API}/repos/${input.repo}/pulls?head=${owner}:${input.branch}&state=all`;
+    // URL-encode the query value: a branch name may contain characters a query
+    // string reserves (`+` decodes as a space, `&`/`#`/`%` break the URL
+    // itself), and an unencoded `+` silently fails the head= filter — GitHub
+    // then answers an empty page and the sweep reports "no PR found", never
+    // cleaning the worktree. The repo stays a raw `owner/repo` path segment:
+    // GitHub's route matches the separator literally, and %2F-encoding it
+    // answers 404.
+    const url = `${GITHUB_API}/repos/${input.repo}/pulls?head=${encodeURIComponent(
+      `${owner}:${input.branch}`
+    )}&state=all`;
     return yield* ghJson({
       fetchImpl: input.fetchImpl,
       method: "GET",
@@ -287,7 +296,9 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
           outcomeFor(
             tracked,
             "error",
-            `PR lookup failed: ${error instanceof Error ? error.message : String(error)}`
+            `PR lookup failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`
           )
         )
       )
