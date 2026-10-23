@@ -44,7 +44,7 @@ bun install   # at the WORKSPACE ROOT — a bun install inside
 ```
 
 Run it after every edit to the vendored source (after the test suite passes),
-and verify with `diff -rq --no-dereference -x node_modules
+and verify with `diff -rq -x node_modules
 vendor/ori-feature-catalog/features/working-with-github
 node_modules/@ori-monorepo/working-with-github` — it must print nothing. The
 `node_modules/` directory the vendored tree carries after its own install (from
@@ -53,3 +53,10 @@ so an unexcluded `diff -rq` reports `Only in …: node_modules` on every
 correctly-synced install — a false mismatch that taught the operator to ignore
 the check. A `bun install` inside the vendored tree prints "no changes" and
 re-syncs nothing.
+
+Keep `--no-dereference` OFF this recipe. The store path
+(`node_modules/@ori-monorepo/working-with-github`) is a symlink into the `.bun`
+store, and `diff -rq --no-dereference` compares the LINK instead of descending
+into it: it exits 2 with a bogus `No such file or directory` on every
+correctly-synced install, so the check can never pass. Plain dereference
+(diff's default) is what walks the real tree through the link.
