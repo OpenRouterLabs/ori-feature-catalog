@@ -156,6 +156,24 @@ const isDeletedDestination = (x: string, y: string): boolean =>
   y === "D" && x !== "D";
 
 /**
+ * The first argv token that starts with a single dash but is not a `--` flag:
+ * `-repo o/r` is the near-universal typo for `--repo o/r` (drop a character),
+ * and no CLI in this feature accepts single-dash flags. Every parser tolerates
+ * UNKNOWN `--` flags by design (a bare invocation keeps working), but a
+ * single-dash token can only be junk — and the parsers that silently ignored
+ * it turned the typo into a wrong-default action: `mint-token.ts -repo acme/x`
+ * minted the DEFAULT App (the #98/#107/#117 silent-identity-swap class),
+ * `cleanup-worktrees.ts -repo o/r` swept the DEFAULT repo's worktrees (a
+ * wrong-target removal), and `register-gh-app.ts -purpose reviewer` coerced to
+ * the org-level CATCH-ALL row (the #117 re-routing class). Callers fail the
+ * parse with the offending token named; `undefined` means argv carries no junk.
+ */
+export const findSingleDashArgv = (
+  argv: readonly string[]
+): string | undefined =>
+  argv.find((token) => token.startsWith("-") && !token.startsWith("--"));
+
+/**
  * Resolve `owner/repo` from `GITHUB_REPO`, tolerating a full https URL or a
  * trailing `.git`. Returns `""` when unset so the CLI can fail with a clear
  * message rather than committing to the wrong repo.

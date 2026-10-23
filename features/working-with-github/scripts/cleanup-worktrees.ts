@@ -57,7 +57,7 @@ import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
 import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
-import { resolveRepoFromEnv } from "./commit-api-core.ts";
+import { findSingleDashArgv, resolveRepoFromEnv } from "./commit-api-core.ts";
 
 const DEFAULT_WORKTREES_ROOT = "/tmp/worktrees";
 
@@ -72,6 +72,12 @@ export interface CleanupCliArgs {
   readonly repoDir: string;
   readonly worktreesRoot: string;
   readonly dryRun: boolean;
+  /** Parse-time usage error: a single-dash argv token (`-repo`, the near-universal
+   *  typo for `--repo`). A silent ignore retargeted a DESTRUCTIVE sweep at the
+   *  default repo (GITHUB_REPO), removing ITS worktrees while the caller asked for
+   *  another repo — the same never-silently-derive-a-default contract the
+   *  `missingFlagValue` guard below exists to enforce. */
+  readonly junkArgv?: string;
   /** Parse-time usage error: a value-taking flag was passed with no usable
    *  value (e.g. `--repo --dry-run`). Carried so the CLI entrypoint can fail
    *  loudly instead of silently sweeping a wrong default — the same shape
@@ -87,6 +93,7 @@ export const parseCleanupArgs = (
   env: Readonly<Record<string, string | undefined>> = process.env,
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
+  const junkArgv = findSingleDashArgv(argv);
   const readFlag = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     if (i === -1 || i + 1 >= argv.length) {
@@ -132,6 +139,7 @@ export const parseCleanupArgs = (
   });
   return {
     dryRun: argv.includes("--dry-run"),
+    ...(junkArgv === undefined ? {} : { junkArgv }),
     ...(missingFlagValue === undefined ? {} : { missingFlagValue }),
     repo,
     repoDir: readFlag("--repo-dir") ?? cwd,
@@ -170,6 +178,14 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
         `cleanup-worktrees: ${args.missingFlagValue} needs a value (e.g. ${
           args.missingFlagValue === "--repo" ? "owner/repo" : "/a/path"
         })\n`
+      );
+      return 1;
+    }
+    if (args.junkArgv !== undefined) {
+      // A single-dash token (`-repo o/r`) is a typo no CLI accepts: fail loudly
+      // rather than silently sweeping the default repo's slug directory.
+      writers.err(
+        `cleanup-worktrees: unrecognized argument "${args.junkArgv}" — flags start with "--" (e.g. --repo owner/repo)\n`
       );
       return 1;
     }

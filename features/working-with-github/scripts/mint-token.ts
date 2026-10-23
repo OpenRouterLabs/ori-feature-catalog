@@ -50,6 +50,8 @@ import type {
 
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
+import { findSingleDashArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {
   readonly out: (text: string) => void;
@@ -86,6 +88,10 @@ export const runMint = (
 export interface MintArgs {
   readonly targetRepo?: string;
   readonly purpose?: string;
+  /** Parse-time usage error: a single-dash argv token (`-repo`, the near-universal
+   *  typo for `--repo`) that no CLI accepts. Carried so the CLI entrypoint fails
+   *  loudly; never reaches `mintInstallationToken`. */
+  readonly junkArgv?: string;
   /** Parse-time usage error: an explicitly-passed --repo/--org/--purpose had
    *  no usable value. Carried so the CLI entrypoint can fail loudly; never
    *  reaches `mintInstallationToken`. */
@@ -111,6 +117,10 @@ const flagPresent = (argv: readonly string[], flag: string): boolean =>
  * ignored so the bare `mint-token.ts` invocation keeps working unchanged.
  */
 export const parseMintArgs = (argv: readonly string[]): MintArgs => {
+  const junkArgv = findSingleDashArgv(argv);
+  if (junkArgv !== undefined) {
+    return { junkArgv };
+  }
   const read = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     if (i === -1 || i + 1 >= argv.length) {
@@ -193,6 +203,12 @@ export const resolveMintDeps = (
 // Only run the CLI when invoked directly (not when imported by a test).
 if (import.meta.main) {
   const args = parseMintArgs(process.argv.slice(2));
+  if (args.junkArgv !== undefined) {
+    process.stderr.write(
+      `mint-token: unrecognized argument "${args.junkArgv}" — flags start with "--" (e.g. --repo owner/repo)\n`
+    );
+    process.exit(1);
+  }
   const mintDeps = resolveMintDeps(args);
   if (mintDeps === null) {
     // Either an explicitly-passed value-taking flag with no usable value

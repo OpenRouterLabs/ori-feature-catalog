@@ -29,6 +29,8 @@
 
 import type { Database } from "bun:sqlite";
 
+import { findSingleDashArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+
 import {
   DEFAULT_PURPOSE,
   listApps,
@@ -80,6 +82,16 @@ const readFlag = (
 /** Run `register` (ctx.argv excludes the subcommand). Returns the exit code; never throws. */
 const runRegister = (ctx: RegisterCliContext): number => {
   const { argv, db, env, writers } = ctx;
+  const junkArgv = findSingleDashArgv(argv);
+  if (junkArgv !== undefined) {
+    // A single-dash token (`-purpose reviewer`) is a typo no CLI accepts, and
+    // ignoring it silently coerced the row to the org-level CATCH-ALL purpose —
+    // re-routing every future mint without --purpose (the #117 class).
+    writers.err(
+      `register-gh-app: unrecognized argument "${junkArgv}" — flags start with "--" (e.g. --org acme)\n`
+    );
+    return 1;
+  }
   // An explicitly-passed `--purpose` whose value slot was eaten by the next
   // flag (`--purpose --app-id-key X`) — or is missing entirely (a trailing
   // `--purpose`) — must fail the parse, not silently persist the org-level
