@@ -194,8 +194,10 @@ const githubErrorDetail = (payload: unknown, status: number): string => {
 
 /**
  * One JSON GitHub API call as an Effect, decoded against `schema`. Non-2xx →
- * typed `http` CommitApiError carrying GitHub's own message; a 2xx body that
- * does not match `schema` → typed `parse` CommitApiError naming the field.
+ * typed `http` CommitApiError carrying GitHub's own message (or the status
+ * when the body is not GitHub's envelope — an HTML proxy page); a 2xx body
+ * that is not JSON at all, or does not match `schema` → typed `parse`
+ * CommitApiError.
  *
  * The schema is per call site rather than a shared `Record<string, unknown>`,
  * so each response is checked once here instead of being re-inspected key by
@@ -228,20 +230,27 @@ export const ghJson = <S extends Schema.Top>(
         }),
     });
 
-    const parsed: unknown = yield* Effect.tryPromise({
-      try: (): Promise<unknown> => response.json(),
-      catch: (cause) =>
-        new CommitApiError({
-          stage: "http",
-          message: `response was not JSON: ${String(cause)}`,
-        }),
-    });
+    // Read the body as JSON up front, degrading to `null` when it is not JSON
+    // at all (an HTML error page, a 0-byte body). A non-2xx must be explained
+    // by its own envelope or degrade to the HTTP status — never fail as a
+    // "response was not JSON" complaint, which both mislabels the failure and
+    // drops the status a caller may match on (and hides the actual 502/404).
+    const parsed: unknown = yield* Effect.promise(() =>
+      response.json().catch(() => null)
+    );
 
     if (!response.ok) {
       return yield* new CommitApiError({
         stage: "http",
         status: response.status,
         message: `${input.method} ${input.url}: ${githubErrorDetail(parsed, response.status)}`,
+      });
+    }
+
+    if (parsed === null) {
+      return yield* new CommitApiError({
+        stage: "parse",
+        message: `${input.method} ${input.url}: response was not JSON`,
       });
     }
 
