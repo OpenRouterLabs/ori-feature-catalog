@@ -37,7 +37,7 @@ Prints one line per worktree it looked at, e.g.:
 - `--repo owner/repo` — sweep a different repo's slug directory. Defaults to `$GITHUB_REPO`, so only your own repo's worktrees are swept by default; cleaning up worktrees left behind while fixing a **composed/upstream** feature (see the feature prompt's upstream-fix guidance) needs this flag pointed at `$UPSTREAM` explicitly.
 - `--repo-dir /path/to/checkout` — override the repo checkout the git commands run from. Defaults to the current working directory; only needed if you're not running this from inside the repo.
 
-It mints its own token internally (same as `commit-via-api.ts`) — you don't pass it one.
+In App mode (`GH_APP_ID` set) it mints its own token internally (same as `commit-via-api.ts`) — you don't pass it one. In ambient mode (`GH_APP_ID` unset) there is no App to mint from: the sweep runs with no token and the PR lookup goes bare through the host's proxy-attached credential, the same ambient REST path the feature prompt teaches.
 
 ## Rules
 

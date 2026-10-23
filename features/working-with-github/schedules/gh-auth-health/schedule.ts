@@ -65,7 +65,10 @@ class AlertPostError extends Data.TaggedError("AlertPostError")<{
 const resolveRepo = (
   env: Readonly<Record<string, string | undefined>>
 ): string => {
-  const raw = (env.GITHUB_REPO ?? "").trim();
+  // Trim trailing slashes as well as whitespace: `acme/widgets/` is the
+  // same repo as `acme/widgets`, and the `GET /repos/<repo>/` round-trip
+  // answers 404 on the doubled slash.
+  const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
   const withoutSuffix = raw.replace(/\.git$/u, "");
   const match = /github\.com[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
   if (match?.[1] !== undefined) {

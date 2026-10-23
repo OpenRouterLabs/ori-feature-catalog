@@ -10,15 +10,16 @@ GitHub for an intern workspace, in whichever access mode it runs. The feature de
 - `prompt`: the two access models and how to detect them; in App mode, how GitHub auth works (mint a ~1-hour installation token per command, never `gh auth login`), filing issues, the worktree-first change flow, merging its own pull requests, and handling untrusted content from GitHub
 - skills: `register-gh-app` (act through a different GitHub App for another org or role) and `cleanup-worktrees` (remove worktrees whose pull request closed)
 - scripts under `scripts/`: `mint-token.ts`, `commit-via-api.ts` (signed commits through the Git Data API), `register-gh-app.ts`, `cleanup-worktrees.ts`
-- schedules: `gh-auth-health` (every 30 minutes; App mode proves a token mints and reads `GITHUB_REPO`, ambient mode probes that the API is reachable) and `worktree-cleanup` (daily)
+- schedules: `gh-auth-health` (every 30 minutes; App mode proves a token mints and reads `GITHUB_REPO`, ambient mode probes that the API is reachable) and `worktree-cleanup` (daily; sweeps in ambient mode too — the PR lookup goes bare through the host's proxy-attached credential)
 - api: none, chat: none, mcp: none
 
 ## Environment
 
 - `GH_APP_ID`, `GH_APP_PRIVATE_KEY`: the GitHub App the intern acts as. When `GH_APP_ID` is unset the feature runs in ambient mode: the minting scripts are not used, `gh-auth-health` probes the API without an Authorization header instead, and the prompt teaches the REST-first path through the host's proxy.
-- `GITHUB_REPO`: the intern's own repository, `owner/repo`.
+- `GITHUB_REPO`: the intern's own repository. Bare `owner/repo` is canonical, and every resolver in this feature tolerates the other spellings too (a full `https://github.com/…` URL, an optional `.git` suffix, a trailing slash) — `orgOf`, `resolveRepoFromEnv`, `resolveAllowedOrgs`, and `resolveConfigDirName` all normalize before use. `gh --repo`, the `repos/{owner}/{repo}` API routes, and the `github.com/…` fetch URL take bare `owner/repo` only, so the prompt's recipes normalize once per shell (`REPO=$(printf '%s' "$GITHUB_REPO" | sed -E …)`) and interpolate `$REPO`, never the raw env var.
 - `GH_APP_ALLOWED_ORGS` (optional): the installation owners a token may be minted against, comma or space separated. Defaults to the owner of `GITHUB_REPO`. Discovery fails closed, so an App installed on a foreign account is never used.
 - `GH_AUTH_HEALTH_ALERT_CHANNEL_ID`, `SLACK_BOT_TOKEN` (optional): post `gh-auth-health` failures to a Slack channel. Without them the failure is only logged.
+- Ambient mode (`GH_APP_ID` unset): the cleanup paths sweep without a token — the PR lookup goes bare through the host's proxy-attached credential — instead of refusing to run. `commit-via-api.ts` still requires an App (signed commits need one).
 
 Registered alternate Apps live in a SQLite registry under `~/.config/<intern>/gh-app-registry.db`, which stores environment variable names, never key material.
 
@@ -28,9 +29,27 @@ Registered alternate Apps live in a SQLite registry under `~/.config/<intern>/gh
 bun test features/working-with-github
 ```
 
-Run from the repo root — `bun test` from inside the feature directory does not
-resolve `effect` there (the catalog declares it as a feature dependency and
-installs it into the root `node_modules`), so the path filter form is the only
-reliable gate. In a workspace that vendors the catalog as `file:` dependencies,
-the feature lives under `node_modules/@ori-monorepo/working-with-github` — run
-that path instead: `bun test node_modules/@ori-monorepo/working-with-github`.
+## Vendored installs: edits need a root `bun install` before anything loads them
+
+When a workspace consumes this feature as a `file:` dependency
+(`vendor/ori-feature-catalog/features/working-with-github` in its
+`package.json`), the daemon and every `"$WWG"/scripts/...` path resolve through
+`node_modules/@ori-monorepo/working-with-github` — a **`.bun` store copy**
+materialized at install time, not a live view of the vendored tree. Editing
+the vendored source changes nothing that runs until the store is re-synced:
+
+```sh
+bun install   # at the WORKSPACE ROOT — a bun install inside
+              # vendor/ori-feature-catalog/ is a no-op for the store
+```
+
+Run it after every edit to the vendored source (after the test suite passes),
+and verify with `diff -rq --no-dereference -x node_modules
+vendor/ori-feature-catalog/features/working-with-github
+node_modules/@ori-monorepo/working-with-github` — it must print nothing. The
+`node_modules/` directory the vendored tree carries after its own install (from
+the catalog root's workspace layout) never exists inside the `.bun` store copy,
+so an unexcluded `diff -rq` reports `Only in …: node_modules` on every
+correctly-synced install — a false mismatch that taught the operator to ignore
+the check. A `bun install` inside the vendored tree prints "no changes" and
+re-syncs nothing.

@@ -39,11 +39,39 @@ export type RunGit = (
 /** A read-file seam (absolute path → bytes) so tests inject content with no disk. */
 export type ReadFile = (absolutePath: string) => Promise<ArrayBuffer>;
 
+/**
+ * A readlink seam (absolute path → link-target string) so tests inject content
+ * with no disk. `lstatSync().isSymbolicLink()` is the only other filesystem
+ * touch; a dangling link still readlinks fine (the target need not exist —
+ * git stores the string either way).
+ */
+export type ReadLink = (absolutePath: string) => Promise<string>;
+
 /** One worktree change: a repo-relative path plus whether it was deleted. */
 export interface ChangedFile {
   readonly path: string;
   readonly deleted: boolean;
 }
+
+/**
+ * True when a porcelain-v1 path names a directory, not a file: an untracked
+ * directory git does not descend into (one holding a nested git repo — the
+ * `?? tools/` record with `--untracked-files=all`) is emitted with a trailing
+ * slash. `git add -A` stages exactly that path as a `160000` gitlink entry
+ * (verified live: `git ls-files --stage` after `git add -A` shows mode 160000
+ * for the nested repo's HEAD), so the record must KEEP flowing — with the
+ * trailing slash stripped, since a git tree entry path never carries one —
+ * to `commit-flow.ts`'s directory→gitlink branch. Dropping it here (the old
+ * behavior) left the nested repo untracked, diverging from `git add -A`:
+ * after the commit the branch's tree had no entry at the path at all.
+ */
+const isDirectoryPath = (path: string): boolean => path.endsWith("/");
+
+/** Strip the trailing slashes a directory record carries — a git tree entry
+ *  path never ends with one, and the Git-Data API would stage a literally
+ *  slash-suffixed path otherwise. */
+const stripTrailingSlashes = (path: string): string =>
+  path.replace(/\/+$/u, "");
 
 export interface CommitArgs {
   readonly worktree: string;
@@ -56,6 +84,8 @@ export interface CommitDeps {
   readonly fetchImpl?: FetchLike;
   readonly runGit?: RunGit;
   readonly readFile?: ReadFile;
+  /** Pre-resolved symlink-target seam; defaults to node:fs/promises readlink. */
+  readonly readLink?: ReadLink;
   /** Pre-resolved token; when set, minting is skipped. */
   readonly token?: string;
 }
@@ -64,10 +94,66 @@ export const GITHUB_API = "https://api.github.com";
 /** GitHub's blob mode for a normal (non-executable, non-symlink) file. */
 export const FILE_MODE = "100644";
 export const EXEC_MODE = "100755";
-/** `git status --porcelain=v1 -z` rename-source path index offset. */
-const RENAME_FIELD_OFFSET = 2;
+/**
+ * Git's object mode for a symbolic link: a `120000` blob whose CONTENT is the
+ * link-target string (`git add` stores exactly that — the link's target text,
+ * never the target's own bytes). The matching Git-Data-API tree entry is
+ * `{ mode: "120000", type: "blob" }` with a blob of that string.
+ */
+export const SYMLINK_MODE = "120000";
+/**
+ * Git's object mode for a gitlink (submodule / embedded repo) entry: a tree
+ * entry pointing at a COMMIT sha in another repository. `git add`/`git
+ * commit` stage exactly this for a directory containing a nested git repo,
+ * and the Git-Data API's tree shape carries `{ mode: "160000", type:
+ * "commit" }` for it — a blob flow must never try to read the directory as a
+ * file.
+ */
+export const GITLINK_MODE = "160000";
 /** `git status --porcelain=v1 -z` status-code column width before the path. */
 const STATUS_PATH_OFFSET = 3;
+/**
+ * Porcelain-v1 statuses whose `-z` record emits a SECOND NUL field carrying
+ * the source path: renames (`R`) and copies (`C`). Both shapes are
+ * `XY␠new\0old` — the trailing field names the existing file the new path
+ * came from.
+ */
+const TWO_FIELD_STATUS = new Set(["R", "C"]);
+/** Fields consumed by a two-field (rename/copy) record: the entry + its source. */
+const TWO_FIELD_STRIDE = 2;
+/**
+ * The EXACT set of porcelain-v1 status pairs marking an UNMERGED path (a
+ * conflict): `DD`, `AU`, `UD`, `UA`, `DU`, `AA`, `UU` — git's documented
+ * unmerged codes and no others. A single shared letter set over-matched: `AD`
+ * (index-add + worktree-delete) and `DA` are normal, committable states (`git
+ * commit` stages them), but both letters sat in the set, so the flow refused
+ * them as "unmerged". `git commit` refuses exactly these seven; the Git-Data
+ * flow refuses the same seven, or it silently commits conflict markers into a
+ * `Verified` commit — and refusing `AD`/`DA` blocks a commit git itself would
+ * take.
+ */
+const UNMERGED_STATUS = new Set([
+  "DD",
+  "AU",
+  "UD",
+  "UA",
+  "DU",
+  "AA",
+  "UU",
+]);
+const isUnmergedStatus = (x: string, y: string): boolean =>
+  UNMERGED_STATUS.has(`${x}${y}`);
+
+/**
+ * True when a two-field (rename/copy) record's DESTINATION is gone from the
+ * worktree — exactly `RD` (git renames the path in the index, then the
+ * worktree copy is deleted; `CD` does not exist in porcelain v1). The
+ * destination must be staged as a DELETE for the flow to match `git add -A`
+ * on the same worktree: staging it as an add would read a file that is no
+ * longer there (a deleted `git mv` target) and fail the whole run.
+ */
+const isDeletedDestination = (x: string, y: string): boolean =>
+  y === "D" && x !== "D";
 
 /**
  * Resolve `owner/repo` from `GITHUB_REPO`, tolerating a full https URL or a
@@ -78,7 +164,11 @@ export const resolveRepoFromEnv = (
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
 ): string => {
-  const raw = (env.GITHUB_REPO ?? "").trim();
+  // Trim trailing slashes as well as whitespace: `acme/widgets/` (a
+  // copy-paste from a browser address bar) is the same repo as
+  // `acme/widgets`, and every `https://api.github.com/repos/<repo>/...`
+  // route answers 404 for the doubled trailing slash.
+  const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
   const withoutSuffix = raw.replace(/\.git$/u, "");
   const match = /github\.com[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
   if (match?.[1] !== undefined) {
@@ -96,49 +186,97 @@ export const defaultRunGit = (
   args: readonly string[],
   cwd: string
 ): { ok: boolean; stdout: string; stderr: string } => {
+  // 64MB, not spawnSync's 1MB default: a large worktree's
+  // `git status --porcelain=v1 -z --untracked-files=all` (the record the
+  // commit flow stages from) can far exceed 1MB — ~5,200 files with long
+  // names already do. At the default the child is killed at the cap with
+  // ENOBUFS, stdout is silently truncated mid-record, and the flow dies on
+  // `git status failed:` with a blank message (spawnSync reports the
+  // buffer overflow on `result.error`, not stderr). 64MB covers ~1M
+  // changed paths — orders of magnitude past any real worktree.
+  const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
   const result = spawnSync("git", [...args], {
     cwd,
     encoding: "utf-8",
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
+  // A spawn-level failure (ENOBUFS, spawn ENOENT, …) lands on `result.error`
+  // with an empty/partial stderr — surface it, or every caller's
+  // `git status failed: <stderr>` diagnostic is blank.
+  const spawnError =
+    result.error === undefined ? "" : ` ${result.error.message}`;
   return {
     ok: result.status === 0,
     stdout: result.stdout ?? "",
-    stderr: result.stderr ?? "",
-  };
-};
-
-/** Parse one non-rename porcelain-z record into a `ChangedFile`. */
-const parseStatusEntry = (entry: string): ChangedFile => {
-  const x = entry[0] ?? " ";
-  const y = entry[1] ?? " ";
-  const path = entry.slice(STATUS_PATH_OFFSET);
-  const isDeleted = x === "D" || y === "D";
-  return {
-    path,
-    deleted: isDeleted,
+    stderr: `${result.stderr ?? ""}${spawnError}`,
   };
 };
 
 /**
- * Parse `git status --porcelain=v1 -z --untracked-files=all` output into the
- * changed-file list. The `-z` form is NUL-delimited and quoting-free, so paths
- * with spaces / unicode / renames are handled without unescaping. Renames (`R`)
- * emit two NUL fields (new\0old); we treat the new path as added and the old as
- * deleted.
+ * Parse one non-two-field porcelain-z record into a `ChangedFile`, or `null`
+ * when nothing should be staged for it. The rule mirrors what `git add -A`
+ * stages (the flow is worktree-sync: it commits ` M` worktree-only modifies
+ * too), keyed on the real porcelain columns:
+ *   X = the INDEX vs HEAD, Y = the WORKTREE vs index.
+ * - UNMERGED (one of the seven codes): `null` — the caller reports the path
+ *   and refuses, never committing conflict markers.
+ * - Worktree copy GONE (`D `, ` D`, or `AD`): a delete — EXCEPT `AD`, where
+ *   the path was never in HEAD (X `A`), so there is nothing in the base tree
+ *   to remove and no worktree file to read: staging a `sha:null` removal for a
+ *   path that exists in no tree is wrong (and a blob read would ENOENT), so it
+ *   is skipped — exactly what `git add -A` does, which drops the path.
+ * - Worktree copy PRESENT (everything else, including `DA` — staged delete
+ *   with the file re-created on disk): a blob add. `DA`'s worktree copy is
+ *   real, so `git add -A` re-adds it; marking it deleted from the X column
+ *   would drop a file the user has on disk.
  */
-export const parseStatusZ = (output: string): ChangedFile[] => {
-  // Keyed by path: git's index holds exactly ONE entry per path, so one
-  // worktree operation can emit TWO porcelain records for the same path — a
-  // staged deletion (`D <path>` from `git rm --cached`) plus an untracked
-  // re-create on disk (`?? <path>`) — where `git add -A` stages exactly one
-  // entry: the new blob. Emitting both as separate tree entries sends the
-  // Git-Data API a duplicate-path array its contract does not define (tree
-  // entries overwrite base-tree items BY path); the LAST record for a path
-  // must win, exactly like the index `git add -A` writes. A Map keyed on
-  // path, filled in the order git emits, preserves the collapse and keeps
-  // unrelated paths in porcelain order.
+const parseStatusEntry = (entry: string): ChangedFile | null => {
+  const x = entry[0] ?? " ";
+  const y = entry[1] ?? " ";
+  if (isUnmergedStatus(x, y)) {
+    return null;
+  }
+  const worktreeGone = y === "D" || (x === "D" && y === " ");
+  if (!worktreeGone) {
+    return { deleted: false, path: entry.slice(STATUS_PATH_OFFSET) };
+  }
+  // X `A` on a gone-worktree record (`AD`): new in the index, so absent from
+  // HEAD and from the worktree — nothing to stage, nothing to remove.
+  if (x === "A") {
+    return null;
+  }
+  return { deleted: true, path: entry.slice(STATUS_PATH_OFFSET) };
+};
+
+/**
+ * Parse `git status --porcelain=v1 -z --untracked-files=all` output into the
+ * changed-file list, plus the unmerged (conflicted) paths. The `-z` form is
+ * NUL-delimited and quoting-free, so paths with spaces / unicode / renames
+ * are handled without unescaping. Renames (`R`) and copies (`C`) emit two NUL
+ * fields (new\0old): a rename stages the source as deleted, a copy leaves its
+ * source INTACT (the field is consumed, nothing staged — misparsing it as a
+ * `XY␠path` record of its own would stage a bogus tree entry at a garbage
+ * path, e.g. `src.ts` → `.ts`, and fail the whole commit). Unmerged records
+ * are reported, never staged — `git commit` refuses them and so does this
+ * flow.
+ */
+export const parseStatusZ = (
+  output: string
+): { readonly changed: ChangedFile[]; readonly unmerged: string[] } => {
+  // Keyed by path: git's index holds exactly ONE entry per path, so a
+  // worktree can produce TWO porcelain records for the same path — a staged
+  // deletion (`D <path>` from `git rm --cached`) plus an untracked worktree
+  // copy (`?? <path>` re-created on disk) — where `git add -A` stages exactly
+  // one entry: the new blob. Staging both as separate tree entries sends the
+  // Git-Data API a duplicate-path array, which the tree contract does not
+  // define (entries overwrite base-tree items BY path); the LAST record for a
+  // path must win, exactly like the index `git add -A` writes. A Map keyed on
+  // the record ORDER git emits preserves the last-write-wins collapse while
+  // keeping unrelated paths in their porcelain order.
   const files = new Map<string, ChangedFile>();
-  // Records are `XY␠path` joined by NUL; a rename adds a trailing NUL + oldpath.
+  const unmerged: string[] = [];
+  // Records are `XY␠path` joined by NUL; a rename/copy adds a trailing NUL +
+  // the source path.
   const fields = output.split("\0");
   let i = 0;
   while (i < fields.length) {
@@ -149,29 +287,71 @@ export const parseStatusZ = (output: string): ChangedFile[] => {
     }
     const x = entry[0] ?? " ";
     const y = entry[1] ?? " ";
-    const isRename = x === "R" || y === "R";
-    if (isRename) {
-      const path = entry.slice(STATUS_PATH_OFFSET);
-      // Next field is the old path (rename source) → a deletion.
-      const oldPath = fields[i + 1];
-      if (oldPath !== undefined && oldPath !== "") {
-        files.set(oldPath, {
-          path: oldPath,
+    const isTwoField = TWO_FIELD_STATUS.has(x) || TWO_FIELD_STATUS.has(y);
+    if (isTwoField) {
+      // The next field is the source path. A RENAME's source is gone from the
+      // tree (stage its deletion); a COPY's source is untouched (consume the
+      // field, stage nothing). An absent/empty source field is tolerated
+      // rather than staged as a bogus path.
+      const sourcePath = fields[i + 1];
+      const isRename = x === "R" || y === "R";
+      // `RD` renames the path in the index and then deletes the worktree copy,
+      // so the destination is gone from disk — `git add -A` stages its deletion
+      // (staging it as an add would read a file that no longer exists and fail
+      // the whole run). The source deletion below still applies: the rename's
+      // origin is gone from the tree either way.
+      const destinationDeleted = isDeletedDestination(x, y);
+      if (
+        isRename &&
+        sourcePath !== undefined &&
+        sourcePath !== "" &&
+        // Same directory guard as the one-field records: a source path that
+        // names a directory is not a blob removal.
+        !isDirectoryPath(sourcePath)
+      ) {
+        files.set(sourcePath, {
+          path: sourcePath,
           deleted: true,
         });
       }
-      files.set(path, {
-        path,
-        deleted: false,
+      files.set(entry.slice(STATUS_PATH_OFFSET), {
+        path: entry.slice(STATUS_PATH_OFFSET),
+        deleted: destinationDeleted,
       });
-      i += RENAME_FIELD_OFFSET;
+      i += TWO_FIELD_STRIDE;
       continue;
     }
+    // `null` from `parseStatusEntry` is ambiguous between UNMERGED (refuse)
+    // and SKIP (`AD`: nothing to stage) — recheck the record to decide.
+    //
+    // A directory record (`?? dir/` — the only shape git abbreviates: it
+    // never descends into a dir holding a nested git repo, even with
+    // `--untracked-files=all`) is KEPT, slash-stripped, exactly like `git add
+    // -A` stages it: the flow's directory→gitlink branch turns it into a
+    // `160000` commit entry pointing at the nested repo's HEAD. A plain
+    // untracked dir never appears here — `-uall` flattens those into per-file
+    // records — so the only records reaching the gitlink branch are the
+    // nested-repo ones git itself would stage as a gitlink.
     const parsed = parseStatusEntry(entry);
-    files.set(parsed.path, parsed);
+    if (parsed === null) {
+      if (isUnmergedStatus(entry[0] ?? " ", entry[1] ?? " ")) {
+        unmerged.push(entry.slice(STATUS_PATH_OFFSET));
+      }
+    } else {
+      const path = isDirectoryPath(parsed.path)
+        ? stripTrailingSlashes(parsed.path)
+        : parsed.path;
+      files.set(path, {
+        ...parsed,
+        path,
+      });
+    }
     i += 1;
   }
-  return Array.from(files.values());
+  return {
+    changed: Array.from(files.values()),
+    unmerged,
+  };
 };
 
 // #endregion
@@ -180,7 +360,14 @@ export const parseStatusZ = (output: string): ChangedFile[] => {
 
 export interface GhJsonInput {
   readonly fetchImpl: FetchLike;
-  readonly token: string;
+  /**
+   * Bearer token for the call. Absent → the request goes bare: in ambient
+   * mode (`GH_APP_ID` unset) the host's egress proxy attaches the workspace
+   * credential to `api.github.com` requests itself, and an App token cannot
+   * be minted at all — the same ambient REST discipline the feature prompt
+   * teaches. Every App-mode caller still passes one.
+   */
+  readonly token?: string;
   readonly method: "GET" | "POST" | "PATCH";
   readonly url: string;
   readonly body?: unknown;
@@ -205,10 +392,8 @@ const githubErrorDetail = (payload: unknown, status: number): string => {
 
 /**
  * One JSON GitHub API call as an Effect, decoded against `schema`. Non-2xx →
- * typed `http` CommitApiError carrying GitHub's own message (or the status
- * when the body is not GitHub's envelope — an HTML proxy page); a 2xx body
- * that is not JSON at all, or does not match `schema` → typed `parse`
- * CommitApiError.
+ * typed `http` CommitApiError carrying GitHub's own message; a 2xx body that
+ * does not match `schema` → typed `parse` CommitApiError naming the field.
  *
  * The schema is per call site rather than a shared `Record<string, unknown>`,
  * so each response is checked once here instead of being re-inspected key by
@@ -224,7 +409,12 @@ export const ghJson = <S extends Schema.Top>(
           method: input.method,
           headers: {
             Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${input.token}`,
+            // Absent token → bare request: the ambient credential path (the
+            // host's proxy attaches it), never an empty Authorization header
+            // (GitHub answers 400 for one).
+            ...(input.token === undefined
+              ? {}
+              : { Authorization: `Bearer ${input.token}` }),
             "X-GitHub-Api-Version": "2022-11-28",
             ...(input.body === undefined
               ? {}

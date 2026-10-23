@@ -36,7 +36,7 @@
  * byte-for-byte as before.
  */
 
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Exit, Layer, Option } from "effect";
 
 import type {
   FetchLike,
@@ -99,7 +99,8 @@ interface GhAppConfigShape {
   readonly cache?: InstallationCache;
   /**
    * Lower-cased set of installation-owner logins a token may be minted against.
-   * Resolved fail-closed from `GH_APP_ALLOWED_ORGS`/the four-org default; every
+   * Resolved fail-closed from `GH_APP_ALLOWED_ORGS`, else the `GITHUB_REPO`
+   * owner; every
    * discovery and cache path is checked against it.
    */
   readonly allowedOrgs: Set<string>;
@@ -246,7 +247,7 @@ export interface GhAppConfigDeps {
   readonly cache?: InstallationCache;
   /**
    * Override the fail-closed installation-owner allowlist. Omitted → resolved
-   * from `GH_APP_ALLOWED_ORGS`, else the four-org secure default.
+   * from `GH_APP_ALLOWED_ORGS`, else the `GITHUB_REPO` owner (fail-closed).
    */
   readonly allowedOrgs?: readonly string[];
 }
@@ -369,24 +370,32 @@ const makeGhApp = (config: GhAppConfigShape): GhAppShape => {
 
       // Cache hit: mint against it, but a cached id can go stale (App
       // reinstalled) — on a 401/404 invalidate, re-discover, and retry once.
-      return yield* requestInstallationToken(
-        config.fetchImpl,
-        jwt,
-        cached
-      ).pipe(
+      // The re-discovery is wrapped in `Effect.either` so a 401/404 that
+      // re-discovery cannot resolve (e.g. the App was uninstalled and has zero
+      // installations now) surfaces the ORIGINAL stale status — the actionable
+      // "reinstall the App / clear the cache" signal — instead of replacing it
+      // with a discovery failure that hides the 401/404.
+      return yield* requestInstallationToken(config.fetchImpl, jwt, cached).pipe(
         Effect.catchIf(
           (error) =>
             error.op === "http" &&
             error.status !== undefined &&
             STALE_INSTALLATION_STATUSES.has(error.status),
-          () =>
+          (stale) =>
             Effect.gen(function* () {
               config.cache?.delete(appId, org);
-              const fresh = yield* discoverAndCache(jwt);
+              const reDiscovered: Exit.Exit<string, GhAppError> =
+                yield* Effect.exit(discoverAndCache(jwt));
+              const freshId = Exit.getSuccess(reDiscovered);
+              if (Option.isNone(freshId)) {
+                // Re-discovery failed: propagate the ORIGINAL stale error —
+                // the 401/404 is the actionable cause, not the discovery noise.
+                return yield* Effect.fail(stale);
+              }
               return yield* requestInstallationToken(
                 config.fetchImpl,
                 jwt,
-                fresh
+                freshId.value
               );
             })
         )

@@ -372,6 +372,53 @@ describe("ghAuthHealthCheck", () => {
       expect(outcome.error.stage).toBe("round-trip");
     }
   });
+
+  test("a 502 with an HTML body surfaces the status, not a JSON parse complaint", async () => {
+    // Regression: the body was parsed before `response.ok` was checked, so a
+    // proxy/GitHub 5xx with an HTML body failed as "not JSON" and the status —
+    // the actionable signal (5xx = GitHub/proxy down vs 401 = revoked) — was
+    // dropped from the alert.
+    const outcome = await runToOutcome(
+      ghAuthHealthCheck({
+        fetchImpl: () =>
+          Promise.resolve(
+            new Response("<html>Bad Gateway</html>", {
+              headers: { "content-type": "text/html" },
+              status: 502,
+            })
+          ),
+        mint: okMint,
+        repo: TEST_REPO,
+      })
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.stage).toBe("round-trip");
+      expect(outcome.error.detail).toContain("502");
+      expect(outcome.error.detail).not.toContain("not JSON");
+    }
+  });
+
+  test("a 2xx non-JSON body still fails at round-trip as unparseable", async () => {
+    const outcome = await runToOutcome(
+      ghAuthHealthCheck({
+        fetchImpl: () =>
+          Promise.resolve(
+            new Response("<html>not json</html>", {
+              headers: { "content-type": "text/html" },
+              status: 200,
+            })
+          ),
+        mint: okMint,
+        repo: TEST_REPO,
+      })
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.stage).toBe("round-trip");
+      expect(outcome.error.detail).toContain("not JSON");
+    }
+  });
 });
 
 // ─── rendering + config ───────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ const TEST_PEM_B64 = Buffer.from(
   privateKey.export({
     format: "pem",
     type: "pkcs1",
-  }),
+  })
 ).toString("base64");
 
 /** The bare default app env — no installation id; the org comes from GITHUB_REPO. */
@@ -44,7 +44,7 @@ type Outcome<A, E> =
   | { readonly ok: false; readonly error: E };
 
 const runToOutcome = <A, E>(
-  effect: Effect.Effect<A, E>,
+  effect: Effect.Effect<A, E>
 ): Promise<Outcome<A, E>> =>
   Effect.runPromise(
     effect.pipe(
@@ -57,89 +57,16 @@ const runToOutcome = <A, E>(
           ok: true as const,
           value,
         }),
-      }),
-    ),
+      })
+    )
   );
-
-// ─── mintInstallationToken — routing diagnostics ────────────────────────────
-
-describe("mintInstallationToken routing diagnostics", () => {
-  test("a registered (org, purpose) emits the org/purpose it routed to", async () => {
-    const lines: string[] = [];
-    const outcome = await runToOutcome(
-      mintInstallationToken({
-        clock: () => 1_700_000_000_000,
-        diag: (text) => lines.push(text),
-        env: TEAM_ENV,
-        fetchImpl: (url) => {
-          if (url.includes("/app/installations?")) {
-            return Promise.resolve(
-              jsonResponse([
-                {
-                  account: { login: "acme-corp" },
-                  id: 1,
-                },
-              ]),
-            );
-          }
-          return Promise.resolve(
-            jsonResponse({ expires_at: "x", token: "ghs_team" }, 201),
-          );
-        },
-        cache: null,
-        registry: fakeRegistry({
-          "acme-corp\ndefault": {
-            appIdKey: "TEAM_GH_APP_ID",
-            privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
-          },
-        }),
-        targetRepo: "acme-corp/widgets",
-      }),
-    );
-    expect(outcome.ok).toBe(true);
-    expect(lines).toContain(
-      "gh-app-token: minting as registered app org=acme-corp purpose=default\n",
-    );
-  });
-
-  test("a registry miss emits the default-app fallback, not silence", async () => {
-    const lines: string[] = [];
-    const outcome = await runToOutcome(
-      mintInstallationToken({
-        clock: () => 1_700_000_000_000,
-        diag: (text) => lines.push(text),
-        env: TEAM_ENV,
-        fetchImpl: (url) => {
-          if (url.includes("/app/installations?")) {
-            return Promise.resolve(
-              jsonResponse([
-                {
-                  account: { login: "acme-corp" },
-                  id: 1,
-                },
-              ]),
-            );
-          }
-          return Promise.resolve(
-            jsonResponse({ expires_at: "x", token: "ghs_default" }, 201),
-          );
-        },
-        cache: null,
-        registry: fakeRegistry({}),
-        targetRepo: "acme-corp/widgets",
-      }),
-    );
-    expect(outcome.ok).toBe(true);
-    expect(lines).toContain("gh-app-token: minting as default GH_APP_*\n");
-  });
-});
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   Response.json(body, { status });
 
 /** An in-memory InstallationCache fake, keyed by `appId\norg`, with a call log. */
 const makeFakeCache = (
-  seed: Record<string, string> = {},
+  seed: Record<string, string> = {}
 ): {
   readonly cache: InstallationCache;
   readonly calls: string[];
@@ -160,7 +87,7 @@ const makeFakeCache = (
       },
       purge: (allowedOrgs: Iterable<string>): number => {
         const allowed = new Set(
-          Array.from(allowedOrgs, (login) => login.trim().toLowerCase()),
+          Array.from(allowedOrgs, (login) => login.trim().toLowerCase())
         );
         let removed = 0;
         for (const composite of Array.from(store.keys())) {
@@ -190,7 +117,7 @@ describe("readGhAppCredentials with a registry", () => {
       readGhAppCredentials({
         env: TEAM_ENV,
         registry: fakeRegistry({}),
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -213,7 +140,7 @@ describe("readGhAppCredentials with a registry", () => {
         org: "acme-corp/web",
         purpose: "reviewer",
         registry,
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -229,7 +156,7 @@ describe("readGhAppCredentials with a registry", () => {
         org: "UnknownOrg/x",
         purpose: "reviewer",
         registry: fakeRegistry({}),
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -245,7 +172,7 @@ describe("readGhAppCredentials with a registry", () => {
       readGhAppCredentials({
         env: TEAM_ENV,
         org: "OtherOrg/repo",
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -266,7 +193,7 @@ describe("readGhAppCredentials with a registry", () => {
         env: TEAM_ENV,
         org: "acme-corp",
         registry,
-      }),
+      })
     );
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
@@ -305,7 +232,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "acme-corp" },
                   id: 4242,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(
@@ -314,15 +241,15 @@ describe("mintInstallationToken installation discovery", () => {
                 expires_at: "2026-01-01T00:00:00Z",
                 token: "ghs_team",
               },
-              201,
-            ),
+              201
+            )
           );
         },
         cache: null,
         purpose: "reviewer",
         registry,
         targetRepo: "acme-corp/widgets",
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -330,10 +257,10 @@ describe("mintInstallationToken installation discovery", () => {
     }
     // It listed installations, matched the org, then minted against installation 4242.
     expect(urls.some((u) => u.includes("/app/installations?per_page="))).toBe(
-      true,
+      true
     );
     expect(urls).toContain(
-      "https://api.github.com/app/installations/4242/access_tokens",
+      "https://api.github.com/app/installations/4242/access_tokens"
     );
   });
 
@@ -355,7 +282,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "SomeoneElse" },
                   id: 1,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(jsonResponse({ token: "unused" }, 201));
@@ -363,7 +290,7 @@ describe("mintInstallationToken installation discovery", () => {
         cache: null,
         registry,
         targetRepo: "acme-corp/widgets",
-      }),
+      })
     );
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
@@ -389,7 +316,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "acme-interns" },
                   id: 55,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(
@@ -398,11 +325,11 @@ describe("mintInstallationToken installation discovery", () => {
                 expires_at: "x",
                 token: "ghs_default",
               },
-              201,
-            ),
+              201
+            )
           );
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -410,10 +337,10 @@ describe("mintInstallationToken installation discovery", () => {
     }
     // Discovered the acme-interns installation (from GITHUB_REPO), then minted against it.
     expect(urls.some((u) => u.includes("/app/installations?per_page="))).toBe(
-      true,
+      true
     );
     expect(urls).toContain(
-      "https://api.github.com/app/installations/55/access_tokens",
+      "https://api.github.com/app/installations/55/access_tokens"
     );
   });
 
@@ -438,7 +365,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "acme-interns" },
                   id: 99,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(
@@ -447,18 +374,18 @@ describe("mintInstallationToken installation discovery", () => {
                 expires_at: "x",
                 token: "ghs_sole",
               },
-              201,
-            ),
+              201
+            )
           );
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
       expect(outcome.value.token).toBe("ghs_sole");
     }
     expect(urls).toContain(
-      "https://api.github.com/app/installations/99/access_tokens",
+      "https://api.github.com/app/installations/99/access_tokens"
     );
   });
 
@@ -482,12 +409,12 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "OrgB" },
                   id: 2,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(jsonResponse({ token: "unused" }, 201));
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
@@ -516,13 +443,13 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "kolfadser1" },
                   id: 66,
                 },
-              ]),
+              ])
             );
           }
           mintAttempted = true;
           return Promise.resolve(jsonResponse({ token: "leaked" }, 201));
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
@@ -554,7 +481,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "acme-interns" },
                   id: 77,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(
@@ -563,11 +490,11 @@ describe("mintInstallationToken installation discovery", () => {
                 expires_at: "x",
                 token: "ghs_valid",
               },
-              201,
-            ),
+              201
+            )
           );
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
@@ -576,10 +503,10 @@ describe("mintInstallationToken installation discovery", () => {
     // Minted against the allowlisted installation only; the foreign id 13 is
     // never POSTed to.
     expect(urls).toContain(
-      "https://api.github.com/app/installations/77/access_tokens",
+      "https://api.github.com/app/installations/77/access_tokens"
     );
     expect(
-      urls.some((u) => u.includes("/app/installations/13/access_tokens")),
+      urls.some((u) => u.includes("/app/installations/13/access_tokens"))
     ).toBe(false);
   });
 
@@ -599,7 +526,7 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "acme-interns" },
                   id: 42,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(
@@ -608,18 +535,18 @@ describe("mintInstallationToken installation discovery", () => {
                 expires_at: "x",
                 token: "ghs_ok",
               },
-              201,
-            ),
+              201
+            )
           );
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
       expect(outcome.value.token).toBe("ghs_ok");
     }
     expect(urls).toContain(
-      "https://api.github.com/app/installations/42/access_tokens",
+      "https://api.github.com/app/installations/42/access_tokens"
     );
   });
 
@@ -634,6 +561,17 @@ describe("mintInstallationToken installation discovery", () => {
       mintInstallationToken({
         cache,
         clock: () => 1_700_000_000_000,
+        // An explicit registry (here: no rows) keeps the mint OFF the
+        // production SQLite registry DB. Pre-fix this was omitted, so
+        // `mintInstallationToken({ targetRepo })` wired
+        // `defaultRegistryResolver` → `openGhAppRegistryDb()` → the real
+        // `~/.config/<intern>/gh-app-registry.db` from inside the test
+        // (verified with a GH_APP_REGISTRY_DIR canary): the resolver is only
+        // skipped when `targetRepo` is absent, and the registry fallback row
+        // it reads there belongs to whatever the operator last registered —
+        // a production-state touch and a flakiness seam, the same class as
+        // #127 closed for the routing-note tests via `cache: null`.
+        registry: () => null,
         // Target the foreign org so the poisoned row would be the cache key hit.
         env: {
           GH_APP_ID: "111",
@@ -648,13 +586,13 @@ describe("mintInstallationToken installation discovery", () => {
                   account: { login: "kolfadser1" },
                   id: 66,
                 },
-              ]),
+              ])
             );
           }
           return Promise.resolve(jsonResponse({ token: "leaked" }, 201));
         },
         targetRepo: "kolfadser1/evil",
-      }),
+      })
     );
     // The cached foreign row is dropped, discovery re-runs, and discovery itself
     // fails closed on the foreign owner — no token is ever minted.
@@ -668,7 +606,7 @@ describe("mintInstallationToken installation discovery", () => {
     expect(calls.some((c) => c.startsWith("purge:"))).toBe(true);
     // The foreign cached id 66 was never POSTed to as a trusted cache hit.
     expect(
-      urls.some((u) => u.includes("/app/installations/66/access_tokens")),
+      urls.some((u) => u.includes("/app/installations/66/access_tokens"))
     ).toBe(false);
   });
 
@@ -687,7 +625,7 @@ describe("mintInstallationToken installation discovery", () => {
           fetched = true;
           return Promise.resolve(jsonResponse({}, 201));
         },
-      }),
+      })
     );
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {

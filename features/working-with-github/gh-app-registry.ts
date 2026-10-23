@@ -15,13 +15,77 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+/**
+ * An env-var override for the registry DB's parent directory — a TEST-ONLY
+ * seam. Tests must redirect every production-path registry/cache touch here
+ * (e.g. `GH_APP_REGISTRY_DIR=$(mkdtemp -d)`), NOT by reassigning
+ * `process.env.HOME`: Bun's `os.homedir()` snapshots the real home at process
+ * start and ignores a runtime reassignment, so a HOME-redirected test
+ * silently opened its DB under the operator's real `~/.config/<intern>/` —
+ * hundreds of stray `wwg-cache-*` registry DBs accumulated that way on this
+ * workspace's home. The variable holds an absolute directory path; the DB
+ * file is always `gh-app-registry.db` inside it.
+ */
+const REGISTRY_DIR_ENV = "GH_APP_REGISTRY_DIR";
+
 const DB_DIR_MODE = 0o700;
 const DB_FILE_MODE = 0o600;
+/**
+ * How long (ms) a writer waits for the registry's SQLite write lock before
+ * failing. Every user of this DB opens its own short-lived connection (the
+ * register CLI, a mint's registry lookup, a mint's installation-cache
+ * put/delete/purge), and SQLite's default busy timeout is 0: two overlapping
+ * writers — e.g. `register-gh-app` while a concurrent mint lands its cache put —
+ * make the second fail immediately with `SQLITE_BUSY: database is locked`
+ * (repro: hold `BEGIN IMMEDIATE` on one connection, write from another). The
+ * registry/cache seams swallow that as a no-op (a registration silently lost, a
+ * cache put silently skipped), so the write just disappears. A bounded wait
+ * lets a normal concurrent writer finish instead.
+ */
+const DB_BUSY_TIMEOUT_MS = 5000;
 /** `Date.now()` is milliseconds; `registered_at` is stored in whole seconds. */
 const MS_PER_SECOND = 1000;
 
 /** The purpose used for an org's catch-all row and the default when none is given. */
 export const DEFAULT_PURPOSE = "default";
+
+/**
+ * Extract the org from an `owner/repo`, full `https://` URL, or ssh/scp-style
+ * (`git@github.com:owner/repo`) string. Mirrors the sibling normalizers
+ * (`resolveRepoFromEnv` in scripts/commit-api-core.ts, `resolveAllowedOrgs`
+ * in gh-app-github-api.ts) — all three accept the same spellings — so one
+ * repo string routes identically through the registry, the allowlist, and the
+ * Git-Data paths. Defined here (above the CRUD section) so `registerApp` can
+ * normalize the org it persists.
+ */
+export const orgOf = (repo: string): string => {
+  // Trim trailing slashes as well as whitespace: `acme/widgets/` (a
+  // copy-paste from a browser address bar) is the same repo as
+  // `acme/widgets`, and the bare-match alternative below keys on exactly
+  // two segments — a trailing slash left it unmatchable, so a registered
+  // org never resolved and minting silently fell back to the default App.
+  const cleaned = repo
+    .trim()
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "");
+  const hostMatch = /(?:git@)?github\.com[/:]([^/]+)\/[^/]+$/u.exec(cleaned);
+  if (hostMatch?.[1] !== undefined) {
+    return hostMatch[1];
+  }
+  // An ORG URL — `https://github.com/<org>` (a copy-pasted org page, the
+  // natural spelling for `--org`) carries no repo segment, so the repo
+  // regexes above miss it and the raw URL was returned whole. The mint path
+  // derives its registry key from a repo string via this same function, so
+  // a row persisted under the raw URL never matched and every mint silently
+  // fell back to the default App — the #101 class reopened through the org
+  // side. Strip the host down to its org segment.
+  const orgUrlMatch = /(?:git@)?github\.com[/:]([^/]+)$/u.exec(cleaned);
+  if (orgUrlMatch?.[1] !== undefined) {
+    return orgUrlMatch[1];
+  }
+  const bareMatch = /^([^/]+)\/[^/]+$/u.exec(cleaned);
+  return bareMatch?.[1] ?? cleaned;
+};
 
 // #region Config dir resolution
 
@@ -44,7 +108,18 @@ export const resolveConfigDirName = (
   if (fromInternName !== "") {
     return sanitizeSegment(fromInternName);
   }
-  const repoRaw = (env.GITHUB_REPO ?? "").trim().replace(/\.git$/u, "");
+  // Trim trailing slashes as well as whitespace — the same normalization every
+  // sibling repo-string resolver already applies (orgOf, resolveRepoFromEnv,
+  // resolveAllowedOrgs). This resolver is the one that missed it: a trailing
+  // slash made the regexes below match the whole URL instead of its
+  // `owner/repo` tail, so the config dir name (and with it the registry DB
+  // path) silently changed with the spelling of GITHUB_REPO — `acme/widgets/`
+  // resolved to `acme-widgets` instead of `widgets`, and the URL spelling
+  // became `https-github-com-acme-widgets`.
+  const repoRaw = (env.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "");
   if (repoRaw !== "") {
     const match = /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(repoRaw);
     const repoName = match?.[2] ?? repoRaw;
@@ -132,10 +207,18 @@ export const openGhAppRegistryDb = (path?: string): Database => {
   if (path !== undefined) {
     const memDb = new Database(path);
     memDb.run("PRAGMA journal_mode = WAL;");
+    memDb.run(`PRAGMA busy_timeout = ${DB_BUSY_TIMEOUT_MS};`);
     createGhAppRegistrySchema(memDb);
     return memDb;
   }
-  const dir = join(homedir(), ".config", resolveConfigDirName());
+  // A test redirects the whole registry directory via GH_APP_REGISTRY_DIR
+  // (see REGISTRY_DIR_ENV) — the only reliable seam, because `homedir()`
+  // ignores a runtime-reassigned HOME.
+  const override = (Bun.env[REGISTRY_DIR_ENV] ?? "").trim();
+  const dir =
+    override !== ""
+      ? override
+      : join(homedir(), ".config", resolveConfigDirName());
   mkdirSync(dir, {
     mode: DB_DIR_MODE,
     recursive: true,
@@ -149,6 +232,7 @@ export const openGhAppRegistryDb = (path?: string): Database => {
     // ignore
   }
   db.run("PRAGMA journal_mode = WAL;");
+  db.run(`PRAGMA busy_timeout = ${DB_BUSY_TIMEOUT_MS};`);
   createGhAppRegistrySchema(db);
   return db;
 };
@@ -396,31 +480,3 @@ export const sqliteInstallationCache: InstallationCache = {
 };
 
 // #endregion
-
-/** Extract the org from an `owner/repo` (or full GitHub URL) string. */
-export const orgOf = (repo: string): string => {
-  // Trim trailing slashes as well as whitespace: `acme/widgets/` is the same
-  // repo as `acme/widgets`, and the bare-match alternative below keys on
-  // exactly two segments — a trailing slash left it unmatchable, so a
-  // registered org never resolved and minting silently fell back to the
-  // default App.
-  const cleaned = repo
-    .trim()
-    .replace(/[\/\s]+$/gu, "")
-    .replace(/\.git$/u, "");
-  // `git@`-prefixed ssh spellings (`git@github.com:owner/repo`) otherwise
-  // feed the org capture `git@github.com:owner` — the host is not optional
-  // enough to skip the user segment.
-  const match = /(?:git@)?(?:github\.com[/:])?([^/]+)\/[^/]+$/u.exec(cleaned);
-  // An ORG URL — `https://github.com/<org>` (no repo segment) — misses the
-  // repo regex above and falls through as the raw URL, so a
-  // `register --org https://github.com/<org>` row persists under a key the
-  // mint path can never look up (it derives its key from a repo string via
-  // this same function), and every mint silently falls back to the default
-  // App. Strip the host down to its org segment first.
-  const orgMatch = /(?:github\.com[/:])([^/]+)$/u.exec(cleaned);
-  if (orgMatch?.[1] !== undefined) {
-    return orgMatch[1];
-  }
-  return match?.[1] ?? cleaned;
-};

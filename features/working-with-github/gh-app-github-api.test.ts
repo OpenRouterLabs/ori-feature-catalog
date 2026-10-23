@@ -7,6 +7,7 @@ import type { GhAppError } from "./gh-app-github-api.ts";
 import {
   discoverInstallationId,
   requestInstallationToken,
+  resolveAllowedOrgs,
 } from "./gh-app-github-api.ts";
 
 type Outcome<A> =
@@ -144,6 +145,39 @@ describe("requestInstallationToken response decoding", () => {
       expect(outcome.error.message).toContain("HTTP 503");
     }
   });
+
+  test("a non-2xx whose body is not JSON at all degrades to op:http with its status", async () => {
+    // The pre-fix body read failed op:parse ("was not JSON"), hiding the very
+    // status the stale-installation retry in gh-app-token.ts matches on.
+    const outcome = await runToOutcome(
+      requestInstallationToken(
+        constantFetch("Service Unavailable", 503),
+        "jwt",
+        "1"
+      )
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.op).toBe("http");
+      expect(outcome.error.status).toBe(503);
+      expect(outcome.error.message).toContain("HTTP 503");
+    }
+  });
+
+  test("an empty 0-byte 401 body still surfaces op:http 401 for the stale-installation retry", async () => {
+    // Exactly the response a reinstalled App answers the cached-id POST with.
+    const emptyFetch = (): Promise<Response> =>
+      Promise.resolve(new Response("", { status: 401 }));
+    const outcome = await runToOutcome(
+      requestInstallationToken(emptyFetch, "jwt", "1")
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.op).toBe("http");
+      expect(outcome.error.status).toBe(401);
+      expect(outcome.error.message).toContain("HTTP 401");
+    }
+  });
 });
 
 describe("discoverInstallationId page decoding", () => {
@@ -234,5 +268,31 @@ describe("discoverInstallationId page decoding", () => {
       expect(outcome.error.op).toBe("parse");
       expect(outcome.error.message).toContain("Expected array");
     }
+  });
+});
+
+// ─── resolveAllowedOrgs ─────────────────────────────────────────────────────
+
+describe("resolveAllowedOrgs", () => {
+  test("derives the allowlist from a bare owner/repo GITHUB_REPO", async () => {
+    const allowed = resolveAllowedOrgs(undefined, {
+      GITHUB_REPO: "acme-corp/widgets",
+    });
+    expect(Array.from(allowed)).toEqual(["acme-corp"]);
+  });
+
+  test("derives the allowlist from a full https GITHUB_REPO URL", async () => {
+    const allowed = resolveAllowedOrgs(undefined, {
+      GITHUB_REPO: "https://github.com/acme-corp/widgets.git",
+    });
+    expect(Array.from(allowed)).toEqual(["acme-corp"]);
+  });
+
+  test("explicit GH_APP_ALLOWED_ORGS still wins", async () => {
+    const allowed = resolveAllowedOrgs(undefined, {
+      GH_APP_ALLOWED_ORGS: "acme-corp, other-org",
+      GITHUB_REPO: "https://github.com/acme-corp/widgets",
+    });
+    expect(Array.from(allowed)).toEqual(["acme-corp", "other-org"]);
   });
 });

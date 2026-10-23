@@ -33,6 +33,7 @@ import {
   DEFAULT_PURPOSE,
   listApps,
   openGhAppRegistryDb,
+  orgOf,
   registerApp,
 } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
@@ -59,27 +60,61 @@ const readFlag = (
     return undefined;
   }
   const value = argv[i + 1];
-  // A following token that is itself a flag means the value was omitted
-  // (e.g. `--org --app-id-key X`) — treat it as absent so validation fails
-  // cleanly instead of registering `--app-id-key` as the org.
-  if (value === undefined || value.startsWith("--")) {
+  // Trim BEFORE the flag-shape check: a value that is a flag modulo
+  // surrounding whitespace (`--org " --purpose "`) is the same omitted
+  // value, but the raw token passed the guard first, trimmed to "--purpose",
+  // and flowed on as a real org — persisting `org:"--purpose"`, a registry
+  // key no mint can ever produce (orgOf of a repo string never yields a
+  // `--`-prefixed login), the #101/#140 silent-dead-row class. A following
+  // token that is itself a flag means the value was omitted (e.g. `--org
+  // --app-id-key X`) — treat it as absent so validation fails cleanly
+  // instead of registering `--app-id-key` as the org.
+  const trimmed = value === undefined ? undefined : value.trim();
+  if (trimmed === undefined || trimmed.startsWith("--")) {
     return undefined;
   }
-  // Trim so a stray-whitespace value (e.g. `--org "acme-corp "`) doesn't
-  // persist a row minting can never match — mint derives its org via orgOf(),
-  // which trims. An all-whitespace value trims to "" → treated as absent.
-  const trimmed = value.trim();
+  // An all-whitespace value trims to "" → treated as absent.
   return trimmed === "" ? undefined : trimmed;
 };
 
 /** Run `register` (ctx.argv excludes the subcommand). Returns the exit code; never throws. */
 const runRegister = (ctx: RegisterCliContext): number => {
   const { argv, db, env, writers } = ctx;
+  // An explicitly-passed `--purpose` whose value slot was eaten by the next
+  // flag (`--purpose --app-id-key X`) — or is missing entirely (a trailing
+  // `--purpose`) — must fail the parse, not silently persist the org-level
+  // CATCH-ALL ("default") row: the caller asked for a ROLE App and would
+  // silently re-route every future mint without --purpose to the App the
+  // other flags named — the same silent-identity-swap class #98/#107 closed
+  // in mint-token.ts. A PRESENT-but-blank value (`--purpose "$UNSET"`)
+  // keeps its documented coercion to "default"; only the two shapes where
+  // no value token exists at all are refused. `--org` needs no marker: an
+  // unusable --org already fails the !org validation below.
+  const purposeSlotRaw = argv[argv.indexOf("--purpose") + 1];
+  // Trim before the flag-shape test, exactly like readFlag below: a purpose
+  // slot that is a flag modulo surrounding whitespace (`--purpose
+  // " --app-id-key "`) passed this RAW-token guard, then readFlag trimmed it
+  // to a flag and returned undefined — so the purpose silently coerced to the
+  // org-level CATCH-ALL row with exit 0, re-routing every future mint without
+  // --purpose (#117 reopened through padding). A PRESENT-but-blank value
+  // (`--purpose "$UNSET"`) still coerces to "default" by design; only the
+  // flag-shaped shapes are refused.
+  const purposeSlot =
+    purposeSlotRaw === undefined ? undefined : purposeSlotRaw.trim();
   const org = readFlag(argv, "--org");
   // readFlag trims and maps empty/whitespace → undefined, so a missing OR
   // blank --purpose (e.g. `--purpose "$UNSET"`) coerces to the default rather
   // than persisting a purpose="" row that minting (DEFAULT_PURPOSE) never hits.
   const purpose = readFlag(argv, "--purpose") ?? DEFAULT_PURPOSE;
+  if (
+    argv.includes("--purpose") &&
+    (purposeSlot === undefined || purposeSlot.startsWith("--"))
+  ) {
+    writers.err(
+      "register-gh-app: register --purpose needs a value (e.g. --purpose reviewer)\n"
+    );
+    return 1;
+  }
   const appIdKey = readFlag(argv, "--app-id-key");
   const privateKeyKey = readFlag(argv, "--private-key-key");
 
@@ -101,6 +136,12 @@ const runRegister = (ctx: RegisterCliContext): number => {
     );
     return 1;
   }
+  // The row is keyed by `orgOf(org)` — `registerApp` normalizes before it
+  // persists — so the confirmation must echo that same normalized org. Echoing
+  // the raw `--org` argument (a URL-shaped spelling the CLI accepts) printed a
+  // key the registry never holds, and the row `mint-token.ts --repo …` then
+  // routed to looked unexplained when it did match.
+  const normalizedOrg = orgOf(org);
 
   // A DB failure (corruption, permissions, locking) must not crash the CLI with
   // a stack trace — render a single-line diagnostic and exit non-zero instead.
@@ -118,7 +159,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
     return 1;
   }
   writers.out(
-    `registered ${org} (${purpose}) → ${appIdKey} / ${privateKeyKey}\n`
+    `registered ${normalizedOrg} (${purpose}) → ${appIdKey} / ${privateKeyKey}\n`
   );
   return 0;
 };

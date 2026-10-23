@@ -4,10 +4,10 @@ import {
   DEFAULT_PURPOSE,
   lookupApp,
   openGhAppRegistryDb,
-  orgOf,
   registerApp,
 } from "./gh-app-registry.ts";
 import type { GhAppKeyNames } from "./gh-app-registry.ts";
+import { orgOf } from "./gh-app-registry.ts";
 
 // The register CLI accepts (and the feature prompt documents) the same
 // spellings for `--org` that `mint-token.ts --repo` accepts. Every sibling
