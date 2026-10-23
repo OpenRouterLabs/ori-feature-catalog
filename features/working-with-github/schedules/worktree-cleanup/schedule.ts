@@ -19,6 +19,8 @@ import type { FeatureLogger } from "ori";
 import { Effect } from "effect";
 import { defineSchedule } from "ori";
 
+import { resolveRepoDir } from "./repo-dir.ts";
+
 import { cleanupWorktrees } from "@ori-monorepo/working-with-github/cleanup-worktrees-core.ts";
 import { formatOutcome } from "@ori-monorepo/working-with-github/cleanup-worktrees.ts";
 import { resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
@@ -26,19 +28,6 @@ import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-
 
 const WORKTREES_ROOT = "/tmp/worktrees";
 
-/**
- * Resolve the directory the sweep's `git` commands run from. The checkout the
- * daemon runs from is NOT reliably `process.cwd()` — in the standard intern
- * layout the daemon is started from `/workspace`, one level above the actual
- * git checkout, and `git worktree list`/`prune` there fail with "not a git
- * repository", killing every daily sweep. Prefer the runtime's explicit
- * `ORI_INTERN_WORKSPACE_ROOT` (the workspace checkout); fall back to the old
- * `process.cwd()` only when it is unset.
- */
-export const resolveRepoDir = (): string =>
-  (process.env.ORI_INTERN_WORKSPACE_ROOT ?? "").trim() !== ""
-    ? (process.env.ORI_INTERN_WORKSPACE_ROOT ?? "").trim()
-    : process.cwd();
 
 /** The fire's logic as an Effect — a single `Effect.runPromise` at the `run`
  *  boundary below drives it (the SDK's `run` handler returns a Promise). */
