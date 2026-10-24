@@ -68,7 +68,15 @@ export const orgOf = (repo: string): string => {
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
-  const hostMatch = /(?:git@)?github\.com[/:]([^/]+)\/[^/]+$/u.exec(cleaned);
+  // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
+  // blob/tree/PR/releases address) — collapses to its owner, exactly like the
+  // two-segment form: the raw URL was returned whole, so a row registered
+  // from it could never match the org a mint derives, and every mint
+  // silently fell back to the default App (#101 class reopened through the
+  // deep path).
+  const hostMatch = /(?:git@)?github\.com[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(
+    cleaned
+  );
   if (hostMatch?.[1] !== undefined) {
     return hostMatch[1];
   }
@@ -121,7 +129,16 @@ export const resolveConfigDirName = (
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
   if (repoRaw !== "") {
-    const match = /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(repoRaw);
+    // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
+    // blob/tree/PR/releases address) — resolved the config-dir name from its
+    // LAST segment (`main`, `x.ts`, even `42`), silently migrating the
+    // registry/cache DB to a new directory (and orphaning the old one's rows)
+    // because the regex anchored to the string's tail. Match the owner/repo
+    // pair right after the host (or at the head of a bare string) so a deep
+    // path keeps resolving to the repo name, like every other spelling.
+    const match =
+      /(?:github\.com[/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(repoRaw) ??
+      /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(repoRaw);
     const repoName = match?.[2] ?? repoRaw;
     const sanitized = sanitizeSegment(repoName);
     if (sanitized !== "") {

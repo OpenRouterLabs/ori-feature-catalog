@@ -99,7 +99,12 @@ export const resolveAllowedOrgs = (
     .trim()
     .replace(/\/+$/u, "")
     .replace(/\.git$/u, "");
-  const repoMatch = /github\.com[/:]([^/]+)\/[^/]+$/u.exec(rawRepo);
+  // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
+  // blob/tree/PR/releases address) — resolves to its owner too: the
+  // two-segment-only match missed it, and the `split("/")[0]` fallback then
+  // reduced the URL to its SCHEME (`https:`), a login no installation can
+  // ever carry — so every mint failed closed with no hint why.
+  const repoMatch = /github\.com[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(rawRepo);
   const repoOwner = repoMatch?.[1] ?? rawRepo.split("/")[0];
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
   const source = override ?? fromEnv ?? fromRepo;
