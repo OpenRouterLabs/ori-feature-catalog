@@ -68,6 +68,20 @@ export const orgOf = (repo: string): string => {
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
+  // The ORGANIZATIONS page spellings — `https://github.com/orgs/<org>` (the
+  // "Your organizations" page) and `/organizations/<org>` — are the same
+  // copy-paste class as the org URL below, but they MUST be stripped before
+  // the repo match: `github.com/orgs/acme` also parses as owner `orgs` with
+  // repo `acme`, so the repo regex would return the host word `orgs` — a
+  // dead registry row no mint can ever match, silently bypassing the
+  // registered App. `orgs`/`organizations` are reserved host paths on
+  // github.com, never an owner login, so the page reading is the only real
+  // one.
+  const orgsPageMatch =
+    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(cleaned);
+  if (orgsPageMatch?.[1] !== undefined) {
+    return orgsPageMatch[1];
+  }
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
   // blob/tree/PR/releases address) — collapses to its owner, exactly like the
   // two-segment form: the raw URL was returned whole, so a row registered
