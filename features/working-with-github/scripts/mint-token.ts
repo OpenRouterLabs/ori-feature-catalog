@@ -100,6 +100,14 @@ export interface MintArgs {
    *  value (the same class as {@link missingRepoValue}, for the third
    *  value-taking flag). Never reaches `mintInstallationToken`. */
   readonly missingPurposeValue?: boolean;
+  /** Parse-time usage error: a value-taking flag appeared more than once
+   *  (`--repo acme/a --repo acme/b` — a paste error). The four CLIs each
+   *  silently picked a winner before, and NOT the same one (this CLI and the
+   *  two `readFlag` CLIs took the FIRST occurrence, `commit-via-api.ts`'s
+   *  Map the LAST) — so one pasted command block could mint a token for the
+   *  first `--repo` and land the commit on the second. A repeat is refused
+   *  outright, exactly like the single-dash and equals-form shapes. */
+  readonly repeatedFlag?: string;
 }
 
 /** True when `flag` appears in `argv` at all — used to distinguish an
@@ -120,6 +128,21 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
   const junkArgv = findJunkArgv(argv);
   if (junkArgv !== undefined) {
     return { junkArgv };
+  }
+  // A value-taking flag repeated in argv is a usage error, never a silent
+  // winner: `indexOf` takes the first occurrence, so pre-fix
+  // `--repo acme/a --repo acme/b` silently minted for `acme/a`. `--repo` and
+  // `--org` are aliases for the SAME target, so both present is a repeat too
+  // (reported under the canonical `--repo` name).
+  const count = (flag: string): number =>
+    argv.filter((token) => token === flag).length;
+  const repoRepeats = count("--repo") + count("--org");
+  const purposeRepeats = count("--purpose");
+  if (repoRepeats > 1) {
+    return { repeatedFlag: "--repo" };
+  }
+  if (purposeRepeats > 1) {
+    return { repeatedFlag: "--purpose" };
   }
   const read = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
@@ -187,7 +210,11 @@ export const resolveMintDeps = (
   args: MintArgs,
   env: Readonly<Record<string, string | undefined>> = process.env
 ): MintArgs | null => {
-  if (args.missingRepoValue === true || args.missingPurposeValue === true) {
+  if (
+    args.missingRepoValue === true ||
+    args.missingPurposeValue === true ||
+    args.repeatedFlag !== undefined
+  ) {
     return null;
   }
   if (args.purpose === undefined || args.targetRepo !== undefined) {
@@ -211,12 +238,14 @@ if (import.meta.main) {
   }
   const mintDeps = resolveMintDeps(args);
   if (mintDeps === null) {
-    // Either an explicitly-passed value-taking flag with no usable value
-    // (--repo/--org/--purpose) or a purpose with no derivable org (it can
-    // never route to a registered App) — minting the bare default instead
-    // would silently ignore the flag.
+    // An explicitly-passed value-taking flag with no usable value, one that
+    // was repeated, or a purpose with no derivable org (it can never route to
+    // a registered App) — minting the bare default instead would silently
+    // ignore what the caller asked for.
     process.stderr.write(
-      args.missingRepoValue === true
+      args.repeatedFlag !== undefined
+        ? `mint-token: ${args.repeatedFlag} was passed more than once — pass exactly one value\n`
+        : args.missingRepoValue === true
         ? "mint-token: --repo/--org needs a value (e.g. --repo owner/repo)\n"
         : args.missingPurposeValue === true
           ? "mint-token: --purpose needs a value (e.g. --purpose reviewer)\n"

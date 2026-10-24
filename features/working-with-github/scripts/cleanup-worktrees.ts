@@ -89,6 +89,12 @@ export interface CleanupCliArgs {
    *  `mint-token.ts` (`missingRepoValue`) and `commit-via-api.ts`
    *  (`parseFlagPair`) both reject. */
   readonly missingFlagValue?: string;
+  /** Parse-time usage error: a value-taking flag was passed more than once
+   *  (`--repo acme/a --repo acme/b` — a paste error). `readFlag` keys on
+   *  `argv.indexOf`, so pre-fix the FIRST occurrence silently won while the
+   *  caller may have meant the second — a wrong-target destructive sweep
+   *  with no diagnostic. A repeat is refused, naming the flag. */
+  readonly repeatedFlag?: string;
 }
 
 /** Parse `--repo`, `--repo-dir`, `--worktrees-root`, and `--dry-run` out of argv. */
@@ -99,6 +105,12 @@ export const parseCleanupArgs = (
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
   const junkArgv = findJunkArgv(argv);
+  // A value-taking flag repeated in argv is a usage error, never a silent
+  // first-wins: `readFlag` below reads `argv.indexOf(flag)`, so a repeated
+  // flag silently dropped every occurrence after the first.
+  const repeatedFlag = ["--repo", "--repo-dir", "--worktrees-root"].find(
+    (flag) => argv.filter((token) => token === flag).length > 1
+  );
   const readFlag = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     if (i === -1 || i + 1 >= argv.length) {
@@ -146,6 +158,7 @@ export const parseCleanupArgs = (
     dryRun: argv.includes("--dry-run"),
     ...(junkArgv === undefined ? {} : { junkArgv }),
     ...(missingFlagValue === undefined ? {} : { missingFlagValue }),
+    ...(repeatedFlag === undefined ? {} : { repeatedFlag }),
     repo,
     repoDir: readFlag("--repo-dir") ?? cwd,
     worktreesRoot: readFlag("--worktrees-root") ?? DEFAULT_WORKTREES_ROOT,
@@ -183,6 +196,14 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
         `cleanup-worktrees: ${args.missingFlagValue} needs a value (e.g. ${
           args.missingFlagValue === "--repo" ? "owner/repo" : "/a/path"
         })\n`
+      );
+      return 1;
+    }
+    if (args.repeatedFlag !== undefined) {
+      // A parse-time usage error: a value-taking flag was passed more than
+      // once. Never silently sweep the first occurrence's target.
+      writers.err(
+        `cleanup-worktrees: ${args.repeatedFlag} was passed more than once — pass exactly one value\n`
       );
       return 1;
     }

@@ -161,6 +161,26 @@ export const parseCliArgs = (
         message: `unrecognized argument "${junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash`,
       });
     }
+    // A repeated `--flag` is a usage error, never a silent winner: the Map
+    // below keys on the flag name, so pre-fix the LAST occurrence silently
+    // won (`--repo acme/a --repo acme/b` committed to `acme/b`) — while the
+    // sibling CLIs' `indexOf` readers took the FIRST, so one pasted command
+    // block could mint a token for the first `--repo` and land the Verified
+    // commit on the second. All four CLIs refuse the repeat, naming the flag.
+    const seen = new Set<string>();
+    for (let i = 0; i < argv.length; i += FLAG_STRIDE) {
+      const key = argv[i];
+      if (key === undefined) {
+        break;
+      }
+      if (seen.has(key)) {
+        return yield* new CommitApiError({
+          stage: "args",
+          message: `flag "${key}" was passed more than once — pass exactly one value`,
+        });
+      }
+      seen.add(key);
+    }
     const flags = new Map<string, string>();
     for (let i = 0; i < argv.length; i += FLAG_STRIDE) {
       const pair = yield* parseFlagPair(argv, i);
