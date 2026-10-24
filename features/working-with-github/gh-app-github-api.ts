@@ -16,6 +16,8 @@ import { createSign } from "node:crypto";
 
 import { Data, Effect, Option, Schema } from "effect";
 
+import { orgOf } from "./gh-app-registry.ts";
+
 // #region Error
 
 /** Single typed failure for every GitHub App auth operation. */
@@ -99,13 +101,42 @@ export const resolveAllowedOrgs = (
     .trim()
     .replace(/\/+$/u, "")
     .replace(/\.git$/u, "");
+  // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
+  // organizations" page), also `github.com/organizations/…` — is the one
+  // spelling whose ORG sits where the repo regex below expects a repo
+  // segment: `github.com/orgs/acme` parses as owner `orgs` with repo
+  // `acme`, so the repo match returns `orgs` — a host path word no
+  // installation owner can ever carry, and every mint fails closed with no
+  // hint the spelling was the cause. `orgOf`'s own orgs-page branch exists
+  // for exactly this (it runs BEFORE its repo regex for the same reason);
+  // check it first here too. `orgs`/`organizations` are reserved host
+  // paths on github.com, never an owner login.
+  const orgsPageMatch =
+    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
+      rawRepo
+    );
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
   // blob/tree/PR/releases address) — resolves to its owner too: the
   // two-segment-only match missed it, and the `split("/")[0]` fallback then
   // reduced the URL to its SCHEME (`https:`), a login no installation can
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch = /github\.com[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(rawRepo);
-  const repoOwner = repoMatch?.[1] ?? rawRepo.split("/")[0];
+  // A host-only URL — an org page (`https://github.com/acme`) or any other
+  // `github.com/<word>` address with no repo segment — carries an owner the
+  // repo regex (which needs two segments) misses, and the old
+  // `rawRepo.split("/")[0]` fallback reduced it to the SCHEME (`https:`) —
+  // a login no installation can ever carry, so every mint failed closed
+  // with no hint why (the #159/#82 scheme-reduction class, reopened through
+  // spellings with no repo segment). Route those through `orgOf` — the
+  // sibling normalizer that already owns the org-URL spelling — so the
+  // allowlist, the registry key, and the Git-Data paths keep sharing one
+  // spelling contract (README: "every resolver in this feature tolerates
+  // the other spellings too"). A bare `owner` (no slash at all) keeps its
+  // direct pass-through.
+  const repoOwner =
+    orgsPageMatch?.[1] ??
+    repoMatch?.[1] ??
+    (rawRepo !== "" && rawRepo.includes("/") ? orgOf(rawRepo) : rawRepo);
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
   const source = override ?? fromEnv ?? fromRepo;
   return new Set(
