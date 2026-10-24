@@ -64,10 +64,20 @@ export const orgOf = (repo: string): string => {
   // `acme/widgets`, and the bare-match alternative below keys on exactly
   // two segments — a trailing slash left it unmatchable, so a registered
   // org never resolved and minting silently fell back to the default App.
+  // The `.git` strip runs BEFORE a SECOND trailing-slash strip, never after:
+  // a `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,
+  // `github.com:acme/.git`, `acme/.git`) exposes the interior `/` once the
+  // suffix comes off, and every `$`-anchored branch below (the org-URL and
+  // two-segment matches) then missed, returning the raw URL as the "org" —
+  // a registry key no mint can ever produce, a config dir that silently
+  // migrated, and a repo every `repos/{repo}` route 404s on. The prompt's
+  // `REPO=` sed recipe already collapses these (`s#\.git$##` then `s#/$##`);
+  // the resolvers must agree with it.
   const cleaned = repo
     .trim()
     .replace(/[\/\s]+$/gu, "")
-    .replace(/\.git$/u, "");
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
   // `(?::\d+)?` port group — the `:` itself becomes the `[/:]` separator,
@@ -167,10 +177,17 @@ export const resolveConfigDirName = (
   // path) silently changed with the spelling of GITHUB_REPO — `acme/widgets/`
   // resolved to `acme-widgets` instead of `widgets`, and the URL spelling
   // became `https-github-com-acme-widgets`.
+  // The trailing-slash strip runs AGAIN after the `.git` strip: a `/.git`
+  // suffix (`https://github.com/acme/.git` — separator-then-dot-git) exposes
+  // an interior `/` the first strip cannot see (the string ends in `t`, not
+  // `/`), so every branch below missed and the dir name silently migrated to
+  // a sanitized URL (`https-github-com-acme`), orphaning the registry/cache
+  // rows the org spelling wrote (#113's class, reopened through the paste).
   const repoRaw = (env.GITHUB_REPO ?? "")
     .trim()
     .replace(/[\/\s]+$/gu, "")
-    .replace(/\.git$/u, "");
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see its own port-stripping above). The host-word strip
   // below carries `(?::\d+)?` as an OPTIONAL group with a REQUIRED `[/:]`

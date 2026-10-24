@@ -100,7 +100,15 @@ export const resolveAllowedOrgs = (
   const rawRepo = (env?.GITHUB_REPO ?? "")
     .trim()
     .replace(/\/+$/u, "")
-    .replace(/\.git$/u, "");
+    .replace(/\.git$/u, "")
+    // A `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,
+    // `github.com:acme/.git`) exposes an interior `/` once the suffix comes
+    // off; re-strip it or every branch below misses and the raw URL flows
+    // through as the allowlist entry — a login no installation owner can
+    // carry, so every mint fails closed with no hint the spelling was the
+    // cause (the #159/#82 class, reopened through the separator-then-dot-git
+    // paste; `orgOf` now strips the same suffix).
+    .replace(/\/+$/u, "");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below BACKTRACKS past the optional `(?::\d+)?`
