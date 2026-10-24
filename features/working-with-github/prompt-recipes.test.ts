@@ -68,6 +68,25 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "https://github.com/acme/widgets/pull/42",
     },
+    // The ORGANIZATIONS-page spellings — `github.com/orgs/<org>` (the "Your
+    // organizations" page) and `/organizations/<org>` — are a spelling every
+    // sibling resolver tolerates (#169/#175/#177 fixed them in `orgOf`,
+    // `resolveRepoFromEnv`, `resolveAllowedOrgs` and `resolveConfigDirName`),
+    // so the prompt's normalization recipe must collapse them to the org too:
+    // pre-fix the recipe's two-segment rule matched the host-stripped
+    // `orgs/acme` as a fake `owner/repo` pair — an owner login no GitHub
+    // route answers (orgs/organizations are reserved host paths), so every
+    // recipe that interpolated it (`gh --repo orgs/acme`, `repos/orgs/acme`,
+    // the fetch URL, and the SLUG dir the worktree sweep then looked under)
+    // silently targeted a nonexistent repo. The resolvers resolve these to
+    // the ORG; the recipe must agree with them.
+    { normalized: "acme", raw: "https://github.com/orgs/acme" },
+    {
+      normalized: "acme",
+      raw: "https://github.com/organizations/acme",
+    },
+    { normalized: "acme", raw: "https://github.com/orgs/acme/teams" },
+    { normalized: "acme", raw: "git@github.com:orgs/acme" },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {
