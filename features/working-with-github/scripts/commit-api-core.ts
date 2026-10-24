@@ -192,6 +192,17 @@ export const resolveRepoFromEnv = (
   if (match?.[1] !== undefined) {
     return match[1];
   }
+  // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
+  // blob/tree/PR/releases address) — must collapse to its `owner/repo` tail:
+  // the raw URL passed straight through makes every `repos/{repo}` API
+  // route 404, exactly the class the URL-spelling fix closed for the
+  // two-segment form.
+  const deepMatch =
+    /github\.com[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(withoutSuffix);
+  if (deepMatch?.[1] !== undefined) {
+    return deepMatch[1];
+  }
+  // A bare string (no github.com host) keeps its historical pass-through.
   return withoutSuffix;
 };
 
