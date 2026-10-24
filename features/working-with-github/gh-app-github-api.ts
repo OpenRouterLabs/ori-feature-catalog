@@ -101,6 +101,24 @@ export const resolveAllowedOrgs = (
     .trim()
     .replace(/\/+$/u, "")
     .replace(/\.git$/u, "");
+  // Strip an explicit PORT before any regex runs — the same normalization
+  // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
+  // `[/:]` host separator below BACKTRACKS past the optional `(?::\d+)?`
+  // port group exactly as it does in every sibling resolver: the `:` itself
+  // becomes the separator, the port digits become the "owner". A port+org
+  // spelling (`github.com:22/acme` — the natural org-page form of a ported
+  // remote) then matched the fake owner `22` here, so the allowlist carried a
+  // login no installation can ever own and every mint failed closed with no
+  // hint the spelling was the cause — the #186 class, reopened through the
+  // allowlist resolver (orgOf resolves the same spelling to `acme`, so the
+  // registry key and the allowlist key silently disagreed). A port is
+  // unambiguous — `:<digits>` right after the `github.com` host, before any
+  // separator or end — so removing it up front lets every branch below see
+  // the same string every sibling resolver already resolves through.
+  const portStripped = rawRepo.replace(
+    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    "$1"
+  );
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/…` — is the one
   // spelling whose ORG sits where the repo regex below expects a repo
@@ -115,7 +133,7 @@ export const resolveAllowedOrgs = (
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
     /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
-      rawRepo
+      portStripped
     );
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
   // blob/tree/PR/releases address) — resolves to its owner too: the
@@ -123,7 +141,7 @@ export const resolveAllowedOrgs = (
   // reduced the URL to its SCHEME (`https:`), a login no installation can
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch =
-    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(rawRepo);
+    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(portStripped);
   // A host-only URL — an org page (`https://github.com/acme`) or any other
   // `github.com/<word>` address with no repo segment — carries an owner the
   // repo regex (which needs two segments) misses, and the old
@@ -146,9 +164,10 @@ export const resolveAllowedOrgs = (
   const repoOwner =
     orgsPageMatch?.[1] ??
     repoMatch?.[1] ??
-    (rawRepo !== "" && (rawRepo.includes("/") || rawRepo.includes(":"))
-      ? orgOf(rawRepo)
-      : rawRepo);
+    (portStripped !== "" &&
+    (portStripped.includes("/") || portStripped.includes(":"))
+      ? orgOf(portStripped)
+      : portStripped);
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
   const source = override ?? fromEnv ?? fromRepo;
   return new Set(
