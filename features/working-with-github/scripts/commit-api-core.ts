@@ -235,7 +235,16 @@ export const resolveRepoFromEnv = (
   // `acme/widgets`, and every `https://api.github.com/repos/<repo>/...`
   // route answers 404 for the doubled trailing slash.
   const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
-  const withoutSuffix = raw.replace(/\.git$/u, "");
+  // A `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,
+  // `github.com:acme/.git`) exposes an interior `/` once the suffix comes off;
+  // re-strip it or every `$`-anchored branch below misses and the raw URL is
+  // returned whole — every `repos/{repo}` route then 404s (the #141 class,
+  // reopened through the separator-then-dot-git paste). The prompt's `REPO=`
+  // sed recipe already collapses these (`s#\.git$##` then `s#/$##`); the
+  // resolver must agree with it.
+  const withoutSuffix = raw
+    .replace(/\.git$/u, "")
+    .replace(/\/+$/u, "");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
