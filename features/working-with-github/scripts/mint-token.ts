@@ -18,15 +18,21 @@
  *
  * # Usage
  *
+ *   # Normalize GITHUB_REPO once per shell, exactly like the feature prompt's
+ *   # REPO= recipe — gh --repo and the repos/{owner}/{repo} API routes take
+ *   # bare owner/repo only, and the raw env var breaks both under a URL
+ *   # spelling (gh rejects it; repos/https://… is not a route and 404s):
+ *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?github\.com:[0-9]+[/:]##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+ *
  *   # Inject into one gh call:
  *   GH_TOKEN=$(bun features/working-with-github/scripts/mint-token.ts) \
- *     gh pr list --repo "$GITHUB_REPO"
+ *     gh pr list --repo "$REPO"
  *
  *   # Capture once, reuse across several calls in the same shell:
  *   TOKEN=$(bun features/working-with-github/scripts/mint-token.ts)
  *   curl -s -H "Authorization: Bearer $TOKEN" \
  *     -H "Accept: application/vnd.github+json" \
- *     "https://api.github.com/repos/$GITHUB_REPO"
+ *     "https://api.github.com/repos/$REPO"
  *
  * The ~1-hour installation token is derived on demand from the App credentials
  * in the service env (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`) — nothing at rest. The
