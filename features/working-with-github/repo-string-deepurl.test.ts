@@ -137,4 +137,35 @@ describe("deep GitHub URL spellings resolve like their owner/repo form", () => {
       }),
     ]).toEqual(["acme"]);
   });
+
+  test("resolveRepoFromEnv resolves the org spellings to the org, never a fake owner/repo or the raw URL", () => {
+    // The mirror of the test above, for the fourth resolver: #159's deep-URL
+    // fix taught resolveRepoFromEnv the deep repo spellings but not the org
+    // spellings, so a GITHUB_REPO with no repo segment still produced —
+    //   - an ORGANIZATIONS-page URL (`https://github.com/orgs/acme`) →
+    //     `orgs/acme`, a FAKE owner/repo pair the deep regex captured from
+    //     the host path: it looks legitimate downstream while every
+    //     `repos/{repo}` route 404s, and `gh --repo orgs/acme` reports a
+    //     repo that does not exist;
+    //   - an org URL (`https://github.com/acme`) → the raw URL whole, which
+    //     every `repos/{repo}` route 404s on.
+    // The three siblings (`orgOf`, `resolveAllowedOrgs`,
+    // `resolveConfigDirName`) already resolve these spellings to the org
+    // (#169 closed the allowlist's half), so the fourth must too — one
+    // spelling contract, four resolvers.
+    expect(
+      resolveRepoFromEnv({ GITHUB_REPO: "https://github.com/orgs/acme" })
+    ).toBe("acme");
+    expect(
+      resolveRepoFromEnv({
+        GITHUB_REPO: "https://github.com/organizations/acme",
+      })
+    ).toBe("acme");
+    expect(resolveRepoFromEnv({ GITHUB_REPO: "https://github.com/acme" })).toBe(
+      "acme"
+    );
+    expect(
+      resolveRepoFromEnv({ GITHUB_REPO: "git@github.com:orgs/acme.git" })
+    ).toBe("acme");
+  });
 });

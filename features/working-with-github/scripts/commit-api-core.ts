@@ -221,6 +221,25 @@ export const resolveRepoFromEnv = (
   // route answers 404 for the doubled trailing slash.
   const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
   const withoutSuffix = raw.replace(/\.git$/u, "");
+  // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
+  // organizations" page), also `github.com/organizations/acme` — is the one
+  // spelling whose ORG sits where the repo regexes below expect a repo
+  // segment: `github.com/orgs/acme` parses as owner `orgs` with repo `acme`,
+  // a fake owner/repo pair that looks legitimate downstream while every
+  // `repos/{repo}` route 404s. The sibling resolvers (`orgOf`,
+  // `resolveAllowedOrgs`) strip these spellings to the org they name
+  // (#169's class, for the resolver that feeds the Git-Data routes), and
+  // `orgOf` runs its own orgs-page branch BEFORE its repo regex for exactly
+  // this reason; this resolver must too. A repo resolver cannot invent a
+  // repo, so it returns the ORG — the same single-segment pass-through a
+  // bare `owner` keeps at the bottom.
+  const orgsPageMatch =
+    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)$/u.exec(
+      withoutSuffix
+    );
+  if (orgsPageMatch?.[1] !== undefined) {
+    return orgsPageMatch[1];
+  }
   const match = /github\.com[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
   if (match?.[1] !== undefined) {
     return match[1];
@@ -234,6 +253,18 @@ export const resolveRepoFromEnv = (
     /github\.com[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(withoutSuffix);
   if (deepMatch?.[1] !== undefined) {
     return deepMatch[1];
+  }
+  // A HOST-ONLY URL — an org page (`https://github.com/acme`) or any other
+  // `github.com/<word>` address with no repo segment — carries an owner the
+  // two-segment and deep regexes above both miss (they need two segments),
+  // and the bare pass-through below would return the raw URL whole, which
+  // every `repos/{repo}` route 404s on. Same treatment as the orgs-page
+  // branch above: return the org it names, like `orgOf`'s org-URL branch.
+  const orgUrlMatch = /(?:git@)?github\.com[\/:]([^/]+)$/u.exec(
+    withoutSuffix
+  );
+  if (orgUrlMatch?.[1] !== undefined) {
+    return orgUrlMatch[1];
   }
   // A bare string (no github.com host) keeps its historical pass-through.
   return withoutSuffix;
