@@ -21,7 +21,9 @@
  *
  * # What it does
  *
- *   1. Mint a fresh installation token (or honour an injected `GH_TOKEN`).
+ *   1. Mint a fresh installation token (it mints internally — an ambient
+ *      `GH_TOKEN` in the environment is NOT read, matching the feature
+ *      prompt's rule that this script owns its own minting).
  *   2. Read the branch's current head commit + its tree (the base tree).
  *   3. For every changed file in the worktree (`git status --porcelain`):
  *        - added / modified → create a blob, stage it in the new tree;
