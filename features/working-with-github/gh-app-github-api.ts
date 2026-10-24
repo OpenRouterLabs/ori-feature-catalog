@@ -310,6 +310,24 @@ const ALL_ERRORS = { errors: "all" } as const;
 
 const INSTALLATIONS_PAGE_SIZE = 100;
 
+/**
+ * How long one mint-path HTTP round-trip may wait before the flow stops
+ * waiting. Pre-fix BOTH mint fetches — the `GET /app/installations` page walk
+ * and the `POST …/access_tokens` call — ran with no bound of their own, so a
+ * hung connection to api.github.com (a dropped route, a wedged proxy) left
+ * `GH_TOKEN=$(bun mint-token.ts)` pending FOREVER: the command substitution
+ * blocks the caller's whole shell, `commit-via-api.ts` never returns, and the
+ * `gh-auth-health` fire that should alert on exactly this state is itself
+ * wedged behind the same unbounded mint. Every sibling network path in this
+ * feature already bounds its wait (`PR_LOOKUP_TIMEOUT_MS` in the worktree
+ * sweep, `AMBIENT_PROBE_TIMEOUT_MS`/`ROUND_TRIP_TIMEOUT_MS` in the health
+ * check, `POST_ALERT_TIMEOUT_MS` on the Slack post) — the mint is the one
+ * network path they all depend on, and the only one still unbounded. The
+ * deadline turns "no answer" into the same `GhAppError` channel a 5xx already
+ * uses, so a failed mint stays a one-line diagnostic and a non-zero exit.
+ */
+const MINT_HTTP_TIMEOUT_MS = 15_000;
+
 /** The (installationId, accountLogin) pairs discovery matches on. */
 interface InstallationRef {
   readonly id: string;
@@ -352,7 +370,18 @@ const fetchInstallationsPage = (
           headers: githubAppHeaders(jwt),
           method: "GET",
         }),
-    });
+      // Bound the wait: a fetch that never settles is a mint failure, not a
+      // mint — see MINT_HTTP_TIMEOUT_MS.
+    }).pipe(
+      Effect.timeoutOrElse({
+        duration: MINT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new GhAppError({
+            message: `GitHub installations list (page ${page}) did not answer within ${MINT_HTTP_TIMEOUT_MS / 1000}s`,
+            op: "discover",
+          }),
+      })
+    );
     if (!response.ok) {
       return yield* new GhAppError({
         message: `GitHub installations list failed: HTTP ${response.status}`,
@@ -484,7 +513,20 @@ export const requestInstallationToken = (
             method: "POST",
           }
         ),
-    });
+    }).pipe(
+      // Bound the wait like the installations page walk: a token POST that
+      // never settles must fail the mint, never hang it — see
+      // MINT_HTTP_TIMEOUT_MS. `commit-via-api.ts` (which mints internally)
+      // and every `GH_TOKEN=$(…)` capture share this deadline.
+      Effect.timeoutOrElse({
+        duration: MINT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new GhAppError({
+            message: `GitHub installation-token request did not answer within ${MINT_HTTP_TIMEOUT_MS / 1000}s`,
+            op: "request",
+          }),
+      })
+    );
 
     // A non-2xx stays `op:"http"` with its status: `gh-app-token.ts` retries a
     // stale installation on exactly that shape, and a decode failure must not
