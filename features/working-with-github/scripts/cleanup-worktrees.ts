@@ -30,7 +30,12 @@
  *
  * `--repo` defaults to `$GITHUB_REPO` — only that repo's own slug directory is
  * swept. Cleaning up worktrees for an upstream composed-feature fix needs an
- * explicit `--repo owner/repo` (mirroring `commit-via-api.ts --repo`).
+ * explicit `--repo owner/repo` (mirroring `commit-via-api.ts --repo`) — and a
+ * `--repo-dir` pointed at a checkout OF that repo: `git worktree list` runs
+ * from the checkout you're standing in and only knows that repo's worktrees,
+ * so an upstream-repo sweep from your own repo's checkout reports every
+ * upstream worktree as a false stray and removes nothing (the dirs are
+ * healthy, just tracked by a different checkout).
  * `--repo-dir` defaults to the current working directory — run this from your
  * repo checkout (same expectation as the worktree-creation flow in the feature
  * prompt), since `git worktree list`/`prune`/`remove` need a real git working
