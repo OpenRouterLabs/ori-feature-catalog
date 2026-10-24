@@ -68,6 +68,22 @@ export const orgOf = (repo: string): string => {
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
+  // Strip an explicit PORT before any regex runs: with the port left in,
+  // the two-segment repo match below can BACKTRACK past the optional
+  // `(?::\d+)?` port group — the `:` itself becomes the `[/:]` separator,
+  // the port digits become the "owner", and the single segment after it the
+  // "repo". A ported ORG spelling (`ssh://git@github.com:22/acme` — the
+  // natural `--org`/org-page form) has exactly one segment after the host, so
+  // the repo regex fails on the real reading and SUCCEEDS on the backtracked
+  // one: `orgOf` returned `"22"`, the exact fake-owner class #186 closed for
+  // the two-segment repo form. A port is unambiguous — `:<digits>` right
+  // after the `github.com` host, before any separator or end — so removing
+  // it up front lets every branch below see the same string the ported repo
+  // spellings already resolve through.
+  const portStripped = cleaned.replace(
+    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    "$1"
+  );
   // The ORGANIZATIONS page spellings — `https://github.com/orgs/<org>` (the
   // "Your organizations" page) and `/organizations/<org>` — are the same
   // copy-paste class as the org URL below, but they MUST be stripped before
@@ -88,7 +104,7 @@ export const orgOf = (repo: string): string => {
   // real path start.
   const orgsPageMatch =
     /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
-      cleaned
+      portStripped
     );
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
@@ -100,7 +116,9 @@ export const orgOf = (repo: string): string => {
   // silently fell back to the default App (#101 class reopened through the
   // deep path).
   const hostMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(cleaned);
+    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(
+      portStripped
+    );
   if (hostMatch?.[1] !== undefined) {
     return hostMatch[1];
   }
@@ -112,12 +130,12 @@ export const orgOf = (repo: string): string => {
   // fell back to the default App — the #101 class reopened through the org
   // side. Strip the host down to its org segment.
   const orgUrlMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)$/u.exec(cleaned);
+    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)$/u.exec(portStripped);
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
-  const bareMatch = /^([^/]+)\/[^/]+$/u.exec(cleaned);
-  return bareMatch?.[1] ?? cleaned;
+  const bareMatch = /^([^/]+)\/[^/]+$/u.exec(portStripped);
+  return bareMatch?.[1] ?? portStripped;
 };
 
 // #region Config dir resolution
@@ -161,14 +179,40 @@ export const resolveConfigDirName = (
   // one every other spelling of the same repo resolves to, silently
   // migrating the DB and orphaning the old rows the moment the env var's
   // spelling changes. `orgOf` already owns this normalization; share it.
-  if (repoRaw !== "" && !repoRaw.includes("/")) {
-    const org = orgOf(repoRaw);
+  // The ported ORG spellings (`ssh://git@github.com:22/acme`,
+  // `github.com:29418/acme`) carry a slash, so the colon-only guard below
+  // misses them; strip an optional `github.com`[:port] host word first (the
+  // same `orgOf` branch every ported spelling already routes through) so an
+  // org-only tail resolves to the org, never a sanitized raw URL.
+  const hostStripped =
+    repoRaw !== "" && !repoRaw.includes("/")
+      ? repoRaw
+      : repoRaw.replace(
+          /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:git@)?github\.com(?::\d+)?[/:]/u,
+          ""
+        );
+  if (hostStripped !== "" && !hostStripped.includes("/")) {
+    const org = orgOf(hostStripped);
     const sanitized = sanitizeSegment(org);
     if (sanitized !== "") {
       return sanitized;
     }
   }
   if (repoRaw !== "") {
+    // A PORT in the host separator (ssh://git@github.com:22/…) must be
+    // consumed before the repo regexes below, exactly as `orgOf` does
+    // (#186's class): the repo match anchored on the two-segment tail of the
+    // raw URL never matched, so the fallback returned the OWNER (or worse,
+    // sanitized the whole URL), while every other spelling of the same repo
+    // resolved to the repo segment — silently migrating the config dir (and
+    // with it the registry/cache DB) whenever the env var's spelling changed.
+    // `github.com`/`git@github.com` with an optional `:<port>` host word is
+    // stripped down to its `owner/repo` tail so the existing regexes see the
+    // real path start.
+    const hostPortStripped = repoRaw.replace(
+      /(?:git@)?github\.com(?::\d+)?[/:]/u,
+      ""
+    );
     // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
     // blob/tree/PR/releases address) — resolved the config-dir name from its
     // LAST segment (`main`, `x.ts`, even `42`), silently migrating the
@@ -177,8 +221,10 @@ export const resolveConfigDirName = (
     // pair right after the host (or at the head of a bare string) so a deep
     // path keeps resolving to the repo name, like every other spelling.
     const match =
-      /(?:github\.com[/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(repoRaw) ??
-      /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(repoRaw);
+      /(?:github\.com[/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(
+        hostPortStripped
+      ) ??
+      /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(hostPortStripped);
     const repoName = match?.[2] ?? repoRaw;
     const sanitized = sanitizeSegment(repoName);
     if (sanitized !== "") {
