@@ -87,6 +87,37 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     },
     { normalized: "acme", raw: "https://github.com/orgs/acme/teams" },
     { normalized: "acme", raw: "git@github.com:orgs/acme" },
+    // An ssh URL with an explicit PORT — `ssh://git@github.com:22/…` (a
+    // `git remote -v` copy-paste) — is a spelling every sibling resolver in
+    // this feature has tolerated since the port group landed (#186's own
+    // corpus, pinned by repo-string-port.test.ts), so the prompt's
+    // normalization recipe must collapse it too: pre-fix the recipe's
+    // scheme group only matched `https?://`, so a ported ssh URL left its
+    // `ssh://` prefix behind (`ssh://22/acme/widgets`) — a string that breaks
+    // `gh --repo`, the `repos/…` API routes, and the github.com fetch URL
+    // exactly the way the deep and orgs-page spellings did before their
+    // branches. The colon-host port forms (`git@github.com:29418/…`,
+    // `github.com:29418/…`) are the same spelling through the scp form.
+    {
+      normalized: "acme/widgets",
+      raw: "ssh://git@github.com:22/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "ssh://git@github.com:2222/acme/widgets.git",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "git@github.com:29418/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "github.com:29418/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "https://github.com:443/acme/widgets",
+    },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {
