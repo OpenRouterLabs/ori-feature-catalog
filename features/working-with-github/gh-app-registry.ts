@@ -77,8 +77,19 @@ export const orgOf = (repo: string): string => {
   // registered App. `orgs`/`organizations` are reserved host paths on
   // github.com, never an owner login, so the page reading is the only real
   // one.
+  // An explicit PORT in the host-separator position — `ssh://git@github.com:22/acme`
+  // (a `git remote -v` copy-paste) — makes the bare `[/:]` separator match the
+  // port digits as the first path segment, so every resolver below resolved a
+  // fake `owner/repo` pair (`22/acme`) from it: the registry row, the allowlist
+  // entry, and the Git-Data repo all keyed on the port, and every mint failed
+  // closed with no hint the spelling was the cause (#159/#169/#175/#177's
+  // class, reopened through the ported form). A port only appears as `:<digits>`
+  // immediately after the host; consume it so the separators below see the
+  // real path start.
   const orgsPageMatch =
-    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(cleaned);
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
+      cleaned
+    );
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
@@ -88,9 +99,8 @@ export const orgOf = (repo: string): string => {
   // from it could never match the org a mint derives, and every mint
   // silently fell back to the default App (#101 class reopened through the
   // deep path).
-  const hostMatch = /(?:git@)?github\.com[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(
-    cleaned
-  );
+  const hostMatch =
+    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(cleaned);
   if (hostMatch?.[1] !== undefined) {
     return hostMatch[1];
   }
@@ -101,7 +111,8 @@ export const orgOf = (repo: string): string => {
   // a row persisted under the raw URL never matched and every mint silently
   // fell back to the default App — the #101 class reopened through the org
   // side. Strip the host down to its org segment.
-  const orgUrlMatch = /(?:git@)?github\.com[/:]([^/]+)$/u.exec(cleaned);
+  const orgUrlMatch =
+    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)$/u.exec(cleaned);
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }

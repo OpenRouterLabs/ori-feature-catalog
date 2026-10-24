@@ -253,14 +253,16 @@ export const resolveRepoFromEnv = (
   // orgs-page URL fell through to the repo regex and matched the fake
   // owner/repo pair `orgs/acme` — the exact class this branch exists to
   // close, reopened through the deep path (#101/#169's shape).
+  // A port in the host separator (ssh://git@github.com:22/…) must not become
+  // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)(?:\/.*)?$/u.exec(
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)(?:\/.*)?$/u.exec(
       withoutSuffix
     );
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
-  const match = /github\.com[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
+  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
   if (match?.[1] !== undefined) {
     return match[1];
   }
@@ -270,7 +272,7 @@ export const resolveRepoFromEnv = (
   // route 404, exactly the class the URL-spelling fix closed for the
   // two-segment form.
   const deepMatch =
-    /github\.com[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(withoutSuffix);
+    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(withoutSuffix);
   if (deepMatch?.[1] !== undefined) {
     return deepMatch[1];
   }
@@ -280,7 +282,7 @@ export const resolveRepoFromEnv = (
   // and the bare pass-through below would return the raw URL whole, which
   // every `repos/{repo}` route 404s on. Same treatment as the orgs-page
   // branch above: return the org it names, like `orgOf`'s org-URL branch.
-  const orgUrlMatch = /(?:git@)?github\.com[\/:]([^/]+)$/u.exec(
+  const orgUrlMatch = /(?:git@)?github\.com(?::\d+)?[\/:]([^/]+)$/u.exec(
     withoutSuffix
   );
   if (orgUrlMatch?.[1] !== undefined) {
