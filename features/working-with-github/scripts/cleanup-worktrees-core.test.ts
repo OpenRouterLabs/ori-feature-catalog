@@ -1309,4 +1309,56 @@ describe("locked and detached worktrees (the porcelain attributes git really emi
         summary.outcomes.some((o) => o.decision === "skipped-stray")
       ).toBe(false);
     }));
+
+  test("a bare worktree is reported as bare, never mislabeled as detached HEAD", () =>
+    withRealTmpDir(async (root) => {
+      // `git worktree list --porcelain` emits a `bare` attribute line for a
+      // bare repository (the main checkout of a bare repo, or a worktree
+      // added from one) — a REAL shape this parser meets whenever the sweep
+      // runs from a bare checkout. Pre-fix the `bare` line fell through the
+      // parser, the entry parsed with no branch, and the sweep reported it as
+      // "detached HEAD (no branch checked out)" — factually wrong (a bare
+      // repository has no working tree and no HEAD position at all), the
+      // same mislabel-inviting-operator-confusion class the detached fix's
+      // own docstring describes, on every sweep, for a healthy bare repo.
+      const path = join(root, "branch-a");
+      const runGit = fakeRunGit({
+        "worktree list": {
+          stdout: [
+            `worktree ${path}`,
+            "bare",
+            "",
+          ].join("\n"),
+        },
+      });
+
+      const summary = await Effect.runPromise(
+        cleanupWorktrees(
+          {
+            fetchImpl: (): Promise<Response> => jsonFetch([]),
+            readDir: readDirWithBranchA,
+            runGit,
+            token: "tok",
+          },
+          {
+            dryRun: false,
+            repo: "owner/repo",
+            repoDir: root,
+            worktreesRoot: root,
+          }
+        )
+      );
+
+      expect(summary.outcomes).toEqual([
+        {
+          branch: "",
+          decision: "skipped-bare",
+          detail: "bare repository (no working tree) — nothing to match a PR against",
+          path,
+        },
+      ]);
+      expect(
+        summary.outcomes.some((o) => o.decision === "skipped-stray")
+      ).toBe(false);
+    }));
 });

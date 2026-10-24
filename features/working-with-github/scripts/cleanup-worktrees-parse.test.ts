@@ -50,7 +50,7 @@ describe("parseWorktreeList", () => {
       "",
     ].join("\n");
     expect(parseWorktreeList(output)).toEqual([
-      { path: "/tmp/worktrees/owner-repo/bare" },
+      { bare: true, path: "/tmp/worktrees/owner-repo/bare" },
     ]);
   });
 
