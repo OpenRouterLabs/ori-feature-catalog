@@ -101,4 +101,40 @@ describe("deep GitHub URL spellings resolve like their owner/repo form", () => {
     expect(orgOf("https://github.com/orgs/acme/")).toBe("acme");
     expect(orgOf("git@github.com:orgs/acme.git")).toBe("acme");
   });
+
+  test("resolveAllowedOrgs resolves a host-only GITHUB_REPO to its owner, never the scheme or the host word", () => {
+    // The #159 deep-URL fix stopped one segment short: a GITHUB_REPO with NO
+    // repo segment still reduced the fail-closed allowlist to a login no
+    // installation owner can ever carry, so every mint failed closed with no
+    // hint the spelling was the cause:
+    //   - an ORG URL (`https://github.com/acme`) → `https:` (the scheme —
+    //     the rawRepo.split("/")[0] fallback);
+    //   - an ORGANIZATIONS-page URL (`https://github.com/orgs/acme`) →
+    //     `orgs` (the repo regex parses `orgs/acme` as owner/repo, the
+    //     same trap orgOf's own orgs-page branch exists to close).
+    // Both spellings carry a real owner the sibling resolvers already
+    // extract (orgOf's orgs-page and org-URL branches), so the allowlist
+    // must resolve them the same way — the four resolvers share one
+    // spelling contract.
+    expect([
+      ...resolveAllowedOrgs(undefined, {
+        GITHUB_REPO: "https://github.com/acme",
+      }),
+    ]).toEqual(["acme"]);
+    expect([
+      ...resolveAllowedOrgs(undefined, {
+        GITHUB_REPO: "https://github.com/orgs/acme",
+      }),
+    ]).toEqual(["acme"]);
+    expect([
+      ...resolveAllowedOrgs(undefined, {
+        GITHUB_REPO: "https://github.com/organizations/acme",
+      }),
+    ]).toEqual(["acme"]);
+    expect([
+      ...resolveAllowedOrgs(undefined, {
+        GITHUB_REPO: "git@github.com:orgs/acme.git",
+      }),
+    ]).toEqual(["acme"]);
+  });
 });
