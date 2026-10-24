@@ -34,13 +34,26 @@ export interface AmbientProbeOk {
   readonly scopes: string | undefined;
 }
 
-/** Ambient-mode failure: GitHub is unreachable or answers with a server error.
- *  A 401/403/404 on `GET /` is reported as healthy-but-unauthenticated, not as
- *  a breakage — on a host with no proxy credential those are the honest
- *  answer, and the schedule has nothing to alert about. */
+/** Ambient-mode failure: GitHub is unreachable, answers with a server error,
+ *  or refuses the request because the effective rate limit is exhausted. A
+ *  401/403/404 on `GET /` is healthy-but-unauthenticated (on a host with no
+ *  proxy credential those are the honest answer) — EXCEPT the one 403 that
+ *  means the workspace cannot work at all: `x-ratelimit-remaining: 0`. That
+ *  state fails every real GitHub call the feature makes, so the schedule must
+ *  surface it, not log ok. */
 export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
   readonly detail: string;
 }> {}
+
+/**
+ * How long the ambient probe waits for `GET /` before failing. A health
+ * check that can wait forever can never alert: a hung connection (a dropped
+ * route, a wedged proxy) leaves the fire pending, the runtime skips every
+ * later fire, and the schedule whose whole job is to surface broken GitHub
+ * access stays silent — precisely in the state it exists to catch. The
+ * deadline turns "no answer" into the same failure channel as a 5xx.
+ */
+const AMBIENT_PROBE_TIMEOUT_MS = 15_000;
 
 /**
  * Bare `GET https://api.github.com/` — the ambient-mode probe. Sends no
@@ -65,10 +78,44 @@ export const ambientGitHubReachable = (input: {
         new AmbientProbeError({
           detail: error instanceof Error ? error.message : String(error),
         }),
-    });
+    }).pipe(
+      // Bound the wait: a fetch that never settles is unreachability, not
+      // health — see AMBIENT_PROBE_TIMEOUT_MS.
+      Effect.timeoutOrElse({
+        duration: AMBIENT_PROBE_TIMEOUT_MS,
+        orElse: () =>
+          new AmbientProbeError({
+            detail: `GET / did not answer within ${AMBIENT_PROBE_TIMEOUT_MS / 1000}s`,
+          }),
+      })
+    );
     if (response.status >= 500) {
       return yield* new AmbientProbeError({
         detail: `GET / answered HTTP ${String(response.status)}`,
+      });
+    }
+    // A 403 whose rate limit is exhausted (the anonymous 60/h shared bucket
+    // or a credential-capped one) is a genuine "cannot work" state: every
+    // REST read the ambient mode relies on fails while it lasts. Distinguish
+    // it from the healthy-but-unauthenticated 401/403/404 by the header
+    // GitHub sends on every rate-limited response. Pre-fix the probe logged
+    // "ok — GitHub API reachable" in exactly this state (observed live on a
+    // workspace whose anonymous core limit hit 0 remaining).
+    if (
+      response.status === 403 &&
+      response.headers.get("x-ratelimit-remaining") === "0"
+    ) {
+      return yield* new AmbientProbeError({
+        detail:
+          "GET / answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets",
+      });
+    }
+    // A 429 (secondary/abuse rate limit) blocks every REST call the same way
+    // the exhausted primary limit does — and unlike the auth 401/403/404 it
+    // is a "cannot work" state, not an identity answer.
+    if (response.status === 429) {
+      return yield* new AmbientProbeError({
+        detail: "GET / answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace",
       });
     }
     const scopes =
