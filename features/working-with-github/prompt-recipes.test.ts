@@ -118,6 +118,17 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "https://github.com:443/acme/widgets",
     },
+    // A bare host+PORT spelling — `github.com:22`, `ssh://git@github.com:22`
+    // (a truncated `git remote -v` copy-paste) — is a spelling every sibling
+    // resolver tolerates (#190's own corpus), so the recipe must agree with
+    // them: pre-fix its port rule consumed the trailing `[/:]` at the colon
+    // INSIDE the port, leaving the PORT DIGITS as `$REPO` (`22`) while every
+    // code resolver passes the host word through — and `gh --repo 22` /
+    // `repos/22` silently target a repo no route answers.
+    { normalized: "github.com", raw: "github.com:22" },
+    { normalized: "git@github.com", raw: "git@github.com:22" },
+    { normalized: "ssh://git@github.com", raw: "ssh://git@github.com:22" },
+    { normalized: "https://github.com", raw: "https://github.com:443" },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {

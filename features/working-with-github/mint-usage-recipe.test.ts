@@ -69,6 +69,43 @@ describe("mint-token.ts usage examples never interpolate the raw $GITHUB_REPO", 
     }
   });
 
+  test("the recipe passes a bare host+port spelling through like the code resolvers", () => {
+    // The same #190 corpus: a truncated `git remote -v` copy-paste
+    // (`github.com:22`) must normalize to the host word exactly like
+    // `orgOf`/`resolveRepoFromEnv` do — never to the bare port digits,
+    // which no `gh --repo` value or `repos/{repo}` route answers.
+    const line = source
+      .split("\n")
+      .find((candidate) => candidate.includes("REPO=$(printf '%s' \"$GITHUB_REPO\""))
+      // The header comment indents its examples; strip the doc margin.
+      ?.replace(/^\s*\*\s?/u, "")
+      ?.trim();
+    expect(line).toBeDefined();
+    if (line === undefined) {
+      return;
+    }
+    const hostPortSpellings: readonly {
+      readonly normalized: string;
+      readonly raw: string;
+    }[] = [
+      { normalized: "github.com", raw: "github.com:22" },
+      { normalized: "git@github.com", raw: "git@github.com:22" },
+      { normalized: "ssh://git@github.com", raw: "ssh://git@github.com:22" },
+      { normalized: "https://github.com", raw: "https://github.com:443" },
+    ];
+    for (const { normalized, raw } of hostPortSpellings) {
+      const output = execFileSync(
+        "bash",
+        ["-c", `${line}\nprintf '%s' "$REPO"`],
+        {
+          encoding: "utf-8",
+          env: { ...process.env, GITHUB_REPO: raw },
+        }
+      );
+      expect(output).toBe(normalized);
+    }
+  });
+
   test("the two examples interpolate $REPO, not the raw env var", () => {
     expect(source).toContain('gh pr list --repo "$REPO"');
     expect(source).toContain('"https://api.github.com/repos/$REPO"');

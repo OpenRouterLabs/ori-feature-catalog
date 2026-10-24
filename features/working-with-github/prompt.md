@@ -73,7 +73,7 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # route answers (orgs/organizations are reserved host paths, never an owner
 # login — every sibling resolver strips these to the org). A ported URL
 # left `22/o/r` 404s the same way.
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?github\.com:[0-9]+[/:]##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
 
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
@@ -155,7 +155,7 @@ First, mint a token once for this whole flow, and normalize the repo string once
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?github\.com:[0-9]+[/:]##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:
