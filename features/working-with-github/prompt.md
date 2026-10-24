@@ -17,15 +17,22 @@ In either mode, **source on GitHub is the primary evidence for how a system work
 The commands below run scripts that ship with this feature. Its directory depends on how the workspace loaded it (a local `features/` folder or the remote-features cache), so resolve it once per shell from the workspace root:
 
 ```bash
-WWG=$(find -L features .ori/remote-features node_modules \
-  -name .bun -prune -o -type d -name working-with-github -print -quit 2>/dev/null)
+WWG=$(find -L features .ori/remote-features vendor node_modules \
+  -name node_modules -prune -o -name .bun -prune -o \
+  -type d -name working-with-github -print -quit 2>/dev/null)
 ```
 
-The `-L` follows the symlink a vendored install resolves through, and
-`node_modules` is searched so a workspace that vendors this catalog as a
-`file:` dependency (the standard composed-intern layout) resolves — while the
-`.bun` store copies stay pruned, so the same file inside the store is never
-chosen over the workspace's real one.
+The search order is deliberate: a local `features/` folder, then the
+remote-features cache, then the vendored source tree, and only LAST the
+installed package — a workspace that vendors this catalog as a `file:`
+dependency materializes `node_modules/@ori-monorepo/working-with-github` as a
+symlink INTO `node_modules/.bun/…`, and edits to the vendored source do not
+reach that store copy until a root `bun install` re-syncs it (see the README's
+"Vendored installs" section). `-prune` on every `node_modules` (and `.bun`)
+keeps the descent out of the store copies and the vendored tree's own
+`node_modules`, so a bare `find` resolves the tree the daemon actually
+SERVES: the workspace's real source, never a stale store copy. `-L` follows
+the symlinked `vendor` layout where it exists.
 
 In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.
 

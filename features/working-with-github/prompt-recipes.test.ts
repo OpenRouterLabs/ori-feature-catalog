@@ -9,8 +9,15 @@ import { describe, expect, test } from "bun:test";
 // and `github.com/https://…` (no such remote) — so every recipe must
 // interpolate the normalized `$REPO` the prompt derives once per shell.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const promptPath = join(
@@ -94,6 +101,114 @@ describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GIT
         }
       );
       expect(output).toBe(spelling.normalized);
+    }
+  });
+});
+
+describe("prompt.md's WWG resolution recipe prefers the workspace's real source over the .bun store copy", () => {
+  // The recipe is copy-paste shell run from the workspace root; this suite
+  // executes it against faithful layouts, the same discipline the
+  // readme-sync-recipe suite pins the README's `diff -rq` with.
+  const recipeOf = (): string => {
+    const fence = fences.find((candidate) =>
+      candidate.includes("WWG=$(find")
+    );
+    if (fence === undefined) {
+      throw new Error("prompt.md carries no WWG=$(find …) recipe");
+    }
+    // The recipe statement: from `WWG=$(find` through its closing `)`.
+    const start = fence.indexOf("WWG=$(find");
+    const rest = fence.slice(start);
+    let open = 0;
+    let end = -1;
+    for (let i = 0; i < rest.length; i += 1) {
+      const ch = rest[i];
+      if (ch === undefined) {
+        break;
+      }
+      if (ch === "(") {
+        open += 1;
+      } else if (ch === ")") {
+        open -= 1;
+        if (open === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end === -1) {
+      throw new Error("the WWG recipe statement never closes its $()");
+    }
+    return rest.slice(0, end).replace(/\\\n/gu, " ");
+  };
+
+  const runRecipe = (cwd: string): string =>
+    // The assignment stands on its own line in real use; find's exit status
+    // (a missing starting point makes it non-zero) never gates the capture.
+    execFileSync("bash", ["-c", `cd '${cwd}' && { ${recipeOf()}; printf '%s' "$WWG"; }`], {
+      encoding: "utf-8",
+    });
+
+  test("a vendored workspace resolves to the vendored source tree, not the store symlink", () => {
+    // The composed-intern layout this workspace itself runs: the only
+    // working-with-github on disk lives under vendor/…/features, while
+    // node_modules/@ori-monorepo/working-with-github is a symlink INTO
+    // node_modules/.bun/… — a store copy that silently diverges from the
+    // vendored tree until a root bun install re-syncs it.
+    const root = mkdtempSync(join(tmpdir(), "wwg-recipe-vendored-"));
+    try {
+      // The real composed-intern workspace carries all four starting points.
+      mkdirSync(join(root, "features"), { recursive: true });
+      mkdirSync(join(root, ".ori/remote-features"), { recursive: true });
+      mkdirSync(join(root, "vendor/ori-feature-catalog/features/working-with-github"), {
+        recursive: true,
+      });
+      mkdirSync(join(root, "node_modules/@ori-monorepo"), { recursive: true });
+      mkdirSync(
+        join(root, "node_modules/.bun/wwg@file/store/node_modules/@ori-monorepo/working-with-github"),
+        { recursive: true }
+      );
+      symlinkSync(
+        "../.bun/wwg@file/store/node_modules/@ori-monorepo/working-with-github",
+        join(root, "node_modules/@ori-monorepo/working-with-github")
+      );
+      expect(runRecipe(root)).toBe(
+        "vendor/ori-feature-catalog/features/working-with-github"
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a plain features/ layout keeps resolving its own feature directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-recipe-plain-"));
+    try {
+      mkdirSync(join(root, ".ori/remote-features"), { recursive: true });
+      mkdirSync(join(root, "vendor"), { recursive: true });
+      mkdirSync(join(root, "node_modules"), { recursive: true });
+      mkdirSync(join(root, "features/working-with-github"), { recursive: true });
+      expect(runRecipe(root)).toBe("features/working-with-github");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("the remote-features cache outranks the installed package", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-recipe-remote-"));
+    try {
+      mkdirSync(join(root, "features"), { recursive: true });
+      mkdirSync(join(root, "vendor"), { recursive: true });
+      mkdirSync(join(root, ".ori/remote-features/cache/working-with-github"), {
+        recursive: true,
+      });
+      mkdirSync(join(root, "node_modules/@ori-monorepo/working-with-github"), {
+        recursive: true,
+      });
+      expect(runRecipe(root)).toBe(
+        ".ori/remote-features/cache/working-with-github"
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });
