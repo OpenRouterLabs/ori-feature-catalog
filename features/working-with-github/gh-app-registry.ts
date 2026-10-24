@@ -171,6 +171,27 @@ export const resolveConfigDirName = (
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
+  // Strip an explicit PORT before any regex runs — the same normalization
+  // `orgOf` applies (see its own port-stripping above). The host-word strip
+  // below carries `(?::\d+)?` as an OPTIONAL group with a REQUIRED `[/:]`
+  // after it, so a bare host+PORT spelling that ENDS at the port
+  // (`ssh://git@github.com:22`, `https://github.com:443` — truncated `git
+  // remote -v` copy-pastes) makes the trailing `[/:]` consume the `:` INSIDE
+  // the port instead: the optional port group matched empty, the strip
+  // removed everything up to and including that colon, and the surviving
+  // PORT DIGITS became the org the `orgOf` branch below resolves — the
+  // config dir keyed on `22`/`443` while the same env var spelled without
+  // the port (`ssh://git@github.com`) keyed on the sanitized host word, so
+  // the registry/cache DB silently migrated the moment the spelling
+  // changed, orphaning every row already written (#113's class, reopened
+  // through the bare ported spelling — the exact #186/#190 port-digits
+  // class the sibling resolvers already close). Stripping an unambiguous
+  // `:<digits>` right after the `github.com` host first lets every branch
+  // below see the same string `orgOf` resolves through.
+  const portStripped = repoRaw.replace(
+    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    "$1"
+  );
   // A host-word spelling with a COLON and no slash — `git@github.com:acme` /
   // `github.com:acme`, the scp/ssh org-page forms — has no repo segment, so
   // the repo regexes below miss it and `match?.[2]` falls back to the RAW
@@ -185,9 +206,9 @@ export const resolveConfigDirName = (
   // same `orgOf` branch every ported spelling already routes through) so an
   // org-only tail resolves to the org, never a sanitized raw URL.
   const hostStripped =
-    repoRaw !== "" && !repoRaw.includes("/")
-      ? repoRaw
-      : repoRaw.replace(
+    portStripped !== "" && !portStripped.includes("/")
+      ? portStripped
+      : portStripped.replace(
           /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:git@)?github\.com(?::\d+)?[/:]/u,
           ""
         );
@@ -198,7 +219,7 @@ export const resolveConfigDirName = (
       return sanitized;
     }
   }
-  if (repoRaw !== "") {
+  if (portStripped !== "") {
     // A PORT in the host separator (ssh://git@github.com:22/…) must be
     // consumed before the repo regexes below, exactly as `orgOf` does
     // (#186's class): the repo match anchored on the two-segment tail of the
@@ -209,7 +230,7 @@ export const resolveConfigDirName = (
     // `github.com`/`git@github.com` with an optional `:<port>` host word is
     // stripped down to its `owner/repo` tail so the existing regexes see the
     // real path start.
-    const hostPortStripped = repoRaw.replace(
+    const hostPortStripped = portStripped.replace(
       /(?:git@)?github\.com(?::\d+)?[/:]/u,
       ""
     );
@@ -225,7 +246,12 @@ export const resolveConfigDirName = (
         hostPortStripped
       ) ??
       /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(hostPortStripped);
-    const repoName = match?.[2] ?? repoRaw;
+    // The fallback carries the PORT-STRIPPED string: `repoRaw` still holds
+    // the bare host+PORT spelling (`ssh://git@github.com:22`), whose port
+    // digits would survive into the sanitized dir name (`…-22`) — a
+    // different directory than the same env var spelled without the port
+    // resolves to, silently migrating the registry/cache DB.
+    const repoName = match?.[2] ?? portStripped;
     const sanitized = sanitizeSegment(repoName);
     if (sanitized !== "") {
       return sanitized;
