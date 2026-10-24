@@ -233,6 +233,18 @@ const PullRequestPage = Schema.Array(
 /** One page of the PR list: 100 entries, the largest page GitHub serves. */
 const PULLS_PAGE_SIZE = 100;
 
+/**
+ * How long one page of the PR lookup may take before the sweep stops waiting.
+ * Pre-fix a hung connection to `api.github.com` (a dropped route, a wedged
+ * proxy) left the whole sweep pending forever — `evaluateWorktree`'s
+ * `{ concurrency: 1 }` queue stalled behind it, every later fire was skipped
+ * as still-running, and the worktrees the schedule exists to reclaim simply
+ * accumulated. The deadline turns "no answer" into the same `PrLookupError`
+ * channel a 403 rate limit already uses: an `error` outcome per worktree,
+ * reported, never a silent hang.
+ */
+const PR_LOOKUP_TIMEOUT_MS = 15_000;
+
 const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
   function* (input: {
     readonly fetchImpl: FetchLike;
@@ -281,7 +293,20 @@ const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
     // is the deciding PR when no page holds an open one.
     let newest: PrLookup | undefined;
     for (let page = 1; ; page += 1) {
-      const entries = yield* fetchPage(page);
+      const entries = yield* fetchPage(page).pipe(
+        // Bound the wait: a page that never settles is a lookup failure, not
+        // an answer — see PR_LOOKUP_TIMEOUT_MS.
+        Effect.timeoutOrElse({
+          duration: PR_LOOKUP_TIMEOUT_MS,
+          orElse: () =>
+            Effect.fail(
+              new PrLookupError(
+                PR_LOOKUP_TIMEOUT_MS / 1000,
+                `GET pulls page ${page} did not answer within ${PR_LOOKUP_TIMEOUT_MS / 1000}s`
+              )
+            ),
+        })
+      );
       // A degraded page (unexpected shape) is "no PR found" — stop here.
       if (entries === undefined) {
         break;
