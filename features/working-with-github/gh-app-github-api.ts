@@ -132,11 +132,20 @@ export const resolveAllowedOrgs = (
   // allowlist, the registry key, and the Git-Data paths keep sharing one
   // spelling contract (README: "every resolver in this feature tolerates
   // the other spellings too"). A bare `owner` (no slash at all) keeps its
-  // direct pass-through.
+  // direct pass-through — but a bare owner still routes through `orgOf`
+  // when the string carries a COLON: `git@github.com:acme` /
+  // `github.com:acme` (the scp/ssh host-word spellings of an org page)
+  // contain no slash, so the slash-only guard sent them to the bare
+  // pass-through and the allowlist carried the raw `git@github.com:acme` —
+  // a login no installation can ever own, so EVERY mint failed closed
+  // with no hint why. One shared `orgOf` keeps all four resolvers on one
+  // contract; a slash-less, colon-less `owner` still passes through raw.
   const repoOwner =
     orgsPageMatch?.[1] ??
     repoMatch?.[1] ??
-    (rawRepo !== "" && rawRepo.includes("/") ? orgOf(rawRepo) : rawRepo);
+    (rawRepo !== "" && (rawRepo.includes("/") || rawRepo.includes(":"))
+      ? orgOf(rawRepo)
+      : rawRepo);
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
   const source = override ?? fromEnv ?? fromRepo;
   return new Set(

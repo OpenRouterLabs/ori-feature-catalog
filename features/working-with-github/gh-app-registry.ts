@@ -142,6 +142,21 @@ export const resolveConfigDirName = (
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "");
+  // A host-word spelling with a COLON and no slash — `git@github.com:acme` /
+  // `github.com:acme`, the scp/ssh org-page forms — has no repo segment, so
+  // the repo regexes below miss it and `match?.[2]` falls back to the RAW
+  // string: the config dir (and with it the registry/cache DB path) becomes
+  // `git-github.com-acme` instead of `acme` — a different directory than the
+  // one every other spelling of the same repo resolves to, silently
+  // migrating the DB and orphaning the old rows the moment the env var's
+  // spelling changes. `orgOf` already owns this normalization; share it.
+  if (repoRaw !== "" && !repoRaw.includes("/")) {
+    const org = orgOf(repoRaw);
+    const sanitized = sanitizeSegment(org);
+    if (sanitized !== "") {
+      return sanitized;
+    }
+  }
   if (repoRaw !== "") {
     // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
     // blob/tree/PR/releases address) — resolved the config-dir name from its
