@@ -111,8 +111,10 @@ export const resolveAllowedOrgs = (
   // for exactly this (it runs BEFORE its repo regex for the same reason);
   // check it first here too. `orgs`/`organizations` are reserved host
   // paths on github.com, never an owner login.
+  // A port in the host separator (ssh://git@github.com:22/…) must not become
+  // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
       rawRepo
     );
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
@@ -120,7 +122,8 @@ export const resolveAllowedOrgs = (
   // two-segment-only match missed it, and the `split("/")[0]` fallback then
   // reduced the URL to its SCHEME (`https:`), a login no installation can
   // ever carry — so every mint failed closed with no hint why.
-  const repoMatch = /github\.com[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(rawRepo);
+  const repoMatch =
+    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(rawRepo);
   // A host-only URL — an org page (`https://github.com/acme`) or any other
   // `github.com/<word>` address with no repo segment — carries an owner the
   // repo regex (which needs two segments) misses, and the old
