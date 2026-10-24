@@ -92,6 +92,22 @@ const runRegister = (ctx: RegisterCliContext): number => {
     );
     return 1;
   }
+  // A value-taking flag repeated in argv is a usage error, never a silent
+  // first-wins: `readFlag` below reads `argv.indexOf(flag)`, so pre-fix
+  // `--org acme --org other` silently persisted `acme`, re-routing every
+  // future mint for the org the caller may have meant instead.
+  const repeatedFlag = [
+    "--org",
+    "--purpose",
+    "--app-id-key",
+    "--private-key-key",
+  ].find((flag) => argv.filter((token) => token === flag).length > 1);
+  if (repeatedFlag !== undefined) {
+    writers.err(
+      `register-gh-app: ${repeatedFlag} was passed more than once — pass exactly one value\n`
+    );
+    return 1;
+  }
   // An explicitly-passed `--purpose` whose value slot was eaten by the next
   // flag (`--purpose --app-id-key X`) — or is missing entirely (a trailing
   // `--purpose`) — must fail the parse, not silently persist the org-level
