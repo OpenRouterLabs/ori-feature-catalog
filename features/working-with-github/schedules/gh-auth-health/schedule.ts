@@ -135,7 +135,23 @@ export const schedule = defineSchedule({
                         text: renderAmbientAlert(failure.detail),
                       }),
                     catch: (cause) => new AlertPostError({ cause }),
-                  });
+                  }).pipe(
+                    // The health failure is already logged and recorded — a
+                    // failing Slack post must not replace it. Pre-fix the
+                    // typed AlertPostError escaped `matchEffect` and
+                    // rejected the whole run, so the run history recorded
+                    // the SLACK error instead of the GitHub failure this
+                    // schedule exists to surface. Log and complete the fire.
+                    Effect.catch((error) =>
+                      Effect.sync(() => {
+                        logger.error(
+                          "gh-auth-health: could not post the Slack alert — the failure is recorded in this log line instead",
+                          error,
+                          { alertChannelId, detail: failure.detail }
+                        );
+                      })
+                    )
+                  );
                 }),
             })
           );
@@ -190,7 +206,24 @@ export const schedule = defineSchedule({
                       text: renderHealthAlert(repo, failure),
                     }),
                   catch: (cause) => new AlertPostError({ cause }),
-                });
+                }).pipe(
+                  // Same contract as the ambient branch: the health failure
+                  // is already logged and recorded; a failing Slack post
+                  // must not replace it in the run history or kill the fire.
+                  Effect.catch((error) =>
+                    Effect.sync(() => {
+                      logger.error(
+                        "gh-auth-health: could not post the Slack alert — the failure is recorded in this log line instead",
+                        error,
+                        {
+                          alertChannelId,
+                          detail: failure.detail,
+                          stage: failure.stage,
+                        }
+                      );
+                    })
+                  )
+                );
               }),
           })
         );
