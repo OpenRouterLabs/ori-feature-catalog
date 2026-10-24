@@ -156,17 +156,50 @@ const isDeletedDestination = (x: string, y: string): boolean =>
   y === "D" && x !== "D";
 
 /**
- * The first argv token that starts with a single dash but is not a `--` flag:
- * `-repo o/r` is the near-universal typo for `--repo o/r` (drop a character),
- * and no CLI in this feature accepts single-dash flags. Every parser tolerates
- * UNKNOWN `--` flags by design (a bare invocation keeps working), but a
- * single-dash token can only be junk — and the parsers that silently ignored
- * it turned the typo into a wrong-default action: `mint-token.ts -repo acme/x`
- * minted the DEFAULT App (the #98/#107/#117 silent-identity-swap class),
- * `cleanup-worktrees.ts -repo o/r` swept the DEFAULT repo's worktrees (a
- * wrong-target removal), and `register-gh-app.ts -purpose reviewer` coerced to
- * the org-level CATCH-ALL row (the #117 re-routing class). Callers fail the
- * parse with the offending token named; `undefined` means argv carries no junk.
+ * The first argv token no CLI in this feature accepts, in either of the two
+ * junk shapes:
+ *
+ * - a single-dash token: `-repo o/r` is the near-universal typo for
+ *   `--repo o/r` (drop a character). Every parser tolerates UNKNOWN `--`
+ *   flags by design (a bare invocation keeps working), but a single-dash
+ *   token can only be junk — and the parsers that silently ignored it turned
+ *   the typo into a wrong-default action: `mint-token.ts -repo acme/x`
+ *   minted the DEFAULT App (the #98/#107/#117 silent-identity-swap class),
+ *   `cleanup-worktrees.ts -repo o/r` swept the DEFAULT repo's worktrees (a
+ *   wrong-target removal), and `register-gh-app.ts -purpose reviewer`
+ *   coerced to the org-level CATCH-ALL row (the #117 re-routing class).
+ * - an equals-form `--flag=value` token: none of these CLIs supports the
+ *   `=` spelling, so the token is never a flag the parser reads — it is an
+ *   unknown argument whose value the parser would silently DROP.
+ *   Pre-fix, `mint-token.ts --repo=acme/widgets --purpose=reviewer` parsed
+ *   clean and minted the DEFAULT App's token (the target-org request
+ *   silently discarded — the same #98/#107 silent-identity-swap class the
+ *   single-dash guard closed), `cleanup-worktrees.ts --repo=other/rep`
+ *   parsed clean and swept the DEFAULT repo's slug directory (the same
+ *   wrong-target destructive sweep `-repo` produced), and
+ *   `register-gh-app.ts --org=acme --app-id-key=K --private-key-key=P`
+ *   parsed clean and failed with a misleading "requires --org" that never
+ *   named the dropped flags. `commit-via-api.ts` already failed loudly on
+ *   the shape (its pair loop reads `--worktree=/wt` as a flag whose value is
+ *   missing), so the guard unifies all four CLIs on its loud-failure
+ *   contract. The shape is rejected outright — matching the convention that
+ *   a parser either supports `--flag=v` everywhere or nowhere — rather than
+ *   trying to salvage the value after the `=`, which none of the documented
+ *   usages produces.
+ *
+ * Callers fail the parse with the offending token named; `undefined` means
+ * argv carries no junk.
+ */
+export const findJunkArgv = (argv: readonly string[]): string | undefined =>
+  argv.find(
+    (token) =>
+      (token.startsWith("-") && !token.startsWith("--")) ||
+      /^--[^=]+=/.test(token)
+  );
+
+/**
+ * Back-compat alias for the single-dash half of {@link findJunkArgv}. New
+ * call sites should fail the parse on `findJunkArgv` — both junk shapes.
  */
 export const findSingleDashArgv = (
   argv: readonly string[]

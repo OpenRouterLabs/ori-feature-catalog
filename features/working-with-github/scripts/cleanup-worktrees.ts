@@ -62,7 +62,7 @@ import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
 import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
-import { findSingleDashArgv, resolveRepoFromEnv } from "./commit-api-core.ts";
+import { findJunkArgv, resolveRepoFromEnv } from "./commit-api-core.ts";
 
 const DEFAULT_WORKTREES_ROOT = "/tmp/worktrees";
 
@@ -98,7 +98,7 @@ export const parseCleanupArgs = (
   env: Readonly<Record<string, string | undefined>> = process.env,
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
-  const junkArgv = findSingleDashArgv(argv);
+  const junkArgv = findJunkArgv(argv);
   const readFlag = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     if (i === -1 || i + 1 >= argv.length) {
@@ -190,7 +190,7 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       // A single-dash token (`-repo o/r`) is a typo no CLI accepts: fail loudly
       // rather than silently sweeping the default repo's slug directory.
       writers.err(
-        `cleanup-worktrees: unrecognized argument "${args.junkArgv}" — flags start with "--" (e.g. --repo owner/repo)\n`
+        `cleanup-worktrees: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
       );
       return 1;
     }
