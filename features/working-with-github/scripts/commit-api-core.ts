@@ -110,6 +110,21 @@ export const SYMLINK_MODE = "120000";
  * file.
  */
 export const GITLINK_MODE = "160000";
+/**
+ * How long one Git-Data-API HTTP call of the commit flow may wait before the
+ * flow stops waiting. Pre-fix NONE of the flow's five network steps (the ref
+ * read, the head-commit read, each blob POST, the tree POST, the commit POST,
+ * the ref PATCH) carried a bound: a hung connection to api.github.com (a
+ * dropped route, a wedged proxy) left `commit-via-api.ts` pending forever —
+ * after it had already minted a token and possibly created blobs, with no
+ * diagnostic and no exit. Every sibling network path in this feature already
+ * bounds its wait (`PR_LOOKUP_TIMEOUT_MS` in the sweep, the mint's
+ * `MINT_HTTP_TIMEOUT_MS`, the health check's two deadlines, the Slack alert
+ * post); the commit flow is the feature's primary WRITE path and the last
+ * unbounded one. The deadline turns "no answer" into the same `http`-stage
+ * `CommitApiError` channel a 5xx already uses.
+ */
+export const COMMIT_HTTP_TIMEOUT_MS = 15_000;
 /** `git status --porcelain=v1 -z` status-code column width before the path. */
 const STATUS_PATH_OFFSET = 3;
 /**
@@ -527,7 +542,20 @@ export const ghJson = <S extends Schema.Top>(
           stage: "http",
           message: `${input.method} ${input.url} request failed: ${cause instanceof Error ? cause.message : String(cause)}`,
         }),
-    });
+    }).pipe(
+      // Bound the wait: a fetch that never settles is a failed call, not a
+      // slow one — see COMMIT_HTTP_TIMEOUT_MS. Applies to every Git-Data-API
+      // call of the commit flow AND the sweep's PR-lookup pages (which add
+      // their own tighter deadline on top).
+      Effect.timeoutOrElse({
+        duration: COMMIT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new CommitApiError({
+            stage: "http",
+            message: `${input.method} ${input.url} did not answer within ${COMMIT_HTTP_TIMEOUT_MS / 1000}s`,
+          }),
+      })
+    );
 
     // Read the body as JSON up front, degrading to `null` when it is not JSON
     // at all (an HTML error page, a 0-byte body). A non-2xx must be explained
