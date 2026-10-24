@@ -192,8 +192,28 @@ const runRegister = (ctx: RegisterCliContext): number => {
   return 0;
 };
 
-/** Run `list`. Returns the intended exit code; never throws. */
-const runList = (db: Database, writers: RegisterWriters): number => {
+/**
+ * Run `list`. Returns the intended exit code; never throws. `argv` is the
+ * FULL argv including the subcommand (the junk guard skips position 0).
+ */
+const runList = (
+  db: Database,
+  writers: RegisterWriters,
+  argv: readonly string[]
+): number => {
+  // A single-dash or equals-form token is a usage error on the `list` path
+  // too — the #155/#165 uniformity contract every sibling CLI (and this
+  // CLI's own `register` path) already enforces. Pre-fix `list` ignored
+  // junk argv entirely, so `register-gh-app list -verbose` listed happily
+  // and a `--org=acme` paste silently did nothing — the typo'd flag
+  // vanished with no diagnostic.
+  const junkArgv = findJunkArgv(argv.slice(1));
+  if (junkArgv !== undefined) {
+    writers.err(
+      `register-gh-app: unrecognized argument "${junkArgv}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
+    );
+    return 1;
+  }
   let rows;
   try {
     rows = listApps(db);
@@ -227,7 +247,7 @@ export const runRegisterCli = (ctx: RegisterCliContext): number => {
     });
   }
   if (command === "list") {
-    return runList(ctx.db, ctx.writers);
+    return runList(ctx.db, ctx.writers, ctx.argv);
   }
   ctx.writers.err("register-gh-app: expected a subcommand: register | list\n");
   return 1;
