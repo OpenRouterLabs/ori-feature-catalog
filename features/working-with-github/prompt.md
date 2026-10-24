@@ -242,11 +242,19 @@ You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly
 - **No changes requested** — the review decision is `APPROVED` or clean (never `CHANGES_REQUESTED`).
 - **No merge conflicts** — the PR is mergeable.
 
-When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment:
+When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment. The squash-merge does NOT delete the head branch on its own — the delete is a separate call, and the recipe below carries both steps plus the comment:
 
 ```bash
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
   --method PUT --field merge_method='squash'
+
+# Delete the merged branch (a squash-merge leaves it behind):
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" \
+  --method DELETE
+
+# Post the brief summary comment:
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/issues/PR_NUMBER/comments" \
+  --method POST --field body='Merged: <one-line summary>'
 ```
 
 If any condition is not met, **do not merge** — fix what's blocking (resolve threads, get CI green) or, if it needs a human decision, leave the PR open, output its URL so a button is posted in Slack, and say what's blocking. Never merge to bypass an unresolved review or a red check. When in doubt, leave it for a human.
