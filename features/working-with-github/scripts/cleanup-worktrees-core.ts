@@ -41,6 +41,7 @@ export type WorktreeDecision =
   | "skipped-no-pr"
   | "skipped-stray"
   | "skipped-detached"
+  | "skipped-bare"
   | "error";
 
 export interface WorktreeOutcome {
@@ -110,6 +111,8 @@ interface TrackedWorktree {
   readonly locked?: boolean;
   /** True when the block carries a `detached` line (no branch checked out). */
   readonly detached?: boolean;
+  /** True when the block carries a `bare` line (a bare repository). */
+  readonly bare?: boolean;
 }
 
 /**
@@ -119,8 +122,8 @@ interface TrackedWorktree {
  * branch to match a PR against, so it stays out of the removal candidates —
  * but it is STILL a worktree git knows about, so it must stay out of the
  * stray set too (a stray is by definition unknown to `git worktree list`).
- * The `locked`/`detached` attributes travel with every entry so callers can
- * tell a deliberate operator lock from an unknown directory.
+ * The `locked`/`detached`/`bare` attributes travel with every entry so callers
+ * can tell a deliberate operator lock from an unknown directory.
  */
 export const parseWorktreeList = (
   output: string
@@ -130,10 +133,12 @@ export const parseWorktreeList = (
   let branch: string | undefined;
   let locked = false;
   let detached = false;
+  let bare = false;
   const flush = (): void => {
     if (path !== undefined) {
       entries.push({
         ...(branch === undefined ? {} : { branch }),
+        ...(bare ? { bare: true } : {}),
         ...(detached ? { detached: true } : {}),
         ...(locked ? { locked: true } : {}),
         path,
@@ -143,6 +148,7 @@ export const parseWorktreeList = (
     branch = undefined;
     locked = false;
     detached = false;
+    bare = false;
   };
   for (const line of output.split("\n")) {
     if (line === "") {
@@ -155,6 +161,10 @@ export const parseWorktreeList = (
     }
     if (line === "detached") {
       detached = true;
+      continue;
+    }
+    if (line === "bare") {
+      bare = true;
       continue;
     }
     if (line.startsWith("locked")) {
@@ -419,6 +429,19 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
     // fully knows about, inviting an operator to "inspect manually" a
     // healthy checkout on every sweep. Report it for what it is instead.
     if (tracked.branch === undefined) {
+      // A bare repository (the `bare` porcelain attribute) is not a detached
+      // HEAD: it has no working tree at all, and `git worktree remove` refuses
+      // it outright. Report it for what it is — the same factually-right-detail
+      // discipline as the detached branch below; pre-fix a bare entry carried
+      // the detached branch's detail, inviting an operator to "inspect" a
+      // healthy bare repo on every sweep.
+      if (tracked.bare === true) {
+        return outcomeFor(
+          tracked,
+          "skipped-bare",
+          "bare repository (no working tree) — nothing to match a PR against"
+        );
+      }
       return outcomeFor(
         tracked,
         "skipped-detached",
