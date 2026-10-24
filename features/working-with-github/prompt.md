@@ -59,11 +59,14 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 
 ```bash
 # Normalize GITHUB_REPO to bare owner/repo (tolerating a full https URL, an
-# optional .git suffix, or a trailing slash — the spellings every resolver in
-# this feature accepts): gh --repo, the repos/{owner}/{repo} API routes, and
-# the github.com fetch URL take owner/repo only, and the raw env var breaks
-# all three under a URL spelling.
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#\.git$##; s#/$##; s#^/##')
+# optional .git suffix, a trailing slash, and a DEEP URL — a copied
+# blob/tree/PR/releases address like https://github.com/o/r/tree/main — the
+# spellings every resolver in this feature accepts): gh --repo, the
+# repos/{owner}/{repo} API routes, and the github.com fetch URL take
+# owner/repo only, and the raw env var breaks all three under a URL
+# spelling — a deep URL left `o/r/tree/main`, 404ing every route the same
+# way.
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
 
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
@@ -145,7 +148,7 @@ First, mint a token once for this whole flow, and normalize the repo string once
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#\.git$##; s#/$##; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#(https?://)?(git@)?github\.com[/:]##; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:

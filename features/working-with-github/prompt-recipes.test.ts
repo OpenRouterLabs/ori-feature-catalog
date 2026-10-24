@@ -53,6 +53,21 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       raw: "git@github.com:acme/widgets.git",
     },
     { normalized: "acme/widgets", raw: "acme/widgets/" },
+    // A deep GitHub URL — a copied blob/tree/PR/releases address — is a
+    // spelling every sibling resolver in this feature tolerates (#159's own
+    // corpus), so the prompt's normalization recipe must collapse it to
+    // owner/repo too: the raw output `acme/widgets/tree/main` breaks
+    // `gh --repo` (no such repo), the `repos/…` API routes (404), and the
+    // github.com fetch URL, exactly the way the two-segment URL spelling
+    // did before the recipe normalized it.
+    {
+      normalized: "acme/widgets",
+      raw: "https://github.com/acme/widgets/tree/main",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "https://github.com/acme/widgets/pull/42",
+    },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {
