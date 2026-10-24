@@ -236,6 +236,23 @@ export const resolveRepoFromEnv = (
   // route answers 404 for the doubled trailing slash.
   const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
   const withoutSuffix = raw.replace(/\.git$/u, "");
+  // Strip an explicit PORT before any regex runs — the same normalization
+  // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
+  // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
+  // port group: the `:` itself becomes the separator, the port digits become
+  // the "owner"/"repo" segment. A bare host+port spelling (`github.com:22`,
+  // `git@github.com:22` — a truncated `git remote -v` copy-paste) then makes
+  // the org-URL branch return `"22"` as the repo, and `github.com:22/acme`
+  // match the fake owner/repo pair `22/acme` — the exact #186 "port digits
+  // must never become the owner segment" class, reopened through the
+  // no-path and org-only spellings. A port is unambiguous — `:<digits>`
+  // right after the `github.com` host, before any separator or end — so
+  // removing it up front lets every branch below see the same string every
+  // sibling resolver already resolves through.
+  const portStripped = withoutSuffix.replace(
+    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    "$1"
+  );
   // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/acme` — is the one
   // spelling whose ORG sits where the repo regexes below expect a repo
@@ -257,12 +274,12 @@ export const resolveRepoFromEnv = (
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
     /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)(?:\/.*)?$/u.exec(
-      withoutSuffix
+      portStripped
     );
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
-  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(withoutSuffix);
+  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(portStripped);
   if (match?.[1] !== undefined) {
     return match[1];
   }
@@ -272,7 +289,7 @@ export const resolveRepoFromEnv = (
   // route 404, exactly the class the URL-spelling fix closed for the
   // two-segment form.
   const deepMatch =
-    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(withoutSuffix);
+    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(portStripped);
   if (deepMatch?.[1] !== undefined) {
     return deepMatch[1];
   }
@@ -283,13 +300,13 @@ export const resolveRepoFromEnv = (
   // every `repos/{repo}` route 404s on. Same treatment as the orgs-page
   // branch above: return the org it names, like `orgOf`'s org-URL branch.
   const orgUrlMatch = /(?:git@)?github\.com(?::\d+)?[\/:]([^/]+)$/u.exec(
-    withoutSuffix
+    portStripped
   );
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
   // A bare string (no github.com host) keeps its historical pass-through.
-  return withoutSuffix;
+  return portStripped;
 };
 
 // #endregion
