@@ -232,9 +232,14 @@ export const resolveRepoFromEnv = (
   // `orgOf` runs its own orgs-page branch BEFORE its repo regex for exactly
   // this reason; this resolver must too. A repo resolver cannot invent a
   // repo, so it returns the ORG — the same single-segment pass-through a
-  // bare `owner` keeps at the bottom.
+  // bare `owner` keeps at the bottom. The match tolerates a DEEP tail
+  // (`/orgs/acme/teams`, `/organizations/acme/settings`) before the ORG
+  // segment: the `$`-anchored form only caught the bare page, so a deep
+  // orgs-page URL fell through to the repo regex and matched the fake
+  // owner/repo pair `orgs/acme` — the exact class this branch exists to
+  // close, reopened through the deep path (#101/#169's shape).
   const orgsPageMatch =
-    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)$/u.exec(
+    /(?:git@)?github\.com[/:](?:orgs|organizations)[/:]([^/]+)(?:\/.*)?$/u.exec(
       withoutSuffix
     );
   if (orgsPageMatch?.[1] !== undefined) {

@@ -86,4 +86,15 @@ describe("colon-host org spellings resolve like their org form", () => {
       ).toBe("widgets");
     }
   });
+
+  test("a deep orgs-page URL resolves to its org, never the fake owner/repo pair", () => {
+    for (const raw of [
+      "https://github.com/orgs/acme/teams",
+      "https://github.com/orgs/acme/people",
+      "https://github.com/organizations/acme/settings",
+      "git@github.com:orgs/acme/teams",
+    ]) {
+      expect(resolveRepoFromEnv({ GITHUB_REPO: raw })).toBe("acme");
+    }
+  });
 });
