@@ -29,7 +29,7 @@
 
 import type { Database } from "bun:sqlite";
 
-import { findSingleDashArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import { findJunkArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 
 import {
   DEFAULT_PURPOSE,
@@ -82,13 +82,13 @@ const readFlag = (
 /** Run `register` (ctx.argv excludes the subcommand). Returns the exit code; never throws. */
 const runRegister = (ctx: RegisterCliContext): number => {
   const { argv, db, env, writers } = ctx;
-  const junkArgv = findSingleDashArgv(argv);
+  const junkArgv = findJunkArgv(argv);
   if (junkArgv !== undefined) {
     // A single-dash token (`-purpose reviewer`) is a typo no CLI accepts, and
     // ignoring it silently coerced the row to the org-level CATCH-ALL purpose —
     // re-routing every future mint without --purpose (the #117 class).
     writers.err(
-      `register-gh-app: unrecognized argument "${junkArgv}" — flags start with "--" (e.g. --org acme)\n`
+      `register-gh-app: unrecognized argument "${junkArgv}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
     );
     return 1;
   }

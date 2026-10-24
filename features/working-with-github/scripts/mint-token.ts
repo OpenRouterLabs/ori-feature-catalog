@@ -50,7 +50,7 @@ import type {
 
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
-import { findSingleDashArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import { findJunkArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {
@@ -117,7 +117,7 @@ const flagPresent = (argv: readonly string[], flag: string): boolean =>
  * ignored so the bare `mint-token.ts` invocation keeps working unchanged.
  */
 export const parseMintArgs = (argv: readonly string[]): MintArgs => {
-  const junkArgv = findSingleDashArgv(argv);
+  const junkArgv = findJunkArgv(argv);
   if (junkArgv !== undefined) {
     return { junkArgv };
   }
@@ -205,7 +205,7 @@ if (import.meta.main) {
   const args = parseMintArgs(process.argv.slice(2));
   if (args.junkArgv !== undefined) {
     process.stderr.write(
-      `mint-token: unrecognized argument "${args.junkArgv}" — flags start with "--" (e.g. --repo owner/repo)\n`
+      `mint-token: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
     );
     process.exit(1);
   }

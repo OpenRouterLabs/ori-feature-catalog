@@ -51,7 +51,7 @@ import { Effect } from "effect";
 
 import {
   CommitApiError,
-  findSingleDashArgv,
+  findJunkArgv,
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-flow.ts";
@@ -142,9 +142,9 @@ export const parseCliArgs = (
   env: Readonly<Record<string, string | undefined>> = process.env
 ): Effect.Effect<ParsedCli, CommitApiError> =>
   Effect.gen(function* () {
-    // A single-dash argv token is a usage error in this CLI too — the same
-    // `findSingleDashArgv` rule the three sibling CLIs apply to the WHOLE argv.
-    // The pair loop below only rejects one in the KEY position (its
+    // A single-dash or equals-form argv token is a usage error in this CLI
+    // too — the same `findJunkArgv` rule the sibling CLIs apply to the WHOLE
+    // argv. The pair loop below only rejects the KEY position (its
     // `key.startsWith("--")` guard), so pre-fix the VALUE position slipped
     // through: `--branch -x` parsed clean with branch "-x", `--repo -repo`
     // parsed clean with repo "-repo" — and the flow then minted a token and
@@ -152,11 +152,11 @@ export const parseCliArgs = (
     // literally named "-x". #155 closed the shape in mint-token,
     // cleanup-worktrees and register-gh-app; this closes the fourth CLI's
     // remaining position so all four agree on the same argv.
-    const junkArgv = findSingleDashArgv(argv);
+    const junkArgv = findJunkArgv(argv);
     if (junkArgv !== undefined) {
       return yield* new CommitApiError({
         stage: "args",
-        message: `unrecognized argument "${junkArgv}" — flags start with "--" (e.g. --repo owner/repo)`,
+        message: `unrecognized argument "${junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash`,
       });
     }
     const flags = new Map<string, string>();
