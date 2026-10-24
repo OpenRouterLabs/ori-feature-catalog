@@ -56,6 +56,21 @@ export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
 const AMBIENT_PROBE_TIMEOUT_MS = 15_000;
 
 /**
+ * How long the App-mode round-trip may take before the check stops waiting.
+ * The ambient probe has bounded its wait since it gained a deadline
+ * (AMBIENT_PROBE_TIMEOUT_MS): a hung `GET /` there wedges the fire, the
+ * runtime skips every later fire, and the schedule whose job is to ALERT on
+ * broken GitHub access stays silent. The App-mode path mints and then calls
+ * `GET /repos/{repo}` with NO bound of its own — the same wedge shape, in the
+ * mode the schedule was originally built for: a dropped route or a wedged
+ * proxy after the mint leaves the fetch pending forever, and the alert that
+ * says "GitHub auth is broken" never fires precisely because GitHub is
+ * broken. The deadline turns "no answer" into the same `round-trip`
+ * HealthCheckError channel a 5xx already uses.
+ */
+const ROUND_TRIP_TIMEOUT_MS = 15_000;
+
+/**
  * Bare `GET https://api.github.com/` — the ambient-mode probe. Sends no
  * Authorization header: on hosts that attach a workspace credential through an
  * egress proxy it still reaches GitHub (and echoes the effective scopes); on
@@ -209,7 +224,18 @@ const verifyRepoAccess = (input: {
           stage: "round-trip",
           detail: error instanceof Error ? error.message : String(error),
         }),
-    });
+    }).pipe(
+      // Bound the wait like the ambient probe: a fetch that never settles is
+      // unreachability, not health — see ROUND_TRIP_TIMEOUT_MS.
+      Effect.timeoutOrElse({
+        duration: ROUND_TRIP_TIMEOUT_MS,
+        orElse: () =>
+          new HealthCheckError({
+            stage: "round-trip",
+            detail: `GET /repos/${input.repo} did not answer within ${ROUND_TRIP_TIMEOUT_MS / 1000}s`,
+          }),
+      })
+    );
 
     if (!response.ok) {
       // A non-2xx must be explained by its own envelope (or degrade to the
