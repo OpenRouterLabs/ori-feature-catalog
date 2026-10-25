@@ -222,6 +222,23 @@ export const orgOf = (repo: string): string => {
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
+  // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
+  // copied blob/tree/PR/releases address, pasted without the host) — is
+  // the same deep spelling the `hostMatch` branch above closes for the
+  // hosted form: pre-fix it fell every branch (the bare two-segment match
+  // below anchors `$`), `orgOf` returned the WHOLE string as the "org",
+  // and a registry row registered from a deep `--repo`/`--org` paste
+  // could never match the org a mint derives — every mint silently fell
+  // back to the default App (#101/#159's class, reopened through the
+  // hostless deep path). The prompt's `REPO=` sed recipe collapses the
+  // same paste (`s#(^[^/]+/[^/]+)(/.*)?$#\1#`), so this branch keeps
+  // `orgOf` on the recipe's contract: one spelling, four resolvers.
+  const hostlessDeepMatch = /^([^/]+)\/([^/]+)(?:\/.*)?$/u.exec(
+    portStripped
+  );
+  if (hostlessDeepMatch?.[1] !== undefined) {
+    return hostlessDeepMatch[1];
+  }
   const bareMatch = /^([^/]+)\/[^/]+$/u.exec(portStripped);
   return bareMatch?.[1] ?? portStripped;
 };
