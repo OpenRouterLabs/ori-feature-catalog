@@ -170,6 +170,20 @@ const runRegister = (ctx: RegisterCliContext): number => {
   // key the registry never holds, and the row `mint-token.ts --repo …` then
   // routed to looked unexplained when it did match.
   const normalizedOrg = orgOf(org);
+  // `orgOf` collapses some junk spellings to "" — "/" , "//", "/.git", ".git"
+  // (also whitespace, but readFlag already refuses that). readFlag's
+  // non-empty check above only guards the RAW argument, so pre-fix the CLI
+  // persisted a dead `org:""` row: no mint can ever derive an empty registry
+  // key (orgOf of any real repo string is non-empty), the row was permanently
+  // unreachable, and the confirmation printed `registered  (reviewer) → K / P`
+  // with a blank org. The same silent-dead-row class #101/#140 closed for
+  // URL-shaped spellings; fail loudly naming the argument instead.
+  if (normalizedOrg === "") {
+    writers.err(
+      `register-gh-app: --org "${org}" resolves to no GitHub org — pass an org login, an owner/repo, or a github.com URL\n`
+    );
+    return 1;
+  }
 
   // A DB failure (corruption, permissions, locking) must not crash the CLI with
   // a stack trace — render a single-line diagnostic and exit non-zero instead.
