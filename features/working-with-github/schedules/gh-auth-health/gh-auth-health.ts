@@ -71,6 +71,22 @@ const AMBIENT_PROBE_TIMEOUT_MS = 15_000;
 const ROUND_TRIP_TIMEOUT_MS = 15_000;
 
 /**
+ * How long the round-trip's response BODY read may wait before the check stops
+ * waiting. The fetch above is bounded by `ROUND_TRIP_TIMEOUT_MS`, but a server
+ * that answers the headers and then stalls the body leaves `response.json()`
+ * pending forever — the exact wedge `readBodyJson` in `gh-app-github-api.ts`
+ * and `commit-api-core.ts` exist to close, and this module's own docblock for
+ * the fetch deadline describes ("a hung connection ... leaves the fire
+ * pending, the runtime skips every later fire, and the schedule whose whole job
+ * is to ALERT on broken GitHub access stays silent — precisely in the state it
+ * exists to catch"). Pre-fix BOTH body reads below (the non-2xx envelope read
+ * and the 2xx payload read) were the only unbounded waits left on the path.
+ * The bound fails into the same `round-trip` HealthCheckError channel a 5xx
+ * already uses, naming the deadline and the repo.
+ */
+const ROUND_TRIP_BODY_TIMEOUT_MS = ROUND_TRIP_TIMEOUT_MS;
+
+/**
  * Bare `GET https://api.github.com/` — the ambient-mode probe. Sends no
  * Authorization header: on hosts that attach a workspace credential through an
  * egress proxy it still reaches GitHub (and echoes the effective scopes); on
@@ -246,6 +262,17 @@ const verifyRepoAccess = (input: {
       // `gh-app-github-api.ts` / `commit-api-core.ts`.
       const payload = yield* Effect.promise(() =>
         response.json().catch(() => null)
+      ).pipe(
+        Effect.timeoutOrElse({
+          duration: ROUND_TRIP_BODY_TIMEOUT_MS,
+          orElse: () =>
+            Effect.fail(
+              new HealthCheckError({
+                stage: "round-trip",
+                detail: `GET /repos/${input.repo} response body did not arrive within ${ROUND_TRIP_BODY_TIMEOUT_MS / 1000}s`,
+              })
+            ),
+        })
       );
       return yield* new HealthCheckError({
         stage: "round-trip",
@@ -260,7 +287,18 @@ const verifyRepoAccess = (input: {
           stage: "round-trip",
           detail: `repo response was not JSON: ${String(error)}`,
         }),
-    });
+    }).pipe(
+      Effect.timeoutOrElse({
+        duration: ROUND_TRIP_BODY_TIMEOUT_MS,
+        orElse: () =>
+          Effect.fail(
+            new HealthCheckError({
+              stage: "round-trip",
+              detail: `GET /repos/${input.repo} response body did not arrive within ${ROUND_TRIP_BODY_TIMEOUT_MS / 1000}s`,
+            })
+          ),
+      })
+    );
 
     const body = yield* Schema.decodeUnknownEffect(RepoResponse, {
       errors: "all",
