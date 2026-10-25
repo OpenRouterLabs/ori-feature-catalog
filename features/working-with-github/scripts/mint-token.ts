@@ -57,6 +57,7 @@ import type {
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import { findJunkArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import { orgOf } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {
@@ -114,6 +115,21 @@ export interface MintArgs {
    *  first `--repo` and land the commit on the second. A repeat is refused
    *  outright, exactly like the single-dash and equals-form shapes. */
   readonly repeatedFlag?: string;
+  /**
+   * Parse-time usage error: an explicitly-passed `--repo`/`--org` spelled a
+   * string that names NO target org at all (e.g. the organizations-page
+   * INDEX URL `https://github.com/orgs`, or a bare `organizations` word —
+   * `orgOf` collapses both to `""`, the documented no-owner answer). Never
+   * reaches `mintInstallationToken`: the caller asked for a token routed to
+   * a target, and the token they would silently get instead is the DEFAULT
+   * App's minted for the `GITHUB_REPO` org — the target the spelling names
+   * is unreachable, and every later call 404s with no hint why. The exact
+   * class the sibling CLIs already close loudly (commit-via-api's
+   * `--repo "…" resolves to no owner/repo`, cleanup-worktrees' #219), and
+   * the registry CLI's normalized-org guard — the mint CLI is the one
+   * left silently swapping the identity.
+   */
+  readonly unresolvableRepoValue?: string;
 }
 
 /** True when `flag` appears in `argv` at all — used to distinguish an
@@ -194,6 +210,20 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
       missingRepoValue: true,
     };
   }
+  // An explicitly-passed --repo/--org that RESOLVES to no org at all is the
+  // same usage error as a missing value — never a silent default-App mint.
+  // `orgOf` is the sibling normalizer every registry key and allowlist entry
+  // already derive through; its documented no-owner spellings (the orgs-page
+  // INDEX URL, a bare `organizations`) must fail the parse here, naming the
+  // spelling, instead of flowing to `mintInstallationToken({ targetRepo })`
+  // where `readGhAppCredentials` treats an orgless target as the bare
+  // default-app request and mints for the GITHUB_REPO org.
+  if (targetRepo !== undefined && orgOf(targetRepo) === "") {
+    return {
+      ...(purpose === undefined ? {} : { purpose }),
+      unresolvableRepoValue: targetRepo,
+    };
+  }
   return {
     ...(targetRepo === undefined ? {} : { targetRepo }),
     ...(purpose === undefined ? {} : { purpose }),
@@ -219,8 +249,18 @@ export const resolveMintDeps = (
   if (
     args.missingRepoValue === true ||
     args.missingPurposeValue === true ||
-    args.repeatedFlag !== undefined
+    args.repeatedFlag !== undefined ||
+    args.unresolvableRepoValue !== undefined
   ) {
+    return null;
+  }
+  // A target repo that names no org at all can never route to a registered
+  // App either — the same refusal for callers that build MintArgs directly
+  // (the parse-time marker above only fires for argv-driven invocations):
+  // `mintInstallationToken` would treat the orgless target as the bare
+  // default-app request and mint for the GITHUB_REPO org, silently dropping
+  // the caller's target.
+  if (args.targetRepo !== undefined && orgOf(args.targetRepo) === "") {
     return null;
   }
   if (args.purpose === undefined || args.targetRepo !== undefined) {
@@ -245,12 +285,14 @@ if (import.meta.main) {
   const mintDeps = resolveMintDeps(args);
   if (mintDeps === null) {
     // An explicitly-passed value-taking flag with no usable value, one that
-    // was repeated, or a purpose with no derivable org (it can never route to
-    // a registered App) — minting the bare default instead would silently
-    // ignore what the caller asked for.
+    // was repeated, a value that names no target org, or a purpose with no
+    // derivable org (it can never route to a registered App) — minting the
+    // bare default instead would silently ignore what the caller asked for.
     process.stderr.write(
       args.repeatedFlag !== undefined
         ? `mint-token: ${args.repeatedFlag} was passed more than once — pass exactly one value\n`
+        : args.unresolvableRepoValue !== undefined
+        ? `mint-token: --repo "${args.unresolvableRepoValue}" resolves to no GitHub org — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
         : args.missingRepoValue === true
         ? "mint-token: --repo/--org needs a value (e.g. --repo owner/repo)\n"
         : args.missingPurposeValue === true
