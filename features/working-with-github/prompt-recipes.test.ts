@@ -68,6 +68,18 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "https://github.com/acme/widgets/pull/42",
     },
+    // A HOSTLESS deep paste — bare `owner/repo/<tail>`, the URL path of a
+    // copied blob/tree/PR/releases address pasted without the host — is the
+    // same spelling every sibling resolver tolerates (repo-string-hostless-
+    // deep.test.ts pins the code side): pre-fix the recipe returned it
+    // whole while `resolveRepoFromEnv` collapsed it, so the recipe and the
+    // code silently disagreed — one spelling contract, four resolvers.
+    { normalized: "acme/widgets", raw: "acme/widgets/tree/main" },
+    { normalized: "acme/widgets", raw: "acme/widgets/pull/42" },
+    { normalized: "o/r", raw: "o/r/tree/main" },
+    // Leading/trailing whitespace padding (a copy-paste with a stray space)
+    // trims in every code resolver; the recipe must agree.
+    { normalized: "acme/widgets", raw: " acme/widgets " },
     // The ORGANIZATIONS-page spellings — `github.com/orgs/<org>` (the "Your
     // organizations" page) and `/organizations/<org>` — are a spelling every
     // sibling resolver tolerates (#169/#175/#177 fixed them in `orgOf`,
