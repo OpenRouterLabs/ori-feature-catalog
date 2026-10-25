@@ -342,6 +342,32 @@ export const resolveRepoFromEnv = (
 
 // #endregion
 
+// #region Unset-vs-unresolvable
+
+/**
+ * True when `GITHUB_REPO` is genuinely ABSENT (undefined, empty, or
+ * whitespace-only) — as opposed to SET to a spelling that
+ * {@link resolveRepoFromEnv} resolves to no owner/repo (the empty string).
+ *
+ * The two cases share the resolver's `""` result but need different
+ * diagnostics, and every caller of the resolver reads the same `env` it
+ * passes in, so the split belongs here — one predicate beside the resolver
+ * that produces the shared empty value, not a private copy at each site:
+ *   - unset → "GITHUB_REPO is not set" (the operator must configure it);
+ *   - set-but-unresolvable → "resolves to no owner/repo — check its
+ *     spelling", naming the spelling (the orgs-page INDEX URL is the first
+ *     corpus: `https://github.com/orgs` names no owner, #203). Pre-fix every
+ *     site printed "not set" for both, which is a lie for exactly the input
+ *     that most needs the message — it sent the operator to inspect service
+ *     env that was present and populated.
+ */
+export const isRepoUnset = (
+  // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
+): boolean => (env.GITHUB_REPO ?? "").trim() === "";
+
+// #endregion
+
 // #region git seam
 
 /** Default `runGit`: a synchronous git invocation in `cwd`. */
