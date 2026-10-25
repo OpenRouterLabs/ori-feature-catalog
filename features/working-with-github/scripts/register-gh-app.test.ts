@@ -344,4 +344,37 @@ describe("register-gh-app CLI", () => {
     // Reopen so afterEach's close() doesn't double-close.
     db = openGhAppRegistryDb(":memory:");
   });
+
+  test("an --org that normalizes to no org fails loudly, never persists the dead row", () => {
+    // `orgOf("/")` collapses to "" (also "//", "/.git", ".git"): pre-fix the
+    // row was persisted under the empty string with a blank confirmation
+    // (`registered  (reviewer) → K / P`) — a registry key no mint can ever
+    // derive, so the registered App was silently never used. The same
+    // silent-dead-row class #101/#140 closed for URL-shaped spellings.
+    for (const org of ["/", "//", "/.git", ".git"]) {
+      const { out, err, writers } = makeWriters();
+      const code = runRegisterCli({
+        argv: [
+          "register",
+          "--org",
+          org,
+          "--purpose",
+          "reviewer",
+          "--app-id-key",
+          "TEAM_GH_APP_ID",
+          "--private-key-key",
+          "TEAM_GH_APP_PRIVATE_KEY",
+        ],
+        db,
+        env: ENV,
+        writers,
+      });
+      expect(code).toBe(1);
+      expect(out).toEqual([]);
+      expect(err.join("")).toContain("--org");
+      expect(err.join("")).toContain("resolves to no GitHub org");
+    }
+    // Nothing was written for any of the junk spellings.
+    expect(listApps(db)).toEqual([]);
+  });
 });
