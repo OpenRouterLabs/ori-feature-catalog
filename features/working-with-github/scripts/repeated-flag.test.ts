@@ -110,6 +110,7 @@ describe("a repeated value-taking flag is a usage error in every CLI", () => {
       parseCleanupArgs(["--repo", "o/r"], { GITHUB_REPO: "x/y" }, "/cwd")
     ).toEqual({
       dryRun: false,
+      repoFlagValue: "o/r",
       repo: "o/r",
       repoDir: "/cwd",
       worktreesRoot: "/tmp/worktrees",

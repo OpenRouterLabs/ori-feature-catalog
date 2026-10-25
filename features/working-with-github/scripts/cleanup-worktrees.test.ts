@@ -60,6 +60,7 @@ describe("parseCleanupArgs", () => {
       )
     ).toEqual({
       dryRun: false,
+      repoFlagValue: "other/repo",
       repo: "other/repo",
       repoDir: "/repo/checkout",
       worktreesRoot: "/tmp/worktrees",
@@ -77,6 +78,7 @@ describe("parseCleanupArgs", () => {
       )
     ).toEqual({
       dryRun: false,
+      repoFlagValue: "https://github.com/other/repo.git",
       repo: "other/repo",
       repoDir: "/repo/checkout",
       worktreesRoot: "/tmp/worktrees",
@@ -382,6 +384,37 @@ describe("runCleanup", () => {
     expect(err[0]).not.toContain("is not set");
     expect(err[0]).toContain("resolves to no owner/repo");
     expect(err[0]).toContain("https://github.com/orgs");
+  });
+
+  test("an explicit --repo that resolves to nothing is reported against the FLAG, never the env", async () => {
+    // The #207 "name the actual cause" contract, through the flag path: with
+    // `--repo <unresolvable spelling>` the env var may be healthy, so the
+    // diagnostic must name the flag value — pre-fix it printed
+    // `GITHUB_REPO "acme/widgets" resolves to no owner/repo`, blaming a
+    // populated, resolvable env var for a flag the operator passed, and with
+    // the env unset it claimed "no --repo given" while --repo WAS given.
+    const { err, out, writers } = makeWriters();
+    const code = await Effect.runPromise(
+      runCleanup(
+        undefined,
+        {
+          dryRun: false,
+          repo: "",
+          repoFlagValue: "https://github.com/orgs",
+          repoDir: "/repo/checkout",
+          worktreesRoot: "/tmp/worktrees",
+        },
+        writers,
+        true,
+        { GITHUB_REPO: "acme/widgets" }
+      )
+    );
+    expect(code).toBe(1);
+    expect(out).toEqual([]);
+    expect(err[0]).toContain("--repo");
+    expect(err[0]).toContain("https://github.com/orgs");
+    expect(err[0]).not.toContain("GITHUB_REPO");
+    expect(err[0]).not.toContain("acme/widgets");
   });
 
   test("writes a diagnostic to stderr and exits 1 on a mint failure", async () => {
