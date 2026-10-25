@@ -590,8 +590,24 @@ export const ghJson = <S extends Schema.Top>(
     // by its own envelope or degrade to the HTTP status — never fail as a
     // "response was not JSON" complaint, which both mislabels the failure and
     // drops the status a caller may match on (and hides the actual 502/404).
+    // The read is bounded by the SAME deadline as the fetch: a server that
+    // sends headers and then stalls the body leaves `response.json()` pending
+    // forever — the exact wedge the fetch deadline exists to close, reopened
+    // through the body read, so it must fail into the same `http` channel
+    // rather than hang the commit flow (or a sweep's PR lookup) indefinitely.
+    // (`Effect.promise`, not `tryPromise`: the `.catch(() => null)` already
+    // keeps the promise settling, so its only failure mode is the timeout.)
     const parsed: unknown = yield* Effect.promise(() =>
       response.json().catch(() => null)
+    ).pipe(
+      Effect.timeoutOrElse({
+        duration: COMMIT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new CommitApiError({
+            stage: "http",
+            message: `${input.method} ${input.url} response body did not arrive within ${COMMIT_HTTP_TIMEOUT_MS / 1000}s`,
+          }),
+      })
     );
 
     if (!response.ok) {
