@@ -119,6 +119,29 @@ export const orgOf = (repo: string): string => {
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
+  // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs`
+  // (also `/organizations`, the scp/ssh host-word form, and the ported
+  // spellings) — ends AT the reserved host-path word with no org segment
+  // after it: it is the page that LISTS your organizations, not one of
+  // them. Pre-fix the org-URL branch below captured the word itself as the
+  // org (`orgs`), so a registry row registered from it was keyed on a
+  // reserved host path no mint can ever derive a match for (the exact
+  // #101/#143 dead-row class the `orgs/<org>` branch above exists to
+  // close, reopened through the index spelling), and the sibling resolvers
+  // derived the same fake owner for the config dir and the allowlist. The
+  // word is never an owner login — return NO org at all so the callers
+  // that must fail loudly do (register-gh-app's normalized-org guard) and
+  // the fallback paths keep their documented no-owner behavior. A REPO
+  // named `orgs` under a real owner never reaches here: the repo branches
+  // below capture the owner past the host path first, and the org-naming
+  // spellings (`orgs/<org>`) already returned above.
+  const orgsIndexMatch =
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)$/u.exec(
+      portStripped
+    );
+  if (orgsIndexMatch !== null) {
+    return "";
+  }
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
   // blob/tree/PR/releases address) — collapses to its owner, exactly like the
   // two-segment form: the raw URL was returned whole, so a row registered
@@ -209,6 +232,26 @@ export const resolveConfigDirName = (
     /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
     "$1"
   );
+  // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs` (also
+  // `/organizations`, the scp/ssh host-word form, the ported spellings) —
+  // ends AT the reserved host-path word with no org segment after it, so
+  // neither an org nor a repo is derivable from it. Pre-fix the
+  // host-stripped single-segment branch below captured the word itself
+  // (`orgs`/`organizations`) and named the config dir after it, silently
+  // migrating the registry/cache DB the moment the env var's spelling
+  // changed (#113's class, reopened through the index spelling). The word
+  // is never an owner login — fall to the documented no-repo fallback
+  // ("intern") instead. `orgOf` and the sibling resolvers return the same
+  // no-owner answer for this spelling; a real org page
+  // (`https://github.com/acme`) and a repo named `orgs` under a real owner
+  // are untouched — they carry a segment past the host word.
+  if (
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)$/u.test(
+      portStripped
+    )
+  ) {
+    return "intern";
+  }
   // A host-word spelling with a COLON and no slash — `git@github.com:acme` /
   // `github.com:acme`, the scp/ssh org-page forms — has no repo segment, so
   // the repo regexes below miss it and `match?.[2]` falls back to the RAW

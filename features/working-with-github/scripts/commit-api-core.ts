@@ -288,6 +288,28 @@ export const resolveRepoFromEnv = (
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
+  // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs`
+  // (also `/organizations`, the scp/ssh host-word form, and the ported
+  // spellings) — ends AT the reserved host-path word with no org segment
+  // after it: it is the page that LISTS your organizations, not one of
+  // them, and a repo resolver cannot invent a repo from it. Pre-fix the
+  // host-only branch below captured the word itself as the owner/repo
+  // tail (`orgs`), so `resolveRepoFromEnv({ GITHUB_REPO })` handed the
+  // health check's round-trip and every `gh --repo`/`repos/{repo}` route
+  // a permanent 404 named after a host path — the same fake-owner class
+  // the orgs-page branch above exists to close, reopened through the
+  // index spelling. The word is never an owner login — return "" so the
+  // callers that must fail loudly do (commit-via-api's "--repo (or set
+  // GITHUB_REPO)" diagnostic, the schedules' die). A REPO named `orgs`
+  // under a real owner never reaches here: the repo branches below
+  // capture the real owner/repo pair first.
+  const orgsIndexMatch =
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)$/u.exec(
+      portStripped
+    );
+  if (orgsIndexMatch !== null) {
+    return "";
+  }
   const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(portStripped);
   if (match?.[1] !== undefined) {
     return match[1];
