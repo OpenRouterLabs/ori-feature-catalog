@@ -151,6 +151,38 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     { normalized: "git@github.com", raw: "git@github.com:22" },
     { normalized: "ssh://git@github.com", raw: "ssh://git@github.com:22" },
     { normalized: "https://github.com", raw: "https://github.com:443" },
+    // A HOST-CASE spelling — `https://GitHub.com/acme/widgets`, a copy-paste
+    // whose host kept the address bar's capitalization (also `git@GitHub.com:…`,
+    // an upper-case SCHEME `HTTPS://…`) — is the same URL: hosts and schemes
+    // are case-insensitive (RFC 3986 §3.1, §3.2.2) and every real client
+    // accepts them, so the recipe must collapse them exactly like the
+    // lowercase spellings above. Pre-fix every anchored `github.com` rule in
+    // the recipe matched lowercase only, so the mixed-case host fell every
+    // branch and the RAW URL flowed on as `$REPO` — `gh --repo https://…`,
+    // `repos/https://…` (404), a SLUG dir the sweep never lists — the same
+    // silent-dead-value class the resolvers' host-case fix closes, in the
+    // recipe.
+    {
+      normalized: "acme/widgets",
+      raw: "https://GitHub.com/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "git@GitHub.com:acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "GitHub.com:22/acme/widgets",
+    },
+    // The orgs-page spellings under a mixed-case host resolve to the org (or
+    // nothing, for the INDEX form) exactly like their lowercase spellings.
+    { normalized: "acme", raw: "https://GitHub.com/orgs/acme" },
+    { normalized: "", raw: "https://GitHub.com/orgs" },
+    // An upper-case SCHEME alone (`HTTPS://github.com/…`) is the same class.
+    {
+      normalized: "acme/widgets",
+      raw: "HTTPS://GitHub.com/acme/widgets",
+    },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {

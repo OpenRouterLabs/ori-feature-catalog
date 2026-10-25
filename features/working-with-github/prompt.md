@@ -65,6 +65,11 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # `github.com/organizations/<org>`, the "Your organizations" page) — and an
 # explicit ssh PORT (`ssh://git@github.com:22/o/r`, a `git remote -v`
 # copy-paste; the port digits must never become the owner segment) — the
+# HOST-CASE spellings (`https://GitHub.com/…`, `git@GitHub.com:…`, and an
+# upper-case SCHEME `HTTPS://…`) are the same URLs — hosts and schemes are
+# case-insensitive (RFC 3986 §3.1, §3.2.2) and every real client accepts
+# them — so the recipe collapses them exactly like their lowercase forms —
+# the
 # spellings every resolver in this feature accepts): gh --repo, the
 # repos/{owner}/{repo} API routes, and the github.com fetch URL take
 # owner/repo only, and the raw env var breaks all three under a URL
@@ -77,7 +82,7 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # organizations) normalizes to NOTHING, exactly like the sibling resolvers:
 # the word is never an owner login, and an empty $REPO makes every
 # interpolation fail loudly instead of 404ing a repo named after a host path.
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)$##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
 
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
@@ -159,7 +164,7 @@ First, mint a token once for this whole flow, and normalize the repo string once
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)$##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:
