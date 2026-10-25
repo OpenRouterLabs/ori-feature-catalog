@@ -97,8 +97,23 @@ export const resolveAllowedOrgs = (
   // below fails on the trailing slash, and the repoOwner fallback then
   // reduces the URL to its scheme (`https:`) — a login no installation
   // can ever carry, so every mint fails closed with no hint why.
+  // A host-case spelling — `https://GitHub.com/acme/widgets`, a copy-paste
+  // that kept the address bar's capitalization — is the same URL: hosts are
+  // case-insensitive (RFC 3986 §3.2.2), and git/gh/curl all accept the
+  // mixed-case host. Lower-case the HOST WORD up front (never the
+  // owner/repo path — GitHub logins keep their case) so every anchored
+  // `github.com` branch below sees the same string `orgOf` and
+  // `resolveRepoFromEnv` see; pre-fix a mixed-case host fell every branch
+  // and the allowlist keyed itself on a raw URL — a login no installation
+  // can ever own — so every mint failed closed with no hint the spelling was
+  // the cause (#159/#82's class, reopened through the host's capitalization).
   const rawRepo = (env?.GITHUB_REPO ?? "")
     .trim()
+    .replace(
+      /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+      (_m: string, scheme: string, user: string, host: string) =>
+        `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+    )
     .replace(/\/+$/u, "")
     .replace(/\.git$/u, "")
     // A `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,

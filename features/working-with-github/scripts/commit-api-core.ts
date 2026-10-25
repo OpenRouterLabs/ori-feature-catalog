@@ -243,7 +243,23 @@ export const resolveRepoFromEnv = (
   // copy-paste from a browser address bar) is the same repo as
   // `acme/widgets`, and every `https://api.github.com/repos/<repo>/...`
   // route answers 404 for the doubled trailing slash.
-  const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
+  // A host-case spelling — `https://GitHub.com/acme/widgets`, a copy-paste
+  // that kept the address bar's capitalization — is the same URL: hosts are
+  // case-insensitive (RFC 3986 §3.2.2), and git/gh/curl all accept the
+  // mixed-case host. Lower-case the HOST WORD up front (never the
+  // owner/repo path — GitHub logins keep their case) so every anchored
+  // `github.com` branch below sees the same string `orgOf` and
+  // `resolveAllowedOrgs` see; pre-fix a mixed-case host fell every branch
+  // and the raw URL was returned whole, so every `repos/{repo}` route 404'd
+  // (the #159/#169 class, reopened through the host's capitalization).
+  const raw = (env.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/\/+$/u, "")
+    .replace(
+      /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+      (_m: string, scheme: string, user: string, host: string) =>
+        `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+    );
   // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is the
   // same repo as `acme/widgets`, and every `repos/{repo}` route 404s on the
   // doubled slash the raw spelling produces. `resolveConfigDirName` already
