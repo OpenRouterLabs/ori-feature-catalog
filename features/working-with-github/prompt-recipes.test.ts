@@ -87,6 +87,28 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     },
     { normalized: "acme", raw: "https://github.com/orgs/acme/teams" },
     { normalized: "acme", raw: "git@github.com:orgs/acme" },
+    // The ORGANIZATIONS-page INDEX spelling — `github.com/orgs` with NO org
+    // segment after it (the page that LISTS your organizations) — is the one
+    // spelling that must normalize to NOTHING: `orgs`/`organizations` are
+    // reserved host paths, never an owner login (verified live: no GitHub
+    // account holds either exact login), so #203 taught the sibling resolvers
+    // (`orgOf`, `resolveRepoFromEnv`, `resolveAllowedOrgs`,
+    // `resolveConfigDirName`) to resolve it to no owner at all. The recipe
+    // must agree: pre-fix it emitted the bare reserved word as `$REPO`, so
+    // every interpolation 404'd a repo named after a host path
+    // (`gh --repo orgs`, `repos/orgs`) — the same silent-dead-value class the
+    // resolvers' fix closed, in the recipe. An empty `$REPO` makes every
+    // interpolation fail loudly (gh errors on an empty --repo) instead.
+    { normalized: "", raw: "https://github.com/orgs" },
+    { normalized: "", raw: "https://github.com/organizations" },
+    { normalized: "", raw: "github.com/orgs" },
+    { normalized: "", raw: "git@github.com:organizations" },
+    { normalized: "", raw: "ssh://git@github.com:22/orgs" },
+    { normalized: "", raw: "https://github.com:443/organizations" },
+    // A trailing slash on the INDEX spelling is the same page (the resolver
+    // trims trailing slashes before its index branch — the recipe's own
+    // leading trim mirrors it).
+    { normalized: "", raw: "https://github.com/orgs/" },
     // An ssh URL with an explicit PORT — `ssh://git@github.com:22/…` (a
     // `git remote -v` copy-paste) — is a spelling every sibling resolver in
     // this feature has tolerated since the port group landed (#186's own

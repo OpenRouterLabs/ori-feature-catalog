@@ -72,8 +72,12 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # way, and an orgs-page URL left `orgs/<org>`, a fake owner/repo pair no
 # route answers (orgs/organizations are reserved host paths, never an owner
 # login — every sibling resolver strips these to the org). A ported URL
-# left `22/o/r` 404s the same way.
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+# left `22/o/r` 404s the same way. The orgs-page INDEX spelling
+# (`github.com/orgs` with NO org after it — the page that LISTS your
+# organizations) normalizes to NOTHING, exactly like the sibling resolvers:
+# the word is never an owner login, and an empty $REPO makes every
+# interpolation fail loudly instead of 404ing a repo named after a host path.
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)$##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
 
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
@@ -155,7 +159,7 @@ First, mint a token once for this whole flow, and normalize the repo string once
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)$##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:
