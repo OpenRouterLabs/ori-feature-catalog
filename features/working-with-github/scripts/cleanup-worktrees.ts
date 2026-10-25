@@ -99,6 +99,19 @@ export interface CleanupCliArgs {
    *  caller may have meant the second — a wrong-target destructive sweep
    *  with no diagnostic. A repeat is refused, naming the flag. */
   readonly repeatedFlag?: string;
+  /**
+   * The RAW `--repo` value, present whenever the flag was passed with a
+   * usable-looking value (one that is not itself a flag and not blank). The
+   * empty-repo diagnostic below needs it to name the actual cause: a
+   * `--repo` spelling that resolves to no owner/repo (e.g. the orgs-page
+   * index URL) must be reported against the FLAG, never against
+   * `GITHUB_REPO` — pre-fix the diagnostic always named the env var, so
+   * `--repo https://github.com/orgs` with a healthy `GITHUB_REPO` printed
+   * `GITHUB_REPO "acme/widgets" resolves to no owner/repo` — a lie about a
+   * populated, resolvable env var, and a dead end for the operator (#207's
+   * "name the actual cause" class, reopened through the flag path).
+   */
+  readonly repoFlagValue?: string;
 }
 
 /** Parse `--repo`, `--repo-dir`, `--worktrees-root`, and `--dry-run` out of argv. */
@@ -158,11 +171,13 @@ export const parseCleanupArgs = (
     ...env,
     GITHUB_REPO: readFlag("--repo") ?? env.GITHUB_REPO,
   });
+  const repoFlagValue = readFlag("--repo");
   return {
     dryRun: argv.includes("--dry-run"),
     ...(junkArgv === undefined ? {} : { junkArgv }),
     ...(missingFlagValue === undefined ? {} : { missingFlagValue }),
     ...(repeatedFlag === undefined ? {} : { repeatedFlag }),
+    ...(repoFlagValue === undefined ? {} : { repoFlagValue }),
     repo,
     repoDir: readFlag("--repo-dir") ?? cwd,
     worktreesRoot: readFlag("--worktrees-root") ?? DEFAULT_WORKTREES_ROOT,
@@ -224,14 +239,19 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       return 1;
     }
     if (args.repo === "") {
-      // The two causes of an empty repo need different guidance, and the
-      // parse already read the same env: genuinely unset (the operator must
-      // configure it) vs SET to a spelling that resolves to no owner/repo —
-      // e.g. the orgs-page INDEX URL `https://github.com/orgs` (#203), which
-      // names no owner at all. Pre-fix both printed "unset", a lie for the
-      // set case that sent the operator to inspect env that was populated.
+      // The causes of an empty repo each need their own guidance, and the
+      // parse already read the same argv/env: an explicit `--repo` whose
+      // spelling resolves to no owner/repo (name the FLAG value — the env var
+      // may be healthy, and blaming it is a lie), genuinely-unset env (the
+      // operator must configure it), vs SET-but-unresolvable env — e.g. the
+      // orgs-page INDEX URL `https://github.com/orgs` (#203), which names no
+      // owner at all. Pre-fix both env cases printed "unset", a lie for the
+      // set case, and the flag case named the ENV too (#207's "name the
+      // actual cause" class, reopened through the flag path).
       writers.err(
-        isRepoUnset(env)
+        args.repoFlagValue !== undefined
+          ? `cleanup-worktrees: --repo "${args.repoFlagValue}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
+          : isRepoUnset(env)
           ? "cleanup-worktrees: no --repo given and GITHUB_REPO is not set.\n"
           : `cleanup-worktrees: GITHUB_REPO "${(env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
       );

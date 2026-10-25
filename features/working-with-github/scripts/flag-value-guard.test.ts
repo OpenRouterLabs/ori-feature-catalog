@@ -83,6 +83,7 @@ describe("a flag-shaped flag value padded with whitespace is rejected, not trimm
       )
     ).toEqual({
       dryRun: false,
+      repoFlagValue: "o/r",
       repo: "o/r",
       repoDir: "/cwd",
       worktreesRoot: "/tmp/w",
