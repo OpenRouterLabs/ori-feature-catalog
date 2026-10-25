@@ -251,6 +251,65 @@ describe("parseCliArgs", () => {
     }
   });
 
+  test("an explicit --repo that resolves to nothing is named, never claimed missing", async () => {
+    // The #207 "name the actual cause" contract, through the flag path: the
+    // caller PASSED `--repo`, so "missing required flag(s): --repo (or set
+    // GITHUB_REPO)" is a lie about the argv — and with a healthy
+    // GITHUB_REPO it sends the operator to configure env that is already
+    // fine. The diagnostic must name the flag's own spelling.
+    const result = await runFold(
+      parseCliArgs(
+        [
+          "--worktree",
+          "/tmp/wt",
+          "--branch",
+          "feat",
+          "--message-file",
+          "/tmp/m",
+          "--repo",
+          "https://github.com/orgs",
+        ],
+        { GITHUB_REPO: "owner/repo" }
+      )
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.stage).toBe("args");
+      expect(result.error.message).toContain("--repo");
+      expect(result.error.message).toContain("https://github.com/orgs");
+      expect(result.error.message).toContain("resolves to no owner/repo");
+      expect(result.error.message).not.toContain("missing required flag");
+    }
+  });
+
+  test("a SET-but-unresolvable GITHUB_REPO is named, never claimed missing or unset", async () => {
+    // The same contract for the env path (the orgs-page INDEX spelling,
+    // #203): pre-fix this folded into "missing required flag(s): --repo (or
+    // set GITHUB_REPO)" — a lie twice over, since the flag is optional and
+    // the env var is set.
+    const result = await runFold(
+      parseCliArgs(
+        [
+          "--worktree",
+          "/tmp/wt",
+          "--branch",
+          "feat",
+          "--message-file",
+          "/tmp/m",
+        ],
+        { GITHUB_REPO: "https://github.com/orgs" }
+      )
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.stage).toBe("args");
+      expect(result.error.message).toContain("GITHUB_REPO");
+      expect(result.error.message).toContain("https://github.com/orgs");
+      expect(result.error.message).toContain("resolves to no owner/repo");
+      expect(result.error.message).not.toContain("missing required flag");
+    }
+  });
+
   test("rejects a flag-shaped value instead of accepting it as garbage (mirrors the sibling CLIs)", async () => {
     // Pre-fix: `--branch --worktree` parsed OK with branch "--worktree" —
     // the flow then 404s `GET /git/ref/heads/--worktree` AFTER creating

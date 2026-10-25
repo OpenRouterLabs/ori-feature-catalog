@@ -54,6 +54,7 @@ import { Effect } from "effect";
 import {
   CommitApiError,
   findJunkArgv,
+  isRepoUnset,
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-flow.ts";
@@ -209,6 +210,30 @@ export const parseCliArgs = (
       messageFile === undefined ||
       repo === ""
     ) {
+      // An explicitly-passed `--repo` that RESOLVES to nothing is not
+      // "missing" — the caller passed it, and telling them to pass it again
+      // (or to set GITHUB_REPO, which may be healthy) is a dead end that
+      // never names the actual cause: the spelling. Same for a SET-but-
+      // unresolvable GITHUB_REPO. Pre-fix both cases folded into the
+      // "missing required flag(s): --repo (or set GITHUB_REPO)" message
+      // (#207's "name the actual cause" class, reopened through the repo
+      // resolution path) — the flag case even claimed a flag the argv
+      // carried was absent.
+      const repoFlag = flags.get("repo");
+      if (repo === "") {
+        if (repoFlag !== undefined) {
+          return yield* new CommitApiError({
+            stage: "args",
+            message: `--repo "${repoFlag}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
+          });
+        }
+        if (!isRepoUnset(env)) {
+          return yield* new CommitApiError({
+            stage: "args",
+            message: `GITHUB_REPO "${(env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
+          });
+        }
+      }
       return yield* new CommitApiError({
         stage: "args",
         message: `missing required flag(s): ${missing.join(", ")}`,
