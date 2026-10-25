@@ -38,6 +38,18 @@ const URL_SPELLINGS: readonly string[] = [
   // A HOSTLESS deep paste collapses to its `owner/repo` tail, matching
   // `resolveRepoFromEnv` (repo-string-hostless-deep.test.ts).
   "acme/widgets/tree/main",
+  // A LEADING-slash paste — `/acme/widgets`, and the doubled `//acme/widgets`
+  // a shell autocomplete or a `//` host typo produces — is a spelling every
+  // code resolver strips (`resolveRepoFromEnv` strips `/+`, pinned by
+  // repo-string-leading-slash.test.ts) and the prompt's own recipe has
+  // collapsed since #217 (`s#^/+##`). Pre-fix this header's recipe kept the
+  // trailing single-slash strip `s#^/##` AFTER the deep-collapse rule, so a
+  // doubled leading slash fell every branch and interpolated as
+  // `/acme/widgets` — `gh --repo /acme/widgets` and `repos//acme/widgets`,
+  // the same silent-dead-value class, in the one file whose job is the mint.
+  "/acme/widgets",
+  "//acme/widgets",
+  "//acme/widgets/tree/main",
 ];
 
 // The ORGANIZATIONS-page INDEX spellings — `github.com/orgs` with NO org
