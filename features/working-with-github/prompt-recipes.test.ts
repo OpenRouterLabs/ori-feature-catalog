@@ -80,6 +80,20 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     // Leading/trailing whitespace padding (a copy-paste with a stray space)
     // trims in every code resolver; the recipe must agree.
     { normalized: "acme/widgets", raw: " acme/widgets " },
+    // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is a
+    // spelling every code resolver strips (`resolveRepoFromEnv`,
+    // `resolveConfigDirName` both strip `/+` before their repo branches), so
+    // the recipe must agree: pre-fix its trailing `s#^/##` stripped ONE
+    // slash but the deep-collapse rule above it anchors `^` and ran first,
+    // so a doubled leading slash (`//acme/widgets`, and the deep form
+    // `//acme/widgets/tree/main`) fell every branch and interpolated as
+    // `/acme/widgets` — `gh --repo /acme/widgets` and
+    // `repos//acme/widgets` (a doubled-slash route GitHub 404s), the same
+    // silent-dead-value class the recipe's other branches close.
+    { normalized: "acme/widgets", raw: "/acme/widgets" },
+    { normalized: "acme/widgets", raw: "//acme/widgets" },
+    { normalized: "acme/widgets", raw: "///acme/widgets" },
+    { normalized: "acme/widgets", raw: "//acme/widgets/tree/main" },
     // The ORGANIZATIONS-page spellings — `github.com/orgs/<org>` (the "Your
     // organizations" page) and `/organizations/<org>` — are a spelling every
     // sibling resolver tolerates (#169/#175/#177 fixed them in `orgOf`,
