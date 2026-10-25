@@ -81,7 +81,25 @@ export const orgOf = (repo: string): string => {
   // was keyed `/acme/widgets` — a key no mint can ever derive from a real
   // repo string. `resolveRepoFromEnv` and the prompt's `REPO=` sed strip
   // the same slash; `orgOf` must agree.
-  const cleaned = repo
+  // A host-case spelling — `https://GitHub.com/acme/widgets`,
+  // `git@GitHub.com:acme/widgets`, `GitHub.com:22/acme` (a copy-paste whose
+  // host kept the address bar's capitalization, or an ssh config alias) — is
+  // the same URL: hosts are case-insensitive (RFC 3986 §3.2.2), and every
+  // real git/gh/curl client accepts the mixed-case host. Lower-casing the
+  // HOST WORD up front (never the owner/repo path — GitHub logins keep their
+  // case) lets every anchored `github.com` branch below see the same string
+  // the sibling resolvers see, so one spelling resolves identically through
+  // all four. Pre-fix a mixed-case host fell every branch (the regexes match
+  // a literal lowercase `github.com`) and the raw URL was returned whole as
+  // the "org" — a registry key no mint can ever derive, and every
+  // `repos/{repo}` route 404s on (the #159/#169 class, reopened through the
+  // host's capitalization).
+  const hostLowered = repo.replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, user: string, host: string) =>
+      `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+  );
+  const cleaned = hostLowered
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
@@ -243,7 +261,21 @@ export const resolveConfigDirName = (
   // `/`), so every branch below missed and the dir name silently migrated to
   // a sanitized URL (`https-github-com-acme`), orphaning the registry/cache
   // rows the org spelling wrote (#113's class, reopened through the paste).
-  const repoRaw = (env.GITHUB_REPO ?? "")
+  // The same host-case class `orgOf` closes above: a host word that kept the
+  // address bar's capitalization (`https://GitHub.com/…`, `GitHub.com:…`) is
+  // case-insensitive by RFC 3986 §3.2.2 and accepted by every real client, but
+  // every anchored `github.com` literal below (the orgs-index guard, the
+  // host-word strip, the port strip) matches lowercase only — so a mixed-case
+  // host fell every branch and the fallback named the config dir after the
+  // raw URL's junk segments (`orgs` for an orgs-page index, a sanitized URL
+  // for a repo page), silently migrating the registry/cache DB the moment the
+  // env var's spelling changed case (#113's class, reopened through the host).
+  const hostLoweredRepo = (env.GITHUB_REPO ?? "").replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, user: string, host: string) =>
+      `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+  );
+  const repoRaw = hostLoweredRepo
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
