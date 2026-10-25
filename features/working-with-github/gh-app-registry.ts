@@ -73,11 +73,20 @@ export const orgOf = (repo: string): string => {
   // migrated, and a repo every `repos/{repo}` route 404s on. The prompt's
   // `REPO=` sed recipe already collapses these (`s#\.git$##` then `s#/$##`);
   // the resolvers must agree with it.
+  // Strip LEADING slashes first — `/acme/widgets` (a shell-autocomplete
+  // paste) is the same repo as `acme/widgets`, and the resolvers below key
+  // on anchored two-segment tails: pre-fix the bare-match branch missed the
+  // leading slash and `orgOf` returned the WHOLE string as the "org", so a
+  // registry row registered from it (and the allowlist derived alongside)
+  // was keyed `/acme/widgets` — a key no mint can ever derive from a real
+  // repo string. `resolveRepoFromEnv` and the prompt's `REPO=` sed strip
+  // the same slash; `orgOf` must agree.
   const cleaned = repo
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "");
+  const leadingSlashStripped = cleaned.replace(/^\/+/u, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
   // `(?::\d+)?` port group — the `:` itself becomes the `[/:]` separator,
@@ -90,7 +99,7 @@ export const orgOf = (repo: string): string => {
   // after the `github.com` host, before any separator or end — so removing
   // it up front lets every branch below see the same string the ported repo
   // spellings already resolve through.
-  const portStripped = cleaned.replace(
+  const portStripped = leadingSlashStripped.replace(
     /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
     "$1"
   );
@@ -119,6 +128,23 @@ export const orgOf = (repo: string): string => {
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
+  // A HOSTLESS paste of the same path — bare `orgs/<org>` or
+  // `organizations/<org>` (the URL path copied without the host) — carries
+  // the same reserved word: pre-fix it fell through to the repo branches
+  // below, which read `orgs` as the OWNER, so `registerApp --org orgs/acme`
+  // persisted a dead row keyed `orgs` while `resolveConfigDirName` (the only
+  // sibling resolver that handled the spelling) keyed the config dir `acme`
+  // — four resolvers disagreed on one spelling, violating the README's
+  // one-spelling contract (the #169 orgs-page class, reopened through the
+  // hostless form). The prompt's own `REPO=` sed strips it to the org; match
+  // it. A repo genuinely NAMED `<org>` under an owner called `orgs` is
+  // unreachable by this spelling anyway — the reserved word never resolves
+  // as an owner login on github.com.
+  const hostlessOrgsMatch =
+    /^(?:orgs|organizations)\/([^/]+?)(?:\/.*)?$/u.exec(cleaned);
+  if (hostlessOrgsMatch?.[1] !== undefined) {
+    return hostlessOrgsMatch[1];
+  }
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs`
   // (also `/organizations`, the scp/ssh host-word form, and the ported
   // spellings) — ends AT the reserved host-path word with no org segment
@@ -140,6 +166,17 @@ export const orgOf = (repo: string): string => {
       portStripped
     );
   if (orgsIndexMatch !== null) {
+    return "";
+  }
+  // The HOSTLESS index spelling — a bare `organizations` word with no host
+  // and no org segment — is the same page and names no org: return the
+  // documented no-owner answer so register-gh-app's normalized-org guard
+  // fails loudly instead of persisting a dead row keyed on the reserved word.
+  // A bare `orgs` word keeps its pass-through (a login spelled `orgs`): the
+  // org-NAMING branch above already consumed the reserved-word reading
+  // whenever a second segment exists, so the bare word alone is the
+  // bare-owner shape, and discovery refuses it honestly.
+  if (/^organizations$/u.test(cleaned)) {
     return "";
   }
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
