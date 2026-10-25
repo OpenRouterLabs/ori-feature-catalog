@@ -62,7 +62,11 @@ import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
 import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
-import { findJunkArgv, resolveRepoFromEnv } from "./commit-api-core.ts";
+import {
+  findJunkArgv,
+  isRepoUnset,
+  resolveRepoFromEnv,
+} from "./commit-api-core.ts";
 
 const DEFAULT_WORKTREES_ROOT = "/tmp/worktrees";
 
@@ -186,7 +190,11 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
     // an unauthorized bare lookup still surfaces as an error outcome.
     // Defaults to App mode (mint) for backwards compatibility with the tests
     // that inject a fake mint.
-    ambient = false
+    ambient = false,
+    // The env the empty-repo diagnostic reads (unset vs set-but-unresolvable);
+    // the CLI passes the same env the parse read.
+    // oxlint-disable-next-line node/no-process-env -- default deps seam; tests pass a fake env.
+    env: Readonly<Record<string, string | undefined>> = process.env
   ) {
     if (args.missingFlagValue !== undefined) {
       // A parse-time usage error: the caller passed a value-taking flag with
@@ -216,8 +224,16 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       return 1;
     }
     if (args.repo === "") {
+      // The two causes of an empty repo need different guidance, and the
+      // parse already read the same env: genuinely unset (the operator must
+      // configure it) vs SET to a spelling that resolves to no owner/repo —
+      // e.g. the orgs-page INDEX URL `https://github.com/orgs` (#203), which
+      // names no owner at all. Pre-fix both printed "unset", a lie for the
+      // set case that sent the operator to inspect env that was populated.
       writers.err(
-        "cleanup-worktrees: no --repo given and GITHUB_REPO is unset.\n"
+        isRepoUnset(env)
+          ? "cleanup-worktrees: no --repo given and GITHUB_REPO is not set.\n"
+          : `cleanup-worktrees: GITHUB_REPO "${(env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
       );
       return 1;
     }
@@ -282,7 +298,9 @@ if (import.meta.main) {
           process.stdout.write(text);
         },
       },
-      ambient
+      // The diagnostic reads the same live env the parse above read.
+      ambient,
+      process.env
     )
   );
   process.exit(code);

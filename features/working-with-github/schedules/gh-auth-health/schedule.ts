@@ -33,7 +33,7 @@
 import { Data, Effect } from "effect";
 import { defineSchedule } from "ori";
 
-import { resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import { isRepoUnset, resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 import { postAlert } from "@ori-monorepo/working-with-github/post-alert.ts";
 
@@ -162,9 +162,18 @@ export const schedule = defineSchedule({
         // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
         const repo = resolveRepoFromEnv(process.env);
         if (repo === "") {
+          // The two causes of an empty repo need different guidance: genuinely
+          // unset (the operator must configure it) vs SET to a spelling that
+          // resolves to no owner/repo — e.g. the orgs-page INDEX URL
+          // `https://github.com/orgs` (#203), which names no owner at all.
+          // Pre-fix both printed "not set", a lie for the set case that sent
+          // the operator to inspect service env that was present and populated.
+          // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
           return yield* Effect.die(
             new Error(
-              "gh-auth-health: GITHUB_REPO is not set — cannot run the auth round-trip check."
+              isRepoUnset(process.env)
+                ? "gh-auth-health: GITHUB_REPO is not set — cannot run the auth round-trip check."
+                : `gh-auth-health: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — cannot run the auth round-trip check. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
             )
           );
         }

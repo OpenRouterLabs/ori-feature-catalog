@@ -354,6 +354,36 @@ describe("runCleanup", () => {
     expect(err[0]).toContain("no --repo given");
   });
 
+  test("a SET GITHUB_REPO that resolves to nothing is not misreported as unset", async () => {
+    // The orgs-page INDEX spelling (#203): the env var IS set, so the
+    // "not set" wording would be a lie — the diagnostic must name the
+    // spelling and say it resolves to no owner/repo. The repo-unset
+    // predicate comes from the same env the parse read.
+    const { err, out, writers } = makeWriters();
+    const code = await Effect.runPromise(
+      runCleanup(
+        Effect.succeed({
+          expiresAt: "",
+          token: "tok",
+        }),
+        {
+          dryRun: false,
+          repo: "",
+          repoDir: "/repo/checkout",
+          worktreesRoot: "/tmp/worktrees",
+        },
+        writers,
+        false,
+        { GITHUB_REPO: "https://github.com/orgs" }
+      )
+    );
+    expect(code).toBe(1);
+    expect(out).toEqual([]);
+    expect(err[0]).not.toContain("is not set");
+    expect(err[0]).toContain("resolves to no owner/repo");
+    expect(err[0]).toContain("https://github.com/orgs");
+  });
+
   test("writes a diagnostic to stderr and exits 1 on a mint failure", async () => {
     const { err, out, writers } = makeWriters();
     const failure = new GhAppError({

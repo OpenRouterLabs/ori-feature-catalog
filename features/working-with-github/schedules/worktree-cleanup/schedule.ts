@@ -23,7 +23,10 @@ import { resolveRepoDir } from "./repo-dir.ts";
 
 import { cleanupWorktrees } from "@ori-monorepo/working-with-github/cleanup-worktrees-core.ts";
 import { formatOutcome } from "@ori-monorepo/working-with-github/cleanup-worktrees.ts";
-import { resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import {
+  isRepoUnset,
+  resolveRepoFromEnv,
+} from "@ori-monorepo/working-with-github/commit-api-core.ts";
 import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 const WORKTREES_ROOT = "/tmp/worktrees";
@@ -44,9 +47,17 @@ const sweepWorktrees = Effect.fn("WorktreeCleanupSchedule.sweep")(function* (
   const ambient = (process.env.GH_APP_ID ?? "") === "";
   const repo = resolveRepoFromEnv();
   if (repo === "") {
+    // The two causes of an empty repo need different guidance: genuinely
+    // unset (the operator must configure it) vs SET to a spelling that
+    // resolves to no owner/repo — e.g. the orgs-page INDEX URL
+    // `https://github.com/orgs` (#203), which names no owner at all. Pre-fix
+    // both printed "not set", a lie for the set case.
+    // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
     return yield* Effect.die(
       new Error(
-        "worktree-cleanup: GITHUB_REPO is not set — cannot resolve which slug to sweep."
+        isRepoUnset(process.env)
+          ? "worktree-cleanup: GITHUB_REPO is not set — cannot resolve which slug to sweep."
+          : `worktree-cleanup: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — cannot resolve which slug to sweep. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
       )
     );
   }
