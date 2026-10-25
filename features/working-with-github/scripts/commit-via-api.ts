@@ -234,6 +234,21 @@ const runCli = (): Promise<number> =>
             message: `could not read --message-file ${parsed.messageFile}: ${String(cause)}`,
           }),
       });
+      // An empty (or whitespace-only) message file must fail HERE, at the
+      // parse boundary — never after side effects. Pre-fix the trimmed ""
+      // flowed through the whole flow: the mint, the ref/head reads, every
+      // blob POST and the tree POST all landed, and only the final commit
+      // POST came back 422 "Validation Failed" — leaving unreachable orphan
+      // blobs/tree objects on the remote and a diagnostic that never named
+      // the empty message. The same late-failure class the sibling flags
+      // were closed for (`--branch ""` fails at the parse with a message
+      // naming the flag, #111/#162).
+      if (message.trim() === "") {
+        return yield* new CommitApiError({
+          stage: "args",
+          message: `--message-file ${parsed.messageFile} is empty (its contents trimmed to nothing) — a commit needs a message`,
+        });
+      }
       const sha = yield* commitViaApi({
         worktree: parsed.worktree,
         branch: parsed.branch,
