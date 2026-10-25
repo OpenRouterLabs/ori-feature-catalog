@@ -29,6 +29,15 @@ const URL_SPELLINGS: readonly string[] = [
   "https://github.com/acme/widgets",
   "ssh://git@github.com:22/acme/widgets",
   "git@github.com:acme/widgets.git",
+  // A HOST-CASE spelling — `https://GitHub.com/acme/widgets`, a copy-paste
+  // whose host kept the address bar's capitalization — is the same URL
+  // (hosts are case-insensitive, RFC 3986 §3.2.2), and every code resolver
+  // collapses it; the header's recipe must agree with them.
+  "https://GitHub.com/acme/widgets",
+  "git@GitHub.com:acme/widgets",
+  // A HOSTLESS deep paste collapses to its `owner/repo` tail, matching
+  // `resolveRepoFromEnv` (repo-string-hostless-deep.test.ts).
+  "acme/widgets/tree/main",
 ];
 
 // The ORGANIZATIONS-page INDEX spellings — `github.com/orgs` with NO org
