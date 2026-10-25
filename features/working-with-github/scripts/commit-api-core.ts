@@ -394,6 +394,22 @@ export const resolveRepoFromEnv = (
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
+  // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
+  // copied blob/tree/PR/releases address, pasted without the host) — is
+  // the same deep spelling the `deepMatch` branch above closes for the
+  // hosted form: pre-fix it fell every branch (the bare pass-through below
+  // returned the whole string), so every `repos/{repo}` route 404'd —
+  // exactly the class the prompt's own `REPO=` sed recipe closes for the
+  // same paste (`s#(^[^/]+/[^/]+)(/.*)?$#\1#` collapses it to the
+  // `owner/repo` tail). One spelling contract, four resolvers: the recipe
+  // and the code must agree, or a hostless deep paste in `$GITHUB_REPO`
+  // silently targets a repo no route answers.
+  const hostlessDeepMatch = /^([^/]+\/[^/]+)(?:\/.*)?$/u.exec(
+    portStripped
+  );
+  if (hostlessDeepMatch?.[1] !== undefined) {
+    return hostlessDeepMatch[1];
+  }
   // A bare string (no github.com host) keeps its historical pass-through.
   return portStripped;
 };
