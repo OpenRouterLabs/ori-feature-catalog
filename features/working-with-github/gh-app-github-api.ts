@@ -303,6 +303,12 @@ const githubErrorDetail = (payload: unknown, status: number): string => {
  * status), never fail `op:"parse"` — which would both mislabel the failure
  * and hide the 401/404 status `gh-app-token.ts` matches a stale-installation
  * retry on.
+ *
+ * The read is BOUNDED by the caller: a server that answers the headers and
+ * then stalls the body leaves `response.json()` pending forever — the exact
+ * wedge `MINT_HTTP_TIMEOUT_MS` exists to close (the deadline the fetch half
+ * already carries), reopened through the body read, so every caller wraps
+ * this in the same deadline rather than letting the mint hang indefinitely.
  */
 const readBodyJson = (response: Response): Promise<unknown> =>
   response.json().catch(() => null);
@@ -419,15 +425,22 @@ const fetchInstallationsPage = (
         status: response.status,
       });
     }
-    const payload = yield* Effect.tryPromise({
-      catch: (cause) =>
-        new GhAppError({
-          cause,
-          message: `GitHub installations response was not JSON: ${String(cause)}`,
-          op: "parse",
-        }),
-      try: (): Promise<unknown> => response.json(),
-    });
+    // Bounded by the same deadline as the page fetch: a headers-then-stall
+    // body wedges the installations walk — the exact class the fetch
+    // deadline closes, reopened through the body read. A genuinely non-JSON
+    // body still fails `op:"parse"` via the decode below.
+    const payload = yield* Effect.promise(
+      (): Promise<unknown> => readBodyJson(response)
+    ).pipe(
+      Effect.timeoutOrElse({
+        duration: MINT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new GhAppError({
+            message: `GitHub installations list (page ${page}) response body did not arrive within ${MINT_HTTP_TIMEOUT_MS / 1000}s`,
+            op: "discover",
+          }),
+      })
+    );
     const decoded = yield* Schema.decodeUnknownEffect(
       InstallationsPage,
       ALL_ERRORS
@@ -560,8 +573,19 @@ export const requestInstallationToken = (
 
     // A non-2xx stays `op:"http"` with its status: `gh-app-token.ts` retries a
     // stale installation on exactly that shape, and a decode failure must not
-    // be mistaken for one.
-    const payload = yield* Effect.promise(() => readBodyJson(response));
+    // be mistaken for one. The read is bounded by the same deadline as the
+    // token POST: a headers-then-stall body wedges the mint — the exact class
+    // the fetch deadline closes, reopened through the body read.
+    const payload = yield* Effect.promise(() => readBodyJson(response)).pipe(
+      Effect.timeoutOrElse({
+        duration: MINT_HTTP_TIMEOUT_MS,
+        orElse: () =>
+          new GhAppError({
+            message: `GitHub installation-token response body did not arrive within ${MINT_HTTP_TIMEOUT_MS / 1000}s`,
+            op: "request",
+          }),
+      })
+    );
     if (!response.ok) {
       return yield* new GhAppError({
         message: `GitHub installation-token mint failed: ${githubErrorDetail(payload, response.status)}`,
