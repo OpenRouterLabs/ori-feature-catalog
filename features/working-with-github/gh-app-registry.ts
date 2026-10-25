@@ -338,6 +338,21 @@ export const resolveConfigDirName = (
   ) {
     return "intern";
   }
+  // The HOSTLESS index spelling — a bare `organizations` word with no host
+  // and no org segment — is the same page and names no repo either: `orgOf`
+  // and `resolveRepoFromEnv` both answer "no owner" for it, and this
+  // resolver must take the same documented no-repo fallback ("intern").
+  // Pre-fix the bare pass-through below captured the reserved word itself as
+  // the dir name, so `GITHUB_REPO=organizations` silently migrated the
+  // registry/cache DB to `~/.config/organizations/` — a directory no
+  // sibling resolver's key ever derives — while the hosted spelling of the
+  // same page (`https://github.com/orgs`) already keyed `intern` (#113's
+  // class, reopened through the hostless bare word). A bare `orgs` word
+  // keeps its pass-through, the same split `orgOf` applies (a login spelled
+  // `orgs`).
+  if (/^organizations$/u.test(portStripped)) {
+    return "intern";
+  }
   // A host-word spelling with a COLON and no slash — `git@github.com:acme` /
   // `github.com:acme`, the scp/ssh org-page forms — has no repo segment, so
   // the repo regexes below miss it and `match?.[2]` falls back to the RAW

@@ -165,6 +165,21 @@ export const resolveAllowedOrgs = (
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch =
     /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(portStripped);
+  // The HOSTLESS index spelling — a bare `organizations` word with no host
+  // and no org segment — is the same page the orgs-index branch guards in
+  // `orgOf` and `resolveRepoFromEnv`: it names no org, so the allowlist must
+  // derive no login from it either. Pre-fix the bare pass-through at the
+  // bottom captured the reserved word itself (`organizations`) as the owner,
+  // so the allowlist keyed itself on a host path no installation can ever
+  // own — every mint failed closed with no hint the spelling was the cause,
+  // while the sibling resolvers already answered "no owner" for it (the
+  // #203/#204 index class, reopened through the hostless bare word). A bare
+  // `orgs` word keeps its pass-through, the same split every sibling
+  // resolver applies (the org-NAMING branches consume the reserved-word
+  // reading whenever a second segment exists).
+  if (/^organizations$/u.test(portStripped)) {
+    return new Set();
+  }
   // A host-only URL — an org page (`https://github.com/acme`) or any other
   // `github.com/<word>` address with no repo segment — carries an owner the
   // repo regex (which needs two segments) misses, and the old

@@ -288,6 +288,13 @@ describe("resolveAllowedOrgs", () => {
     expect(Array.from(allowed)).toEqual(["acme-corp"]);
   });
 
+  test("a bare organizations word derives no allowlist entry, like every sibling resolver", async () => {
+    const allowed = resolveAllowedOrgs(undefined, {
+      GITHUB_REPO: "organizations",
+    });
+    expect(Array.from(allowed)).toEqual([]);
+  });
+
   test("explicit GH_APP_ALLOWED_ORGS still wins", async () => {
     const allowed = resolveAllowedOrgs(undefined, {
       GH_APP_ALLOWED_ORGS: "acme-corp, other-org",
