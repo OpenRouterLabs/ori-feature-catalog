@@ -118,6 +118,12 @@ describe("the org-NAMING spellings keep their resolved org", () => {
     // ("no installation for org orgs") rather than a silent empty key.
     expect(orgOf("organizations")).toBe("");
     expect(resolveRepoFromEnv({ GITHUB_REPO: "organizations" })).toBe("");
+    expect(resolveConfigDirName({ GITHUB_REPO: "organizations" })).toBe(
+      "intern"
+    );
+    expect([
+      ...resolveAllowedOrgs(undefined, { GITHUB_REPO: "organizations" }),
+    ]).toEqual([]);
     expect(orgOf("orgs")).toBe("orgs");
     expect(resolveRepoFromEnv({ GITHUB_REPO: "orgs" })).toBe("orgs");
   });
