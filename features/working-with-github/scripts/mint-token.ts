@@ -22,7 +22,7 @@
  *   # REPO= recipe — gh --repo and the repos/{owner}/{repo} API routes take
  *   # bare owner/repo only, and the raw env var breaks both under a URL
  *   # spelling (gh rejects it; repos/https://… is not a route and 404s):
- *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
+ *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^/+##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?(git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#(^[^/]+/[^/]+)(/.*)?$#\1#')
  *
  *   # Inject into one gh call:
  *   GH_TOKEN=$(bun features/working-with-github/scripts/mint-token.ts) \
