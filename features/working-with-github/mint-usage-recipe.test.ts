@@ -31,6 +31,21 @@ const URL_SPELLINGS: readonly string[] = [
   "git@github.com:acme/widgets.git",
 ];
 
+// The ORGANIZATIONS-page INDEX spellings — `github.com/orgs` with NO org
+// segment after it — normalize to NOTHING, exactly like the sibling code
+// resolvers (#203): the reserved host-path word is never an owner login, so
+// emitting it as $REPO made every example 404 a repo named after a host
+// path. An empty $REPO fails loudly instead.
+const INDEX_SPELLINGS: readonly string[] = [
+  "https://github.com/orgs",
+  "https://github.com/organizations",
+  "github.com/orgs",
+  "git@github.com:organizations",
+  "ssh://git@github.com:22/orgs",
+  "https://github.com:443/organizations",
+  "https://github.com/orgs/",
+];
+
 describe("mint-token.ts usage examples never interpolate the raw $GITHUB_REPO", () => {
   test("no example line routes the raw env var into gh --repo or a repos/ URL", () => {
     const offenders: readonly string[] = source
@@ -66,6 +81,34 @@ describe("mint-token.ts usage examples never interpolate the raw $GITHUB_REPO", 
         }
       );
       expect(output).toBe("acme/widgets");
+    }
+  });
+
+  test("the header's normalization recipe empties the orgs-page INDEX spellings", () => {
+    // `github.com/orgs` with no org after it (the page that LISTS your
+    // organizations) carries no owner/repo at all, and the recipe must say
+    // so the same way the code resolvers do (#203): an empty $REPO, never
+    // the reserved host-path word as a fake owner.
+    const line = source
+      .split("\n")
+      .find((candidate) => candidate.includes("REPO=$(printf '%s' \"$GITHUB_REPO\""))
+      // The header comment indents its examples; strip the doc margin.
+      ?.replace(/^\s*\*\s?/u, "")
+      ?.trim();
+    expect(line).toBeDefined();
+    if (line === undefined) {
+      return;
+    }
+    for (const raw of INDEX_SPELLINGS) {
+      const output = execFileSync(
+        "bash",
+        ["-c", `${line}\nprintf '%s' "$REPO"`],
+        {
+          encoding: "utf-8",
+          env: { ...process.env, GITHUB_REPO: raw },
+        }
+      );
+      expect(output).toBe("");
     }
   });
 

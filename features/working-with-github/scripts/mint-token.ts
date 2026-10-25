@@ -22,7 +22,7 @@
  *   # REPO= recipe — gh --repo and the repos/{owner}/{repo} API routes take
  *   # bare owner/repo only, and the raw env var breaks both under a URL
  *   # spelling (gh rejects it; repos/https://… is not a route and 404s):
- *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#\.git$##; s#/$##; s#^/##')
+ *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#([a-z][a-z0-9+.-]*://)?(git@)?(github\.com):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[:/]?(orgs|organizations)$##; s#([a-z][a-z0-9+.-]*://)?(git@)?github\.com[/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#(^[^/]+/[^/]+)(/.*)?$#\1#; s#^/##')
  *
  *   # Inject into one gh call:
  *   GH_TOKEN=$(bun features/working-with-github/scripts/mint-token.ts) \
