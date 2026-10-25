@@ -44,9 +44,14 @@ const RETRY_CONFIG = {
  * The same wedge class is why both sibling network paths of this schedule
  * bound their waits (`AMBIENT_PROBE_TIMEOUT_MS`, `ROUND_TRIP_TIMEOUT_MS` in
  * gh-auth-health.ts); the alert post is the fire's third network call and the
- * one that runs precisely when GitHub is broken. The bound must cover the
- * retry ladder the SDK walks INSIDE one call (200+400+800ms of delays, ~1.4s)
- * so a transient Slack 5xx still gets its retries before the deadline.
+ * one that runs precisely when GitHub is broken. The value is the PER-ATTEMPT
+ * request timeout the SDK's axios layer enforces, NOT the budget for the
+ * whole retry ladder: the ladder is up to 4 attempts (1 + retries: 3), each
+ * waiting up to this timeout before axios aborts, plus its backoff delays
+ * (200+400+800ms) — so one wedged postAlert call settles at roughly
+ * 4 × POST_ALERT_TIMEOUT_MS + 1.4s, and a transient Slack 5xx gets its
+ * retries because each RETRIED attempt is far faster than the timeout.
+ * (post-alert-timeout.test.ts pins exactly this shape.)
  */
 export const POST_ALERT_TIMEOUT_MS = 15_000;
 
