@@ -108,9 +108,16 @@ describe("the org-NAMING spellings keep their resolved org", () => {
   });
 
   test("the bare owner word without a host keeps its pass-through", () => {
-    // A bare `orgs` (no github.com host) is not the index-page spelling;
-    // discovery then refuses it honestly ("no installation for org orgs")
-    // instead of pretending the URL named something real.
+    // A bare `organizations` (no github.com host, no org segment) is the
+    // hostless INDEX spelling of the same page — it names no owner, so it
+    // resolves to NO org (the loud-failure contract the hosted index
+    // spelling already follows). A bare `orgs` word, though, is also the
+    // documented BARE-OWNER pass-through shape for a login spelled `orgs`:
+    // the org-naming branch (`orgs/<org>`) owns the reserved-word reading,
+    // so the bare word keeps the honest pass-through discovery refuses
+    // ("no installation for org orgs") rather than a silent empty key.
+    expect(orgOf("organizations")).toBe("");
+    expect(resolveRepoFromEnv({ GITHUB_REPO: "organizations" })).toBe("");
     expect(orgOf("orgs")).toBe("orgs");
     expect(resolveRepoFromEnv({ GITHUB_REPO: "orgs" })).toBe("orgs");
   });

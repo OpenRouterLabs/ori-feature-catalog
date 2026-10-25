@@ -230,11 +230,30 @@ export const resolveRepoFromEnv = (
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
 ): string => {
+  // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is the
+  // same repo as `acme/widgets`, and every `repos/{repo}` route 404s on the
+  // doubled slash the raw spelling produces. `resolveConfigDirName` already
+  // strips it (its repo regexes key on the two-segment tail) and the
+  // prompt's `REPO=` sed strips it (`s#^/##`) — this resolver is the one
+  // that missed it, so one `GITHUB_REPO` spelling silently produced a
+  // worktree SLUG of `-acme-widgets` and a repo route that never resolved
+  // while the config dir said `widgets` (the #113 silent-migration class
+  // reopened through the leading slash).
   // Trim trailing slashes as well as whitespace: `acme/widgets/` (a
   // copy-paste from a browser address bar) is the same repo as
   // `acme/widgets`, and every `https://api.github.com/repos/<repo>/...`
   // route answers 404 for the doubled trailing slash.
   const raw = (env.GITHUB_REPO ?? "").trim().replace(/\/+$/u, "");
+  // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is the
+  // same repo as `acme/widgets`, and every `repos/{repo}` route 404s on the
+  // doubled slash the raw spelling produces. `resolveConfigDirName` already
+  // strips it (its repo regexes key on the two-segment tail) and the
+  // prompt's `REPO=` sed strips it (`s#^/##`) — this resolver is the one
+  // that missed it, so one `GITHUB_REPO` spelling silently produced a
+  // worktree SLUG of `-acme-widgets` and a repo route that never resolved
+  // while the config dir said `widgets` (the #113 silent-migration class
+  // reopened through the leading slash).
+  const leadingSlashStripped = raw.replace(/^\/+/u, "");
   // A `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,
   // `github.com:acme/.git`) exposes an interior `/` once the suffix comes off;
   // re-strip it or every `$`-anchored branch below misses and the raw URL is
@@ -242,7 +261,7 @@ export const resolveRepoFromEnv = (
   // reopened through the separator-then-dot-git paste). The prompt's `REPO=`
   // sed recipe already collapses these (`s#\.git$##` then `s#/$##`); the
   // resolver must agree with it.
-  const withoutSuffix = raw
+  const withoutSuffix = leadingSlashStripped
     .replace(/\.git$/u, "")
     .replace(/\/+$/u, "");
   // Strip an explicit PORT before any regex runs — the same normalization
@@ -288,6 +307,21 @@ export const resolveRepoFromEnv = (
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
   }
+  // A HOSTLESS paste of the orgs-page path — bare `orgs/<org>` or
+  // `organizations/<org>` (the URL path copied without the host) — is the
+  // same reserved-word spelling as the hosted form above: pre-fix it fell
+  // through to the bare pass-through at the bottom and returned
+  // `orgs/acme` whole, which every `repos/{repo}` route 404s on (the word
+  // is a reserved host path, never an owner login), while `orgOf` and
+  // `resolveConfigDirName` resolved the SAME spelling to `acme` — the
+  // #169 orgs-page class reopened through the hostless form. A repo resolver
+  // cannot invent a repo, so it returns the ORG, exactly like the hosted
+  // branch above (the prompt's `REPO=` sed does the same).
+  const hostlessOrgsMatch =
+    /^(?:orgs|organizations)\/([^/]+?)(?:\/.*)?$/u.exec(portStripped);
+  if (hostlessOrgsMatch?.[1] !== undefined) {
+    return hostlessOrgsMatch[1];
+  }
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs`
   // (also `/organizations`, the scp/ssh host-word form, and the ported
   // spellings) — ends AT the reserved host-path word with no org segment
@@ -308,6 +342,14 @@ export const resolveRepoFromEnv = (
       portStripped
     );
   if (orgsIndexMatch !== null) {
+    return "";
+  }
+  // The HOSTLESS index spelling — a bare `organizations` word with no host
+  // and no org segment — names no owner either: return "" so the callers
+  // that must fail loudly do, matching `orgOf`'s no-owner answer for the
+  // same word. A bare `orgs` word keeps the bare-owner pass-through, the
+  // same split the registry resolver applies.
+  if (/^organizations$/u.test(portStripped)) {
     return "";
   }
   const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(portStripped);
