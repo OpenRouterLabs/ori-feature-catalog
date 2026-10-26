@@ -84,11 +84,35 @@ export const resolveAllowedOrgs = (
   // a compose interpolation of an unset variable, or a blank env-file line
   // must fall back to the documented default (the `GITHUB_REPO` owner), not
   // fail every mint closed. A set var with real logins still wins.
-  const rawAllow = override === undefined ? env?.[ALLOWED_ORGS_ENV] : undefined;
-  const fromEnv =
+  // Read the env var unconditionally — the chain below, not this read, carries
+  // the precedence. Pre-fix the read was gated on `override === undefined`, so
+  // a present-but-blank override (a caller passed `["   "]`) suppressed a set
+  // `GH_APP_ALLOWED_ORGS` the chain would otherwise have used.
+  const rawAllow = env?.[ALLOWED_ORGS_ENV];
+  // The FIRST source with real entries wins — never `??`, which stops at ANY
+  // present source (an empty array is present) and silently discards the rest
+  // of the chain below it. The documented precedence is
+  // "explicit `override` (an array, from a caller) → the `GH_APP_ALLOWED_ORGS`
+  // env var → the owner of `GITHUB_REPO`", and a source that resolves to NO
+  // real logins (an override of blank strings, a set-but-blank env var) must
+  // fall through to the next source exactly like an absent one — a mint that
+  // failed closed on an empty set while its caller passed an explicit list
+  // would be a silent security misconfiguration. `rawAllow` blank/whitespace
+  // stays unset (the empty-string-is-unset discipline of the #222/#223 class).
+  const firstNonEmpty = (
+    entries: readonly string[] | undefined
+  ): readonly string[] | undefined => {
+    if (entries === undefined) {
+      return undefined;
+    }
+    const real = entries.filter((login) => login.trim() !== "");
+    return real.length === 0 ? undefined : real;
+  };
+  const fromEnv = firstNonEmpty(
     rawAllow !== undefined && rawAllow.trim() !== ""
       ? rawAllow.split(/[\s,]+/u)
-      : undefined;
+      : undefined
+  );
   // Tolerate the same `GITHUB_REPO` spellings the sibling resolvers do (a full
   // https URL with optional .git suffix, or a bare owner/repo) — `split("/")[0]`
   // would reduce a URL to "https:" and fail every mint closed.
@@ -182,19 +206,19 @@ export const resolveAllowedOrgs = (
     /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(portStripped);
   // The HOSTLESS index spelling — a bare `organizations` word with no host
   // and no org segment — is the same page the orgs-index branch guards in
-  // `orgOf` and `resolveRepoFromEnv`: it names no org, so the allowlist must
-  // derive no login from it either. Pre-fix the bare pass-through at the
-  // bottom captured the reserved word itself (`organizations`) as the owner,
-  // so the allowlist keyed itself on a host path no installation can ever
-  // own — every mint failed closed with no hint the spelling was the cause,
-  // while the sibling resolvers already answered "no owner" for it (the
-  // #203/#204 index class, reopened through the hostless bare word). A bare
-  // `orgs` word keeps its pass-through, the same split every sibling
+  // `orgOf` and `resolveRepoFromEnv`: it names no org, so the REPO source
+  // below must derive no login from it either. Pre-fix the bare pass-through
+  // at the bottom captured the reserved word itself (`organizations`) as the
+  // owner, so the allowlist keyed itself on a host path no installation can
+  // ever own — every mint failed closed with no hint the spelling was the
+  // cause, while the sibling resolvers already answered "no owner" for it
+  // (the #203/#204 index class, reopened through the hostless bare word). A
+  // bare `orgs` word keeps its pass-through, the same split every sibling
   // resolver applies (the org-NAMING branches consume the reserved-word
-  // reading whenever a second segment exists).
-  if (/^organizations$/u.test(portStripped)) {
-    return new Set();
-  }
+  // reading whenever a second segment exists). Never an early `return`,
+  // though: the repo source is the LAST of the chain, and an override array
+  // or a set `GH_APP_ALLOWED_ORGS` must still be allowed to name the whole
+  // allowlist when the repo source names no one.
   // A host-only URL — an org page (`https://github.com/acme`) or any other
   // `github.com/<word>` address with no repo segment — carries an owner the
   // repo regex (which needs two segments) misses, and the old
@@ -214,15 +238,21 @@ export const resolveAllowedOrgs = (
   // a login no installation can ever own, so EVERY mint failed closed
   // with no hint why. One shared `orgOf` keeps all four resolvers on one
   // contract; a slash-less, colon-less `owner` still passes through raw.
-  const repoOwner =
-    orgsPageMatch?.[1] ??
-    repoMatch?.[1] ??
-    (portStripped !== "" &&
-    (portStripped.includes("/") || portStripped.includes(":"))
-      ? orgOf(portStripped)
-      : portStripped);
+  const repoOwner = /^organizations$/u.test(portStripped)
+    ? undefined
+    : (orgsPageMatch?.[1] ??
+      repoMatch?.[1] ??
+      (portStripped !== "" &&
+      (portStripped.includes("/") || portStripped.includes(":"))
+        ? orgOf(portStripped)
+        : portStripped));
+  const fromOverride = firstNonEmpty(override);
+  // `fromRepo` keeps its empty-when-no-owner shape (the fail-closed default
+  // the callers already document); the chain's LAST source is `[]`, never
+  // `undefined` — `new Set(undefined.map(...))` would throw where the bare
+  // call must fail closed with an empty set.
   const fromRepo = repoOwner === undefined ? [] : [repoOwner];
-  const source = override ?? fromEnv ?? fromRepo;
+  const source = fromOverride ?? fromEnv ?? fromRepo;
   return new Set(
     source
       .map((login) => login.trim().toLowerCase())
