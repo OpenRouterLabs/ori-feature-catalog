@@ -270,6 +270,23 @@ export const resolveRepoFromEnv = (
   // while the config dir said `widgets` (the #113 silent-migration class
   // reopened through the leading slash).
   const leadingSlashStripped = raw.replace(/^\/+/u, "");
+  // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`,
+  // `https://github.com/o/r?tab=readme` (a browser address-bar copy-paste of
+  // the repo page, which carries the tab the browser was on; a fragment
+  // likewise rides any deep URL) — BEFORE the anchored branches below: both
+  // delimiters are URL-reserved characters a repo NAME cannot carry, and
+  // pre-fix every `$`-anchored branch keyed on a tail ending in the raw
+  // suffix, so the spelling fell the two-segment/deep branches and flowed on
+  // whole as the "repo" — `repos/o/r?tab=readme` (the query silently 404s the
+  // route for a nonexistent repo: the `?` ends the PATH and the tab is not a
+  // repo the route knows), `github.com/o/r#anchor` (the `#` makes the clone
+  // URL invalid: git appends `/info/refs` past the fragment and the remote
+  // never resolves), and a worktree SLUG + config dir keyed on
+  // `r-tab-readme`. The prompt's REPO= sed recipe and every sibling resolver
+  // must agree — one spelling contract.
+  const queryFragmentStripped = leadingSlashStripped
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "");
   // A `/.git` suffix (separator-then-dot-git — `https://github.com/acme/.git`,
   // `github.com:acme/.git`) exposes an interior `/` once the suffix comes off;
   // re-strip it or every `$`-anchored branch below misses and the raw URL is
@@ -277,7 +294,7 @@ export const resolveRepoFromEnv = (
   // reopened through the separator-then-dot-git paste). The prompt's `REPO=`
   // sed recipe already collapses these (`s#\.git$##` then `s#/$##`); the
   // resolver must agree with it.
-  const withoutSuffix = leadingSlashStripped
+  const withoutSuffix = queryFragmentStripped
     .replace(/\.git$/u, "")
     .replace(/\/+$/u, "")
     // Collapse interior runs of path slashes — `github.com//o/r`, `o//r`
@@ -408,6 +425,27 @@ export const resolveRepoFromEnv = (
   );
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
+  }
+  // A BARE-HOST spelling — `https://github.com`, `github.com`, or the
+  // scp/ssh form `git@github.com` / `ssh://git@github.com` (a copied landing
+  // page or a truncated `git remote -v` paste, with NO owner and NO repo
+  // segment at all) — must resolve to "" so the callers that must fail
+  // loudly do, exactly like the orgs-page INDEX spelling above: pre-fix the
+  // bare pass-through below returned the raw host string whole as the
+  // "repo", so every `repos/{repo}` route 404'd (`repos/https://github.com`
+  // — verified live: no such route answers), `git ls-remote` never resolved,
+  // and the health check's round-trip named a repo that does not exist —
+  // while `orgOf` and `resolveAllowedOrgs` resolved the SAME spelling to the
+  // raw host word and the config dir keyed `https-github.com`, so the four
+  // resolvers silently disagreed on one spelling (the README's one-spelling
+  // contract). A repo resolver cannot invent a repo from a host string; ""
+  // is the honest no-owner answer.
+  const bareHostMatch =
+    /^(?:(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?(?:git\.)?github\.com)?$/u.exec(
+      portStripped
+    );
+  if (bareHostMatch !== null) {
+    return "";
   }
   // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
   // copied blob/tree/PR/releases address, pasted without the host) — is

@@ -75,6 +75,21 @@ const ALLOWED_ORGS_ENV = "GH_APP_ALLOWED_ORGS";
  * `GITHUB_REPO`. A GitHub App can be installed by anyone once it is public, so
  * discovery FAILS CLOSED: an empty result allows no installation at all.
  */
+/**
+ * True when the port-stripped repo string is a BARE github.com host —
+ * `https://github.com`, `github.com`, the scp/ssh forms (with a user-info
+ * word and/or a scheme), with NO owner and NO repo segment after the host.
+ * The login-carrying spellings (`github.com:acme`, `github.com:22/acme`)
+ * all carry a segment and never match. Used by `resolveAllowedOrgs` so the
+ * repo source gives the honest no-owner answer for a copied landing page or
+ * a truncated `git remote -v` paste, matching `orgOf` and
+ * `resolveRepoFromEnv`.
+ */
+const isBareGithubHost = (spelling: string): boolean =>
+  /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com$/u.test(
+    spelling
+  );
+
 export const resolveAllowedOrgs = (
   override?: readonly string[],
   env?: Readonly<Record<string, string | undefined>>
@@ -133,6 +148,16 @@ export const resolveAllowedOrgs = (
   // the cause (#159/#82's class, reopened through the host's capitalization).
   const rawRepo = (env?.GITHUB_REPO ?? "")
     .trim()
+    // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`
+    // (a browser address-bar copy-paste) — before the anchored branches
+    // below, exactly like `orgOf` and `resolveRepoFromEnv`: the suffix is
+    // a URL-reserved delimiter a login or repo name cannot carry, and
+    // pre-fix the repo branch's `[^/]+` segment absorbed it, so the
+    // allowlist keyed on `o/r?tab=readme` — an entry no installation owner
+    // can ever match, and every mint failed closed with no hint the
+    // spelling was the cause.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
     .replace(
       /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
       (_m: string, scheme: string, user: string, host: string) =>
@@ -242,10 +267,27 @@ export const resolveAllowedOrgs = (
     ? undefined
     : (orgsPageMatch?.[1] ??
       repoMatch?.[1] ??
+      // A BARE-HOST spelling — `https://github.com`, `github.com`, the
+      // scp/ssh forms (a copied landing page or a truncated `git remote -v`
+      // paste, no owner and no repo segment at all) — names no owner, the
+      // same honest no-answer `orgOf` and `resolveRepoFromEnv` now give it:
+      // pre-fix the bare pass-through below keyed the allowlist on the raw
+      // host string (`github.com`), a login no installation owner can ever
+      // carry, so every mint failed closed while the sibling resolvers
+      // answered differently — the one-spelling contract the README
+      // promises. No early return, though: an override array or a set
+      // `GH_APP_ALLOWED_ORGS` must still be allowed to name the whole
+      // allowlist when the repo source names no one. The bare-host check
+      // applies to BOTH tails: a spelling with a `/` or `:` routes through
+      // `orgOf` (which answers "" for a bare host itself), and the bare
+      // pass-through below is exactly where `github.com` / `git@github.com`
+      // (no slash, no colon) flowed the host word in as the login.
       (portStripped !== "" &&
       (portStripped.includes("/") || portStripped.includes(":"))
         ? orgOf(portStripped)
-        : portStripped));
+        : isBareGithubHost(portStripped)
+          ? undefined
+          : portStripped));
   const fromOverride = firstNonEmpty(override);
   // `fromRepo` keeps its empty-when-no-owner shape (the fail-closed default
   // the callers already document); the chain's LAST source is `[]`, never

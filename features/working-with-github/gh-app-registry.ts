@@ -101,6 +101,18 @@ export const orgOf = (repo: string): string => {
   );
   const cleaned = hostLowered
     .trim()
+    // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`
+    // (a browser address-bar copy-paste) — before the anchored branches
+    // below: both delimiters are URL-reserved characters a repo or org
+    // NAME cannot carry, and pre-fix the `$`-anchored orgs-page branch
+    // captured `acme?x` as the org for `https://github.com/orgs/acme?x`
+    // (its `[^/]+` segment absorbs the suffix), so a query-suffixed
+    // --org/--repo paste registered a dead registry key no mint could
+    // ever derive while resolveRepoFromEnv and resolveConfigDirName kept
+    // disagreeing about it — the same one-spelling contract the sibling
+    // strips below each enforce for their own paste class.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "")
@@ -248,6 +260,25 @@ export const orgOf = (repo: string): string => {
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
+  // A BARE-HOST spelling — `https://github.com`, `github.com`, or the
+  // scp/ssh form `git@github.com` / `ssh://git@github.com` (a copied landing
+  // page or a truncated `git remote -v` paste, with NO owner and NO repo
+  // segment at all) — names no owner: pre-fix the bare pass-through at the
+  // bottom returned the raw host string whole as the "org", so a registry
+  // row or allowlist entry keyed on `github.com` — a login no GitHub
+  // account can ever carry — while `resolveRepoFromEnv` resolved the SAME
+  // spelling to `""` and the config dir keyed `https-github.com`, so the
+  // four resolvers silently disagreed on one spelling (the README's
+  // one-spelling contract). `orgOf` is the sibling normalizer every registry
+  // key and allowlist entry derive through, so its honest answer for a
+  // host string is no owner at all.
+  if (
+    /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com$/u.test(
+      portStripped
+    )
+  ) {
+    return "";
+  }
   // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
   // copied blob/tree/PR/releases address, pasted without the host) — is
   // the same deep spelling the `hostMatch` branch above closes for the
@@ -320,6 +351,16 @@ export const resolveConfigDirName = (
   );
   const repoRaw = hostLoweredRepo
     .trim()
+    // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`
+    // (a browser address-bar copy-paste) — before the anchored branches
+    // below, the same strip `orgOf`, `resolveRepoFromEnv` and
+    // `resolveAllowedOrgs` apply: pre-fix the repo-match fallback below
+    // sanitized the suffix into the dir name (`r-tab-readme`, `r-anchor`),
+    // a directory no sibling resolver's key ever derives, so the
+    // registry/cache DB silently migrated the moment the env var's
+    // spelling carried a query or fragment (#113's class).
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "")
@@ -437,6 +478,25 @@ export const resolveConfigDirName = (
     }
   }
   if (portStripped !== "") {
+    // A BARE-HOST spelling — `https://github.com`, `github.com`, the
+    // scp/ssh forms (a copied landing page or a truncated `git remote -v`
+    // paste, with NO owner and NO repo segment at all) — has no repo
+    // segment to name, so the documented no-repo fallback ("intern", the
+    // same one the orgs-page INDEX and hostless index spellings above take)
+    // applies: pre-fix the repo-match fallback below sanitized the raw
+    // host string into the dir name (`https-github.com`, `github.com`,
+    // `git-github.com`), a directory no sibling resolver's key ever derives
+    // while `orgOf`, `resolveRepoFromEnv` and `resolveAllowedOrgs` resolved
+    // the SAME spellings to no owner at all — the registry/cache DB silently
+    // migrated the moment the env var's spelling was a bare host (#113's
+    // class), orphaning every row already written.
+    if (
+      /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com$/u.test(
+        portStripped
+      )
+    ) {
+      return "intern";
+    }
     // A PORT in the host separator (ssh://git@github.com:22/…) must be
     // consumed before the repo regexes below, exactly as `orgOf` does
     // (#186's class): the repo match anchored on the two-segment tail of the

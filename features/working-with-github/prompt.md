@@ -84,7 +84,15 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # organizations) normalizes to NOTHING, exactly like the sibling resolvers:
 # the word is never an owner login, and an empty $REPO makes every
 # interpolation fail loudly instead of 404ing a repo named after a host path.
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^/+##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^/+##')
+# A QUERY or FRAGMENT suffix (`o/r?tab=readme`, `o/r#anchor` — a browser
+# address-bar copy-paste; both delimiters are URL-reserved characters a repo
+# name cannot carry) and a BARE-HOST spelling (`https://github.com`,
+# `github.com`, `git@github.com`, `ssh://git@github.com` — a copied landing
+# page or a truncated `git remote -v` paste, with no owner and no repo
+# segment at all) normalize to NOTHING too, exactly like the sibling
+# resolvers: the suffix 404s every `repos/…` route and invalidates the fetch
+# URL, and a host string is never an owner/repo pair.
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^/+##; s#[?][^/]*$##; s#[#][^/]*$##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^/+##; s#^((https?|ssh|git\+ssh)://)?(([^@[:space:]]+)@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$##')
 
 # Inject for one gh call:
 GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts) \
@@ -166,7 +174,7 @@ First, mint a token once for this whole flow, and normalize the repo string once
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
-REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^/+##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^/+##')
+REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^/+##; s#[?][^/]*$##; s#[#][^/]*$##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/]?(orgs|organizations)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]##; s#^(orgs|organizations)/([^/]+)(/.*)?$#\2#; s#^organizations$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^/+##; s#^((https?|ssh|git\+ssh)://)?(([^@[:space:]]+)@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$##')
 ```
 
 1. **Create a worktree** off the latest `main` (run from your repo checkout). Key its path by repo slug **and** branch, so concurrent runs never collide — a different intern is a different `$GITHUB_REPO`, and a different task is a different branch:
