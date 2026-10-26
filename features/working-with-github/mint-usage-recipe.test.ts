@@ -38,6 +38,12 @@ const URL_SPELLINGS: readonly string[] = [
   // A HOSTLESS deep paste collapses to its `owner/repo` tail, matching
   // `resolveRepoFromEnv` (repo-string-hostless-deep.test.ts).
   "acme/widgets/tree/main",
+  // An scp/ssh USER-INFO word other than the literal `git` — a deploy-key
+  // or CI remote form `git remote -v` produces — is a spelling every code
+  // resolver tolerates (repo-string-userinfo.test.ts); the header's recipe
+  // must collapse it the same way, never leaving the user word in `$REPO`.
+  "ssh://deploy@github.com/acme/widgets",
+  "bob@github.com:22/acme/widgets",
   // A LEADING-slash paste — `/acme/widgets`, and the doubled `//acme/widgets`
   // a shell autocomplete or a `//` host typo produces — is a spelling every
   // code resolver strips (`resolveRepoFromEnv` strips `/+`, pinned by
