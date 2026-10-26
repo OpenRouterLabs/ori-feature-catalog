@@ -166,6 +166,29 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "https://github.com:443/acme/widgets",
     },
+    // An scp/ssh USER-INFO word other than the literal `git` —
+    // `ssh://deploy@github.com/acme/widgets`, `bob@github.com:22/acme/widgets`
+    // (a deploy-key or CI remote form `git remote -v` produces) — is a
+    // spelling every code resolver tolerates (repo-string-userinfo.test.ts
+    // pins the code side): pre-fix the recipe's `(git@)?` groups only
+    // matched the literal user word, so the host-strip rules left it behind
+    // (`ssh://deploy@acme/widgets`, `bob@acme/widgets`) — a `$REPO` value
+    // `gh --repo` rejects, every `repos/…` route 404s, and the github.com
+    // fetch URL never resolves, exactly the way the ported ssh form left
+    // its `ssh://` prefix behind before its scheme group grew. The recipe's
+    // user-info groups now match any user word, like the resolvers.
+    {
+      normalized: "acme/widgets",
+      raw: "ssh://deploy@github.com/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "bob@github.com:22/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "deploy@github.com:29418/acme/widgets.git",
+    },
     // A bare host+PORT spelling — `github.com:22`, `ssh://git@github.com:22`
     // (a truncated `git remote -v` copy-paste) — is a spelling every sibling
     // resolver tolerates (#190's own corpus), so the recipe must agree with
