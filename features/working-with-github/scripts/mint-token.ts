@@ -267,9 +267,37 @@ export const resolveMintDeps = (
     return args;
   }
   const ownOrg = (env.GITHUB_REPO ?? "").trim();
-  if (ownOrg === "") {
+  // An own-repo spelling that names NO org at all — the organizations-page
+  // INDEX URL (`https://github.com/orgs`), a bare `organizations` word, the
+  // ported index spellings; `orgOf` collapses all of them to `""`, the
+  // documented no-owner answer — can never route a --purpose to a
+  // registered App either, exactly like a directly-passed orgless
+  // `--repo`/`--org` (the targetRepo guard above). Pre-fix the derived
+  // target flowed on raw: `readGhAppCredentials` treats an ORGLESS target
+  // exactly like the bare default-app request, so
+  // `mintInstallationToken({ targetRepo, purpose })` looked the registry up
+  // under the empty org, found no row, and silently minted the DEFAULT App's
+  // token — dropping both the caller's --purpose and every routing decision
+  // that followed it (the same silent-identity-swap class #98/#107/#221
+  // close for every OTHER shape of this flag). Return null so the CLI fails
+  // loudly, naming the spelling, never mints.
+  if (orgOf(ownOrg) === "") {
     return null;
   }
+  // An own-repo spelling that names NO org at all — the organizations-page
+  // INDEX URL (`https://github.com/orgs`), a bare `organizations` word, the
+  // ported index spellings; `orgOf` collapses all of them to `""`, the
+  // documented no-owner answer — can never route a --purpose to a
+  // registered App either, exactly like a directly-passed orgless
+  // `--repo`/`--org` (the targetRepo guard above). Pre-fix the derived
+  // target flowed on raw: `readGhAppCredentials` treats an ORGLESS target
+  // exactly like the bare default-app request, so
+  // `mintInstallationToken({ targetRepo, purpose })` looked the registry up
+  // under the empty org, found no row, and silently minted the DEFAULT App's
+  // token — dropping both the caller's --purpose and every routing decision
+  // that followed it (the same silent-identity-swap class #98/#107/#221
+  // close for every OTHER shape of this flag). Return null so the CLI fails
+  // loudly, naming the spelling, never mints.
   return { ...args, targetRepo: ownOrg };
 };
 
@@ -297,6 +325,13 @@ if (import.meta.main) {
         ? "mint-token: --repo/--org needs a value (e.g. --repo owner/repo)\n"
         : args.missingPurposeValue === true
           ? "mint-token: --purpose needs a value (e.g. --purpose reviewer)\n"
+          // Name the actual cause for the purpose-only null, the same
+          // "never blame a healthy env var" discipline #207/#219/#220 apply
+          // to the flag paths: a SET-but-orgless GITHUB_REPO is not "unset",
+          // and sending the operator to re-set service env that is present
+          // and populated is a dead end.
+          : orgOf((process.env.GITHUB_REPO ?? "").trim()) === ""
+          ? `mint-token: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no GitHub org — --purpose cannot route to a registered App. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
         : "mint-token: --purpose needs a target org: pass --repo/--org or set GITHUB_REPO\n"
     );
     process.exit(1);
