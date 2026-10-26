@@ -530,6 +530,19 @@ export const discoverInstallationId = (
   Effect.gen(function* () {
     const allowed = allowedOrgs ?? resolveAllowedOrgs(undefined, process.env);
     const wanted = org.trim().toLowerCase();
+    // Name the actual cause for the empty-org fallback, the same "never
+    // claim a populated env var is unset" discipline the sibling CLI
+    // diagnostics apply (#207's class): a GITHUB_REPO that is SET to a
+    // spelling resolving to no org (the orgs-page INDEX URL, a bare
+    // `organizations`) reaches this branch exactly like an unset one, so
+    // pre-fix both error messages below told the operator to "set
+    // GITHUB_REPO" — an instruction the env var's own spelling already
+    // satisfies, and a dead end that never names the real fix. The var is
+    // read the same way the allowlist default above reads it; this changes
+    // NO behavior, only the message.
+    const rawEnvRepo = (process.env.GITHUB_REPO ?? "").trim();
+    const orglessEnvRepo =
+      rawEnvRepo !== "" && orgOf(rawEnvRepo) === "" ? rawEnvRepo : undefined;
     const all: InstallationRef[] = [];
     for (let page = 1; ; page += 1) {
       const parsed = yield* fetchInstallationsPage(fetchImpl, jwt, page);
@@ -566,8 +579,12 @@ export const discoverInstallationId = (
       return yield* new GhAppError({
         message:
           all.length === 0
-            ? "No GitHub App installation found. Install the App, or set GITHUB_REPO so its org can be matched."
-            : `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); set GITHUB_REPO or target a repo so the right one can be chosen.`,
+            ? orglessEnvRepo === undefined
+              ? "No GitHub App installation found. Install the App, or set GITHUB_REPO so its org can be matched."
+              : `No GitHub App installation found. GITHUB_REPO "${orglessEnvRepo}" resolves to no GitHub org, so none can be matched — check its spelling (e.g. github.com/orgs, the organizations index, names no owner), or target a repo.`
+            : orglessEnvRepo === undefined
+            ? `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); set GITHUB_REPO or target a repo so the right one can be chosen.`
+            : `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); GITHUB_REPO "${orglessEnvRepo}" resolves to no GitHub org, so the right one cannot be chosen — check its spelling, or target a repo.`,
         op: "discover",
       });
     }
