@@ -209,6 +209,24 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "HTTPS://GitHub.com/acme/widgets",
     },
+    // An INTERIOR doubled slash — `github.com//o/r`, `o//r`, or a doubled
+    // segment separator like `https://github.com/o//r` (a copy-paste that
+    // kept a doubled path slash) — is the same paste class as the trailing
+    // slash and the doubled LEADING slash above, and every code resolver
+    // collapses it (repo-string-interior-slashes.test.ts pins the code
+    // side): pre-fix the recipe's anchored rules keyed on non-empty path
+    // segments and left the double whole, so `$REPO` interpolated a string
+    // no route answers (`gh --repo /o/r`, `repos//o/r`) while the code
+    // resolvers collapsed it — one spelling contract, four resolvers.
+    { normalized: "acme/widgets", raw: "https://github.com//acme/widgets" },
+    { normalized: "acme/widgets", raw: "github.com//acme/widgets" },
+    { normalized: "acme/widgets", raw: "https://github.com/acme//widgets" },
+    { normalized: "acme/widgets", raw: "acme//widgets" },
+    { normalized: "acme/widgets", raw: "git@github.com://acme/widgets" },
+    {
+      normalized: "acme/widgets",
+      raw: "ssh://git@github.com:22//acme/widgets",
+    },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {

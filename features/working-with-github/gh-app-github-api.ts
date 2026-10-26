@@ -123,7 +123,22 @@ export const resolveAllowedOrgs = (
     // carry, so every mint fails closed with no hint the spelling was the
     // cause (the #159/#82 class, reopened through the separator-then-dot-git
     // paste; `orgOf` now strips the same suffix).
-    .replace(/\/+$/u, "");
+    .replace(/\/+$/u, "")
+    // Collapse interior runs of path slashes — `github.com//o/r`, `o//r`
+    // (a copy-paste that kept a doubled path slash, the same paste class as
+    // the trailing slash the strips above already handle). The `$`-anchored
+    // tails below key on `[^/]+`-style non-empty segments, which an EMPTY
+    // path segment never matches, so pre-fix the raw string fell every
+    // branch and flowed through whole as the allowlist entry — a login no
+    // installation owner can ever carry, so every mint failed closed with
+    // no hint the spelling was the cause (the #159/#82 class, reopened
+    // through the interior double). The prompt's REPO= sed recipe collapses
+    // the same paste; `orgOf` and `resolveRepoFromEnv` strip the same runs.
+    // A scheme's own `://` is guarded and never collapses; the scp host
+    // separator is a bare `:`, so `git@github.com://o/r` collapses to the
+    // scp form `git@github.com:o/r`.
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below BACKTRACKS past the optional `(?::\d+)?`
