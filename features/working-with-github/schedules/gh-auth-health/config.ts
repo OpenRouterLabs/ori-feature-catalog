@@ -18,8 +18,21 @@ const firstNonEmpty = (
   ...values: readonly (string | undefined)[]
 ): string | undefined => {
   for (const value of values) {
-    if (value !== undefined && value !== "") {
-      return value;
+    // Trim before the emptiness test: a WHITESPACE-only env value
+    // (`GH_AUTH_HEALTH_ALERT_CHANNEL_ID="   "` — a compose interpolation
+    // of an unset variable, an env-file line that kept its padding) is the
+    // same unset shape as "" — a channel id Slack never answers — not a
+    // configured one. Pre-fix it flowed on raw: the schedule's
+    // `alertChannelId === undefined` guard passed, postAlert attempted
+    // chat.postMessage against a whitespace channel (channel_not_found
+    // after the retry ladder), and the health failure the schedule exists
+    // to surface was never delivered anywhere — while the same env var
+    // spelled "" already took the documented log-only fallback. A padded
+    // value with real content trims to that content, the same
+    // normalization repo-dir.ts applies to its env seam.
+    const trimmed = value?.trim();
+    if (trimmed !== undefined && trimmed !== "") {
+      return trimmed;
     }
   }
   return undefined;
