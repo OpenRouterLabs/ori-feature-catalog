@@ -103,7 +103,24 @@ export const orgOf = (repo: string): string => {
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
-    .replace(/[\/\s]+$/gu, "");
+    .replace(/[\/\s]+$/gu, "")
+    // Collapse interior runs of path slashes — `github.com//o/r`, `o//r`
+    // (a copy-paste that kept a doubled path slash, the same paste class as
+    // the trailing slash the strips above already handle). The `$`-anchored
+    // two-segment tails below key on `[^/]+/[^/]+`, which an EMPTY path
+    // segment never matches, so pre-fix the whole raw string fell every
+    // branch and returned whole — a registry key and allowlist entry no mint
+    // can ever derive from a real repo string, and every mint silently fell
+    // back to the default App (the #101/#159 class, reopened through the
+    // interior double). The prompt's REPO= sed recipe collapses the same
+    // paste (its anchored `s#(^[^/]+/[^/]+)(/.*)?$#\1#` keys on the same
+    // non-empty segments); the resolvers must agree with it. A scheme's own
+    // `://` is guarded and never collapses; the scp host separator is a
+    // bare `:`, so `git@github.com://o/r` collapses to the scp form
+    // `git@github.com:o/r`. `resolveRepoFromEnv` and `resolveAllowedOrgs`
+    // strip the same runs.
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
   const leadingSlashStripped = cleaned.replace(/^\/+/u, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
@@ -296,7 +313,18 @@ export const resolveConfigDirName = (
     .trim()
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
-    .replace(/[\/\s]+$/gu, "");
+    .replace(/[\/\s]+$/gu, "")
+    // Collapse interior runs of path slashes — the same normalization `orgOf`
+    // applies (see its own interior-double branch above): `github.com//o/r`,
+    // `o//r`. The repo regexes below anchor on the two-segment tail, which an
+    // EMPTY path segment never matches, so pre-fix the raw URL flowed through
+    // whole and the dir name silently migrated to a sanitized URL
+    // (`https-github.com-o-r`), orphaning the registry/cache rows every other
+    // spelling had written (#113's class, reopened through the interior
+    // double). The scheme's own `://` is guarded and never collapses; the scp
+    // host separator is a bare `:`.
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see its own port-stripping above). The host-word strip
   // below carries `(?::\d+)?` as an OPTIONAL group with a REQUIRED `[/:]`

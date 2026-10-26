@@ -279,7 +279,22 @@ export const resolveRepoFromEnv = (
   // resolver must agree with it.
   const withoutSuffix = leadingSlashStripped
     .replace(/\.git$/u, "")
-    .replace(/\/+$/u, "");
+    .replace(/\/+$/u, "")
+    // Collapse interior runs of path slashes — `github.com//o/r`, `o//r`
+    // (a copy-paste that kept a doubled path slash; the same paste class as
+    // the trailing slash the strip above already handles). Every `$`-anchored
+    // branch below keys on `[^/]+/[^/]+`-style tails, which an EMPTY path
+    // segment never matches, so pre-fix the raw string fell every branch and
+    // returned whole — every `repos/{repo}` API route then 404s (the #141
+    // class, reopened through the interior double). The prompt's `REPO=`
+    // sed recipe collapses the same paste (its anchored
+    // `s#(^[^/]+/[^/]+)(/.*)?$#\1#` keys on the same non-empty segments);
+    // `orgOf` and `resolveAllowedOrgs` strip the same runs; the resolvers
+    // must agree. A scheme's own `://` is guarded (`https:`, `ssh:`, …) and
+    // never collapses; the scp host separator is a bare `:`, so
+    // `git@github.com://o/r` collapses to the scp form `git@github.com:o/r`.
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
