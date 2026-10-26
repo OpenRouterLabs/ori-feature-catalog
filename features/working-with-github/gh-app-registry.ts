@@ -175,8 +175,17 @@ export const orgOf = (repo: string): string => {
   // it. A repo genuinely NAMED `<org>` under an owner called `orgs` is
   // unreachable by this spelling anyway — the reserved word never resolves
   // as an owner login on github.com.
+  // The HOSTLESS branches below anchor `^` on the CLEANED string, so a
+  // LEADING slash on their spellings (`/orgs/acme`, `/organizations` — the
+  // same shell-autocomplete paste #208 closed for the repo spellings, and
+  // the prompt's `REPO=` recipe strips first) made every anchor miss and the
+  // bare pass-through at the bottom returned the word with its slash shorn
+  // off — `orgOf("/organizations")` answered `organizations` while the bare
+  // word answered `""`, and the registry key, the allowlist and the config
+  // dir all keyed on the reserved word. `leadingSlashStripped` exists for
+  // exactly this; read it here, matching every sibling resolver.
   const hostlessOrgsMatch =
-    /^(?:orgs|organizations)\/([^/]+?)(?:\/.*)?$/u.exec(cleaned);
+    /^(?:orgs|organizations)\/([^/]+?)(?:\/.*)?$/u.exec(leadingSlashStripped);
   if (hostlessOrgsMatch?.[1] !== undefined) {
     return hostlessOrgsMatch[1];
   }
@@ -211,7 +220,7 @@ export const orgOf = (repo: string): string => {
   // org-NAMING branch above already consumed the reserved-word reading
   // whenever a second segment exists, so the bare word alone is the
   // bare-owner shape, and discovery refuses it honestly.
-  if (/^organizations$/u.test(cleaned)) {
+  if (/^organizations$/u.test(leadingSlashStripped)) {
     return "";
   }
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
@@ -314,6 +323,14 @@ export const resolveConfigDirName = (
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "")
+    // Strip LEADING slashes before the anchored branches below, the same
+    // normalization `orgOf` and `resolveRepoFromEnv` already apply (#208's
+    // class): `//organizations` collapsed to `/organizations` one line above,
+    // and the `^organizations$` guard below then missed, so the fallback
+    // named the config dir after the reserved word — the registry/cache DB
+    // silently migrated the moment the env var's spelling gained a leading
+    // slash (#113's class, reopened through the leading slash).
+    .replace(/^\/+/u, "")
     // Collapse interior runs of path slashes — the same normalization `orgOf`
     // applies (see its own interior-double branch above): `github.com//o/r`,
     // `o//r`. The repo regexes below anchor on the two-segment tail, which an
@@ -394,11 +411,22 @@ export const resolveConfigDirName = (
   // misses them; strip an optional `github.com`[:port] host word first (the
   // same `orgOf` branch every ported spelling already routes through) so an
   // org-only tail resolves to the org, never a sanitized raw URL.
+  // A USER-INFO word before the host — `ssh://deploy@github.com/acme`,
+  // `bob@github.com:22/acme` (a deploy-key or CI remote form `git remote -v`
+  // produces) — must be stripped with it: pre-fix the `^`-anchored strip
+  // only tolerated the literal `git@` user, so a spelling with any other
+  // user word kept its prefix, failed the single-segment org branch below,
+  // missed the two-segment repo regexes, and the fallback sanitized the
+  // WHOLE URL — `ssh-deploy-github.com-acme` — a directory no sibling
+  // resolver's key ever derives (`orgOf`, `resolveRepoFromEnv` and
+  // `resolveAllowedOrgs` all resolve `acme` here), silently migrating the
+  // registry/cache DB the moment the env var's spelling carried a non-`git`
+  // user word (#113's class, reopened through the user-info form).
   const hostStripped =
     portStripped !== "" && !portStripped.includes("/")
       ? portStripped
       : portStripped.replace(
-          /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:git@)?github\.com(?::\d+)?[/:]/u,
+          /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?github\.com(?::\d+)?[/:]/u,
           ""
         );
   if (hostStripped !== "" && !hostStripped.includes("/")) {
