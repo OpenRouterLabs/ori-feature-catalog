@@ -161,7 +161,16 @@ export const resolveAllowedOrgs = (
     .replace(
       /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
       (_m: string, scheme: string, user: string, host: string) =>
-        `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+        // Lower-case the SCHEME word too, never just the host — see the
+        // matching comment in commit-api-core.ts. Pre-fix an upper-case
+        // scheme (`HTTPS://github.com`) fell the case-sensitive interior-
+        // slash guard below, its `://` collapsed to `:`, and the junk string
+        // `HTTPS:github.com` flowed on whole as the allowlist entry (after
+        // the lower-case below: `https:github.com`) — a login no installation
+        // owner can ever carry, so EVERY mint failed closed with no hint the
+        // env var's spelling was the cause, while `orgOf` and the prompt's
+        // `REPO=` recipe answered "" for the same spelling.
+        `${(scheme ?? "").toLowerCase()}${user ?? ""}${host.toLowerCase()}`
     )
     .replace(/\/+$/u, "")
     .replace(/\.git$/u, "")

@@ -97,7 +97,15 @@ export const orgOf = (repo: string): string => {
   const hostLowered = repo.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
-      `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+      // Lower-case the SCHEME word too, never just the host (RFC 3986 §3.1,
+      // §3.2.2): an upper-case scheme (`HTTPS://github.com`) kept its case,
+      // fell the case-sensitive interior-slash guard in `cleaned` below, and
+      // its `://` collapsed to `:` — `orgOf` then returned the raw junk
+      // (`HTTPS:github.com`) as the "org", a registry key no mint can ever
+      // derive, while the sibling resolvers and the prompt's `REPO=` recipe
+      // answered "" for the same spelling (the #159/#169 class, reopened
+      // through the scheme word).
+      `${(scheme ?? "").toLowerCase()}${user ?? ""}${host.toLowerCase()}`
   );
   const cleaned = hostLowered
     .trim()
@@ -347,7 +355,16 @@ export const resolveConfigDirName = (
   const hostLoweredRepo = (env.GITHUB_REPO ?? "").replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
-      `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+    // Lower-case the SCHEME word too, never just the host — the same
+    // RFC 3986 §3.1 rule the three sibling host-lower sites apply (see
+    // commit-api-core.ts): pre-fix an upper-case scheme on a bare host
+    // (`HTTPS://github.com`) fell the case-sensitive interior-slash guard in
+    // `repoRaw` below, its `://` collapsed to `:`, and the surviving junk
+    // keyed the config dir on `https-github.com` — silently migrating the
+    // registry/cache DB the moment the env var's spelling changed case
+    // (#113's class, reopened through the scheme word), while `orgOf` and
+    // the sibling resolvers answered "" for the same spelling.
+    `${(scheme ?? "").toLowerCase()}${user ?? ""}${host.toLowerCase()}`
   );
   const repoRaw = hostLoweredRepo
     .trim()
