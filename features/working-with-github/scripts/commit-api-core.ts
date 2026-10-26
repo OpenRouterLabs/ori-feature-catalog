@@ -258,7 +258,16 @@ export const resolveRepoFromEnv = (
     .replace(
       /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
       (_m: string, scheme: string, user: string, host: string) =>
-        `${scheme ?? ""}${user ?? ""}${host.toLowerCase()}`
+        // Lower-case the SCHEME word too, never just the host (§3.1, §3.2.2
+        // both case-insensitive): an upper-case scheme spelling
+        // (`HTTPS://github.com`) kept its case and fell the case-sensitive
+        // `(?<!(?:https?|ssh|git\+ssh|ftp):)` guard below, so its own `://`
+        // collapsed to `:` (`HTTPS:github.com`) and every bare-host branch
+        // missed — the raw junk flowed on as the "repo" (the exact
+        // silent-dead-value class the host-case fix closed, reopened through
+        // the scheme word). The prompt's `REPO=` recipe already empties the
+        // lowercase bare host; the resolver must agree with it.
+        `${(scheme ?? "").toLowerCase()}${user ?? ""}${host.toLowerCase()}`
     );
   // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is the
   // same repo as `acme/widgets`, and every `repos/{repo}` route 404s on the
