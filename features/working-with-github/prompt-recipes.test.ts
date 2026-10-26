@@ -250,18 +250,20 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "ssh://git@github.com:22//acme/widgets",
     },
-    // An interior doubled slash COMBINED with a deep tail — https://github.com//o/r/tree/main,
-    // a hostless o//r/tree/main (a copied blob/tree/PR address pasted with a doubled
-    // path slash) — is the paste class BOTH halves above pin separately (the interior
-    // double, and the deep tail). The code resolvers collapse the pair to o/r (the
-    // interior collapse runs before every anchored rule, so the deep-collapse rule
-    // always keys on non-empty segments). Pre-fix the recipe ran its interior-collapse
-    // rule s#([^:])//+#\1/#g AFTER the anchored deep-collapse rule, and the deep rule's
-    // [^/]+ never matches an empty segment, so the whole raw string fell every branch —
-    // the recipe emitted o/r/tree/main while resolveRepoFromEnv answered o/r, and every
-    // recipe that interpolated it silently targeted a repo no route answers. The recipe
-    // collapses the interior double BEFORE every anchored rule now, and its deep rule
-    // tolerates a leading slash — one spelling contract, pinned.
+    // An interior doubled slash COMBINED with a deep tail —
+    // https://github.com//o/r/tree/main, a hostless o//r/tree/main (a copied
+    // blob/tree/PR address pasted with a doubled path slash) — is the paste
+    // class BOTH halves above pin separately (the interior double, and the
+    // deep tail). The code resolvers collapse the pair to o/r (the interior
+    // collapse runs before every anchored rule, so the deep-collapse rule
+    // always keys on non-empty segments). Pre-fix the recipe ran its
+    // interior-collapse rule s#([^:])//+#\1/#g AFTER the anchored
+    // deep-collapse rule, and the deep rule's [^/]+ never matches an empty
+    // segment, so the whole raw string fell every branch — the recipe emitted
+    // o/r/tree/main while resolveRepoFromEnv answered o/r, and every recipe
+    // that interpolated it silently targeted a repo no route answers. The
+    // recipe collapses the interior double BEFORE every anchored rule now, and
+    // its deep rule tolerates a leading slash — one spelling contract, pinned.
     { normalized: "o/r", raw: "https://github.com//o/r/tree/main" },
     { normalized: "o/r", raw: "github.com//o/r/tree/main" },
     { normalized: "o/r", raw: "git@github.com://o/r/tree/main" },
