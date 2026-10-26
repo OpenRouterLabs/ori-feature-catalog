@@ -31,11 +31,17 @@ describe("a bare host+port spelling never yields the port digits", () => {
       orgOf("git@github.com:22")
     );
   });
-  test("the allowlist keys on the host word too, so no resolver splits", () => {
+  // Pre-fix the allowlist keyed the raw host word for this spelling —
+  // better than the port digits, but still a login no installation owner
+  // can carry. The bare-host fix (repo-string-queryfrag.test.ts) empties a
+  // host with NO owner/repo after it in every resolver, so the parity this
+  // suite pins is now: both sides answer no login at all.
+  test("the allowlist derives no login from the host word, so no resolver splits", () => {
     const allowed = resolveAllowedOrgs(undefined, {
       GITHUB_REPO: "github.com:22",
     });
-    expect(Array.from(allowed)).toEqual([orgOf("github.com:22")]);
+    expect(Array.from(allowed)).toEqual([]);
+    expect(orgOf("github.com:22")).toBe("");
   });
 });
 

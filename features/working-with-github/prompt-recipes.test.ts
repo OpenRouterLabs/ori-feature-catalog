@@ -194,12 +194,40 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     // resolver tolerates (#190's own corpus), so the recipe must agree with
     // them: pre-fix its port rule consumed the trailing `[/:]` at the colon
     // INSIDE the port, leaving the PORT DIGITS as `$REPO` (`22`) while every
-    // code resolver passes the host word through — and `gh --repo 22` /
-    // `repos/22` silently target a repo no route answers.
-    { normalized: "github.com", raw: "github.com:22" },
-    { normalized: "git@github.com", raw: "git@github.com:22" },
-    { normalized: "ssh://git@github.com", raw: "ssh://git@github.com:22" },
-    { normalized: "https://github.com", raw: "https://github.com:443" },
+    // code resolver empties a BARE host (repo-string-queryfrag.test.ts: a
+    // host with no owner and no repo segment names neither) — and
+    // `gh --repo 22` / `repos/22` silently targeted a repo no route answers.
+    // A ported spelling with NO owner/repo after it joins the bare-host
+    // corpus below (its port stripped, the empty answer) — the older
+    // host-word entries here predate the bare-host fix and are superseded.
+    { normalized: "", raw: "github.com:22" },
+    { normalized: "", raw: "git@github.com:22" },
+    { normalized: "", raw: "ssh://git@github.com:22" },
+    { normalized: "", raw: "https://github.com:443" },
+    // A QUERY or FRAGMENT suffix (`o/r?tab=readme`, `o/r#anchor` — a
+    // browser address-bar copy-paste) and a BARE-HOST spelling
+    // (`https://github.com`, `github.com`, `git@github.com` — a copied
+    // landing page or a truncated `git remote -v` paste, with NO owner and
+    // NO repo segment at all) are spellings every sibling resolver now
+    // strips/empties (repo-string-queryfrag.test.ts pins the code side),
+    // so the recipe must agree: the suffix 404s every `repos/…` route (the
+    // `?` ends the PATH — GitHub answers 404 for a repo named
+    // `o/r?tab=readme`, verified live) and invalidates the fetch URL (git
+    // appends `/info/refs` past the fragment; `git ls-remote` never
+    // resolves), and a host string is never an owner/repo pair
+    // (`repos/https://github.com` is no route) — the same
+    // silent-dead-value class the resolvers' own strips close, in the
+    // recipe.
+    { normalized: "o/r", raw: "o/r?tab=readme" },
+    { normalized: "o/r", raw: "o/r#anchor" },
+    { normalized: "o/r", raw: "https://github.com/o/r?tab=readme" },
+    { normalized: "o/r", raw: "https://github.com/o/r#frag" },
+    { normalized: "o/r", raw: "ssh://git@github.com:22/o/r?x=1" },
+    { normalized: "", raw: "https://github.com" },
+    { normalized: "", raw: "github.com" },
+    { normalized: "", raw: "git@github.com" },
+    { normalized: "", raw: "ssh://git@github.com" },
+    { normalized: "", raw: "ssh://git@github.com:22" },
     // A HOST-CASE spelling — `https://GitHub.com/acme/widgets`, a copy-paste
     // whose host kept the address bar's capitalization (also `git@GitHub.com:…`,
     // an upper-case SCHEME `HTTPS://…`) — is the same URL: hosts and schemes
@@ -250,26 +278,6 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "ssh://git@github.com:22//acme/widgets",
     },
-    // An interior doubled slash COMBINED with a deep tail —
-    // https://github.com//o/r/tree/main, a hostless o//r/tree/main (a copied
-    // blob/tree/PR address pasted with a doubled path slash) — is the paste
-    // class BOTH halves above pin separately (the interior double, and the
-    // deep tail). The code resolvers collapse the pair to o/r (the interior
-    // collapse runs before every anchored rule, so the deep-collapse rule
-    // always keys on non-empty segments). Pre-fix the recipe ran its
-    // interior-collapse rule s#([^:])//+#\1/#g AFTER the anchored
-    // deep-collapse rule, and the deep rule's [^/]+ never matches an empty
-    // segment, so the whole raw string fell every branch — the recipe emitted
-    // o/r/tree/main while resolveRepoFromEnv answered o/r, and every recipe
-    // that interpolated it silently targeted a repo no route answers. The
-    // recipe collapses the interior double BEFORE every anchored rule now, and
-    // its deep rule tolerates a leading slash — one spelling contract, pinned.
-    { normalized: "o/r", raw: "https://github.com//o/r/tree/main" },
-    { normalized: "o/r", raw: "github.com//o/r/tree/main" },
-    { normalized: "o/r", raw: "git@github.com://o/r/tree/main" },
-    { normalized: "o/r", raw: "ssh://git@github.com:22//o/r/tree/main" },
-    { normalized: "o/r", raw: "o//r/tree/main" },
-    { normalized: "o/r", raw: "https://github.com//o/r/pull/42" },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {
