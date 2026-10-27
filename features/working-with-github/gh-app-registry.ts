@@ -167,7 +167,20 @@ export const orgOf = (repo: string): string => {
     // only ever SPARES a scheme's own `://`, and the words it recognizes
     // are the same set in either case.
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/")
+    // Whitespace AFTER a path separator — `github.com/ acme`, `git@github.com:
+    // acme`, `https://github.com:22/ acme` (a copy-paste that kept its padding)
+    // — belongs to no login or repo name (GitHub carries a space in neither),
+    // and the trim at the top of this chain cannot see it: it is INTERIOR,
+    // behind the separator, so pre-fix the anchored branches below captured
+    // it INSIDE their `[^/]+` segments (` acme`), keying the registry row and
+    // the Git-Data paths on a login no installation owner can ever carry —
+    // every mint silently falls back to the default App — while the prompt's
+    // `REPO=` recipe and `resolveAllowedOrgs` (its final `.trim()`) both answer
+    // the healthy pair. The same #249 re-trim class, reopened through the
+    // separator: drop the separator-adjacent whitespace so every branch below
+    // sees the same string the recipe collapses to.
+    .replace(/(?<=[\/:])\s+/gu, "");
   // Strip leading slashes AND any whitespace they expose, in ONE step
   // (`^[/\s]+`): the `cleaned` chain above already trimmed, so a leading space
   // survives it only when a slash precedes it — `/ acme/widgets`,

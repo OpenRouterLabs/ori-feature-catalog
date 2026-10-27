@@ -328,7 +328,19 @@ export const resolveRepoFromEnv = (
     // never collapses; the scp host separator is a bare `:`, so
     // `git@github.com://o/r` collapses to the scp form `git@github.com:o/r`.
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/")
+    // Whitespace AFTER a path separator — `github.com/ acme`, `git@github.com:
+    // acme`, `https://github.com:22/ acme` (a copy-paste that kept its padding)
+    // — belongs to no login or repo name (GitHub carries a space in neither),
+    // and the trim at the top of this chain cannot see it: it is INTERIOR,
+    // behind the separator, so pre-fix the anchored branches below captured it
+    // INSIDE their `[^/]+` segments (` acme`), so every `repos/{repo}` route
+    // 404s on a repo no route answers — while the prompt's `REPO=` recipe and
+    // `resolveAllowedOrgs` both answer the healthy pair. The same #249 re-trim
+    // class `orgOf` closes (see gh-app-registry.ts), reopened through the
+    // separator: drop the separator-adjacent whitespace so every branch below
+    // sees the same string the recipe collapses to.
+    .replace(/(?<=[\/:])\s+/gu, "");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
