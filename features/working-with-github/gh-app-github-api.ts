@@ -195,6 +195,16 @@ export const resolveAllowedOrgs = (
     // A scheme's own `://` is guarded and never collapses; the scp host
     // separator is a bare `:`, so `git@github.com://o/r` collapses to the
     // scp form `git@github.com:o/r`.
+    // Whitespace AFTER a path separator — `github.com/ acme`, and a
+    // PADDING-ONLY segment (`https://github.com/ /widgets` — one path
+    // segment carrying nothing but separator-adjacent whitespace, the same
+    // paste class) — belongs to no login, and the strip must run BEFORE the
+    // collapse below: the space-only segment otherwise blocks it, so `//`
+    // never becomes `/`, the anchored branches all miss, and the raw URL
+    // flowed through as the allowlist entry while `orgOf` and the REPO=
+    // recipe answered the healthy owner — the one-spelling contract broken
+    // (the #159/#82 class, reopened through the segment form).
+    .replace(/(?<=[\/:])\s+/gu, "")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization

@@ -166,8 +166,6 @@ export const orgOf = (repo: string): string => {
     // leaves every lower-case spelling's answer byte-identical: the guard
     // only ever SPARES a scheme's own `://`, and the words it recognizes
     // are the same set in either case.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/")
     // Whitespace AFTER a path separator — `github.com/ acme`, `git@github.com:
     // acme`, `https://github.com:22/ acme` (a copy-paste that kept its padding)
     // — belongs to no login or repo name (GitHub carries a space in neither),
@@ -180,7 +178,18 @@ export const orgOf = (repo: string): string => {
     // the healthy pair. The same #249 re-trim class, reopened through the
     // separator: drop the separator-adjacent whitespace so every branch below
     // sees the same string the recipe collapses to.
-    .replace(/(?<=[\/:])\s+/gu, "");
+    // The strip runs BEFORE the interior-slash collapse below: a
+    // PADDING-ONLY segment (`https://github.com/ /widgets`,
+    // `git@github.com: :o/r` — one path segment carrying nothing but the
+    // separator-adjacent whitespace, the same paste class) otherwise
+    // blocks the collapse, so `//` never becomes `/` and the whole raw
+    // URL flowed on past every anchored branch while the REPO= recipe
+    // answered the healthy tail — the resolvers answering different
+    // values for one spelling, the one-spelling contract broken (the
+    // #113/#159 class, reopened through the segment form).
+    .replace(/(?<=[\/:])\s+/gu, "")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip leading slashes AND any whitespace they expose, in ONE step
   // (`^[/\s]+`): the `cleaned` chain above already trimmed, so a leading space
   // survives it only when a slash precedes it — `/ acme/widgets`,
