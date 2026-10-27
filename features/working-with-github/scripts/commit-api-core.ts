@@ -358,11 +358,11 @@ export const resolveRepoFromEnv = (
   // same `owner/repo`-bearing string the sibling resolvers are fixed to see.
   // A bare api host (no path) names no owner, the same honest "" a bare
   // github.com host answers — never the host string itself.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
