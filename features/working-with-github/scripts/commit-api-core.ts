@@ -501,6 +501,25 @@ export const resolveRepoFromEnv = (
   if (hostlessDeepMatch?.[1] !== undefined) {
     return hostlessDeepMatch[1];
   }
+  // A TRUNCATED scp/ssh host word — `github.com:`, `git@github.com:`,
+  // `ssh://git@github.com:`, `https://github.com:` (a colon after the host
+  // with no path after it — a `git remote -v` paste cut at the colon, the
+  // same family as the bare-host and ported spellings the guards above
+  // handle) — names no owner and no repo: the anchored branches above all
+  // need a `[/:]` plus a segment, so it fell them and the bare pass-through
+  // below returned the raw string whole as the "repo" — a value every
+  // `repos/{repo}` route then 404s on (`repos/github.com:` is not a route),
+  // while `orgOf` and the prompt's `REPO=` sed recipe answered "" for the
+  // same spelling. A repo resolver cannot invent a repo from a host string;
+  // "" is the honest no-repo answer (the callers fail loudly on it).
+  if (
+    /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+    /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
+      apiRepoStripped
+    )
+  ) {
+    return "";
+  }
   // A bare string (no github.com host) keeps its historical pass-through.
   return apiRepoStripped;
 };

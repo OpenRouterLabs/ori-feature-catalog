@@ -317,6 +317,26 @@ export const orgOf = (repo: string): string => {
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
+  // A TRUNCATED scp/ssh host word — `github.com:`, `git@github.com:`,
+  // `ssh://git@github.com:`, `https://github.com:` (a colon after the host
+  // with NO path after it — a `git remote -v` paste cut at the colon, the
+  // same family as the bare-host and ported spellings) — names no owner:
+  // the anchored regexes above all need a `[/:]` + a segment, so it fell
+  // them and the bare pass-through at the bottom returned the raw string
+  // whole as the "org" — a login no installation owner can ever carry, so a
+  // registry row registered from it was dead on arrival while the CLI
+  // confirmed it. The ported spelling (`:22`) already collapses to no
+  // owner via the port strip; the truncated colon is the one tail it
+  // leaves. The prompt's `REPO=` sed recipe empties the same spellings; a
+  // host word plus a trailing colon is a bare host, never an owner.
+  if (
+    /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+    /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
+      apiRepoStripped
+    )
+  ) {
+    return "";
+  }
   // A BARE-HOST spelling — `https://github.com`, `github.com`, or the
   // scp/ssh form `git@github.com` / `ssh://git@github.com` (a copied landing
   // page or a truncated `git remote -v` paste, with NO owner and NO repo
@@ -594,6 +614,27 @@ export const resolveConfigDirName = (
     // class), orphaning every row already written.
     if (
       /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com$/u.test(
+        apiRepoStripped
+      )
+    ) {
+      return "intern";
+    }
+    // A TRUNCATED scp/ssh host word — `github.com:`, `git@github.com:`,
+    // `ssh://git@github.com:`, `https://github.com:` (a colon after the
+    // host with no path after it — a `git remote -v` paste cut at the
+    // colon) — is the same bare-host shape the guard above answers: it
+    // names no repo segment, so the documented no-repo fallback applies.
+    // Pre-fix it fell the bare-host test (which pins `$` right after the
+    // host word) and the repo-match fallback below sanitized the raw
+    // string into the dir name (`git-github.com`, `https-github.com`) — a
+    // directory no sibling resolver's key ever derives, silently migrating
+    // the registry/cache DB the moment the env var's spelling gained its
+    // truncated colon (#113's class), while `orgOf`,
+    // `resolveRepoFromEnv` and the prompt's `REPO=` recipe all answer ""
+    // for the same spellings.
+    if (
+      /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+      /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
         apiRepoStripped
       )
     ) {
