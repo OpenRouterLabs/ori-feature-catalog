@@ -94,17 +94,23 @@ export const orgOf = (repo: string): string => {
   // the "org" — a registry key no mint can ever derive, and every
   // `repos/{repo}` route 404s on (the #159/#169 class, reopened through the
   // host's capitalization).
-  // Trim BEFORE the host-case strip: a LEADING-whitespace spelling
-  // (`" https://GitHub.com/acme/widgets"` — a copy-paste that kept its
-  // padding) defeats the `^`-anchored case-lower regex below, and the
+  // Trim BOTH sides BEFORE the host-case strip: a whitespace-padded spelling
+  // (`" https://GitHub.com/acme/widgets"`, `" GitHub.com "` — a copy-paste
+  // that kept its padding) defeats the `^`-anchored case-lower regex below
+  // (leading pad) or its `$`-anchored lookahead (trailing pad), and the
   // mixed-case host then falls every anchored `github.com` branch — so
-  // `orgOf` returned the whole raw padded URL as the "org", a registry key
-  // no mint can ever derive from a real repo string, while every sibling
+  // `orgOf` returned the whole raw padded string as the "org", a registry
+  // key no mint can ever derive from a real repo string, while every sibling
   // resolver (`resolveRepoFromEnv`, `resolveAllowedOrgs`) trims first and
-  // answered `acme`, and the prompt's `REPO=` sed recipe trims first too
-  // (`s#^[[:space:]]+##`). One spelling contract, four resolvers: trim
-  // first, exactly like the siblings.
-  const hostLowered = repo.trimStart().replace(
+  // answered the honest no-owner value for a bare host, and the prompt's
+  // `REPO=` sed recipe trims both sides first too (`s#^[[:space:]]+##` and
+  // `s#[/[:space:]]+$##`). `trimStart()` alone left the TRAILING pad in
+  // place: a padded HOST-CASE bare host (`" GitHub.com "`) kept its case,
+  // fell the bare-host branch, and the raw `GitHub.com` flowed on as the
+  // "org" — a login no installation owner can ever carry, and a config dir
+  // (`github.com`) no sibling resolver's key ever names. One spelling
+  // contract, four resolvers: trim first, exactly like the siblings.
+  const hostLowered = repo.trim().replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
       // Lower-case the SCHEME word too, never just the host (RFC 3986 §3.1,
@@ -395,16 +401,22 @@ export const resolveConfigDirName = (
   // raw URL's junk segments (`orgs` for an orgs-page index, a sanitized URL
   // for a repo page), silently migrating the registry/cache DB the moment the
   // env var's spelling changed case (#113's class, reopened through the host).
-  // Trim BEFORE the host-case strip, exactly like `orgOf` above and the two
-  // sibling resolvers: a LEADING-whitespace spelling defeats this `^`-anchored
-  // case-lower regex, the mixed-case host then falls every anchored
+  // Trim BOTH sides BEFORE the host-case strip, exactly like `orgOf` above
+  // and the two sibling resolvers: a whitespace-padded spelling defeats this
+  // `^`-anchored case-lower regex (leading pad) or its `$`-anchored
+  // lookahead (trailing pad), the mixed-case host then falls every anchored
   // `github.com` strip below, and the two-segment fallback regex keys the
   // config dir on the segments AFTER the host word (`acme` for
   // `" https://GitHub.com/acme/widgets"`) instead of the repo segment
   // (`widgets`) — silently migrating the registry/cache DB the moment the
   // env var's spelling gained its padding (#113's class, reopened through
-  // the padding + case combination).
-  const hostLoweredRepo = (env.GITHUB_REPO ?? "").trimStart().replace(
+  // the padding + case combination). `trimStart()` alone left the TRAILING
+  // pad in place: a padded HOST-CASE bare host (`" GitHub.com "`, and the
+  // scheme forms `" https://GitHub.com "`) kept its case, fell every branch,
+  // and the fallback sanitized the raw URL into the dir name
+  // (`github.com`, `https-github.com`) — a directory no sibling resolver's
+  // key ever derives, the same silent DB migration.
+  const hostLoweredRepo = (env.GITHUB_REPO ?? "").trim().replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
     // Lower-case the SCHEME word too, never just the host — the same
