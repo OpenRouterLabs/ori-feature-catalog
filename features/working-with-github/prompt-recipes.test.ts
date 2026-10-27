@@ -228,6 +228,20 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     { normalized: "", raw: "git@github.com" },
     { normalized: "", raw: "ssh://git@github.com" },
     { normalized: "", raw: "ssh://git@github.com:22" },
+    // A `git://` scheme spelling — `git://github.com/o/r`, the bare-host
+    // `git://github.com` (a git-native clone URL; also a ported form) — is a
+    // real git remote scheme every git client accepts, and the code resolvers
+    // resolve it exactly like its `ssh://` sibling (repo-string-
+    // gitscheme.test.ts pins the code side): pre-fix the recipe's final
+    // empty-on-bare-host rule alternated `HTTPS?|SSH|GIT+SSH|FTP` — `GIT+SSH`
+    // is listed, the plain `GIT` scheme is NOT — so a `git://` bare host fell
+    // the rule and interpolated the RAW URL as `$REPO` (`gh --repo git://…`,
+    // `repos/git://…` — 404), the same silent-dead-value class every sibling
+    // scheme's rule closes, reopened through the plain `git` scheme.
+    { normalized: "acme/widgets", raw: "git://github.com/acme/widgets" },
+    { normalized: "acme/widgets", raw: "git://github.com:22/acme/widgets" },
+    { normalized: "", raw: "git://github.com" },
+    { normalized: "", raw: "git://github.com:22" },
     // A HOST-CASE spelling — `https://GitHub.com/acme/widgets`, a copy-paste
     // whose host kept the address bar's capitalization (also `git@GitHub.com:…`,
     // an upper-case SCHEME `HTTPS://…`) — is the same URL: hosts and schemes

@@ -261,7 +261,7 @@ export const resolveRepoFromEnv = (
         // Lower-case the SCHEME word too, never just the host (§3.1, §3.2.2
         // both case-insensitive): an upper-case scheme spelling
         // (`HTTPS://github.com`) kept its case and fell the case-sensitive
-        // `(?<!(?:https?|ssh|git\+ssh|ftp):)` guard below, so its own `://`
+        // `(?<!(?:https?|ssh|git\+ssh|git|ftp):)` guard below, so its own `://`
         // collapsed to `:` (`HTTPS:github.com`) and every bare-host branch
         // missed — the raw junk flowed on as the "repo" (the exact
         // silent-dead-value class the host-case fix closed, reopened through
@@ -319,8 +319,8 @@ export const resolveRepoFromEnv = (
     // must agree. A scheme's own `://` is guarded (`https:`, `ssh:`, …) and
     // never collapses; the scp host separator is a bare `:`, so
     // `git@github.com://o/r` collapses to the scp form `git@github.com:o/r`.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
