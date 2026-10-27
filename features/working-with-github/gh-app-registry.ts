@@ -94,7 +94,17 @@ export const orgOf = (repo: string): string => {
   // the "org" — a registry key no mint can ever derive, and every
   // `repos/{repo}` route 404s on (the #159/#169 class, reopened through the
   // host's capitalization).
-  const hostLowered = repo.replace(
+  // Trim BEFORE the host-case strip: a LEADING-whitespace spelling
+  // (`" https://GitHub.com/acme/widgets"` — a copy-paste that kept its
+  // padding) defeats the `^`-anchored case-lower regex below, and the
+  // mixed-case host then falls every anchored `github.com` branch — so
+  // `orgOf` returned the whole raw padded URL as the "org", a registry key
+  // no mint can ever derive from a real repo string, while every sibling
+  // resolver (`resolveRepoFromEnv`, `resolveAllowedOrgs`) trims first and
+  // answered `acme`, and the prompt's `REPO=` sed recipe trims first too
+  // (`s#^[[:space:]]+##`). One spelling contract, four resolvers: trim
+  // first, exactly like the siblings.
+  const hostLowered = repo.trimStart().replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
       // Lower-case the SCHEME word too, never just the host (RFC 3986 §3.1,
