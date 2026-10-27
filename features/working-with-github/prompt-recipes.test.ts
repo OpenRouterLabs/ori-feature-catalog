@@ -94,6 +94,18 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     { normalized: "acme/widgets", raw: "//acme/widgets" },
     { normalized: "acme/widgets", raw: "///acme/widgets" },
     { normalized: "acme/widgets", raw: "//acme/widgets/tree/main" },
+    // A leading slash AND THEN WHITESPACE — `/ acme/widgets`, `/\tacme/widgets`
+    // (a shell-autocomplete paste that kept its padding) — is #249's class:
+    // pre-fix the recipe stripped the slash (`s#^/+##`) but never re-trimmed,
+    // so the space survived at the head of `$REPO` (` acme/widgets`) and broke
+    // `gh --repo`, every `repos/…` route, and the fetch URL — while the code
+    // resolvers (`resolveAllowedOrgs`, `resolveConfigDirName`) trims and
+    // answers the healthy pair. The strip is one step with the trim now
+    // (`s#^[/[:space:]]+##`), matching the resolvers.
+    { normalized: "acme/widgets", raw: "/ acme/widgets" },
+    { normalized: "acme/widgets", raw: "/\tacme/widgets" },
+    { normalized: "acme/widgets", raw: "// acme/widgets" },
+    { normalized: "acme", raw: "/ acme" },
     // The ORGANIZATIONS-page spellings — `github.com/orgs/<org>` (the "Your
     // organizations" page) and `/organizations/<org>` — are a spelling every
     // sibling resolver tolerates (#169/#175/#177 fixed them in `orgOf`,
