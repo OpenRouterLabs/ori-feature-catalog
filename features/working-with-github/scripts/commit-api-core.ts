@@ -338,6 +338,35 @@ export const resolveRepoFromEnv = (
     /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
     "$1"
   );
+  // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
+  // (also the hostless `api.github.com/…` form, and any deep tail the REST
+  // routes produce: `/contents/…`, `/tarball/…`, `/issues`, …) — is the URL
+  // shape this feature's own prompt teaches the operator to build and curl,
+  // so pasting it back into GITHUB_REPO is a realistic spelling. It is the
+  // one host whose canonical path starts with a literal host-path word the
+  // anchored branches below key on as the OWNER: pre-fix the two-segment
+  // repo match read `repos/acme` as the owner/repo pair (`repos` is GitHub's
+  // REST host-path word, never a login — `repos/repos/acme` answers 404,
+  // verified live), `orgOf`/`resolveAllowedOrgs` keyed the registry and the
+  // allowlist on `repos` (every mint failed closed with no hint the env
+  // var's spelling was the cause), and the prompt's REPO= recipe answered a
+  // FIFTH, different dead value (`https://api.repos/acme/widgets` — its
+  // `github.com[/:]` strip consumed `github.com/` inside the api host and
+  // welded `api.` onto `repos`) — five disagreeing answers for one spelling,
+  // the exact one-spelling contract the README states. Strip the api host
+  // word and the `repos` path word UP FRONT so every branch below sees the
+  // same `owner/repo`-bearing string the sibling resolvers are fixed to see.
+  // A bare api host (no path) names no owner, the same honest "" a bare
+  // github.com host answers — never the host string itself.
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+    portStripped
+  );
+  const apiStripped = apiHostMatch
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    : portStripped;
+  const apiRepoStripped = apiHostMatch
+    ? apiStripped.replace(/^repos\//u, "")
+    : apiStripped;
   // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/acme` — is the one
   // spelling whose ORG sits where the repo regexes below expect a repo
@@ -358,8 +387,8 @@ export const resolveRepoFromEnv = (
   // A port in the host separator (ssh://git@github.com:22/…) must not become
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)(?:\/.*)?$/u.exec(
-      portStripped
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)(?:\/.*)?$/u.exec(
+      apiRepoStripped
     );
   if (orgsPageMatch?.[1] !== undefined) {
     return orgsPageMatch[1];
@@ -375,7 +404,7 @@ export const resolveRepoFromEnv = (
   // cannot invent a repo, so it returns the ORG, exactly like the hosted
   // branch above (the prompt's `REPO=` sed does the same).
   const hostlessOrgsMatch =
-    /^(?:orgs|organizations)\/([^/]+?)(?:\/.*)?$/u.exec(portStripped);
+    /^(?:orgs|organizations|users)\/([^/]+?)(?:\/.*)?$/u.exec(apiRepoStripped);
   if (hostlessOrgsMatch?.[1] !== undefined) {
     return hostlessOrgsMatch[1];
   }
@@ -395,8 +424,8 @@ export const resolveRepoFromEnv = (
   // under a real owner never reaches here: the repo branches below
   // capture the real owner/repo pair first.
   const orgsIndexMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)$/u.exec(
-      portStripped
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)$/u.exec(
+      apiRepoStripped
     );
   if (orgsIndexMatch !== null) {
     return "";
@@ -406,10 +435,10 @@ export const resolveRepoFromEnv = (
   // that must fail loudly do, matching `orgOf`'s no-owner answer for the
   // same word. A bare `orgs` word keeps the bare-owner pass-through, the
   // same split the registry resolver applies.
-  if (/^organizations$/u.test(portStripped)) {
+  if (/^(organizations|users)$/u.test(apiRepoStripped)) {
     return "";
   }
-  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(portStripped);
+  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(apiRepoStripped);
   if (match?.[1] !== undefined) {
     return match[1];
   }
@@ -419,7 +448,7 @@ export const resolveRepoFromEnv = (
   // route 404, exactly the class the URL-spelling fix closed for the
   // two-segment form.
   const deepMatch =
-    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(portStripped);
+    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(apiRepoStripped);
   if (deepMatch?.[1] !== undefined) {
     return deepMatch[1];
   }
@@ -430,7 +459,7 @@ export const resolveRepoFromEnv = (
   // every `repos/{repo}` route 404s on. Same treatment as the orgs-page
   // branch above: return the org it names, like `orgOf`'s org-URL branch.
   const orgUrlMatch = /(?:git@)?github\.com(?::\d+)?[\/:]([^/]+)$/u.exec(
-    portStripped
+    apiRepoStripped
   );
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
@@ -451,7 +480,7 @@ export const resolveRepoFromEnv = (
   // is the honest no-owner answer.
   const bareHostMatch =
     /^(?:(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?(?:git\.)?github\.com)?$/u.exec(
-      portStripped
+      apiRepoStripped
     );
   if (bareHostMatch !== null) {
     return "";
@@ -467,13 +496,13 @@ export const resolveRepoFromEnv = (
   // and the code must agree, or a hostless deep paste in `$GITHUB_REPO`
   // silently targets a repo no route answers.
   const hostlessDeepMatch = /^([^/]+\/[^/]+)(?:\/.*)?$/u.exec(
-    portStripped
+    apiRepoStripped
   );
   if (hostlessDeepMatch?.[1] !== undefined) {
     return hostlessDeepMatch[1];
   }
   // A bare string (no github.com host) keeps its historical pass-through.
-  return portStripped;
+  return apiRepoStripped;
 };
 
 // #endregion

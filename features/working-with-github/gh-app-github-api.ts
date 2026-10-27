@@ -215,6 +215,27 @@ export const resolveAllowedOrgs = (
     /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
     "$1"
   );
+  // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
+  // — is the URL shape this feature's own prompt teaches the operator to
+  // curl, so pasting it back into GITHUB_REPO is a realistic spelling. Its
+  // path starts with the REST host-path word `repos`, which the repo regex
+  // below keys on as the OWNER: pre-fix the allowlist carried `repos` (a
+  // login no installation owner can ever carry — verified live:
+  // `orgs/repos` 404s), so every mint failed closed with no hint the env
+  // var's spelling was the cause, while `orgOf`/`resolveRepoFromEnv` are
+  // fixed to answer the real owner. Strip the api host and its `repos`
+  // path word up front, exactly like `resolveRepoFromEnv` (see
+  // commit-api-core.ts). A bare api host names no owner, the same honest
+  // undefined a bare github.com host yields below.
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+    portStripped
+  );
+  const apiStripped = apiHostMatch
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    : portStripped;
+  const apiRepoStripped = apiHostMatch
+    ? apiStripped.replace(/^repos\//u, "")
+    : apiStripped;
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/…` — is the one
   // spelling whose ORG sits where the repo regex below expects a repo
@@ -228,8 +249,8 @@ export const resolveAllowedOrgs = (
   // A port in the host separator (ssh://git@github.com:22/…) must not become
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)[/:]([^/]+)/u.exec(
-      portStripped
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)/u.exec(
+      apiRepoStripped
     );
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
   // blob/tree/PR/releases address) — resolves to its owner too: the
@@ -237,7 +258,7 @@ export const resolveAllowedOrgs = (
   // reduced the URL to its SCHEME (`https:`), a login no installation can
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch =
-    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(portStripped);
+    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(apiRepoStripped);
   // The HOSTLESS index spelling — a bare `organizations` word with no host
   // and no org segment — is the same page the orgs-index branch guards in
   // `orgOf` and `resolveRepoFromEnv`: it names no org, so the REPO source
@@ -272,7 +293,7 @@ export const resolveAllowedOrgs = (
   // a login no installation can ever own, so EVERY mint failed closed
   // with no hint why. One shared `orgOf` keeps all four resolvers on one
   // contract; a slash-less, colon-less `owner` still passes through raw.
-  const repoOwner = /^organizations$/u.test(portStripped)
+  const repoOwner = /^(organizations|users)$/u.test(apiRepoStripped)
     ? undefined
     : (orgsPageMatch?.[1] ??
       repoMatch?.[1] ??
@@ -291,12 +312,12 @@ export const resolveAllowedOrgs = (
       // `orgOf` (which answers "" for a bare host itself), and the bare
       // pass-through below is exactly where `github.com` / `git@github.com`
       // (no slash, no colon) flowed the host word in as the login.
-      (portStripped !== "" &&
-      (portStripped.includes("/") || portStripped.includes(":"))
-        ? orgOf(portStripped)
-        : isBareGithubHost(portStripped)
+      (apiRepoStripped !== "" &&
+      (apiRepoStripped.includes("/") || apiRepoStripped.includes(":"))
+        ? orgOf(apiRepoStripped)
+        : isBareGithubHost(apiRepoStripped)
           ? undefined
-          : portStripped));
+          : apiRepoStripped));
   const fromOverride = firstNonEmpty(override);
   // `fromRepo` keeps its empty-when-no-owner shape (the fail-closed default
   // the callers already document); the chain's LAST source is `[]`, never
