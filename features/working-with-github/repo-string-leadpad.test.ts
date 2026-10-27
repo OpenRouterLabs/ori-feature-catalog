@@ -68,6 +68,24 @@ describe("a slash-then-space paste trims with the slash, in every resolver", () 
     }
   );
 
+  test("whitespace AFTER a separator is not part of any segment (the #249 class, reopened through the separator)", () => {
+    for (const spelling of [
+      "https://github.com/ acme/widgets",
+      "github.com/ acme/widgets",
+      "https://github.com/ acme",
+      "git@github.com: acme/widgets",
+      "https://github.com:22/ acme/widgets",
+    ]) {
+      // orgOf must answer the login, never " acme" — a dead registry key.
+      expect(orgOf(spelling)).toBe(
+        spelling.includes("acme/widgets") ? "acme" : "acme"
+      );
+      expect(resolveRepoFromEnv({ GITHUB_REPO: spelling })).toBe(
+        spelling.includes("acme/widgets") ? "acme/widgets" : "acme"
+      );
+    }
+  });
+
   test("the prompt's REPO= recipe agrees with the resolvers", () => {
     // The recipe's normalization must produce the same value the resolvers
     // answer for the same spelling — `s#^/+##` alone leaves the space (the
