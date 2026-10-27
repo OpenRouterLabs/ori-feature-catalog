@@ -314,7 +314,16 @@ export const resolveAllowedOrgs = (
       // (no slash, no colon) flowed the host word in as the login.
       (apiRepoStripped !== "" &&
       (apiRepoStripped.includes("/") || apiRepoStripped.includes(":"))
-        ? orgOf(apiRepoStripped)
+        // A TRUNCATED scp/ssh host word (`github.com:`, `git@github.com:`,
+        // `ssh://git@github.com:` — a colon after the host with no path, a
+        // `git remote -v` paste cut at the colon) carries a `:`, so it
+        // routes through `orgOf` here — pre-fix `orgOf` answered the raw
+        // string whole as the owner, and the allowlist keyed itself on a
+        // login no installation can ever carry, failing every mint closed
+        // with no hint the spelling was the cause. `orgOf` now answers ""
+        // for the class; the `?? undefined` below then derives no login
+        // from the repo source, matching the bare-host answer.
+        ? (orgOf(apiRepoStripped) || undefined)
         : isBareGithubHost(apiRepoStripped)
           ? undefined
           : apiRepoStripped));
