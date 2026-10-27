@@ -168,7 +168,19 @@ export const orgOf = (repo: string): string => {
     // are the same set in either case.
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
-  const leadingSlashStripped = cleaned.replace(/^\/+/u, "");
+  // Strip leading slashes AND any whitespace they expose, in ONE step
+  // (`^[/\s]+`): the `cleaned` chain above already trimmed, so a leading space
+  // survives it only when a slash precedes it — `/ acme/widgets`,
+  // `/\twidgets` (a shell-autocomplete paste that kept its padding) — and
+  // stripping the slash alone (a bare `^\/+`) re-exposes whitespace the
+  // earlier trim never saw. A GitHub login never carries a space, so the
+  // exposed `" acme"` is a dead registry key (a registered
+  // `(acme, purpose)` row silently bypassed, every mint falling back to the
+  // default App) while `resolveAllowedOrgs` trims and keys on the healthy
+  // `acme` — the resolvers disagreeing on one spelling, the one-spelling
+  // contract this feature's README states. One character class closes #249's
+  // class; a healthy `/acme/widgets` is byte-for-byte unchanged.
+  const leadingSlashStripped = cleaned.replace(/^[/\s]+/u, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
   // `(?::\d+)?` port group — the `:` itself becomes the `[/:]` separator,

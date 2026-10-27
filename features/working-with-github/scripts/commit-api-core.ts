@@ -278,7 +278,15 @@ export const resolveRepoFromEnv = (
   // worktree SLUG of `-acme-widgets` and a repo route that never resolved
   // while the config dir said `widgets` (the #113 silent-migration class
   // reopened through the leading slash).
-  const leadingSlashStripped = raw.replace(/^\/+/u, "");
+  // Strip leading slashes AND any whitespace they expose, in ONE step
+  // (`^[/\s]+`) — the same #249 class `orgOf` closes (see gh-app-registry.ts):
+  // the `raw` chain above already trimmed, so a leading space survives it only
+  // behind a slash (`/ acme/widgets`, a shell-autocomplete paste that kept its
+  // padding), and stripping the slash alone re-exposes it — every
+  // `repos/{repo}` route then 404s on `" acme/widgets"` while the sibling
+  // resolvers trim and answer the healthy pair. One character class keeps the
+  // recipe and the four resolvers on one spelling contract.
+  const leadingSlashStripped = raw.replace(/^[/\s]+/u, "");
   // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`,
   // `https://github.com/o/r?tab=readme` (a browser address-bar copy-paste of
   // the repo page, which carries the tab the browser was on; a fragment
