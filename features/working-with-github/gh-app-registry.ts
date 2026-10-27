@@ -198,11 +198,11 @@ export const orgOf = (repo: string): string => {
   // the api host and its `repos` path word up front, exactly like
   // `resolveRepoFromEnv` (see commit-api-core.ts). A bare api host names no
   // org, the same honest "" a bare github.com host answers.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
@@ -517,11 +517,11 @@ export const resolveConfigDirName = (
   // commit-api-core.ts), so this resolver keys the same `widgets` dir every
   // other spelling of the repo keys. A bare api host names no repo — the
   // documented "intern" fallback below.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")

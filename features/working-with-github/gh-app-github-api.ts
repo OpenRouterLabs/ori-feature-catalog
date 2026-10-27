@@ -227,11 +227,11 @@ export const resolveAllowedOrgs = (
   // path word up front, exactly like `resolveRepoFromEnv` (see
   // commit-api-core.ts). A bare api host names no owner, the same honest
   // undefined a bare github.com host yields below.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com(?:\/|$)/u.test(
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?api\.github\.com\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
