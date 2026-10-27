@@ -144,15 +144,37 @@ export interface MintArgs {
 const flagPresent = (argv: readonly string[], flag: string): boolean =>
   argv.includes(flag);
 
+/** Every flag the mint CLI accepts — anything else `--`-prefixed is a usage
+ *  error, never a silently-dropped token that eats its value. */
+const KNOWN_FLAGS = ["--repo", "--org", "--purpose"] as const;
+
+/** An unknown `--`-flag in argv: `findJunkArgv` already rejects single-dash and
+ *  `--flag=value` shapes, but an unknown well-formed flag
+ *  (`--porpose reviewer` — a typo of `--purpose`) was silently IGNORED, and its
+ *  value token vanished with it: the parse dropped the caller's purpose and
+ *  minted for the org-level CATCH-ALL App instead of the role App they named,
+ *  with exit 0 — the exact silent-identity-swap class the repeated-flag,
+ *  missing-value and single-dash guards close for every other argv shape
+ *  (#98/#117, reopened through the typo). Name it like those guards do. */
+const findUnknownFlag = (argv: readonly string[]): string | undefined =>
+  argv.find(
+    (token) => token.startsWith("--") && !KNOWN_FLAGS.includes(token as never)
+  );
+
 /**
  * Parse `--repo <owner/repo>` (alias `--org <org>`) and `--purpose <label>` out
- * of argv. Both optional; with neither, mint the default app. Unknown flags are
- * ignored so the bare `mint-token.ts` invocation keeps working unchanged.
+ * of argv. Both optional; with neither, mint the default app. Any other
+ * `--`-prefixed token is a usage error (see {@link findUnknownFlag}) — never a
+ * silently-dropped flag that eats its value.
  */
 export const parseMintArgs = (argv: readonly string[]): MintArgs => {
   const junkArgv = findJunkArgv(argv);
   if (junkArgv !== undefined) {
     return { junkArgv };
+  }
+  const unknownFlag = findUnknownFlag(argv);
+  if (unknownFlag !== undefined) {
+    return { junkArgv: unknownFlag };
   }
   // A value-taking flag repeated in argv is a usage error, never a silent
   // winner: `indexOf` takes the first occurrence, so pre-fix

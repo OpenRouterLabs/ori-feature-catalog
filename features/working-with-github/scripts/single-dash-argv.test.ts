@@ -27,9 +27,12 @@ describe("a single-dash token is a usage error in every value-taking CLI", () =>
     });
   });
 
-  test("mint-token: an unknown --flag keeps its documented tolerance", () => {
+  test("mint-token: an unknown --flag is refused, not silently tolerated", () => {
+    // Pre-fix: the unknown flag was silently ignored (and its value token with
+    // it), so a typo'd flag (`--porpose reviewer`) minted the org-level
+    // CATCH-ALL App instead of the role App the caller named.
     expect(parseMintArgs(["--verbose", "--repo", "acme/widgets"])).toEqual({
-      targetRepo: "acme/widgets",
+      junkArgv: "--verbose",
     });
   });
 

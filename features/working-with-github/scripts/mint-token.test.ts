@@ -106,9 +106,14 @@ describe("parseMintArgs", () => {
     });
   });
 
-  test("ignores unknown flags; an empty --repo value is the usage error, not a silent drop", () => {
+  test("an unknown --flag is a usage error; an empty --repo value is never a silent drop", () => {
     expect(
       parseMintArgs(["--verbose", "--repo", "", "--purpose", "maintainer"])
+    ).toEqual({
+      junkArgv: "--verbose",
+    });
+    expect(
+      parseMintArgs(["--repo", "", "--purpose", "maintainer"])
     ).toEqual({
       missingRepoValue: true,
       purpose: "maintainer",
