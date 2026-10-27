@@ -314,6 +314,22 @@ export const resolveRepoFromEnv = (
   const withoutSuffix = queryFragmentStripped
     .replace(/\.git$/u, "")
     .replace(/\/+$/u, "")
+    // Re-strip a `.git` exposed by the trailing-slash strip above: a clone
+    // URL whose `.git` suffix carried a TRAILING SLASH before a stripped
+    // rider (`https://github.com/acme/widgets.git/?tab=readme`,
+    // `…widgets.git/#frag` — a browser address-bar copy-paste whose
+    // tab/anchor rode past the suffix, the same rider corpus
+    // repo-string-dotgit-suffix.test.ts pins) resolved, pre-fix, through the
+    // FIRST `.git` rule's anchored `$` only: the rider sat past it, so the
+    // rule missed, the trailing-slash strip ran on the rider-suffixed tail,
+    // and `acme/widgets.git` flowed on whole — a value every
+    // `repos/{repo}` route then 404s on (`repos/o/r.git/` is not a route,
+    // verified live) while the prompt's REPO= recipe and `orgOf` answered
+    // the healthy `acme/widgets`. The slash-before-`.git` order the
+    // slash-dot-git fix established runs BOTH ways: strip the suffix, then
+    // re-strip the separator it exposed — and re-strip the suffix the
+    // separator can expose in turn.
+    .replace(/\.git$/u, "")
     // Collapse interior runs of path slashes — `github.com//o/r`, `o//r`
     // (a copy-paste that kept a doubled path slash; the same paste class as
     // the trailing slash the strip above already handles). Every `$`-anchored

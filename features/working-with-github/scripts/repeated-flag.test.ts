@@ -75,6 +75,40 @@ describe("a repeated value-taking flag is a usage error in every CLI", () => {
     );
   });
 
+  test("mint-token: an alias pair with ONE usable value is that value, never a false repeat", () => {
+    // `--repo --org acme/x` — each flag passed exactly ONCE, `--repo`'s value
+    // slot eaten by `--org`. Pre-fix the alias-merged TOKEN count (repo+org>1)
+    // reported "--repo was passed more than once" — a FALSE diagnosis
+    // (neither flag was repeated) that sent the operator to delete a flag.
+    // A repeat exists only when TWO usable values name the target; with one,
+    // the caller named exactly one target and the parse takes it, exactly
+    // like the bare `--org acme/x` spelling.
+    expect(parseMintArgs(["--repo", "--org", "acme/x"])).toEqual({
+      targetRepo: "acme/x",
+    });
+    expect(parseMintArgs(["--org", "--repo", "acme/x"])).toEqual({
+      targetRepo: "acme/x",
+    });
+    // The trailing form: a valueless `--org` after a usable `--repo`.
+    expect(parseMintArgs(["--repo", "acme/a", "--org"])).toEqual({
+      targetRepo: "acme/a",
+    });
+    // A usable --purpose rides along.
+    expect(
+      parseMintArgs(["--repo", "--org", "acme/x", "--purpose", "reviewer"])
+    ).toEqual({
+      purpose: "reviewer",
+      targetRepo: "acme/x",
+    });
+    // A repeated SPELLING whose second slot is empty is still one usable
+    // value — the same single-target shape, never a false repeat. The parse
+    // then takes the missing-value path (the first `--repo` names no value),
+    // the entrypoint's "--repo/--org needs a value" diagnostic.
+    expect(parseMintArgs(["--repo", "--repo", "acme/a"])).toEqual({
+      missingRepoValue: true,
+    });
+  });
+
   // ─── cleanup-worktrees.ts ─────────────────────────────────────────────────
 
   test("cleanup-worktrees: a repeated --repo is refused, never a silent first-wins", () => {
