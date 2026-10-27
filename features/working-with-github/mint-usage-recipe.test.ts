@@ -139,11 +139,20 @@ describe("mint-token.ts usage examples never interpolate the raw $GITHUB_REPO", 
     }
   });
 
-  test("the recipe passes a bare host+port spelling through like the code resolvers", () => {
+  test("the recipe empties a bare host+port spelling like the code resolvers", () => {
     // The same #190 corpus: a truncated `git remote -v` copy-paste
-    // (`github.com:22`) must normalize to the host word exactly like
-    // `orgOf`/`resolveRepoFromEnv` do — never to the bare port digits,
-    // which no `gh --repo` value or `repos/{repo}` route answers.
+    // (`github.com:22`) is a BARE-HOST spelling (no owner and no repo
+    // segment after the port), and the code resolvers answer "" for every
+    // one of those — `orgOf`, `resolveRepoFromEnv`, `resolveAllowedOrgs`
+    // and `resolveConfigDirName` all resolve `github.com:22` to no owner
+    // at all (repo-string-port-barehost.test.ts pins the config-dir side,
+    // repo-string-colonhost.test.ts the orgOf side), and prompt.md's own
+    // recipe empties the same spelling through its final bare-host rule.
+    // Pre-fix this pin carried the pre-#190 answer (`github.com`), a
+    // `gh --repo` value and `repos/{repo}` route no resolver agrees with —
+    // the header's recipe answered "" while the pin demanded the host
+    // word, so any recipe that satisfied the pin FAILED every code
+    // resolver's contract. A bare host is never an owner/repo pair.
     const line = source
       .split("\n")
       .find((candidate) => candidate.includes("REPO=$(printf '%s' \"$GITHUB_REPO\""))
@@ -158,10 +167,12 @@ describe("mint-token.ts usage examples never interpolate the raw $GITHUB_REPO", 
       readonly normalized: string;
       readonly raw: string;
     }[] = [
-      { normalized: "github.com", raw: "github.com:22" },
-      { normalized: "git@github.com", raw: "git@github.com:22" },
-      { normalized: "ssh://git@github.com", raw: "ssh://git@github.com:22" },
-      { normalized: "https://github.com", raw: "https://github.com:443" },
+      { normalized: "", raw: "github.com:22" },
+      { normalized: "", raw: "git@github.com:22" },
+      { normalized: "", raw: "ssh://git@github.com:22" },
+      { normalized: "", raw: "https://github.com:443" },
+      { normalized: "", raw: "HTTPS://GitHub.com:443" },
+      { normalized: "", raw: "ssh://git@GitHub.com:22" },
     ];
     for (const { normalized, raw } of hostPortSpellings) {
       const output = execFileSync(
