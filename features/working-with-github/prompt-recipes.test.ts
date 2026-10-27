@@ -235,6 +235,27 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     { normalized: "o/r", raw: "https://github.com/o/r?tab=readme" },
     { normalized: "o/r", raw: "https://github.com/o/r#frag" },
     { normalized: "o/r", raw: "ssh://git@github.com:22/o/r?x=1" },
+    // A `.git` SUFFIX carrying a QUERY or FRAGMENT rider (`…/acme/widgets.git?tab=readme`,
+    // `…widgets.git#frag` — a browser address-bar copy-paste whose tab/anchor
+    // rode past the clone suffix) is the same paste class the rider entries
+    // above and the slash-dot-git corpus already pin for the code resolvers
+    // (repo-string-dotgit-suffix.test.ts): pre-fix the recipe stripped the
+    // `.git` suffix BEFORE the rider (both rules anchored on the tail), so
+    // neither matched and `$REPO` carried the clone suffix whole —
+    // `gh --repo acme/widgets.git`, `repos/acme/widgets.git` (verified live:
+    // 404), a fetch URL git itself rejects as a different repo — while every
+    // code resolver answered the healthy `acme/widgets`. Strip the rider
+    // FIRST, exactly like the resolvers, so the `.git` rule then sees a tail
+    // it can match.
+    { normalized: "acme/widgets", raw: "https://github.com/acme/widgets.git?tab=readme" },
+    { normalized: "acme/widgets", raw: "https://github.com/acme/widgets.git#frag" },
+    { normalized: "acme/widgets", raw: "git@github.com:acme/widgets.git?x=1" },
+    { normalized: "acme/widgets", raw: "git@github.com:acme/widgets.git#frag" },
+    { normalized: "acme/widgets", raw: "acme/widgets.git?x=1" },
+    {
+      normalized: "acme/widgets",
+      raw: "ssh://git@github.com:22/acme/widgets.git?x=1",
+    },
     { normalized: "", raw: "https://github.com" },
     { normalized: "", raw: "github.com" },
     { normalized: "", raw: "git@github.com" },

@@ -22,7 +22,7 @@
  *   # REPO= recipe — gh --repo and the repos/{owner}/{repo} API routes take
  *   # bare owner/repo only, and the raw env var breaks both under a URL
  *   # spelling (gh rejects it; repos/https://… is not a route and 404s):
- *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^[/[:space:]]+##; s#[?][^/]*$##; s#[#][^/]*$##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/repos/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/users/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/?$##; s#^api\.github\.com/repos/##; s#^api\.github\.com/users/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/##; s#^api\.github\.com/##; s#^api\.github\.com/?$##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]+(orgs|organizations|users)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]*(orgs|organizations|users)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]+##; s#^(orgs|organizations|users)/([^/]+)(/.*)?$#\2#; s#^(organizations|users)$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^[/[:space:]]+##; s#^(([Hh][Tt][Tt][Pp][Ss]?|[Ss][Ss][Hh]|[Gg][Ii][Tt]\+[Ss][Ss][Hh]|[Gg][Ii][Tt]|[Ff][Tt][Pp])://)?(([^@[:space:]]+)@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$##')
+ *   REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?][^/]*$##; s#[#][^/]*$##; s#[/[:space:]]+$##; s#\.git$##; s#[/[:space:]]+$##; s#^[[:space:]]+##; s#^[/[:space:]]+##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/repos/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/users/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/?$##; s#^api\.github\.com/repos/##; s#^api\.github\.com/users/##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://api\.github\.com/##; s#^api\.github\.com/##; s#^api\.github\.com/?$##; s#([^:])//+#\1/#g; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):[0-9]+([/:]|$)#\1\2\3\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]+(orgs|organizations|users)/([^/]+)(/.*)?$#\4#; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]*(orgs|organizations|users)$##; s#([a-zA-Z][a-zA-Z0-9+.-]*://)?([^@[:space:]]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:]+##; s#^(orgs|organizations|users)/([^/]+)(/.*)?$#\2#; s#^(organizations|users)$##; s#^/*([^/]+/[^/]+)(/.*)?$#\1#; s#^[/[:space:]]+##; s#^(([Hh][Tt][Tt][Pp][Ss]?|[Ss][Ss][Hh]|[Gg][Ii][Tt]\+[Ss][Ss][Hh]|[Gg][Ii][Tt]|[Ff][Tt][Pp])://)?(([^@[:space:]]+)@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$##')
  *
  *   # Inject into one gh call:
  *   GH_TOKEN=$(bun features/working-with-github/scripts/mint-token.ts) \
@@ -159,16 +159,6 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
   // `--repo acme/a --repo acme/b` silently minted for `acme/a`. `--repo` and
   // `--org` are aliases for the SAME target, so both present is a repeat too
   // (reported under the canonical `--repo` name).
-  const count = (flag: string): number =>
-    argv.filter((token) => token === flag).length;
-  const repoRepeats = count("--repo") + count("--org");
-  const purposeRepeats = count("--purpose");
-  if (repoRepeats > 1) {
-    return { repeatedFlag: "--repo" };
-  }
-  if (purposeRepeats > 1) {
-    return { repeatedFlag: "--purpose" };
-  }
   const read = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     if (i === -1 || i + 1 >= argv.length) {
@@ -186,6 +176,43 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
     // All-whitespace → absent.
     return trimmedValue === "" ? undefined : trimmedValue;
   };
+  // A repeated value-taking flag is a usage error, never a silent first-wins —
+  // but a repeat exists only when BOTH spellings NAME the target: `--repo`
+  // and `--org` are aliases, and pre-fix the alias-merged TOKEN count reported
+  // `--repo --org acme/x` (each flag passed exactly ONCE, `--repo`'s value
+  // slot eaten by `--org`) as "--repo was passed more than once" — a FALSE
+  // diagnosis (neither flag was repeated) that sent the operator to delete a
+  // flag when the actionable problem is that `--repo` has no value. Count a
+  // repeat only from occurrences that CARRY a usable value (the token after
+  // each occurrence, judged by the same shape `read` judges — a flag-shaped
+  // or blank slot is the missing-value shape, not a second spelling): an
+  // alias pair with one value between them counts ONE usable spelling and
+  // falls through to `read`'s first-value contract, while a genuine
+  // `--repo a --repo b` / `--repo a --org b` still counts two.
+  const usableValueCount = (flags: readonly string[]): number => {
+    let usable = 0;
+    for (let i = 0; i < argv.length; i += 1) {
+      if (!flags.includes(argv[i] ?? "")) {
+        continue;
+      }
+      const value = argv[i + 1];
+      const trimmed = value === undefined ? undefined : value.trim();
+      if (
+        trimmed !== undefined &&
+        trimmed !== "" &&
+        !trimmed.startsWith("--")
+      ) {
+        usable += 1;
+      }
+    }
+    return usable;
+  };
+  if (usableValueCount(["--repo", "--org"]) > 1) {
+    return { repeatedFlag: "--repo" };
+  }
+  if (usableValueCount(["--purpose"]) > 1) {
+    return { repeatedFlag: "--purpose" };
+  }
   const targetRepo = read("--repo") ?? read("--org");
   const purpose = read("--purpose");
   // An explicitly-passed `--purpose` whose value is missing must fail the
