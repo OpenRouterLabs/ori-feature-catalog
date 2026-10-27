@@ -139,8 +139,19 @@ export const orgOf = (repo: string): string => {
     // bare `:`, so `git@github.com://o/r` collapses to the scp form
     // `git@github.com:o/r`. `resolveRepoFromEnv` and `resolveAllowedOrgs`
     // strip the same runs.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
+    // The guards carry the `i` flag: the scheme words they spare are
+    // case-insensitive by RFC 3986 §3.1, and an upper-case scheme spelling
+    // (`HTTPS://api.github.com/…` — a copy-paste whose scheme kept the
+    // address bar's capitalization) otherwise fell the case-sensitive
+    // lookbehind, collapsed its own `://` to `:` (`HTTPS:/api.…`), and broke
+    // every downstream anchored branch for the api.github.com REST host —
+    // a host that has no case-lower pre-strip of its own (the github.com
+    // pre-strip above only covers the github.com host word). The `i` flag
+    // leaves every lower-case spelling's answer byte-identical: the guard
+    // only ever SPARES a scheme's own `://`, and the words it recognizes
+    // are the same set in either case.
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   const leadingSlashStripped = cleaned.replace(/^\/+/u, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
@@ -420,8 +431,8 @@ export const resolveConfigDirName = (
     // spelling had written (#113's class, reopened through the interior
     // double). The scheme's own `://` is guarded and never collapses; the scp
     // host separator is a bare `:`.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see its own port-stripping above). The host-word strip
   // below carries `(?::\d+)?` as an OPTIONAL group with a REQUIRED `[/:]`

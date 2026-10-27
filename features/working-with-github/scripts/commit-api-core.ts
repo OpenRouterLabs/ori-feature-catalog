@@ -319,8 +319,8 @@ export const resolveRepoFromEnv = (
     // must agree. A scheme's own `://` is guarded (`https:`, `ssh:`, …) and
     // never collapses; the scp host separator is a bare `:`, so
     // `git@github.com://o/r` collapses to the scp form `git@github.com:o/r`.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
