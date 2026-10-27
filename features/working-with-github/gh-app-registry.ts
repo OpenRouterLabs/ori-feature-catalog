@@ -374,7 +374,16 @@ export const resolveConfigDirName = (
   // raw URL's junk segments (`orgs` for an orgs-page index, a sanitized URL
   // for a repo page), silently migrating the registry/cache DB the moment the
   // env var's spelling changed case (#113's class, reopened through the host).
-  const hostLoweredRepo = (env.GITHUB_REPO ?? "").replace(
+  // Trim BEFORE the host-case strip, exactly like `orgOf` above and the two
+  // sibling resolvers: a LEADING-whitespace spelling defeats this `^`-anchored
+  // case-lower regex, the mixed-case host then falls every anchored
+  // `github.com` strip below, and the two-segment fallback regex keys the
+  // config dir on the segments AFTER the host word (`acme` for
+  // `" https://GitHub.com/acme/widgets"`) instead of the repo segment
+  // (`widgets`) — silently migrating the registry/cache DB the moment the
+  // env var's spelling gained its padding (#113's class, reopened through
+  // the padding + case combination).
+  const hostLoweredRepo = (env.GITHUB_REPO ?? "").trimStart().replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
     // Lower-case the SCHEME word too, never just the host — the same
