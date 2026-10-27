@@ -248,7 +248,11 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?][^/]*$##; s#[#][^/]*$##; s#[/[:
    ```bash
    GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits?sha=branch-name&per_page=10" \
      --jq '[.[] | {sha: .sha[:7], verified: .commit.verification.verified}]'
-   # Every entry must show "verified": true.
+   # An App-token Git-Data-API commit shows "verified": true. A commit created
+   # under `x-github-as: member` (the acting-as path) comes back "unsigned" —
+   # GitHub signs the SQUASH-MERGE commit, never that PR head, so an unsigned
+   # head on the member path is the expected result, not a blocker; only the
+   # merged result carries the Verified badge.
    git worktree remove "$WT"
    ```
 
