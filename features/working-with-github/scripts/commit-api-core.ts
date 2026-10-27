@@ -343,8 +343,6 @@ export const resolveRepoFromEnv = (
     // must agree. A scheme's own `://` is guarded (`https:`, `ssh:`, …) and
     // never collapses; the scp host separator is a bare `:`, so
     // `git@github.com://o/r` collapses to the scp form `git@github.com:o/r`.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/")
     // Whitespace AFTER a path separator — `github.com/ acme`, `git@github.com:
     // acme`, `https://github.com:22/ acme` (a copy-paste that kept its padding)
     // — belongs to no login or repo name (GitHub carries a space in neither),
@@ -356,7 +354,18 @@ export const resolveRepoFromEnv = (
     // class `orgOf` closes (see gh-app-registry.ts), reopened through the
     // separator: drop the separator-adjacent whitespace so every branch below
     // sees the same string the recipe collapses to.
-    .replace(/(?<=[\/:])\s+/gu, "");
+    // The strip runs BEFORE the interior-slash collapse below: a
+    // PADDING-ONLY segment (`https://github.com/ /widgets`,
+    // `git@github.com: :o/r` — one path segment carrying nothing but the
+    // separator-adjacent whitespace, the same paste class) otherwise
+    // blocks the collapse, so `//` never becomes `/` and the whole raw
+    // URL flowed on past every anchored branch while the REPO= recipe
+    // answered the healthy tail — the resolvers answering different
+    // values for one spelling, the one-spelling contract broken (the
+    // #113/#159 class, reopened through the segment form).
+    .replace(/(?<=[\/:])\s+/gu, "")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see gh-app-registry.ts). With the port left in, the
   // `[/:]` host separator below can BACKTRACK past the optional `(?::\d+)?`
