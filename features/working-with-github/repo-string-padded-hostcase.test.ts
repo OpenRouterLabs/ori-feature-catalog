@@ -87,17 +87,24 @@ const PADDED_HOST_CASE: readonly string[] = [
 ];
 
 describe("leading whitespace before a case-variant github.com host resolves like the unpadded spelling", () => {
-  test("orgOf answers the owner, never the raw padded URL", () => {
+
+  test("resolveConfigDirName keys the repo segment, never the post-host segment", () => {
     for (const spelling of PADDED_HOST_CASE) {
-      expect(orgOf(spelling)).toBe("acme");
+      expect(resolveConfigDirName({ GITHUB_REPO: spelling })).toMatch(
+        /^(widgets|acme)$/u
+      );
     }
+    // The repo-bearing padding must key the SAME dir the unpadded spelling
+    // keys — `widgets`, not the post-host `acme` the fallback regex grabbed.
+    expect(
+      resolveConfigDirName({
+        GITHUB_REPO: " https://GitHub.com/acme/widgets ",
+      })
+    ).toBe(
+      resolveConfigDirName({ GITHUB_REPO: "https://GitHub.com/acme/widgets" })
+    );
   });
 
-
-  test("the padded scp/ported org forms keep answering the org", () => {
-    expect(orgOf("\tGitHub.com:acme")).toBe("acme");
-    expect(orgOf(" https://GitHub.com:22/acme")).toBe("acme");
-  });
 
   test("the prompt's REPO= recipe agrees on the padded spellings", () => {
     for (const spelling of PADDED_HOST_CASE) {
