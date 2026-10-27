@@ -292,6 +292,31 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "ssh://git@github.com:22//acme/widgets",
     },
+    // A bare git+ssh://github.com host — the git-native remote scheme the
+    // recipe's own alternation lists — is the same no-owner paste as its
+    // ssh:// sibling, and the code resolvers answer "" for it (the bare-host
+    // corpus above). Pre-fix the final bare-host rule spelled GIT+SSH with
+    // THREE [Ss] classes for a two-S scheme, so the branch never matched
+    // `git+ssh` and the raw URL interpolated whole as $REPO — `gh --repo
+    // git+ssh://github.com`, `repos/git+ssh://github.com` (404) — the
+    // same silent-dead-value class every sibling scheme's rule closes.
+    { normalized: "", raw: "git+ssh://github.com" },
+    { normalized: "", raw: "GIT+SSH://github.com" },
+    { normalized: "", raw: "git+ssh://GitHub.com" },
+    // A colon+slash separator between the host word and an orgs-page path —
+    // `github.com:/orgs/acme` (the scp-form colon carrying a path with a
+    // leading slash, the natural paste of a colon-form remote) — is the
+    // same orgs-page spelling the hosted branch already collapses to the
+    // ORG, and the code resolvers answer `acme` for it. Pre-fix the orgs
+    // rule's separator class matched ONE char, so the two-char `:/` fell
+    // it and the two-segment rule answered the fake owner/repo pair
+    // `orgs/acme` — a reserved host-path word as an owner, a login no
+    // route answers, while the resolvers answered the org.
+    { normalized: "acme", raw: "github.com:/orgs/acme" },
+    { normalized: "acme", raw: "https://github.com:/orgs/acme" },
+    { normalized: "acme", raw: "git@github.com:/organizations/acme" },
+    { normalized: "", raw: "github.com:/orgs" },
+    { normalized: "", raw: "https://github.com:/organizations" },
   ];
 
 describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GITHUB_REPO", () => {
