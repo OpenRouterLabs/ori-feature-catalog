@@ -139,8 +139,8 @@ export const orgOf = (repo: string): string => {
     // bare `:`, so `git@github.com://o/r` collapses to the scp form
     // `git@github.com:o/r`. `resolveRepoFromEnv` and `resolveAllowedOrgs`
     // strip the same runs.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
   const leadingSlashStripped = cleaned.replace(/^\/+/u, "");
   // Strip an explicit PORT before any regex runs: with the port left in,
   // the two-segment repo match below can BACKTRACK past the optional
@@ -420,8 +420,8 @@ export const resolveConfigDirName = (
     // spelling had written (#113's class, reopened through the interior
     // double). The scheme's own `://` is guarded and never collapses; the scp
     // host separator is a bare `:`.
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp)):\/+/gu, ":")
-    .replace(/(?<!(?:https?|ssh|git\+ssh|ftp):)\/\/+/gu, "/");
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/gu, ":")
+    .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/gu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
   // `orgOf` applies (see its own port-stripping above). The host-word strip
   // below carries `(?::\d+)?` as an OPTIONAL group with a REQUIRED `[/:]`
