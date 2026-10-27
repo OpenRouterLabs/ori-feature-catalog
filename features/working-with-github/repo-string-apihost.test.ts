@@ -74,6 +74,22 @@ const API_HOST_SPELLINGS: readonly string[] = [
   "https://api.github.com/repos/acme/widgets/tarball/main",
 ];
 
+/** The api-hosted ORG routes — `/orgs/{org}` (and `/users/{user}`), the
+ *  org-slug REST addresses this feature's own prompt teaches the operator to
+ *  curl (`GET /orgs/{org}/repos`, the repo-discovery recipe). The recipe must
+ *  drop the api host for them exactly like the code resolvers do (they answer
+ *  `acme`), the same strip it already applies to the `/repos/…` and `/users/…`
+ *  paths above — pre-fix its api rules only consumed `/repos/` and
+ *  `/users/`, so the host welded onto the org (`https://api.acme`, a `$REPO`
+ *  no `gh --repo` accepts and no `repos/{repo}` route answers) while all
+ *  four code resolvers answered `acme`. */
+const API_HOST_ORG_SPELLINGS: readonly string[] = [
+  "https://api.github.com/orgs/acme",
+  "api.github.com/orgs/acme",
+  "https://api.github.com/orgs/acme/repos",
+  "api.github.com/users/acme",
+];
+
 describe("an api.github.com REST paste resolves to its owner/repo like every other spelling", () => {
   test("resolveRepoFromEnv strips the api host and its /repos/ path word", () => {
     for (const spelling of API_HOST_SPELLINGS) {
@@ -109,5 +125,11 @@ describe("an api.github.com REST paste resolves to its owner/repo like every oth
     expect(resolveRepoFromEnv({ GITHUB_REPO: "https://api.github.com" })).toBe("");
     expect(orgOf("https://api.github.com")).toBe("");
     expect([...resolveAllowedOrgs(undefined, { GITHUB_REPO: "https://api.github.com" })]).toEqual([]);
+  });
+
+  test("an api-hosted org route resolves to the org in the REPO= recipe, like the resolvers", () => {
+    for (const spelling of API_HOST_ORG_SPELLINGS) {
+      expect(recipeRepoOf(spelling)).toBe("acme");
+    }
   });
 });
