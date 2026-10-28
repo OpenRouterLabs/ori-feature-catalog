@@ -133,6 +133,17 @@ export interface MintArgs {
    * left silently swapping the identity.
    */
   readonly unresolvableRepoValue?: string;
+  /**
+   * Parse-time usage error: a POSITIONAL token in argv (one with no `--`
+   * prefix — `mint-token.ts acme/widgets`, the natural "drop the flag"
+   * typo). Pre-fix every flag-shape guard (single-dash, equals-form,
+   * unknown flag, repeated flag, missing value, unresolvable value) left
+   * the bare token alone, so the parse silently swallowed it and minted
+   * the DEFAULT App's token — exit 0, the exact silent-identity-swap class
+   * those guards exist to close (#98/#107/#117). No documented invocation
+   * carries a positional; refuse it like the other junk shapes.
+   */
+  readonly positionalArgv?: string;
 }
 
 /** True when `flag` appears in `argv` at all — used to distinguish an
@@ -159,6 +170,23 @@ const KNOWN_FLAGS = ["--repo", "--org", "--purpose"] as const;
 const findUnknownFlag = (argv: readonly string[]): string | undefined =>
   argv.find(
     (token) => token.startsWith("--") && !KNOWN_FLAGS.includes(token as never)
+  );
+
+/** A POSITIONAL token in argv: one with no `--` prefix that does NOT
+ *  immediately follow a known flag (the token after a flag occurrence is
+ *  that flag's value slot — usable, flag-shaped, padded, or blank — and the
+ *  existing guards are the ones that judge it). None of this CLI's
+ *  documented invocations carries a positional, and pre-fix every parse
+ *  silently swallowed one and minted the DEFAULT App's token — exit 0, the
+ *  #98/#107/#117 silent-identity-swap class reopened through the dropped
+ *  flag. This runs AFTER those guards, so the shapes they own (a flag-shaped
+ *  slot, a blank slot, a repeat, an unresolvable value) keep their existing
+ *  diagnostics; only an orphaned token remains. */
+const findPositionalArgv = (argv: readonly string[]): string | undefined =>
+  argv.find(
+    (token, i) =>
+      !(i > 0 && KNOWN_FLAGS.includes(argv[i - 1] as never)) &&
+      !token.startsWith("--")
   );
 
 /**
@@ -276,6 +304,15 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
       unresolvableRepoValue: targetRepo,
     };
   }
+  // A POSITIONAL token — one that is a usable value for NO flag — is the
+  // last silent-swallow shape left. The guards above (junk, unknown,
+  // repeated, missing-value, unresolvable-value) have claimed every token
+  // that belongs to a flag, so anything still bare here was silently
+  // dropped pre-fix while the parse minted the DEFAULT App's token.
+  const positional = findPositionalArgv(argv);
+  if (positional !== undefined) {
+    return { positionalArgv: positional };
+  }
   return {
     ...(targetRepo === undefined ? {} : { targetRepo }),
     ...(purpose === undefined ? {} : { purpose }),
@@ -302,7 +339,8 @@ export const resolveMintDeps = (
     args.missingRepoValue === true ||
     args.missingPurposeValue === true ||
     args.repeatedFlag !== undefined ||
-    args.unresolvableRepoValue !== undefined
+    args.unresolvableRepoValue !== undefined ||
+    args.positionalArgv !== undefined
   ) {
     return null;
   }
@@ -342,6 +380,12 @@ export const resolveMintDeps = (
 // Only run the CLI when invoked directly (not when imported by a test).
 if (import.meta.main) {
   const args = parseMintArgs(process.argv.slice(2));
+  if (args.positionalArgv !== undefined) {
+    process.stderr.write(
+      `mint-token: unrecognized argument "${args.positionalArgv}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
+    );
+    process.exit(1);
+  }
   if (args.junkArgv !== undefined) {
     process.stderr.write(
       `mint-token: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
