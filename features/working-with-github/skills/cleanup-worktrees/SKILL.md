@@ -19,7 +19,7 @@ Every other case (open PR, no PR found, dirty tree) is reported with a reason an
 
 ## Run it
 
-Run from your repo checkout, same expectation as the worktree-creation flow — `git worktree list`/`prune`/`remove` need a real git working directory, not just the worktrees-root container:
+`git worktree list`/`prune`/`remove` need a real git working directory, not just the worktrees-root container. The default is the current working directory, or `ORI_INTERN_WORKSPACE_ROOT` when that env var names the workspace checkout (the daemon-invocation shape, where the process starts one level above the git checkout — the same default the daily `worktree-cleanup` schedule resolves):
 
 ```bash
 bun "$WWG"/scripts/cleanup-worktrees.ts
@@ -35,7 +35,7 @@ Prints one line per worktree it looked at, e.g.:
 
 - `--dry-run` — show every decision without removing anything. Use this first if you're unsure what a sweep would do.
 - `--repo owner/repo` — sweep a different repo's slug directory. Defaults to `$GITHUB_REPO`, so only your own repo's worktrees are swept by default; cleaning up worktrees left behind while fixing a **composed/upstream** feature (see the feature prompt's upstream-fix guidance) needs this flag pointed at `$UPSTREAM` explicitly. **Pair it with `--repo-dir`**: `git worktree list` runs from the checkout you're standing in, and it only knows that repo's worktrees. Sweeping `$UPSTREAM`'s slug from your own repo's checkout reports every upstream worktree as a false `stray` ("unknown to `git worktree list`") and removes nothing — the dir is healthy, just tracked by a different checkout, so the report's own `git worktree prune` advice is a no-op there too.
-- `--repo-dir /path/to/checkout` — override the repo checkout the git commands run from. Defaults to the current working directory. Pass a checkout **of the repo named by `--repo`** whenever `--repo` names a repo other than the one you're standing in — the sweep needs it to see the worktrees at all (see the `--repo` note above).
+- `--repo-dir /path/to/checkout` — override the repo checkout the git commands run from. Defaults to `ORI_INTERN_WORKSPACE_ROOT` when that env var names the workspace checkout (the daemon-invocation shape, where the process starts one level above the git checkout — the same default the daily `worktree-cleanup` schedule resolves), else the current working directory. Pass a checkout **of the repo named by `--repo`** whenever `--repo` names a repo other than the one resolved by default — the sweep needs it to see the worktrees at all (see the `--repo` note above).
 
 In App mode (`GH_APP_ID` set) it mints its own token internally (same as `commit-via-api.ts`) — you don't pass it one. In ambient mode (`GH_APP_ID` unset) there is no App to mint from: the sweep runs with no token and the PR lookup goes bare through the host's proxy-attached credential, the same ambient REST path the feature prompt teaches.
 

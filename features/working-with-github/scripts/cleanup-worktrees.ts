@@ -36,12 +36,16 @@
  * so an upstream-repo sweep from your own repo's checkout reports every
  * upstream worktree as a false stray and removes nothing (the dirs are
  * healthy, just tracked by a different checkout).
- * `--repo-dir` defaults to the current working directory — run this from your
- * repo checkout (same expectation as the worktree-creation flow in the feature
- * prompt), since `git worktree list`/`prune`/`remove` need a real git working
- * directory, not just the worktrees-root container. `--worktrees-root`
- * overrides the default `/tmp/worktrees` (mainly for tests). `--dry-run`
- * prints every decision without removing anything.
+ * `--repo-dir` defaults to `ORI_INTERN_WORKSPACE_ROOT` when that env var
+ * names a directory (the daemon-invocation shape: the process starts in
+ * `/workspace`, one level ABOVE the actual git checkout, and git fails there
+ * with "not a git repository" — the #75 class, fixed for the schedule's own
+ * resolver and now the CLI's too), else the current working directory — run
+ * this from your repo checkout (same expectation as the worktree-creation
+ * flow in the feature prompt), since `git worktree list`/`prune`/`remove`
+ * need a real git working directory, not just the worktrees-root container.
+ * `--worktrees-root` overrides the default `/tmp/worktrees` (mainly for
+ * tests). `--dry-run` prints every decision without removing anything.
  *
  * On success it prints a one-line summary per worktree to stdout and exits 0;
  * a per-worktree failure (e.g. `git worktree remove` itself failing) is
@@ -140,6 +144,14 @@ export const parseCleanupArgs = (
   env: Readonly<Record<string, string | undefined>> = process.env,
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
+  // The CLI's --repo-dir default honors ORI_INTERN_WORKSPACE_ROOT exactly
+  // like the schedule's `repo-dir.ts` resolver: a daemon-context invocation
+  // (cwd `/workspace`, not a git repo) otherwise fails the whole sweep on
+  // "not a git repository" even though the env var names the healthy
+  // checkout — the #75 class, closed for the schedule but left open here.
+  // A blank value is unset, and the resolved path is trimmed so a padded one
+  // does not point git at a nonexistent directory.
+  const envRepoDir = (env.ORI_INTERN_WORKSPACE_ROOT ?? "").trim();
   const junkArgv = findJunkArgv(argv);
   // A POSITIONAL token — no `--` prefix, so findJunkArgv/findUnknownFlag
   // both miss it — must fail the parse, never silently retarget a
@@ -225,7 +237,7 @@ export const parseCleanupArgs = (
     ...(repeatedFlag === undefined ? {} : { repeatedFlag }),
     ...(repoFlagValue === undefined ? {} : { repoFlagValue }),
     repo,
-    repoDir: readFlag("--repo-dir") ?? cwd,
+    repoDir: readFlag("--repo-dir") ?? (envRepoDir !== "" ? envRepoDir : cwd),
     worktreesRoot: readFlag("--worktrees-root") ?? DEFAULT_WORKTREES_ROOT,
   };
 };
