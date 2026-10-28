@@ -92,6 +92,17 @@ const KNOWN_FLAGS = [
   "--private-key-key",
 ] as const;
 
+/** The `list` path takes NO value-taking flag: every register-only flag
+ *  (`--org acme`, `--purpose reviewer`, the credential-key flags) parsed
+ *  clean there — the guards below judged the argv against KNOWN_FLAGS, the
+ *  register path's set — so the flag AND its value token silently vanished
+ *  and the listing ran as if the caller had passed `list` clean (exit 0).
+ *  A listing filtered by nothing the operator can see, and a caller who
+ *  believed a filter ran. The same silent-swap class the register path's
+ *  own guards close for the mirror image (a `list`-only flag there); one
+ *  contract, both paths. */
+const LIST_KNOWN_FLAGS: readonly string[] = [];
+
 /**
  * A POSITIONAL token in argv: one with no `--` prefix that does NOT
  * immediately follow a known value-taking flag (the token after a flag
@@ -107,11 +118,12 @@ const KNOWN_FLAGS = [
  * orphaned token remains.
  */
 const findPositionalArgv = (
-  argv: readonly string[]
+  argv: readonly string[],
+  knownFlags: readonly string[]
 ): string | undefined =>
   argv.find(
     (token, i) =>
-      !(i > 0 && KNOWN_FLAGS.includes(argv[i - 1] as never)) &&
+      !(i > 0 && knownFlags.includes(argv[i - 1] as never)) &&
       !token.startsWith("--")
   );
 
@@ -148,7 +160,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
   // `register --org acme --app-id-key K --private-key-key P stray`
   // persisted the row and confirmed with exit 0 while silently dropping
   // the caller's stray token.
-  const positionalArgv = findPositionalArgv(argv);
+  const positionalArgv = findPositionalArgv(argv, KNOWN_FLAGS);
   if (positionalArgv !== undefined) {
     writers.err(
       `register-gh-app: unrecognized argument "${positionalArgv}" — this CLI takes a subcommand plus flags, e.g. "--org acme", never a bare positional\n`
@@ -319,20 +331,20 @@ const runList = (
   // here: pre-fix it was silently ignored and the listing ran as if the
   // caller had passed it clean. The subcommand (`register`/`list`) sits at
   // position 0 — never a flag — so it is not part of the known set.
-  const unknownFlag = findUnknownFlag(argv.slice(1), KNOWN_FLAGS);
+  const unknownFlag = findUnknownFlag(argv.slice(1), LIST_KNOWN_FLAGS);
   if (unknownFlag !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${unknownFlag}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
+      `register-gh-app: unrecognized argument "${unknownFlag}" — list takes no flags\n`
     );
     return 1;
   }
   // A POSITIONAL token on the list path is the same usage error (#273's
   // class): pre-fix `register-gh-app list stray` listed happily and the
   // caller's stray token vanished with no diagnostic.
-  const positionalArgv = findPositionalArgv(argv.slice(1));
+  const positionalArgv = findPositionalArgv(argv.slice(1), LIST_KNOWN_FLAGS);
   if (positionalArgv !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${positionalArgv}" — this CLI takes a subcommand plus flags, never a bare positional\n`
+      `register-gh-app: unrecognized argument "${positionalArgv}" — list takes no arguments\n`
     );
     return 1;
   }
