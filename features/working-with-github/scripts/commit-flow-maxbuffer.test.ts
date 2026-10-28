@@ -66,25 +66,41 @@ const buildBigRepo = async (
 };
 
 describe("commit-via-api — git output larger than spawnSync's 1MB default", () => {
-  test("defaultRunGit reads a >1MB status without truncating or losing records", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "wwg-maxbuffer-"));
-    try {
-      // 52 dirs × 100 files × ~203-byte records ≈ 1.06MB of porcelain-z.
-      const result = await buildBigRepo(dir, 52, 100);
-      expect(result.porcelainBytes).toBeGreaterThan(1024 * 1024);
-      // Pre-fix: ok=false (ENOBUFS), truncated stdout, empty stderr.
-      const status = defaultRunGit(
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        dir
-      );
-      expect(status.ok).toBeTrue();
-      expect(status.stderr.trim()).toBe("");
-      const { changed } = parseStatusZ(status.stdout);
-      expect(changed.length).toBe(result.fileCount);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
+  test(
+    "defaultRunGit reads a >1MB status without truncating or losing records",
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), "wwg-maxbuffer-"));
+      try {
+        // 52 dirs × 100 files × ~203-byte records ≈ 1.06MB of porcelain-z.
+        const result = await buildBigRepo(dir, 52, 100);
+        expect(result.porcelainBytes).toBeGreaterThan(1024 * 1024);
+        // Pre-fix: ok=false (ENOBUFS), truncated stdout, empty stderr.
+        const status = defaultRunGit(
+          ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+          dir
+        );
+        expect(status.ok).toBeTrue();
+        expect(status.stderr.trim()).toBe("");
+        const { changed } = parseStatusZ(status.stdout);
+        expect(changed.length).toBe(result.fileCount);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+    // The test writes 5200 files and then runs THREE sequential `execFileSync`
+    // git invocations through `buildBigRepo` + two `defaultRunGit` calls —
+    // subprocess-bound (each `git status` spawn parses a 1MB tree), not
+    // CPU-bound. Standalone it settles in ~4.7s; under a full-suite
+    // `bun test features/working-with-github` (104 files sharing the runner
+    // alongside the real-clock 15s-deadline suites) the wall time crossed
+    // bun's DEFAULT 5000ms per-test timeout and the test "failed" with
+    // `this test timed out after 5000ms` (observed live at 5014ms) — a false
+    // regression on an unrelated fix's merge read. The repo's own convention
+    // for the subprocess-bound class is an explicit per-test timeout arg
+    // (`25_000` in network-timeout.test.ts, `25_000` in
+    // ambient-timeout.test.ts); carry it here with room for the 1MB parses.
+    30_000
+  );
 
   test("a git failure surfaces the spawn error, so `git status failed:` is never blank", async () => {
     const dir = await mkdtemp(join(tmpdir(), "wwg-maxbuffer-err-"));
