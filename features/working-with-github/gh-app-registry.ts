@@ -144,6 +144,21 @@ export const orgOf = (repo: string): string => {
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "")
+    // Drop separator-adjacent whitespace BEFORE the case-lower below —
+    // never only inside `cleaned`, which runs after it: the case-lower's
+    // lookahead must see a separator RIGHT after the host word, and a space
+    // before that separator (`https://GitHub.com /acme/widgets`,
+    // `GitHub.com :acme` — the #249/#257 separator-adjacent paste riding
+    // past a case-variant host) made the lookahead fail, so the host kept
+    // its case, fell every anchored `github.com` branch below, and the
+    // raw junk string flowed on whole as the "org" — a registry key no
+    // mint can ever derive — while `resolveAllowedOrgs` and
+    // `resolveConfigDirName` (they strip the whitespace first) and the
+    // prompt's REPO= recipe answered the healthy owner (the one-spelling
+    // contract, reopened through the case+whitespace combination). The
+    // strips are idempotent; `cleaned` re-runs them harmlessly.
+    .replace(/(?<=[\/:])\s+/gu, "")
+    .replace(/\s+(?=[\/:])/gu, "")
     .replace(
       /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
