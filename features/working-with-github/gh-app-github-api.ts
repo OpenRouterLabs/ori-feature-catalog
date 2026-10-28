@@ -146,8 +146,27 @@ export const resolveAllowedOrgs = (
   // and the allowlist keyed itself on a raw URL — a login no installation
   // can ever own — so every mint failed closed with no hint the spelling was
   // the cause (#159/#82's class, reopened through the host's capitalization).
+  // The rider/suffix strips in the chain below run BEFORE the case-lower
+  // keys on the host word — the same order `orgOf`,
+  // `resolveConfigDirName` and `resolveRepoFromEnv` now apply: a rider or
+  // `.git` suffix PAST a case-variant bare host (`GitHub.com#frag`,
+  // `https://GitHub.com.git` — the same address-bar paste class through the
+  // host's capitalization) defeated the case-lower's `$`-anchored lookahead,
+  // so the host kept its case, fell every anchored branch below, and the
+  // raw string flowed on whole as the allowlist entry — a login no
+  // installation owner can ever carry, so EVERY mint failed closed with no
+  // hint the env var's spelling was the cause — while the sibling resolvers
+  // answered the honest "" for the same spelling. The strips are idempotent
+  // where the chain below re-runs them.
   const rawRepo = (env?.GITHUB_REPO ?? "")
     .trim()
+    // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
+    // it may ride past — hoisted above the case-lower below.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "")
     // Strip a QUERY or FRAGMENT suffix — `o/r?tab=readme`, `o/r#anchor`
     // (a browser address-bar copy-paste) — before the anchored branches
     // below, exactly like `orgOf` and `resolveRepoFromEnv`: the suffix is

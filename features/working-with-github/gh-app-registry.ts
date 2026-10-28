@@ -110,8 +110,42 @@ export const orgOf = (repo: string): string => {
   // "org" — a login no installation owner can ever carry, and a config dir
   // (`github.com`) no sibling resolver's key ever names. One spelling
   // contract, four resolvers: trim first, exactly like the siblings.
-  const hostLowered = repo.trim().replace(
-    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+  // The rider/suffix strips inside `cleaned` below run BEFORE this
+  // case-lower, never after: the case-lower keys on a `github.com`-anchored
+  // lookahead, and a rider or `.git` suffix PAST the host word
+  // (`GitHub.com#frag`, `https://GitHub.com.git` — a tab/anchor or clone
+  // suffix riding past a case-variant bare host) made the lookahead fail, so
+  // the host kept its case, fell every anchored branch below, and the raw
+  // string flowed on whole as the "org" — a login no installation owner can
+  // ever carry, so a registry row keyed on it was dead on arrival while
+  // `resolveRepoFromEnv` and the REPO= recipe answered "" for the same
+  // spelling, and the config dir keyed on the sanitized host. One spelling
+  // contract, five answers; the strips live in `cleaned`, before the tail
+  // trims re-run so a rider past an interior space (`o/r ?tab=readme`, the
+  // #249 separator-adjacent-whitespace paste) exposes a tail the strips see.
+  // The strips themselves run HERE, before the case-lower keys on the host
+  // word — never only inside `cleaned`, which the case-lower feeds: a rider
+  // past a case-variant bare host (`GitHub.com#frag`) or a `.git` suffix on
+  // it (`GitHub.com.git`, `https://GitHub.com.git` — the same paste class
+  // through the address bar's capitalization) defeated the case-lower's
+  // `$`-anchored lookahead, so the host kept its case, every anchored
+  // `github.com` branch below fell, and the raw string flowed on whole as
+  // the "org" — a dead registry key — while `resolveRepoFromEnv` and the
+  // prompt's REPO= recipe answered "" for the same spelling (the
+  // #159/#169 class, reopened through the rider/suffix position). The
+  // strips are idempotent; `cleaned` re-runs them harmlessly.
+  const hostLowered = repo
+    .trim()
+    // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
+    // it may ride past — the same strips `cleaned` applies, hoisted above
+    // the case-lower.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(
+      /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
       // Lower-case the SCHEME word too, never just the host (RFC 3986 §3.1,
       // §3.2.2): an upper-case scheme (`HTTPS://github.com`) kept its case,
@@ -470,8 +504,30 @@ export const resolveConfigDirName = (
   // and the fallback sanitized the raw URL into the dir name
   // (`github.com`, `https-github.com`) — a directory no sibling resolver's
   // key ever derives, the same silent DB migration.
-  const hostLoweredRepo = (env.GITHUB_REPO ?? "").trim().replace(
-    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+  // The rider/suffix strips inside `repoRaw` below run BEFORE this
+  // case-lower, never after — the same order `orgOf` now applies: the
+  // case-lower keys on a `github.com`-anchored lookahead, and a rider or
+  // `.git` suffix PAST the host word (`GitHub.com#frag`,
+  // `https://GitHub.com.git` — a case-variant bare host with a tab/anchor
+  // or clone suffix riding past it) made the lookahead fail, so the host
+  // kept its case, fell every anchored strip below, and the fallback
+  // sanitized the raw URL into the dir name (`https-github.com`) — a
+  // directory no sibling resolver's key ever derives, silently migrating
+  // the registry/cache DB the moment the env var's spelling carried its
+  // rider past a mixed-case host. The strips are idempotent; `repoRaw`
+  // re-runs them harmlessly.
+  const hostLoweredRepo = (env.GITHUB_REPO ?? "")
+    .trim()
+    // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
+    // it may ride past — the same strips `repoRaw` applies, hoisted above
+    // the case-lower.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(
+      /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, user: string, host: string) =>
     // Lower-case the SCHEME word too, never just the host — the same
     // RFC 3986 §3.1 rule the three sibling host-lower sites apply (see
