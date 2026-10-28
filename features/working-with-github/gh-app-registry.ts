@@ -264,7 +264,18 @@ export const orgOf = (repo: string): string => {
   // it up front lets every branch below see the same string the ported repo
   // spellings already resolve through.
   const portStripped = leadingSlashStripped.replace(
-    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    // The host word is CASE-TOLERANT, exactly like every other github.com
+    // strip in this feature: a case-variant api host carrying a port
+    // (`https://API.GitHub.com:443/repos/…` — the address bar's
+    // capitalization riding on the REST host) is the same URL, and the
+    // case-SENSITIVE literal left it unstripped, so the port digits stayed
+    // glued to the host and every downstream anchored branch keyed on
+    // them — the api-host strip below then missed (its anchor requires
+    // the path right after the host), and all four resolvers answered a
+    // different dead value while the lowercase and unported forms were
+    // healthy (the one-spelling contract, reopened through the
+    // case+port combination on the api host).
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -606,7 +617,18 @@ export const resolveConfigDirName = (
   // `:<digits>` right after the `github.com` host first lets every branch
   // below see the same string `orgOf` resolves through.
   const portStripped = repoRaw.replace(
-    /((?:git@)?github\.com):\d+(?=[\/:]|$)/u,
+    // The host word is CASE-TOLERANT, exactly like every other github.com
+    // strip in this feature: a case-variant api host carrying a port
+    // (`https://API.GitHub.com:443/repos/…` — the address bar's
+    // capitalization riding on the REST host) is the same URL, and the
+    // case-SENSITIVE literal left it unstripped, so the port digits stayed
+    // glued to the host and every downstream anchored branch keyed on
+    // them — the api-host strip below then missed (its anchor requires
+    // the path right after the host), and all four resolvers answered a
+    // different dead value while the lowercase and unported forms were
+    // healthy (the one-spelling contract, reopened through the
+    // case+port combination on the api host).
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
