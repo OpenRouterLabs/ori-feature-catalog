@@ -63,12 +63,23 @@ import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
 import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
 import {
+  findUnknownFlag,
   findJunkArgv,
   isRepoUnset,
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 
 const DEFAULT_WORKTREES_ROOT = "/tmp/worktrees";
+
+/** Every flag the cleanup CLI accepts — anything else `--`-prefixed is a
+ *  usage error (see {@link findUnknownFlag}), never a silently-dropped
+ *  token that eats its value. */
+const KNOWN_FLAGS = [
+  "--repo",
+  "--repo-dir",
+  "--worktrees-root",
+  "--dry-run",
+] as const;
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface CleanupWriters {
@@ -122,6 +133,14 @@ export const parseCleanupArgs = (
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
   const junkArgv = findJunkArgv(argv);
+  // An unknown well-formed flag (`--dryrun`, `--repro o/r`) is the same
+  // usage error as the single-dash/equals shapes: pre-fix `--dryrun`
+  // parsed clean as a REAL sweep (`dryRun: false`) — the caller believed
+  // they had a dry run — and a typo'd `--repro o/r` silently swept the
+  // DEFAULT repo's slug directory, the same wrong-target destructive
+  // class the repeated-flag guard refuses for a repeated `--repo`.
+  const unknownFlag =
+    junkArgv === undefined ? findUnknownFlag(argv, KNOWN_FLAGS) : undefined;
   // A value-taking flag repeated in argv is a usage error, never a silent
   // first-wins: `readFlag` below reads `argv.indexOf(flag)`, so a repeated
   // flag silently dropped every occurrence after the first.
@@ -174,7 +193,9 @@ export const parseCleanupArgs = (
   const repoFlagValue = readFlag("--repo");
   return {
     dryRun: argv.includes("--dry-run"),
-    ...(junkArgv === undefined ? {} : { junkArgv }),
+    ...((junkArgv ?? unknownFlag) === undefined
+      ? {}
+      : { junkArgv: junkArgv ?? unknownFlag }),
     ...(missingFlagValue === undefined ? {} : { missingFlagValue }),
     ...(repeatedFlag === undefined ? {} : { repeatedFlag }),
     ...(repoFlagValue === undefined ? {} : { repoFlagValue }),

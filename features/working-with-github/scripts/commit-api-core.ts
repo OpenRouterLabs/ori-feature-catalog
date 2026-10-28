@@ -222,6 +222,29 @@ export const findSingleDashArgv = (
   argv.find((token) => token.startsWith("-") && !token.startsWith("--"));
 
 /**
+ * An unknown WELL-FORMED `--`-flag in argv: a token that starts `--` and is
+ * none of `knownFlags`. Each CLI passes its own flag set, and the token it
+ * returns is a usage error carrying the same diagnostic shape as
+ * {@link findJunkArgv} — refused with the token named, never a silently
+ * dropped flag that eats its value token. `mint-token.ts`'s private
+ * `findUnknownFlag` closed this shape for that CLI alone (`--porpose
+ * reviewer` failed loudly instead of minting the org-level CATCH-ALL App);
+ * the other three CLIs parsed it clean, and the value token vanished with
+ * the flag — register-gh-app landed `(acme, default)` where the caller asked
+ * for a reviewer row (re-routing every future mint without --purpose),
+ * cleanup-worktrees' `--dryrun` silently parsed as a REAL sweep, and
+ * commit-via-api's `--mesage-file /x` never reached the flow at all.
+ */
+export const findUnknownFlag = (
+  argv: readonly string[],
+  knownFlags: readonly string[]
+): string | undefined =>
+  argv.find(
+    (token) =>
+      token.startsWith("--") && !knownFlags.includes(token as never)
+  );
+
+/**
  * Resolve `owner/repo` from `GITHUB_REPO`, tolerating a full https URL or a
  * trailing `.git`. Returns `""` when unset so the CLI can fail with a clear
  * message rather than committing to the wrong repo.

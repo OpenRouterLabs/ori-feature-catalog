@@ -53,6 +53,7 @@ import { Effect } from "effect";
 
 import {
   CommitApiError,
+  findUnknownFlag,
   findJunkArgv,
   isRepoUnset,
   resolveRepoFromEnv,
@@ -138,6 +139,11 @@ const parseFlagPair = (
 
 const FLAG_STRIDE = 2;
 
+/** Every flag the CLI accepts — anything else `--`-prefixed is a usage error
+ *  (see {@link findUnknownFlag}), never a silently-dropped token that eats
+ *  its value. */
+const KNOWN_FLAGS = ["--worktree", "--branch", "--message-file", "--repo"] as const;
+
 /** Parse `--flag value` argv into the CLI shape, or fail with an `args` error. */
 export const parseCliArgs = (
   argv: readonly string[],
@@ -169,6 +175,21 @@ export const parseCliArgs = (
     // block could mint a token for the first `--repo` and land the Verified
     // commit on the second. All four CLIs refuse the repeat, naming the flag.
     const seen = new Set<string>();
+    // An unknown well-formed flag (`--mesage-file /x` — the typo for
+    // `--message-file`) is a usage error here too: the pair loop below only
+    // rejects the KEY position's shape, so pre-fix the unknown flag parsed
+    // clean, its value token vanished with it, and the flow committed with
+    // the message of the `--message-file` the argv ALSO carried (or failed
+    // late on a missing one) — the flag the caller actually typed never
+    // reached the flow at all. mint-token.ts refuses the same shape via its
+    // own guard; one contract, four CLIs.
+    const unknownFlag = findUnknownFlag(argv, KNOWN_FLAGS);
+    if (unknownFlag !== undefined) {
+      return yield* new CommitApiError({
+        stage: "args",
+        message: `unrecognized argument "${unknownFlag}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo", single-dash, or an unknown flag`,
+      });
+    }
     for (let i = 0; i < argv.length; i += FLAG_STRIDE) {
       const key = argv[i];
       if (key === undefined) {
