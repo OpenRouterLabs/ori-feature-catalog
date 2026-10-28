@@ -224,6 +224,15 @@ export const resolveAllowedOrgs = (
     // recipe answered the healthy owner — the one-spelling contract broken
     // (the #159/#82 class, reopened through the segment form).
     .replace(/(?<=[\/:])\s+/gu, "")
+    // Whitespace BEFORE a path separator — `acme /widgets` — belongs to no
+    // login either (the same separator-adjacent paste the lookbehind strip
+    // above drops AFTER the separator). This resolver reaches `orgOf` for
+    // slash-bearing spellings, so its fix carries most of the class; the
+    // twin strip here keeps the chain itself on the one-spelling contract
+    // (a colon-bearing, slashless spelling never routes through `orgOf`)
+    // — the #249/#257 class, reopened through the space-before-separator
+    // form.
+    .replace(/\s+(?=[\/:])/gu, "")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization

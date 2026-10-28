@@ -106,6 +106,31 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
     { normalized: "acme/widgets", raw: "/\tacme/widgets" },
     { normalized: "acme/widgets", raw: "// acme/widgets" },
     { normalized: "acme", raw: "/ acme" },
+    // Whitespace adjacent to the owner/repo separator on EITHER side —
+    // `acme /widgets` (space BEFORE it), `acme/ widgets` (space AFTER it),
+    // `acme / widgets` (both) — is the same #249/#257 paste class: a GitHub
+    // login or repo name never carries a space, and the code resolvers
+    // drop it from both sides of the separator. Pre-fix the recipe's rules
+    // only stripped the string's outer padding, so the interior space
+    // survived into `$REPO` (`gh --repo` rejects it, every `repos/…` route
+    // 404s) while `orgOf`/`resolveRepoFromEnv`/`resolveAllowedOrgs`/
+    // `resolveConfigDirName` answered the healthy pair — the recipe
+    // disagreeing with all four resolvers on one spelling. The same class
+    // through the scheme separator — `https:// github.com/…` — reached the
+    // code resolvers healthy (their after-separator strip sees the `//`)
+    // while the recipe welded `https:// ` onto the owner.
+    { normalized: "acme/widgets", raw: "acme /widgets" },
+    { normalized: "acme/widgets", raw: "acme\t/widgets" },
+    { normalized: "acme/widgets", raw: "acme/ widgets" },
+    { normalized: "acme/widgets", raw: "acme / widgets" },
+    {
+      normalized: "acme/widgets",
+      raw: "https://github.com/acme /widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "https:// github.com/acme/widgets",
+    },
     // The ORGANIZATIONS-page spellings — `github.com/orgs/<org>` (the "Your
     // organizations" page) and `/organizations/<org>` — are a spelling every
     // sibling resolver tolerates (#169/#175/#177 fixed them in `orgOf`,

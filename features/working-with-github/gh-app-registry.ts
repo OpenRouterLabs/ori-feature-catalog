@@ -222,6 +222,20 @@ export const orgOf = (repo: string): string => {
     // values for one spelling, the one-spelling contract broken (the
     // #113/#159 class, reopened through the segment form).
     .replace(/(?<=[\/:])\s+/gu, "")
+    // Whitespace BEFORE a path separator — `acme /widgets`, `acme\t/o/r`
+    // (the same separator-adjacent paste the lookbehind strip above drops
+    // AFTER the separator) — belongs to no login or repo name either, but
+    // only the tail-facing strip ran: pre-fix the two-segment branch below
+    // captured `acme ` (space and all) as the owner, so a `--org` paste
+    // that kept its padding persisted a registry row keyed `"acme "` —
+    // COLLATE NOCASE matches no mint's `orgOf` answer, so every mint
+    // silently fell back to the default App — while `resolveAllowedOrgs`
+    // (its per-entry trim) and `resolveConfigDirName` answered the healthy
+    // `acme`, and the REPO= recipe's own strips agreed with them. One
+    // spelling, resolvers disagreeing: drop the separator-adjacent
+    // whitespace on BOTH sides of the separator (the #249/#257 class,
+    // reopened through the space-before-separator form).
+    .replace(/\s+(?=[\/:])/gu, "")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip leading slashes AND any whitespace they expose, in ONE step
