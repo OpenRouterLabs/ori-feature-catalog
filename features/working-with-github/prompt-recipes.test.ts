@@ -431,27 +431,45 @@ describe("prompt.md recipes interpolate the normalized $REPO, never the raw $GIT
     expect(prompt).not.toContain("github.com/${GITHUB_REPO}");
   });
 
-  test("the normalization recipe itself normalizes every tolerated spelling", () => {
-    const line = fences
-      .flatMap((fence) => fence.split("\n"))
-      .find((candidate) => isNormalizerLine(candidate))
-      ?.trim();
-    expect(line).toBeDefined();
-    if (line === undefined) {
-      return;
-    }
-    for (const spelling of SPELLINGS) {
-      const output = execFileSync(
-        "bash",
-        ["-c", `${line}\nprintf '%s' "$REPO"`],
-        {
-          encoding: "utf-8",
-          env: { ...process.env, GITHUB_REPO: spelling.raw },
-        }
-      );
-      expect(output).toBe(spelling.normalized);
-    }
-  });
+  test(
+    "the normalization recipe itself normalizes every tolerated spelling",
+    () => {
+      const line = fences
+        .flatMap((fence) => fence.split("\n"))
+        .find((candidate) => isNormalizerLine(candidate))
+        ?.trim();
+      expect(line).toBeDefined();
+      if (line === undefined) {
+        return;
+      }
+      for (const spelling of SPELLINGS) {
+        const output = execFileSync(
+          "bash",
+          ["-c", `${line}\nprintf '%s' "$REPO"`],
+          {
+            encoding: "utf-8",
+            env: { ...process.env, GITHUB_REPO: spelling.raw },
+          }
+        );
+        expect(output).toBe(spelling.normalized);
+      }
+    },
+    // The corpus is ~90 spellings, each one a sequential `execFileSync("bash")`
+    // process spawn (~25–40ms each, ~5s+ total) — subprocess-bound, not
+    // CPU-bound. Under a full-suite `bun test features/working-with-github`
+    // run the 104 files share the runner (and this suite runs alongside the
+    // 15s-deadline suites that sleep on real clocks), so the wall time of the
+    // spawn ladder inflates past bun's DEFAULT 5000ms per-test timeout and the
+    // test "fails" with `this test timed out after 5000ms` — a false regression
+    // (observed live at 5251ms while green standalone at ~2s) that blocks a
+    // merge read on a real fix. The repo's own convention for the
+    // subprocess-bound class is an explicit per-test timeout: `test(name, fn,
+    // ms)` — 25_000 on the sweep's PR-lookup walk (network-timeout.test.ts),
+    // 25_000 on the ambient probe (ambient-timeout.test.ts), 25_000 on both
+    // App-mode round-trip deadlines (app-roundtrip*.test.ts). Carry it here:
+    // 30s covers a 6× slower spawn ladder with room.
+    30_000
+  );
 });
 
 describe("prompt.md's WWG resolution recipe prefers the workspace's real source over the .bun store copy", () => {
