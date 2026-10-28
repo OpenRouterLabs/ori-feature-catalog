@@ -631,20 +631,30 @@ export const resolveConfigDirName = (
     ? apiStripped.replace(/^repos\//u, "")
     : apiStripped;
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs` (also
-  // `/organizations`, the scp/ssh host-word form, the ported spellings) —
-  // ends AT the reserved host-path word with no org segment after it, so
+  // `/organizations`, the `/users` directory index, the scp/ssh host-word
+  // form, the ported spellings) — ends AT the reserved host-path word with
+  // no org segment after it, so
   // neither an org nor a repo is derivable from it. Pre-fix the
   // host-stripped single-segment branch below captured the word itself
   // (`orgs`/`organizations`) and named the config dir after it, silently
   // migrating the registry/cache DB the moment the env var's spelling
   // changed (#113's class, reopened through the index spelling). The word
   // is never an owner login — fall to the documented no-repo fallback
-  // ("intern") instead. `orgOf` and the sibling resolvers return the same
+  // ("intern") instead. `users` is the same reserved host path (GitHub's
+  // user-directory index page) and is covered by `orgOf`'s and
+  // `resolveRepoFromEnv`'s own index guards the same as `orgs`, so this
+  // resolver must key it identically — pre-fix the `/users` spelling alone
+  // fell through to the single-segment pass-through below and named the
+  // config dir after the sanitized URL (`https-github.com-users`), silently
+  // migrating the registry/cache DB the moment the env var's spelling was
+  // the users index (#113's class, reopened through the `users` word — the
+  // exact gap the sibling resolvers' `(?:orgs|organizations|users)` guards
+  // already close). `orgOf` and the sibling resolvers return the same
   // no-owner answer for this spelling; a real org page
   // (`https://github.com/acme`) and a repo named `orgs` under a real owner
   // are untouched — they carry a segment past the host word.
   if (
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations)$/u.test(
+    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)$/u.test(
       apiRepoStripped
     )
   ) {
