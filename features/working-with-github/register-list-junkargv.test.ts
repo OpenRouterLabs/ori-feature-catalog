@@ -61,11 +61,17 @@ describe("register-gh-app list rejects junk argv like every CLI (#155/#165 class
     expect(err).toEqual([]);
   });
 
-  test("list with a tolerated unknown double-dash flag still lists", () => {
-    // Unknown `--flags` (no equals, no single dash) stay ignored by design —
-    // the bare invocation contract every CLI keeps.
+  test("list with an unknown double-dash flag is refused, matching mint-token", () => {
+    // An unknown well-formed `--flag` used to be ignored by design here,
+    // but mint-token.ts later closed the shape for itself: a typo'd flag
+    // (`--porpose reviewer`) silently swallowed its VALUE token with it,
+    // and on the register path that landed the row under the wrong purpose
+    // with exit 0. One contract, every CLI — the unknown flag is refused
+    // with the token named (see unknown-flag-guard.test.ts for the
+    // register-path reproduction).
     const { code, err } = run(["list", "--verbose"]);
-    expect(code).toBe(0);
-    expect(err).toEqual([]);
+    expect(code).toBe(1);
+    expect(err[0]).toContain("unrecognized argument");
+    expect(err[0]).toContain("--verbose");
   });
 });

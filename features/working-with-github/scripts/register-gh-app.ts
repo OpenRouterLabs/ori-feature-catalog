@@ -29,7 +29,10 @@
 
 import type { Database } from "bun:sqlite";
 
-import { findJunkArgv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
+import {
+  findJunkArgv,
+  findUnknownFlag,
+} from "@ori-monorepo/working-with-github/commit-api-core.ts";
 
 import {
   DEFAULT_PURPOSE,
@@ -79,6 +82,16 @@ const readFlag = (
   return trimmed === "" ? undefined : trimmed;
 };
 
+/** Every flag the CLI accepts (either path) — anything else `--`-prefixed
+ *  is a usage error (see {@link findUnknownFlag}), never a silently-dropped
+ *  token that eats its value. */
+const KNOWN_FLAGS = [
+  "--org",
+  "--purpose",
+  "--app-id-key",
+  "--private-key-key",
+] as const;
+
 /** Run `register` (ctx.argv excludes the subcommand). Returns the exit code; never throws. */
 const runRegister = (ctx: RegisterCliContext): number => {
   const { argv, db, env, writers } = ctx;
@@ -92,6 +105,21 @@ const runRegister = (ctx: RegisterCliContext): number => {
     );
     return 1;
   }
+    // An unknown well-formed flag (`--porpose reviewer` — the typo for
+    // `--purpose`) is the same usage-error class as the single-dash/equals
+    // shapes above: pre-fix it parsed clean, its value token vanished with
+    // it, and the row landed under the org-level CATCH-ALL ("default") —
+    // exit 0, a confirming confirmation on stdout, and every future mint
+    // without --purpose silently re-routed to the App the other flags named
+    // (#117's class, reopened through the typo'd flag). mint-token.ts refuses
+    // the same shape via its own guard; one contract, every CLI.
+    const unknownFlag = findUnknownFlag(ctx.argv, KNOWN_FLAGS);
+    if (unknownFlag !== undefined) {
+      writers.err(
+        `register-gh-app: unrecognized argument "${unknownFlag}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
+      );
+      return 1;
+    }
   // A value-taking flag repeated in argv is a usage error, never a silent
   // first-wins: `readFlag` below reads `argv.indexOf(flag)`, so pre-fix
   // `--org acme --org other` silently persisted `acme`, re-routing every
@@ -225,6 +253,17 @@ const runList = (
   if (junkArgv !== undefined) {
     writers.err(
       `register-gh-app: unrecognized argument "${junkArgv}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
+    );
+    return 1;
+  }
+  // An unknown well-formed flag (`list --verbos`) is the same usage error
+  // here: pre-fix it was silently ignored and the listing ran as if the
+  // caller had passed it clean. The subcommand (`register`/`list`) sits at
+  // position 0 — never a flag — so it is not part of the known set.
+  const unknownFlag = findUnknownFlag(argv.slice(1), KNOWN_FLAGS);
+  if (unknownFlag !== undefined) {
+    writers.err(
+      `register-gh-app: unrecognized argument "${unknownFlag}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
     );
     return 1;
   }
