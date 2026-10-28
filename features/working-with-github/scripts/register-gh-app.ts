@@ -92,6 +92,29 @@ const KNOWN_FLAGS = [
   "--private-key-key",
 ] as const;
 
+/**
+ * A POSITIONAL token in argv: one with no `--` prefix that does NOT
+ * immediately follow a known value-taking flag (the token after a flag
+ * occurrence is that flag's value slot — usable, flag-shaped, padded, or
+ * blank — and the existing guards are the ones that judge it). No documented
+ * invocation of either path carries a positional, and pre-fix every parse
+ * silently swallowed one: `register … stray` persisted the row with exit 0
+ * (the #101/#140 silent-dead-row class reopened through the dropped token)
+ * and `list stray` listed happily — the same silent-swap class #273 closed
+ * for mint-token and cleanup-worktrees. This runs AFTER the junk/unknown
+ * guards, so the shapes they own (a flag-shaped slot, a blank slot, a
+ * repeat, an unresolvable value) keep their existing diagnostics; only an
+ * orphaned token remains.
+ */
+const findPositionalArgv = (
+  argv: readonly string[]
+): string | undefined =>
+  argv.find(
+    (token, i) =>
+      !(i > 0 && KNOWN_FLAGS.includes(argv[i - 1] as never)) &&
+      !token.startsWith("--")
+  );
+
 /** Run `register` (ctx.argv excludes the subcommand). Returns the exit code; never throws. */
 const runRegister = (ctx: RegisterCliContext): number => {
   const { argv, db, env, writers } = ctx;
@@ -120,6 +143,18 @@ const runRegister = (ctx: RegisterCliContext): number => {
       );
       return 1;
     }
+  // An orphaned POSITIONAL token — no `--` prefix, not the slot after a
+  // known flag — is a usage error too (#273's class): pre-fix
+  // `register --org acme --app-id-key K --private-key-key P stray`
+  // persisted the row and confirmed with exit 0 while silently dropping
+  // the caller's stray token.
+  const positionalArgv = findPositionalArgv(argv);
+  if (positionalArgv !== undefined) {
+    writers.err(
+      `register-gh-app: unrecognized argument "${positionalArgv}" — this CLI takes a subcommand plus flags, e.g. "--org acme", never a bare positional\n`
+    );
+    return 1;
+  }
   // A value-taking flag repeated in argv is a usage error, never a silent
   // first-wins: `readFlag` below reads `argv.indexOf(flag)`, so pre-fix
   // `--org acme --org other` silently persisted `acme`, re-routing every
@@ -288,6 +323,16 @@ const runList = (
   if (unknownFlag !== undefined) {
     writers.err(
       `register-gh-app: unrecognized argument "${unknownFlag}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
+    );
+    return 1;
+  }
+  // A POSITIONAL token on the list path is the same usage error (#273's
+  // class): pre-fix `register-gh-app list stray` listed happily and the
+  // caller's stray token vanished with no diagnostic.
+  const positionalArgv = findPositionalArgv(argv.slice(1));
+  if (positionalArgv !== undefined) {
+    writers.err(
+      `register-gh-app: unrecognized argument "${positionalArgv}" — this CLI takes a subcommand plus flags, never a bare positional\n`
     );
     return 1;
   }
