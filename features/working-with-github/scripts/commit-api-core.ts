@@ -252,9 +252,45 @@ export const resolveRepoFromEnv = (
   // `resolveAllowedOrgs` see; pre-fix a mixed-case host fell every branch
   // and the raw URL was returned whole, so every `repos/{repo}` route 404'd
   // (the #159/#169 class, reopened through the host's capitalization).
+  // The rider/suffix strips BELOW run BEFORE this case-lower, never after:
+  // the case-lower keys on a `github.com`-anchored lookahead, and a rider
+  // or `.git` suffix PAST the host word (`GitHub.com#frag`,
+  // `https://GitHub.com.git` — a tab/anchor or clone suffix riding past a
+  // case-variant bare host, the same paste class the #159/#169 corpus pins
+  // through the lowercase host) made the lookahead fail, so the host kept
+  // its case, fell every anchored branch, and the raw string flowed on
+  // whole — a repo every `repos/{repo}` route 404s on — while `orgOf` and
+  // the REPO= recipe answered "" for the same spelling, and the config dir
+  // keyed on the sanitized host. One spelling contract, five answers:
+  // strip what no anchored branch depends on FIRST, then let the
+  // case-lower see the clean host word.
+  // The trailing trim ALSO runs before the rider strips, never only after:
+  // a rider past an interior space (`o/r ?tab=readme`, `o/r /` — the #249
+  // separator-adjacent-whitespace paste, with the tab the browser was on
+  // riding past it) was not the raw tail yet, so a rider strip keyed on
+  // the raw tail missed it, the exposed `"o/r "` kept its space, and a
+  // trim running only AFTER never saw it again — while the REPO= recipe
+  // (its `s#[/[:space:]]+$##` runs before its rider strips, and `[^/]*`
+  // matches the space) answered the healthy `o/r`. One order, both classes.
   const raw = (env.GITHUB_REPO ?? "")
     .trim()
+    // The strips the tail exposes — query/fragment riders, then the trailing
+    // separator/whitespace, then whatever the separator exposed — mirror the
+    // order the recipe's own rules run in, so both see the same string.
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
     .replace(/\/+$/u, "")
+    // Re-strip the separator/whitespace the `.git` strip can expose — the
+    // same re-strip `withoutSuffix` below established for the
+    // rider-before-suffix paste: `o/r /.git/` trims its trailing slash to
+    // `o/r /.git`, the suffix strip then exposes `o/r /`, and a trailing
+    // space survives into `$REPO` unless it is re-trimmed here.
+    .replace(/[\/\s]+$/gu, "")
+    // A `.git` exposed by THAT re-trim (`o/r /.git/.git`) strips too.
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "")
     .replace(
       /^((?:[a-zA-Z][a-zA-Z0-9+.-]*)?:\/\/)?((?:[^@\/\s]+@)?)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
       (_m: string, scheme: string, user: string, host: string) =>
