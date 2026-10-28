@@ -136,6 +136,30 @@ const runRegister = (ctx: RegisterCliContext): number => {
     );
     return 1;
   }
+  // A PRESENT-but-valueless value-taking flag must fail the parse naming
+  // THAT flag, never the generic "requires" line below — the same
+  // "name the actual cause" class #207/#219/#220 close in the sibling CLIs
+  // (mint-token's `missingRepoValue`, cleanup-worktrees'
+  // `missingFlagValue`). Pre-fix `--org --app-id-key X` (the --org slot
+  // eaten by the next flag) and a trailing valueless `--private-key-key`
+  // both printed "register requires --org, --app-id-key, and
+  // --private-key-key" — naming two flags the argv DID carry with values
+  // and burying the one that was omitted, a dead end that sends the
+  // operator to re-type a flag they already passed.
+  const MISSING_VALUE_EXAMPLES = {
+    "--app-id-key": "--app-id-key TEAM_GH_APP_ID",
+    "--org": "--org acme-corp",
+    "--private-key-key": "--private-key-key TEAM_GH_APP_PRIVATE_KEY",
+  } as const;
+  const missingValue = (
+    ["--org", "--app-id-key", "--private-key-key"] as const
+  ).find((flag) => argv.includes(flag) && readFlag(argv, flag) === undefined);
+  if (missingValue !== undefined) {
+    writers.err(
+      `register-gh-app: ${missingValue} needs a value (e.g. ${MISSING_VALUE_EXAMPLES[missingValue]})\n`
+    );
+    return 1;
+  }
   // An explicitly-passed `--purpose` whose value slot was eaten by the next
   // flag (`--purpose --app-id-key X`) — or is missing entirely (a trailing
   // `--purpose`) — must fail the parse, not silently persist the org-level
