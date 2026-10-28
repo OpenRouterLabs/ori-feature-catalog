@@ -123,6 +123,14 @@ export interface CleanupCliArgs {
    * "name the actual cause" class, reopened through the flag path).
    */
   readonly repoFlagValue?: string;
+  /** Parse-time usage error: a POSITIONAL token in argv (no `--` prefix —
+   *  `cleanup-worktrees.ts acme/widgets`, the natural "drop the flag" typo).
+   *  Pre-fix every flag-shape guard left it alone, so the parse silently
+   *  swallowed it and swept the DEFAULT repo's slug directory — a
+   *  wrong-target DESTRUCTIVE sweep with exit 0, the exact class the
+   *  junk/repeated/missing-value guards exist to close. No documented
+   *  invocation carries a positional. */
+  readonly positionalArgv?: string;
 }
 
 /** Parse `--repo`, `--repo-dir`, `--worktrees-root`, and `--dry-run` out of argv. */
@@ -133,6 +141,22 @@ export const parseCleanupArgs = (
   cwd: string = process.cwd()
 ): CleanupCliArgs => {
   const junkArgv = findJunkArgv(argv);
+  // A POSITIONAL token — no `--` prefix, so findJunkArgv/findUnknownFlag
+  // both miss it — must fail the parse, never silently retarget a
+  // destructive sweep at the default repo. The token after a known
+  // value-taking flag is that flag's slot (the existing guards judge it);
+  // `--dry-run` takes none.
+  const findPositionalArgv = (argv: readonly string[]): string | undefined =>
+    argv.find(
+      (token, i) =>
+        !(i > 0 &&
+          KNOWN_FLAGS.includes(argv[i - 1] as never) &&
+          argv[i - 1] !== "--dry-run") &&
+        !token.startsWith("--")
+    );
+  const positionalArgv = junkArgv === undefined
+    ? findPositionalArgv(argv)
+    : undefined;
   // An unknown well-formed flag (`--dryrun`, `--repro o/r`) is the same
   // usage error as the single-dash/equals shapes: pre-fix `--dryrun`
   // parsed clean as a REAL sweep (`dryRun: false`) — the caller believed
@@ -193,6 +217,7 @@ export const parseCleanupArgs = (
   const repoFlagValue = readFlag("--repo");
   return {
     dryRun: argv.includes("--dry-run"),
+    ...(positionalArgv === undefined ? {} : { positionalArgv }),
     ...((junkArgv ?? unknownFlag) === undefined
       ? {}
       : { junkArgv: junkArgv ?? unknownFlag }),
@@ -256,6 +281,15 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       // rather than silently sweeping the default repo's slug directory.
       writers.err(
         `cleanup-worktrees: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
+      );
+      return 1;
+    }
+    if (args.positionalArgv !== undefined) {
+      // A parse-time usage error: a bare positional token (no `--` prefix)
+      // was never part of any documented invocation, and swallowing it
+      // silently retargets a DESTRUCTIVE sweep at the default repo.
+      writers.err(
+        `cleanup-worktrees: unrecognized argument "${args.positionalArgv}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
       );
       return 1;
     }
