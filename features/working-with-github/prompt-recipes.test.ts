@@ -307,6 +307,33 @@ const SPELLINGS: readonly { readonly raw: string; readonly normalized: string }[
       normalized: "acme/widgets",
       raw: "HTTPS://GitHub.com/acme/widgets",
     },
+    // A case-variant API HOST — `https://API.GitHub.com/repos/acme/widgets`
+    // (the REST URL this feature's own prompt teaches the operator to curl,
+    // pasted back with the address bar's capitalization — `API.GitHub.com/…`,
+    // `API.github.com/users/…`) — is the same URL: hosts are case-insensitive
+    // (RFC 3986 §3.2.2) and every real git/gh/curl client accepts them, and
+    // every CODE resolver (orgOf, resolveRepoFromEnv, resolveAllowedOrgs,
+    // resolveConfigDirName) already strips the api host in any case — so the
+    // recipe must agree. Pre-fix its `api\.github\.com` rules matched
+    // lowercase only, so a mixed-case host fell every api rule and the
+    // `github.com[/:]` strip consumed `github.com/` INSIDE the api host,
+    // welding `API.` onto the path — `$REPO` carried the dead
+    // `API.repos/acme/widgets` / `API.acme` while the resolvers answered the
+    // healthy pair. The case classes mirror the `github.com` rules' own
+    // `[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]`.
+    {
+      normalized: "acme/widgets",
+      raw: "https://API.GitHub.com/repos/acme/widgets",
+    },
+    {
+      normalized: "acme/widgets",
+      raw: "API.GitHub.com/repos/acme/widgets",
+    },
+    { normalized: "acme", raw: "API.GitHub.com/users/acme" },
+    {
+      normalized: "acme/widgets",
+      raw: "https://API.github.com/repos/acme/widgets",
+    },
     // An INTERIOR doubled slash — `github.com//o/r`, `o//r`, or a doubled
     // segment separator like `https://github.com/o//r` (a copy-paste that
     // kept a doubled path slash) — is the same paste class as the trailing
