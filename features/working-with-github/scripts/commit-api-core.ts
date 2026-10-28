@@ -400,6 +400,17 @@ export const resolveRepoFromEnv = (
     // values for one spelling, the one-spelling contract broken (the
     // #113/#159 class, reopened through the segment form).
     .replace(/(?<=[\/:])\s+/gu, "")
+    // Whitespace BEFORE a path separator — `acme /widgets`, `acme\t/o/r`
+    // (the same separator-adjacent paste the lookbehind strip above drops
+    // AFTER the separator) — belongs to no login or repo name either, but
+    // only the tail-facing strip ran: pre-fix the two-segment branches below
+    // captured `"acme /widgets"` whole (interior space and all) as the repo,
+    // so every `repos/{repo}` route 404s and `gh --repo` rejects it — while
+    // `orgOf`, `resolveAllowedOrgs` and `resolveConfigDirName` answered the
+    // healthy pair. One spelling, resolvers disagreeing: drop the
+    // separator-adjacent whitespace on BOTH sides (the #249/#257 class,
+    // reopened through the space-before-separator form).
+    .replace(/\s+(?=[\/:])/gu, "")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp)):\/+/giu, ":")
     .replace(/(?<!(?:https?|ssh|git\+ssh|git|ftp):)\/\/+/giu, "/");
   // Strip an explicit PORT before any regex runs — the same normalization
