@@ -212,7 +212,10 @@ describe("register-gh-app CLI", () => {
       writers,
     });
     expect(code).toBe(1);
-    expect(err.join("")).toContain("requires");
+    // The improved diagnosis names the flag whose value was omitted, never
+    // the generic "requires" line that blames flags the argv carried with
+    // values (the #207 "name the actual cause" class).
+    expect(err.join("")).toContain("--org needs a value");
     expect(listApps(db)).toEqual([]);
   });
 
