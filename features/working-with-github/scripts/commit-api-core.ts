@@ -295,7 +295,29 @@ export const resolveRepoFromEnv = (
   // trim running only AFTER never saw it again — while the REPO= recipe
   // (its `s#[/[:space:]]+$##` runs before its rider strips, and `[^/]*`
   // matches the space) answered the healthy `o/r`. One order, both classes.
-  const raw = (env.GITHUB_REPO ?? "")
+  // A github.com SUBDOMAIN host — `www.github.com`, `gist.github.com`,
+  // `codeload.github.com` (real hosts; the www form and every gist URL
+  // redirect to github.com, and codeload serves the very tarball URL the
+  // prompt's download recipe builds) — is the same URL as `github.com`.
+  // Pre-fix the subdomain label defeated every anchored `github.com`
+  // branch below: the case-paired `[Gg]…` strips key on the host word at a
+  // `^` anchor, so `www.`/`gist.`/`codeload.` sat in front of it, fell
+  // every branch, and the raw string flowed on whole as the "repo" — every
+  // `repos/{repo}` route then 404s (`repos/https://www.github.com/acme/
+  // widgets` is not a route) and `gh --repo` rejects it — while the
+  // lowercase forms survived by accident through the unanchored tail rules,
+  // answering a different value than the case-variant spelling of the same
+  // URL. Strip the label (case-tolerant) BEFORE the case-lower below,
+  // exactly like `orgOf`, `resolveAllowedOrgs` and `resolveConfigDirName`
+  // (#285's class, the one-spelling contract). The api. label keeps its own
+  // dedicated strip below, which also drops the host and the `repos` path
+  // word.
+  const subdomainStripped = (env.GITHUB_REPO ?? "").replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, _sub: string, host: string) =>
+      `${scheme}${host.toLowerCase()}`
+  );
+  const raw = subdomainStripped
     .trim()
     // The strips the tail exposes — query/fragment riders, then the trailing
     // separator/whitespace, then whatever the separator exposed — mirror the

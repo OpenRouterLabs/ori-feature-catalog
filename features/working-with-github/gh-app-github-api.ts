@@ -158,7 +158,24 @@ export const resolveAllowedOrgs = (
   // hint the env var's spelling was the cause — while the sibling resolvers
   // answered the honest "" for the same spelling. The strips are idempotent
   // where the chain below re-runs them.
-  const rawRepo = (env?.GITHUB_REPO ?? "")
+  // A github.com SUBDOMAIN host — `www.github.com`, `gist.github.com`,
+  // `codeload.github.com` (real hosts; the www form and every gist URL
+  // redirect to github.com) — is the same URL as `github.com`, and pre-fix
+  // the subdomain label defeated every anchored `github.com` branch below,
+  // so the allowlist keyed itself on the raw URL (`https://www.github.com/
+  // acme/widgets` for the case-variant form) or the host word
+  // (`gist.github.com` — a login no installation owner can ever carry), and
+  // every mint failed closed with no hint the spelling was the cause — the
+  // exact #159/#82 class this resolver exists to keep out, reopened through
+  // the subdomain label (#285). Strip it (case-tolerant) before the
+  // case-lower below, exactly like `orgOf` and `resolveConfigDirName`; the
+  // api. label keeps its own dedicated strip below.
+  const subdomainStripped = (env?.GITHUB_REPO ?? "").replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, _sub: string, host: string) =>
+      `${scheme}${host.toLowerCase()}`
+  );
+  const rawRepo = subdomainStripped
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — hoisted above the case-lower below.

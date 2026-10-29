@@ -134,7 +134,36 @@ export const orgOf = (repo: string): string => {
   // prompt's REPO= recipe answered "" for the same spelling (the
   // #159/#169 class, reopened through the rider/suffix position). The
   // strips are idempotent; `cleaned` re-runs them harmlessly.
-  const hostLowered = repo
+  // A github.com SUBDOMAIN host — `www.github.com`, `gist.github.com`,
+  // `codeload.github.com`, `education.github.com` (all real hosts: the www
+  // form and every gist URL redirect to github.com; codeload serves the very
+  // tarballs this feature's prompt downloads) — is the same URL as
+  // `github.com`, so pasting one into GITHUB_REPO/--repo is a realistic
+  // copy-paste. Pre-fix the subdomain label defeated every anchored
+  // `github.com` branch below: the case-pairing `[Gg]…[Cc][Oo][Mm]` strips
+  // key on the host word at a `^` anchor (optionally behind a scheme and a
+  // user-info word), so `www.`/`gist.`/`codeload.` sat in front of it, fell
+  // every branch, and each resolver answered a *different* dead value —
+  // the lowercase subdomains mostly survived by accident (the unanchored
+  // `github.com…$` tail rules caught them), while the case-variant
+  // `Gist.GitHub.com/acme/widgets` answered the host word whole as the
+  // "org" (`Gist.GitHub.com`, a registry key no mint can ever derive) and
+  // `orgOf("https://www.GitHub.com/acme/widgets")` returned the raw URL.
+  // Strip the subdomain label (case-tolerant) BEFORE the case-lower below,
+  // exactly like the api host's own strip, so every github.com branch below
+  // sees the plain host. The api. label is deliberately EXCLUDED
+  // (`(?![Aa][Pp][Ii]\.)`): api.github.com keeps its own dedicated strip
+  // below, which also drops the host and the `repos` path word — a
+  // different job than plain host normalization. The strip is idempotent
+  // and anchored where the case-lower anchors, so a plain `github.com`
+  // spelling never changes (#285's class, the one-spelling contract the
+  // whole corpus closes).
+  const subdomainStripped = repo.replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, _sub: string, host: string) =>
+      `${scheme}${host.toLowerCase()}`
+  );
+  const hostLowered = subdomainStripped
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — the same strips `cleaned` applies, hoisted above
@@ -567,7 +596,21 @@ export const resolveConfigDirName = (
   // the registry/cache DB the moment the env var's spelling carried its
   // rider past a mixed-case host. The strips are idempotent; `repoRaw`
   // re-runs them harmlessly.
-  const hostLoweredRepo = (env.GITHUB_REPO ?? "")
+  // The same github.com SUBDOMAIN strip `orgOf` applies (see its site above
+  // for the full class): `www.`/`gist.`/`codeload.` in front of the host
+  // word defeated every anchored `github.com` branch below, so the config
+  // dir name silently migrated to a sanitized URL the sibling resolvers'
+  // keys never derive (`https-gist.github.com-acme` for an org page,
+  // `https-www.github.com-acme` for the case-variant form) — the #113
+  // silent-DB-migration class, reopened through the subdomain label
+  // (#285). Idempotent and anchored where the case-lower below anchors; a
+  // plain `github.com` spelling never changes.
+  const subdomainStrippedRepo = (env.GITHUB_REPO ?? "").replace(
+    /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
+    (_m: string, scheme: string, _sub: string, host: string) =>
+      `${scheme}${host.toLowerCase()}`
+  );
+  const hostLoweredRepo = subdomainStrippedRepo
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — the same strips `repoRaw` applies, hoisted above
