@@ -306,11 +306,22 @@ export const orgOf = (repo: string): string => {
   // the api host and its `repos` path word up front, exactly like
   // `resolveRepoFromEnv` (see commit-api-core.ts). A bare api host names no
   // org, the same honest "" a bare github.com host answers.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
+  // The anchor and the strip both accept the FULL separator set the sibling
+  // `github.com` strips tolerate — `[/:]`, never `/` alone: a host word
+  // riding a COLON into the path (`API.GitHub.com:acme/widgets`,
+  // `https://api.github.com:/acme` — the scp/ssh host:tail shape, an
+  // empty-port paste) is the same api host, and pre-fix it fell the
+  // `(?:\/|$)` anchor entirely — the case-variant form then flowed on whole
+  // through every anchored branch (a registry key no mint can ever derive,
+  // silently bypassing a registered App), while the lowercase form reached
+  // the unanchored case-sensitive `github.com` branches below and silently
+  // disagreed with the sibling resolvers (the one-spelling contract, reopened
+  // through the separator).
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
@@ -658,11 +669,20 @@ export const resolveConfigDirName = (
   // commit-api-core.ts), so this resolver keys the same `widgets` dir every
   // other spelling of the repo keys. A bare api host names no repo — the
   // documented "intern" fallback below.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
+  // The same `[/:]` separator set orgOf's own api strip now accepts (see the
+  // orgOf site above): a host word riding a colon into the path
+  // (`API.GitHub.com:acme`, `https://api.github.com:/acme/widgets`) is the
+  // same api host, and pre-fix this resolver's `(?:\/|$)` anchor missed it —
+  // the schemed lowercase colon form then diverged (this resolver keyed
+  // `https-api.github.com-acme` while every sibling answered `acme`),
+  // silently migrating the registry/cache DB the moment the env var's
+  // spelling carried the separator (the one-spelling contract, reopened
+  // through the separator).
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
