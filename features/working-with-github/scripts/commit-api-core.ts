@@ -499,11 +499,22 @@ export const resolveRepoFromEnv = (
   // same `owner/repo`-bearing string the sibling resolvers are fixed to see.
   // A bare api host (no path) names no owner, the same honest "" a bare
   // github.com host answers — never the host string itself.
-  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:\/|$)/u.test(
+  // The anchor and the strip both accept the FULL separator set the sibling
+  // resolvers' api strips tolerate — `[/:]`, never `/` alone: a host word
+  // riding a COLON into the path (`API.GitHub.com:acme/widgets`,
+  // `https://api.github.com:/acme` — the scp/ssh host:tail shape, an
+  // empty-port paste) is the same api host, and pre-fix it fell the
+  // `(?:\/|$)` anchor entirely — the case-variant form then flowed on whole
+  // as the "repo" (every `repos/{repo}` route 404s and `gh --repo` rejects
+  // it), while `orgOf` and `resolveAllowedOrgs` answered the healthy owner
+  // for the lowercase colon form — the resolvers disagreeing on one spelling,
+  // the one-spelling contract the README states, reopened through the
+  // separator.
+  const apiHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
     portStripped
   );
   const apiStripped = apiHostMatch
-    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]\/?/u, "")
+    ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
   const apiRepoStripped = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
