@@ -84,7 +84,7 @@ To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_
 # way, and an orgs-page URL left `orgs/<org>`, a fake owner/repo pair no
 # route answers (orgs/organizations are reserved host paths, never an owner
 # login — every sibling resolver strips these to the org). A ported URL
-# left `22/o/r` 404s the same way. The orgs-page INDEX spelling
+# left `22/o/r` 404s the same way.
 # A github.com SUBDOMAIN host (`https://www.github.com/o/r`,
 # `https://gist.github.com/o/r`, `https://codeload.github.com/o/r/tarball/main`
 # — real hosts: the www form and every gist URL redirect to github.com, and
