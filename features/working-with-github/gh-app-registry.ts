@@ -653,7 +653,19 @@ export const resolveConfigDirName = (
 ): string => {
   const fromInternName = (env.INTERN_NAME ?? "").trim();
   if (fromInternName !== "") {
-    return sanitizeSegment(fromInternName);
+    // A name that sanitizes to nothing — punctuation-only (`.`, `-`, `(`, a
+    // stray emoji pasted into the intern name) — must fall through to the
+    // documented `intern` default, never return "": `join(homedir,
+    // ".config", "")` is the CONFIG ROOT itself, so the registry DB would
+    // land at `~/.config/gh-app-registry.db` — shared with every other
+    // store keyed there and every intern on the machine — while the
+    // GITHUB_REPO fallthrough below already carries the same `intern`
+    // fallback for a repo segment that sanitizes to nothing. Pre-fix the
+    // INTERN_NAME branch was the one path with no empty guard.
+    const sanitized = sanitizeSegment(fromInternName);
+    if (sanitized !== "") {
+      return sanitized;
+    }
   }
   // Trim trailing slashes as well as whitespace — the same normalization every
   // sibling repo-string resolver already applies (orgOf, resolveRepoFromEnv,
