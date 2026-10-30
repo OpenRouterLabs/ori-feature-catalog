@@ -182,7 +182,24 @@ export const resolveAllowedOrgs = (
   // REPO= recipe agreed (the #285 one-spelling contract, reopened through
   // the rider position). The strips are idempotent; `rawRepo` below re-runs
   // them harmlessly.
+  // Strip LEADING slashes AND the whitespace they expose, in ONE step
+  // (`^[/\s]+`), BEFORE every host-keyed strip below — the same order the
+  // sibling resolvers now apply (see gh-app-registry.ts `orgOf`). A leading
+  // slash in front of the HOST word (`//api.github.com/repos/…` — a
+  // protocol-relative URL, the browser-address-bar form that lost its
+  // scheme; `/api.github.com/repos/…` — a shell-autocomplete paste) is the
+  // same URL, but this resolver'''s api-host strip is `^`-ANCHORED, so the
+  // slash DEFEATED it and the UNANCHORED repo regex below read the REST
+  // host-path word `repos` as the OWNER — the allowlist carried `repos` (a
+  // login no installation owner can ever carry — verified live:
+  // `orgs/repos` 404s), every mint failed closed with no hint the spelling
+  // was the cause, and the allowlist silently DISAGREED with `orgOf` and
+  // `resolveRepoFromEnv`, which answered the healthy `acme` for the same
+  // spelling (the one-spelling contract, reopened through the leading
+  // slash). The strip is idempotent and the chain below re-runs its own
+  // tail strips harmlessly.
   const subdomainTrimmed = (env?.GITHUB_REPO ?? "")
+    .replace(/^[\/\s]+/u, "")
     .trim()
     .replace(/\?.*$/u, "")
     .replace(/#.*$/u, "")
