@@ -202,7 +202,32 @@ export const orgOf = (repo: string): string => {
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
   );
-  const hostLowered = subdomainStripped
+  // A scheme whose separator lost a slash — `https:/github.com/acme/widgets`,
+  // `https:github.com/acme/widgets` (a URL pasted from a terminal or an
+  // address bar that collapsed its own `//`; curl normalizes the form and
+  // answers 200, so it is a real client-accepted spelling of the same URL)
+  // — is the same URL as its `://` sibling: every anchored `github.com`
+  // branch below keys on the scheme's `://` (the case-lower's optional
+  // scheme group, the subdomain strip above, the bare-host guard), so
+  // pre-fix the single-slash form fell them and the raw junk flowed on —
+  // `https:/github.com` returned the whole string as the "org" (a registry
+  // key no mint's `orgOf` answer can ever match, silently re-routing every
+  // mint to the default App) while `https://github.com` answered `""` (the
+  // documented no-owner answer), and `HTTPS:/GitHub.com/acme/widgets`
+  // answered `HTTPS:` — the #159/#169 case class reopened through the
+  // separator. The rule rewrites ONLY the scheme's own separator, and ONLY
+  // when what follows is a github.com-shaped host (optionally behind user
+  // info): an scp spec (`git@github.com:acme/widgets`) has no scheme word
+  // before its colon and is untouched, and a bare `acme:widgets` never
+  // names a host. It runs after the rider strips (so `https:/github.com#frag`
+  // and a padded paste are already clean) and before every host-keyed strip
+  // below; it is idempotent (a `://` spelling's separator is already fixed)
+  // and the strips re-run harmlessly.
+  const schemeSeparatorFixed = subdomainStripped.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
+    "$1://"
+  );
+  const hostLowered = schemeSeparatorFixed
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — the same strips `cleaned` applies, hoisted above
@@ -731,7 +756,24 @@ export const resolveConfigDirName = (
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
   );
-  const hostLoweredRepo = subdomainStrippedRepo
+  // The same scheme-separator normalization `orgOf` applies above (see its
+  // site for the full class): a single-slash or colon scheme spelling
+  // (`https:/github.com`, `http:github.com` — curl normalizes both to the
+  // `://` form and answers 200) fell every `://`-anchored branch here too,
+  // so the config dir name keyed on the raw junk — `github.com` for
+  // `https:/github.com`, `https-github.com` for `https:github.com` —
+  // silently migrating the registry/cache DB away from every sibling
+  // resolver's key (#113's class, reopened through the separator) while
+  // the `://` sibling answered the documented `intern` fallback. Rewrite
+  // ONLY the scheme's own separator, only ahead of a github.com-shaped host;
+  // an scp spec carries no scheme word and a bare `acme:widgets` names no
+  // host, so neither is touched. Idempotent; the strips below re-run
+  // harmlessly.
+  const schemeSeparatorFixedRepo = subdomainStrippedRepo.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
+    "$1://"
+  );
+  const hostLoweredRepo = schemeSeparatorFixedRepo
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — the same strips `repoRaw` applies, hoisted above
