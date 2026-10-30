@@ -263,6 +263,43 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
   if (usableValueCount(["--purpose"]) > 1) {
     return { repeatedFlag: "--purpose" };
   }
+  // A TRUNCATED-PASTE repeat: the SAME flag spelling passed more than once
+  // with its LAST occurrence carrying no usable value (`--repo acme/a
+  // --repo` — the tail of a paste the shell cut mid-flag). The
+  // usable-value count above sees ONE usable value, so the shape sailed
+  // through as a single-target parse and the tail occurrence silently
+  // vanished: the CLI minted for `acme/a` with exit 0 while the caller's
+  // command was truncated — the exact silent-identity-swap class the
+  // repeated-flag guard exists to close (#98/#107/#117, reopened through
+  // the valueless tail). The sibling CLIs all refuse this shape outright
+  // (`cleanup-worktrees.ts` and `register-gh-app.ts` count flag
+  // OCCURRENCES, `commit-via-api.ts` repeats in the key loop), so one
+  // pasted command block could sweep or commit on a refused argv while
+  // this CLI minted from it — the four-CLI uniformity contract the
+  // repeated-flag suite pins ("a repeated value-taking flag is a usage
+  // error in every CLI, naming the flag — never a silent winner").
+  // Keyed on the LAST occurrence so the #221 single-target shapes keep
+  // their pinned diagnoses: `--repo --repo acme/a` (the FIRST slot eaten,
+  // a usable value at the tail) stays the missing-value error, and the
+  // alias pair (`--repo --org acme/x`, each spelling passed once) stays a
+  // legitimate single-target parse.
+  const lastValuelessRepeat = (flags: readonly string[]): string | undefined =>
+    flags.find((flag) => {
+      if (argv.filter((token) => token === flag).length < 2) {
+        return false;
+      }
+      const value = argv[argv.lastIndexOf(flag) + 1];
+      const trimmed = value === undefined ? undefined : value.trim();
+      return (
+        trimmed === undefined || trimmed === "" || trimmed.startsWith("--")
+      );
+    });
+  const tailRepeat =
+    lastValuelessRepeat(["--repo", "--org"]) ?? lastValuelessRepeat(["--purpose"]);
+  if (tailRepeat !== undefined) {
+    // Reported under the canonical --repo name: --org is its alias.
+    return { repeatedFlag: tailRepeat === "--org" ? "--repo" : tailRepeat };
+  }
   const targetRepo = read("--repo") ?? read("--org");
   const purpose = read("--purpose");
   // An explicitly-passed `--purpose` whose value is missing must fail the
