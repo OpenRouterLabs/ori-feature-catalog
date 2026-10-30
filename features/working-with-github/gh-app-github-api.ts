@@ -363,6 +363,21 @@ export const resolveAllowedOrgs = (
   if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
     return new Set<string>();
   }
+  // An api.github.com paste of the ORGANIZATIONS-page INDEX —
+  // `api.github.com/orgs`, `/organizations`, `/users` — is the same
+  // no-owner page the orgs-index guard below answers for the github.com host, but the
+  // api strip above delivers its tail to these branches as `orgs`, which the `github.com[/:]` anchors below never see: pre-fix
+    // the repo-source chain derived the reserved word itself as the owner,
+  // so the allowlist carried `orgs` — a login no installation owner can
+  // ever carry, every mint failed closed with no hint the env var's
+  // spelling was the cause — while `api.github.com/users` and
+  // `github.com/orgs` answered the honest no-owner value (#203/#204's
+  // index class, reopened through the api host's own INDEX spelling).
+  // Keyed on `apiHostMatch` so the org-NAMING spellings
+  // (`api.github.com/orgs/acme`) keep deriving their org.
+  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+    return new Set<string>();
+  }
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/…` — is the one
   // spelling whose ORG sits where the repo regex below expects a repo
