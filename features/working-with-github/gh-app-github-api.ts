@@ -211,7 +211,24 @@ export const resolveAllowedOrgs = (
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
   );
-  const rawRepo = subdomainStripped
+  // The same scheme-separator normalization the sibling resolvers apply
+  // (`orgOf`, `resolveConfigDirName` in gh-app-registry.ts; see their sites
+  // for the full class): a scheme whose separator lost a slash —
+  // `https:/github.com`, `http:github.com` (curl normalizes both and answers
+  // 200, so they are real client-accepted spellings) — fell every
+  // `://`-anchored branch below, and the ALLOWLIST keyed on the leaked
+  // scheme (`https:` — a login no installation owner can ever carry, so
+  // every mint failed closed with no hint the env var's spelling was the
+  // cause) while the `://` sibling allowed no one and `orgOf` answered ""
+  // for the same spelling. Rewrite ONLY the scheme's own separator, only
+  // ahead of a github.com-shaped host; an scp spec carries no scheme word
+  // and a bare `acme:widgets` names no host, so neither is touched.
+  // Idempotent; the chain below re-runs its strips harmlessly.
+  const schemeSeparatorFixed = subdomainStripped.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
+    "$1://"
+  );
+  const rawRepo = schemeSeparatorFixed
     .trim()
     // Strip a QUERY or FRAGMENT rider and the trailing separator/whitespace
     // it may ride past — hoisted above the case-lower below.

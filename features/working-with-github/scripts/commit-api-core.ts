@@ -351,7 +351,31 @@ export const resolveRepoFromEnv = (
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
   );
-  const raw = subdomainStripped
+  // The same scheme-separator normalization the sibling resolvers apply
+  // (`orgOf`, `resolveConfigDirName` in gh-app-registry.ts, the allowlist in
+  // gh-app-github-api.ts; see their sites for the full class): a scheme
+  // whose separator lost a slash — `https:/github.com/acme/widgets`,
+  // `https:github.com/acme/widgets` (curl normalizes both and answers 200,
+  // so they are real client-accepted spellings of the same URL) — fell the
+  // `://`-anchored bare-host and index branches below, so the bare form
+  // `https:/github.com` flowed on whole as the "repo" (a value every
+  // `repos/{repo}` route 404s on and `gh --repo` rejects) while its `://`
+  // sibling answered "" (the documented no-repo answer the callers fail
+  // loudly on), and a host-case single-slash owner form
+  // (`HTTPS:/GitHub.com/acme/widgets`) answered the raw host string while
+  // its slash-bearing sibling answered the healthy pair. The deep/tail
+  // branches (no scheme anchor) already rescued the lowercase owner-bearing
+  // forms, which is exactly the one-spelling contract this closes for the
+  // rest. Rewrite ONLY the scheme's own separator, only ahead of a
+  // github.com-shaped host; an scp spec (`git@github.com:acme/widgets`)
+  // carries no scheme word before its colon and a bare `acme:widgets` names
+  // no host, so neither is touched. Idempotent; the chain below re-runs its
+  // strips harmlessly.
+  const schemeSeparatorFixed = subdomainStripped.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
+    "$1://"
+  );
+  const raw = schemeSeparatorFixed
     .trim()
     // The strips the tail exposes — query/fragment riders, then the trailing
     // separator/whitespace, then whatever the separator exposed — mirror the
