@@ -335,7 +335,18 @@ export const resolveAllowedOrgs = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+        // The raw.githubusercontent.com content host carries its own port strip
+    // HERE too, never only the github.com word above: the raw host does not
+    // contain the literal `github.com`, so pre-fix a ported raw-host file
+    // paste kept its digits glued to the host, the raw strip below (whose
+    // test tolerates the `:` separator) consumed the host and left the PORT
+    // as the first path segment, and the allowlist keyed the port digits
+    // (`443`) — a login no installation owner can ever carry, so EVERY mint
+    // failed closed with no hint the env var spelling was the cause — while
+    // the unported form answered the healthy owner and the RECIPE raw rules
+    // (they carry `(:[0-9]+)?`) agreed with it — the #186/#288 class,
+    // reopened through the port.
+/((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`

@@ -553,7 +553,18 @@ export const resolveRepoFromEnv = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+        // The raw.githubusercontent.com content host carries its own port strip
+    // HERE too, never only the github.com word above: the raw host does not
+    // contain the literal `github.com`, so pre-fix a ported raw-host file
+    // paste kept its digits glued to the host, the raw strip below (whose
+    // test tolerates the `:` separator) consumed the host and left the PORT
+    // as the first path segment, and this resolver answered the fake pair
+    // `443/acme` (a port is never a login; every repos/{repo} route 404s on
+    // it and gh --repo rejects it) while the unported form answered the
+    // healthy `acme/widgets` and the RECIPE raw rules (they carry
+    // `(:[0-9]+)?`) agreed with it — the #186/#288 class, reopened through
+    // the port.
+/((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`

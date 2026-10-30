@@ -381,7 +381,16 @@ export const orgOf = (repo: string): string => {
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+        // The raw.githubusercontent.com content host carries its own port strip
+    // HERE too, never only the github.com word above: the raw host does not
+    // contain the literal `github.com`, so pre-fix a ported raw-host file
+    // paste kept its digits glued to the host, the raw strip below (whose
+    // test tolerates the `:` separator) consumed the host and left the PORT
+    // as the first path segment, and this resolver keyed the port digits
+    // (`443`, a login no installation owner can ever carry, so every mint
+    // failed closed) while the unported form answered the healthy `acme`
+    // — the #186/#288 class, reopened through the port.
+/((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -871,7 +880,16 @@ export const resolveConfigDirName = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+        // The raw.githubusercontent.com content host carries its own port strip
+    // HERE too, never only the github.com word above: the raw host does not
+    // contain the literal `github.com`, so pre-fix a ported raw-host file
+    // paste kept its digits glued to the host, the raw strip below (whose
+    // test tolerates the `:` separator) consumed the host and left the PORT
+    // as the first path segment, and this resolver keyed the port digits
+    // (`443`, a login no installation owner can ever carry, so every mint
+    // failed closed) while the unported form answered the healthy `acme`
+    // — the #186/#288 class, reopened through the port.
+/((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
