@@ -555,9 +555,37 @@ export const resolveRepoFromEnv = (
   const apiStripped = apiHostMatch
     ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
-  const apiRepoStripped = apiHostMatch
+  const apiRepoTail = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
     : apiStripped;
+  // A raw.githubusercontent.com paste —
+  // `https://raw.githubusercontent.com/acme/widgets/main/x.ts` — has the
+  // documented path scheme `/<owner>/<repo>/<ref>/<path>`: the first two
+  // segments name the repo the file belongs to (maintainer ruling on #288,
+  // Option A; the api host's `repos/<owner>/<repo>` and the codeload
+  // tarball route are the same derivability). The host is a different
+  // domain from github.com, so the generic strips never fired and pre-fix
+  // each resolver answered a different dead value — the schemed form whole
+  // (every `repos/{repo}` route 404s), the bare form as
+  // `raw.githubusercontent.com/acme` (a fake pair), the scp form as
+  // `git@raw.githubusercontent.com:acme/widgets`. Strip the host
+  // (case-tolerant, optional scheme/user-info, `[/:]` separator set like
+  // the api strip) and let the branches below see the `owner/repo/...`
+  // tail; a bare raw host or a sub-two-segment path names no repo — the
+  // honest "" (the Option B answer for the degenerate forms, matching a
+  // bare `api.github.com`).
+  const rawHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
+      apiRepoTail
+    );
+  const apiRepoStripped = rawHostMatch
+    ? apiRepoTail.replace(
+        /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm][\/:]*/u,
+        ""
+      )
+    : apiRepoTail;
+  if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
+    return "";
+  }
   // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/acme` — is the one
   // spelling whose ORG sits where the repo regexes below expect a repo

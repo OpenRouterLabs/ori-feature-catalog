@@ -329,9 +329,40 @@ export const resolveAllowedOrgs = (
   const apiStripped = apiHostMatch
     ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
-  const apiRepoStripped = apiHostMatch
+  const apiRepoTail = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
     : apiStripped;
+  // A raw.githubusercontent.com paste —
+  // `https://raw.githubusercontent.com/acme/widgets/main/x.ts` (the host
+  // this feature's own ambient-mode recipes teach the operator to read raw
+  // file content from) — carries the documented path scheme
+  // `/<owner>/<repo>/<ref>/<path>`: the first two segments name the repo
+  // whose file is being read (maintainer ruling on #288, Option A; the api
+  // host's `repos/<owner>/<repo>` is the same derivability). The raw host
+  // is a DIFFERENT domain from github.com, so no generic strip fired and
+  // pre-fix this resolver keyed the allowlist on a dead value for the one
+  // spelling — the schemed form whole, the bare form's host word
+  // (`raw.githubusercontent.com`, a login no installation owner can ever
+  // carry, so every mint failed closed with no hint the env var's spelling
+  // was the cause), the scp form `git@raw.githubusercontent.com:
+  // acme`. Strip the host (case-tolerant, optional scheme/user-info,
+  // `[/:]` separator set like the api strip) and let the repo-source chain
+  // below see the `owner/repo/...` tail. A bare raw host or a
+  // sub-two-segment path names no owner — the honest empty allowlist
+  // entry set, matching a bare `api.github.com` (the Option B answer for
+  // the degenerate forms).
+  const rawHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
+      apiRepoTail
+    );
+  const apiRepoStripped = rawHostMatch
+    ? apiRepoTail.replace(
+        /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm][\/:]*/u,
+        ""
+      )
+    : apiRepoTail;
+  if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
+    return new Set<string>();
+  }
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/…` — is the one
   // spelling whose ORG sits where the repo regex below expects a repo
