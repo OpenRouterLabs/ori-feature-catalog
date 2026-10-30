@@ -128,6 +128,27 @@ export const resolveAllowedOrgs = (
       ? rawAllow.split(/[\s,]+/u)
       : undefined
   );
+  /**
+   * The repo source named no owner (a degenerate raw-host/api-index spelling
+   * of `GITHUB_REPO`): resolve the allowlist from the sources ABOVE it — the
+   * explicit `override` first, then a set `GH_APP_ALLOWED_ORGS` — and only
+   * fall back to the honest empty set when neither exists. This is the exact
+   * fallthrough the chain's tail already applies; the two degenerate-branch
+   * early returns used it, so the helper exists so they cannot drift from
+   * the tail's behavior.
+   */
+  const resolveFromNoOwnerSource = (
+    _spelling: string,
+    localOverride: readonly string[] | undefined,
+    localFromEnv: readonly string[] | undefined
+  ): Set<string> => {
+    const source = firstNonEmpty(localOverride) ?? localFromEnv;
+    return new Set(
+      (source ?? [])
+        .map((login) => login.trim().toLowerCase())
+        .filter((login) => login !== "")
+    );
+  };
   // Tolerate the same `GITHUB_REPO` spellings the sibling resolvers do (a full
   // https URL with optional .git suffix, or a bare owner/repo) — `split("/")[0]`
   // would reduce a URL to "https:" and fail every mint closed.
@@ -399,7 +420,25 @@ export const resolveAllowedOrgs = (
       )
     : apiRepoTail;
   if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
-    return new Set<string>();
+    // The repo source names no owner — never an early return: the chain's
+    // documented precedence ("explicit `override` → `GH_APP_ALLOWED_ORGS` →
+    // the owner of `GITHUB_REPO`") is a FALLTHROUGH chain, and the two
+    // sources ABOVE the repo source must still be allowed to name the whole
+    // allowlist when the repo source names no one. Pre-fix both this branch
+    // and the api-index branch below returned an EMPTY set outright, so a
+    // raw-host paste with a sub-two-segment tail silently discarded a
+    // caller's explicit `allowedOrgs` override and a set
+    // `GH_APP_ALLOWED_ORGS` — the exact "one source present never masks
+    // another" contract `gh-app-allowlist-sources.test.ts` pins (its
+    // override-survives tests cover only the github.com-host degenerate
+    // spellings; these two api/raw-host branches were the ones left
+    // returning early). The mint then failed closed on every installation
+    // with "not in the allowed-orgs allowlist ()" while the caller's own
+    // list sat right there — the #159/#82 silent-fail-closed class, reopened
+    // through the degenerate raw/api host shapes. An early return is only
+    // honest when NO other source exists; `fromRepo` is the LAST source and
+    // already carries the honest empty-when-no-owner answer.
+    return resolveFromNoOwnerSource(apiRepoStripped, override, fromEnv);
   }
   // An api.github.com paste of the ORGANIZATIONS-page INDEX —
   // `api.github.com/orgs`, `/organizations`, `/users` — is the same
@@ -422,7 +461,15 @@ export const resolveAllowedOrgs = (
   // var's spelling was the cause — while the orgs index answered the empty
   // set and the RECIPE's own api rules emptied the same spelling.
   if (apiHostMatch && /^(orgs|organizations|users|repos)\/?$/u.test(apiRepoStripped)) {
-    return new Set<string>();
+    // Same fallthrough as the raw-host branch above: the api-host INDEX
+    // spellings name no owner, so the repo source contributes nothing — but
+    // an override or a set `GH_APP_ALLOWED_ORGS` must still name the
+    // allowlist. `gh-app-allowlist-sources.test.ts` pins this for the
+    // github.com "orgs-page index" spelling (`github.com/orgs`) and the
+    // bare `organizations` word; this api-host twin was the early return
+    // that broke the same contract for `api.github.com/orgs`,
+    // `api.github.com/users` and `api.github.com/repos`.
+    return resolveFromNoOwnerSource(apiRepoStripped, override, fromEnv);
   }
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/…` — is the one
