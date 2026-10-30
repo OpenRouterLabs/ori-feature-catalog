@@ -335,7 +335,7 @@ export const resolveAllowedOrgs = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -412,8 +412,16 @@ export const resolveAllowedOrgs = (
   // `github.com/orgs` answered the honest no-owner value (#203/#204's
   // index class, reopened through the api host's own INDEX spelling).
   // Keyed on `apiHostMatch` so the org-NAMING spellings
-  // (`api.github.com/orgs/acme`) keep deriving their org.
-  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+  // (`api.github.com/orgs/acme`) keep deriving their org. The REST
+  // COLLECTION INDEX `repos` is the same no-owner page: the api strip's
+  // `repos/` word-strip only fires when a path follows it, so the bare
+  // `api.github.com/repos` tail survived as `repos` and pre-fix the repo
+  // source below derived the reserved REST path word as the owner — a
+  // login no installation owner can ever carry (verified live:
+  // `orgs/repos` 404s), so EVERY mint failed closed with no hint the env
+  // var's spelling was the cause — while the orgs index answered the empty
+  // set and the RECIPE's own api rules emptied the same spelling.
+  if (apiHostMatch && /^(orgs|organizations|users|repos)\/?$/u.test(apiRepoStripped)) {
     return new Set<string>();
   }
   // An organizations-page URL — `https://github.com/orgs/acme` (the "Your

@@ -381,7 +381,7 @@ export const orgOf = (repo: string): string => {
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -461,7 +461,18 @@ export const orgOf = (repo: string): string => {
   // honest "" (#203/#204's index class, reopened through the api host's
   // own INDEX spelling). The api strip makes this spelling reach the
   // branches below as `orgs`, so the guard must live HERE, before them.
-  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+  // The REST COLLECTION INDEX `repos` is the same page shape: the api strip
+  // removes the host and then the CANONICAL `repos/` path word only when a
+  // path FOLLOWS it, so the bare collection root survives as `repos` and
+  // pre-fix the bare pass-through at the bottom flowed the reserved REST
+  // path word on whole as the "org" — a registry key no mint can ever
+  // derive (`repos` is never a login; verified live: `orgs/repos` 404s),
+  // silently bypassing a registered App — while the orgs index answered ""
+  // and the RECIPE's own api rules emptied the same spelling. Keyed on
+  // `apiHostMatch` (github.com/repos is not the REST collection) and
+  // shared with the repo-bearing spellings, which carry a segment past the
+  // word and never match.
+  if (apiHostMatch && /^(orgs|organizations|users|repos)\/?$/u.test(apiRepoStripped)) {
     return "";
   }
   // The ORGANIZATIONS page spellings — `https://github.com/orgs/<org>` (the
@@ -871,7 +882,7 @@ export const resolveConfigDirName = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -950,8 +961,14 @@ export const resolveConfigDirName = (
   // now returns "" for the same spelling). Guard it here, keyed on
   // `apiHostMatch` so a repo genuinely named `orgs` under a real owner
   // (reachable only as `github.com/o/orgs`, never this shape) is
-  // untouched.
-  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+  // untouched. The REST COLLECTION INDEX `repos` takes the same fallback:
+  // the api strip's `repos/` word-strip only fires when a path follows it,
+  // so the bare `api.github.com/repos` tail survived as `repos` and
+  // pre-fix the fallback below sanitized the reserved word into the config
+  // dir name (`repos`) — a directory no sibling resolver's key ever
+  // derives, silently migrating the registry/cache DB — while the orgs
+  // index took the documented `intern` fallback for the same shape.
+  if (apiHostMatch && /^(orgs|organizations|users|repos)\/?$/u.test(apiRepoStripped)) {
     return "intern";
   }
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs` (also
