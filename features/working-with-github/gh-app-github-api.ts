@@ -170,7 +170,26 @@ export const resolveAllowedOrgs = (
   // the subdomain label (#285). Strip it (case-tolerant) before the
   // case-lower below, exactly like `orgOf` and `resolveConfigDirName`; the
   // api. label keeps its own dedicated strip below.
-  const subdomainStripped = (env?.GITHUB_REPO ?? "").replace(
+  // The trim + rider strips run BEFORE the subdomain strip below, never after
+  // it — the same reorder `orgOf` applies (see gh-app-registry.ts): the
+  // strip's lookahead is `$`-or-separator-anchored, so a rider/suffix/padding
+  // past a bare subdomain host (`www.github.com#frag`,
+  // `gist.github.com?tab=readme`, `https://codeload.github.com.git`) defeated
+  // it, the label survived, and the allowlist keyed itself on the raw host
+  // word or a sanitized URL — a login no installation owner can ever carry,
+  // so every mint failed closed with no hint the spelling was the cause —
+  // while its rider-less form answered the healthy no-owner value and the
+  // REPO= recipe agreed (the #285 one-spelling contract, reopened through
+  // the rider position). The strips are idempotent; `rawRepo` below re-runs
+  // them harmlessly.
+  const subdomainTrimmed = (env?.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
+  const subdomainStripped = subdomainTrimmed.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`

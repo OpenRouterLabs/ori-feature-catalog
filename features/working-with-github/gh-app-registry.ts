@@ -158,7 +158,27 @@ export const orgOf = (repo: string): string => {
   // and anchored where the case-lower anchors, so a plain `github.com`
   // spelling never changes (#285's class, the one-spelling contract the
   // whole corpus closes).
-  const subdomainStripped = repo.replace(
+  // The trim + rider strips run BEFORE the subdomain strip below, never
+  // after it: the subdomain strip's lookahead is `$`-or-separator-anchored,
+  // so a QUERY, FRAGMENT, `.git` suffix, or whitespace riding PAST a bare
+  // subdomain host (`www.github.com#frag`, `gist.github.com?tab=readme`,
+  // `https://codeload.github.com.git`, ` www.github.com ` — an address-bar
+  // copy-paste or a `git remote -v` paste cut at the host) made it fail, the
+  // label survived, and every resolver answered a different dead value from
+  // the same spelling while its rider-less form answered the healthy `""`
+  // and the REPO= recipe agreed with that form — the #285 one-spelling
+  // contract, reopened through the rider position. The strips are the exact
+  // ones `hostLowered` applies after its own trim (idempotent; re-run there
+  // harmlessly), so the strip below now sees the same cleaned host word the
+  // plain-host case-lower already sees.
+  const subdomainTrimmed = repo
+    .trim()
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
+  const subdomainStripped = subdomainTrimmed.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
@@ -605,7 +625,25 @@ export const resolveConfigDirName = (
   // silent-DB-migration class, reopened through the subdomain label
   // (#285). Idempotent and anchored where the case-lower below anchors; a
   // plain `github.com` spelling never changes.
-  const subdomainStrippedRepo = (env.GITHUB_REPO ?? "").replace(
+  // The trim + rider strips run BEFORE the subdomain strip below, never after
+  // it — the same reorder `orgOf` (this file) and the two sibling resolvers
+  // apply: a rider/suffix/padding past a bare subdomain host
+  // (`www.github.com#frag`, `gist.github.com.git`, ` www.github.com `)
+  // defeated the strip's `$`-or-separator-anchored lookahead, the label
+  // survived, and the dir name silently migrated to a sanitized URL
+  // (`www.github.com`, `https-gist.github.com`) — a directory no sibling
+  // resolver's key ever derives — while its rider-less form took the
+  // documented `intern` fallback and the REPO= recipe agreed (#285's class,
+  // reopened through the rider position). The strips are idempotent;
+  // `hostLoweredRepo` below re-runs them harmlessly.
+  const subdomainTrimmedRepo = (env.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
+  const subdomainStrippedRepo = subdomainTrimmedRepo.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
