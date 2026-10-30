@@ -48,13 +48,15 @@ describe("a truncated-paste repeat whose tail occurrence lost its value", () => 
     expect(parseMintArgs(["--repo", "--repo", "acme/a"])).toEqual({
       missingRepoValue: true,
     });
-    // The alias pair, each spelling passed exactly once, stays one target.
+    // The alias pair, each spelling passed exactly once, stays one target —
+    // a usable value AT the group's last occurrence is a legitimate parse.
     expect(parseMintArgs(["--repo", "--org", "acme/x"])).toEqual({
       targetRepo: "acme/x",
     });
-    // The trailing valueless --org after a usable --repo, once each.
-    expect(parseMintArgs(["--repo", "acme/a", "--org"])).toEqual({
-      targetRepo: "acme/a",
+    // The alias pair with NO usable value anywhere stays the missing-value
+    // error, never a false repeat.
+    expect(parseMintArgs(["--repo", "--org"])).toEqual({
+      missingRepoValue: true,
     });
     // An unrepeated parse is unchanged.
     expect(
@@ -62,6 +64,39 @@ describe("a truncated-paste repeat whose tail occurrence lost its value", () => 
     ).toEqual({
       purpose: "reviewer",
       targetRepo: "acme/a",
+    });
+  });
+
+  test("mint-token: the truncated tail spelled through the ALIAS is refused like the same-spelling tail", () => {
+    // Pre-fix: {"targetRepo":"acme/a"} — the paste was cut at the valueless
+    // `--org` tail, which silently vanished while the SAME paste spelled
+    // `--repo acme/a --repo` was refused: the tail guard keyed on each
+    // spelling's own last occurrence, so no spelling passed twice meant no
+    // diagnosis (#302).
+    expect(parseMintArgs(["--repo", "acme/a", "--org"])).toEqual({
+      repeatedFlag: "--repo",
+    });
+    expect(parseMintArgs(["--org", "acme-a", "--repo"])).toEqual({
+      repeatedFlag: "--repo",
+    });
+    // A following flag does not rescue the truncated alias tail.
+    expect(
+      parseMintArgs(["--repo", "acme/a", "--org", "--purpose", "reviewer"])
+    ).toEqual({
+      repeatedFlag: "--repo",
+    });
+    // A PADDING-only tail slot is the same valueless tail, refused: the
+    // parse trims it to empty before judging shape, like every guard.
+    expect(parseMintArgs(["--repo", "acme/a", "--org", " "])).toEqual({
+      repeatedFlag: "--repo",
+    });
+    // The value at the group's tail still parses — the truncated-paste
+    // refusal never eats the legitimate one-target alias parse.
+    expect(parseMintArgs(["--repo", "--org", "acme/x"])).toEqual({
+      targetRepo: "acme/x",
+    });
+    expect(parseMintArgs(["--org", "--repo", "acme/x"])).toEqual({
+      targetRepo: "acme/x",
     });
   });
 });

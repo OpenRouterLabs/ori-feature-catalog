@@ -300,6 +300,64 @@ export const parseMintArgs = (argv: readonly string[]): MintArgs => {
     // Reported under the canonical --repo name: --org is its alias.
     return { repeatedFlag: tailRepeat === "--org" ? "--repo" : tailRepeat };
   }
+  // The SAME truncated paste spelled through the ALIAS: the guard above
+  // keys on each flag spelling's OWN last occurrence, so a valueless tail
+  // spelled through the OTHER member of the alias pair (`--repo acme/a
+  // --org` — one `--repo` with a usable value, one valueless trailing
+  // `--org`) has no spelling passed twice and sailed through as a
+  // single-target parse, while the SAME paste spelled `--repo acme/a
+  // --repo` is refused. The CLI minted for `acme/a` with exit 0 while the
+  // caller's command was cut at the tail — the same silent-identity-swap
+  // class the guards above close, reopened through the alias spelling.
+  // Keyed on the alias GROUP's last occurrence (whichever of
+  // `--repo`/`--org` came last) so the #221 single-target shapes keep
+  // their pinned diagnoses: `--repo --org acme/x` (a usable value AT the
+  // group's last occurrence) still falls through as the legitimate
+  // one-target parse, and `--repo --org` (no usable value anywhere) still
+  // falls through to the missing-value error below, never a false repeat
+  // diagnosis — the valueless tail is a truncated paste only when an
+  // EARLIER group occurrence carried the usable value the parse would
+  // otherwise silently mint from.
+  const groupTailRepeat = (flags: readonly string[]): string | undefined => {
+    const lastIndex = argv.reduce(
+      (latest: number, token: string, i: number) =>
+        flags.includes(token) ? i : latest,
+      -1
+    );
+    if (lastIndex === -1) {
+      return undefined;
+    }
+    const tail = argv[lastIndex + 1];
+    const tailTrimmed = tail === undefined ? undefined : tail.trim();
+    if (
+      tailTrimmed !== undefined &&
+      tailTrimmed !== "" &&
+      !tailTrimmed.startsWith("--")
+    ) {
+      return undefined;
+    }
+    const earlierUsable = argv.some(
+      (token: string, i: number) =>
+        i < lastIndex &&
+        flags.includes(token) &&
+        (() => {
+          const value = argv[i + 1];
+          const trimmed = value === undefined ? undefined : value.trim();
+          return (
+            trimmed !== undefined && trimmed !== "" && !trimmed.startsWith("--")
+          );
+        })()
+    );
+    if (!earlierUsable) {
+      return undefined;
+    }
+    // Reported under the canonical --repo name: --org is its alias.
+    return argv[lastIndex] === "--org" ? "--repo" : argv[lastIndex];
+  };
+  const aliasTailRepeat = groupTailRepeat(["--repo", "--org"]);
+  if (aliasTailRepeat !== undefined) {
+    return { repeatedFlag: aliasTailRepeat };
+  }
   const targetRepo = read("--repo") ?? read("--org");
   const purpose = read("--purpose");
   // An explicitly-passed `--purpose` whose value is missing must fail the

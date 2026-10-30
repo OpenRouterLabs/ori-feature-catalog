@@ -89,9 +89,11 @@ describe("a repeated value-taking flag is a usage error in every CLI", () => {
     expect(parseMintArgs(["--org", "--repo", "acme/x"])).toEqual({
       targetRepo: "acme/x",
     });
-    // The trailing form: a valueless `--org` after a usable `--repo`.
+    // The trailing valueless `--org` after a usable `--repo` is the SAME
+    // truncated paste as `--repo acme/a --repo` — refused under the
+    // canonical name, never a silently-dropped tail (#302).
     expect(parseMintArgs(["--repo", "acme/a", "--org"])).toEqual({
-      targetRepo: "acme/a",
+      repeatedFlag: "--repo",
     });
     // A usable --purpose rides along.
     expect(
