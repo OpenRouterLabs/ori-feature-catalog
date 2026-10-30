@@ -427,6 +427,20 @@ export const orgOf = (repo: string): string => {
   if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
     return "";
   }
+  // An api.github.com paste of the ORGANIZATIONS-page INDEX —
+  // `api.github.com/orgs`, `/organizations`, `/users` — is the same
+  // no-owner page the guards below answer for the github.com host, but the
+  // api strip above delivers its tail to those guards as `orgs`, which
+  // their `github.com[/:]` anchors never see: pre-fix it fell through to
+    // the bare pass-through at the bottom and the reserved word itself
+  // flowed on as the "org" — a registry key no mint can ever derive —
+  // while `api.github.com/users` and `github.com/orgs` answered the
+  // honest "" (#203/#204's index class, reopened through the api host's
+  // own INDEX spelling). The api strip makes this spelling reach the
+  // branches below as `orgs`, so the guard must live HERE, before them.
+  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+    return "";
+  }
   // The ORGANIZATIONS page spellings — `https://github.com/orgs/<org>` (the
   // "Your organizations" page) and `/organizations/<org>` — are the same
   // copy-paste class as the org URL below, but they MUST be stripped before
@@ -868,6 +882,23 @@ export const resolveConfigDirName = (
       )
     : apiRepoTail;
   if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
+    return "intern";
+  }
+  // An api.github.com paste of the ORGANIZATIONS-page INDEX —
+  // `api.github.com/orgs`, `/organizations`, `/users` — is the same
+  // no-owner page the guards below answer for the github.com host, but the
+  // api strip above delivers its tail to those guards as `orgs`, which
+  // their `github.com[/:]` anchors never see: pre-fix it fell through to
+    // the single-segment pass-through below and named the config dir
+  // after the reserved word — a directory no sibling resolver's key ever
+  // derives, silently migrating the registry/cache DB the moment the env
+  // var's spelling was an api-paste of the organizations index (#113's
+  // class, reopened through the api host's own INDEX spelling; `orgOf`
+  // now returns "" for the same spelling). Guard it here, keyed on
+  // `apiHostMatch` so a repo genuinely named `orgs` under a real owner
+  // (reachable only as `github.com/o/orgs`, never this shape) is
+  // untouched.
+  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
     return "intern";
   }
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs` (also

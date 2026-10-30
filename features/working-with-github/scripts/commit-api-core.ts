@@ -603,6 +603,22 @@ export const resolveRepoFromEnv = (
   if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
     return "";
   }
+  // An api.github.com paste of the ORGANIZATIONS-page INDEX —
+  // `api.github.com/orgs`, `/organizations`, `/users` — is the same
+  // no-owner page the guards below answer for the github.com host, but the
+  // api strip above delivers its tail to those guards as `orgs`, which the `github.com[/:]` anchors below never see: pre-fix
+    // it fell through to the bare pass-through at the bottom and resolved
+  // the reserved word itself as the "repo" (`repos/orgs` — a route
+  // GitHub 404s on a host path word, never a repo), while
+  // `api.github.com/users` and `github.com/orgs` answered the honest ""
+  // (#203/#204's index class, reopened through the api host's own INDEX
+  // spelling). Guard it here, keyed on `apiHostMatch` so the org-NAMING
+  // spellings (`api.github.com/orgs/acme`, answered below by the
+  // orgs-page branch) and a repo genuinely named `orgs` under a real
+  // owner stay untouched.
+  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+    return "";
+  }
   // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
   // organizations" page), also `github.com/organizations/acme` — is the one
   // spelling whose ORG sits where the repo regexes below expect a repo
