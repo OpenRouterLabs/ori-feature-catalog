@@ -312,7 +312,24 @@ export const resolveRepoFromEnv = (
   // (#285's class, the one-spelling contract). The api. label keeps its own
   // dedicated strip below, which also drops the host and the `repos` path
   // word.
-  const subdomainStripped = (env.GITHUB_REPO ?? "").replace(
+  // The trim + rider strips run BEFORE the subdomain strip below, never after
+  // it — the same reorder `orgOf` and `resolveAllowedOrgs` apply (see their
+  // sites): the strip's lookahead is `$`-or-separator-anchored, so a
+  // rider/suffix/padding past a bare subdomain host (`www.github.com#frag`,
+  // `gist.github.com?tab=readme`, `https://codeload.github.com.git`) defeated
+  // it, the label survived, and the raw string flowed on whole as the "repo"
+  // — every `repos/{repo}` route 404s and `gh --repo` rejects it — while its
+  // rider-less form answered the healthy `""` and the REPO= recipe agreed
+  // (the #285 one-spelling contract, reopened through the rider position).
+  // The strips are idempotent; `raw` below re-runs them harmlessly.
+  const subdomainTrimmed = (env.GITHUB_REPO ?? "")
+    .trim()
+    .replace(/\?.*$/u, "")
+    .replace(/#.*$/u, "")
+    .replace(/[\/\s]+$/gu, "")
+    .replace(/\.git$/u, "")
+    .replace(/[\/\s]+$/gu, "");
+  const subdomainStripped = subdomainTrimmed.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
