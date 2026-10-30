@@ -372,9 +372,42 @@ export const orgOf = (repo: string): string => {
   const apiStripped = apiHostMatch
     ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
-  const apiRepoStripped = apiHostMatch
+  const apiRepoTail = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
     : apiStripped;
+  // A raw.githubusercontent.com paste —
+  // `https://raw.githubusercontent.com/acme/widgets/main/x.ts` (the host
+  // this feature's own ambient-mode recipes teach the operator to read raw
+  // file content from, so pasting one back is realistic) — has the
+  // documented path scheme `/<owner>/<repo>/<ref>/<path>`: the first two
+  // segments name the repo the file belongs to, the same derivability
+  // `repos/<owner>/<repo>` has on the api host (maintainer ruling on #288,
+  // Option A; `codeload.github.com/o/r/tarball/main` — a content host whose
+  // first two segments the subdomain corpus already resolves — is the same
+  // shape). The host is a DIFFERENT domain from github.com, so the generic
+  // strips never fire and pre-fix each resolver answered a different dead
+  // value from the one spelling (verified live): the schemed form flowed on
+  // whole as the "org" (a registry key no mint can ever derive); the bare
+  // form answered the host word (`raw.githubusercontent.com`) as the
+  // owner — a login no installation can ever carry; the scp form answered
+  // `git@raw.githubusercontent.com:acme`. Strip the host (case-tolerant,
+  // optional scheme/user-info, `[/:]` separator set like the api strip) and
+  // let the branches below see the `owner/repo/...` tail — the two-segment
+  // and deep branches already collapse it to the owner. A bare raw host, or
+  // one with fewer than two path segments, names no repo: return the honest
+  // "" (the same Option B answer for the degenerate forms, matching a bare `api.github.com`).
+  const rawHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
+      apiRepoTail
+    );
+  const apiRepoStripped = rawHostMatch
+    ? apiRepoTail.replace(
+        /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm][\/:]*/u,
+        ""
+      )
+    : apiRepoTail;
+  if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
+    return "";
+  }
   // The ORGANIZATIONS page spellings — `https://github.com/orgs/<org>` (the
   // "Your organizations" page) and `/organizations/<org>` — are the same
   // copy-paste class as the org URL below, but they MUST be stripped before
@@ -765,9 +798,42 @@ export const resolveConfigDirName = (
   const apiStripped = apiHostMatch
     ? portStripped.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Aa][Pp][Ii]\.[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][\/:]*/u, "")
     : portStripped;
-  const apiRepoStripped = apiHostMatch
+  const apiRepoTail = apiHostMatch
     ? apiStripped.replace(/^repos\//u, "")
     : apiStripped;
+  // A raw.githubusercontent.com paste —
+  // `https://raw.githubusercontent.com/acme/widgets/main/x.ts` (the host
+  // this feature's own ambient-mode recipes teach the operator to read raw
+  // file content from, so pasting one back is realistic) — has the
+  // documented path scheme `/<owner>/<repo>/<ref>/<path>`: the first two
+  // segments name the repo the file belongs to, the same derivability
+  // `repos/<owner>/<repo>` has on the api host (maintainer ruling on #288,
+  // Option A; `codeload.github.com/o/r/tarball/main` — a content host whose
+  // first two segments the subdomain corpus already resolves — is the same
+  // shape). The host is a DIFFERENT domain from github.com, so the generic
+  // strips never fire and pre-fix each resolver answered a different dead
+  // value from the one spelling (verified live): the schemed form flowed on
+  // whole as the "org" (a registry key no mint can ever derive); the bare
+  // form answered the host word (`raw.githubusercontent.com`) as the
+  // owner — a login no installation can ever carry; the scp form answered
+  // `git@raw.githubusercontent.com:acme`. Strip the host (case-tolerant,
+  // optional scheme/user-info, `[/:]` separator set like the api strip) and
+  // let the branches below see the `owner/repo/...` tail — the two-segment
+  // and deep branches already collapse it to the owner. A bare raw host, or
+  // one with fewer than two path segments, names no repo: return the honest
+  // "intern" (the same Option B answer for the degenerate forms, matching a bare `api.github.com`).
+  const rawHostMatch = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm](?:[\/:]|$)/u.test(
+      apiRepoTail
+    );
+  const apiRepoStripped = rawHostMatch
+    ? apiRepoTail.replace(
+        /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm][\/:]*/u,
+        ""
+      )
+    : apiRepoTail;
+  if (rawHostMatch && !/^[^/]+\/[^/]+/u.test(apiRepoStripped)) {
+    return "intern";
+  }
   // The ORGANIZATIONS-page INDEX spelling — `https://github.com/orgs` (also
   // `/organizations`, the `/users` directory index, the scp/ssh host-word
   // form, the ported spellings) — ends AT the reserved host-path word with
