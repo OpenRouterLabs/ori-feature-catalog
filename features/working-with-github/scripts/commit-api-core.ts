@@ -553,7 +553,7 @@ export const resolveRepoFromEnv = (
     // different dead value while the lowercase and unported forms were
     // healthy (the one-spelling contract, reopened through the
     // case+port combination on the api host).
-    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
+    /((?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|(?:git@)?[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm]):\d+(?=[\/:]|$)/u,
     "$1"
   );
   // An api.github.com REST paste — `https://api.github.com/repos/acme/widgets`
@@ -636,8 +636,15 @@ export const resolveRepoFromEnv = (
   // spelling). Guard it here, keyed on `apiHostMatch` so the org-NAMING
   // spellings (`api.github.com/orgs/acme`, answered below by the
   // orgs-page branch) and a repo genuinely named `orgs` under a real
-  // owner stay untouched.
-  if (apiHostMatch && /^(orgs|organizations|users)\/?$/u.test(apiRepoStripped)) {
+  // owner stay untouched. The REST COLLECTION INDEX `repos` is the same
+  // no-owner page: the api strip's `repos/` word-strip only fires when a
+  // path follows it, so the bare `api.github.com/repos` tail survived as
+  // `repos` and pre-fix the bare pass-through at the bottom returned the
+  // reserved REST path word as the repo — a fake owner/repo pair every
+  // `repos/{repo}` route 404s on and `gh --repo` rejects — while the
+  // orgs index answered the honest "" and the RECIPE's own api rules
+  // emptied the same spelling.
+  if (apiHostMatch && /^(orgs|organizations|users|repos)\/?$/u.test(apiRepoStripped)) {
     return "";
   }
   // An ORGANIZATIONS-page URL — `github.com/orgs/acme` (the "Your
