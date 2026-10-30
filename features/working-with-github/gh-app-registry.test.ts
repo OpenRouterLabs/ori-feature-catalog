@@ -366,6 +366,24 @@ describe("resolveConfigDirName", () => {
     );
   });
 
+  test("an INTERN_NAME that sanitizes to nothing falls through, never returns the empty string", () => {
+    // A punctuation-only name (`...`, `---`, `(((` — a stray paste) sanitizes to
+    // "", and pre-fix the empty string was RETURNED: `join(homedir,
+    // ".config", "")` is the config ROOT, so the registry DB landed at
+    // `~/.config/gh-app-registry.db`, shared with every other store keyed
+    // there — while the GITHUB_REPO fallthrough own empty case already
+    // answers `intern`. One branch, no guard.
+    expect(resolveConfigDirName({ INTERN_NAME: "..." })).toBe("intern");
+    expect(resolveConfigDirName({ INTERN_NAME: "---" })).toBe("intern");
+    expect(resolveConfigDirName({ INTERN_NAME: "(((" })).toBe("intern");
+    // A sanitized-non-empty name keeps its exact answer.
+    expect(resolveConfigDirName({ INTERN_NAME: "___" })).toBe("___");
+    // With a repo also present, the fallthrough is the repo segment.
+    expect(
+      resolveConfigDirName({ GITHUB_REPO: "acme/widgets", INTERN_NAME: "..." })
+    ).toBe("widgets");
+  });
+
   test("falls back to the repo segment of GITHUB_REPO", () => {
     expect(
       resolveConfigDirName({ GITHUB_REPO: "acme-interns/helper-bot" })
