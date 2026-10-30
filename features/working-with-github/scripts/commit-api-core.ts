@@ -346,36 +346,33 @@ export const resolveRepoFromEnv = (
     .replace(/[\/\s]+$/gu, "")
     .replace(/\.git$/u, "")
     .replace(/[\/\s]+$/gu, "");
-  const subdomainStripped = subdomainTrimmed.replace(
+  // The scheme-separator rewrite runs BEFORE the subdomain strip above —
+  // the same hoist `orgOf` applies (see its site in gh-app-registry.ts for
+  // the full class): the strip's scheme group spells `://`, so a
+  // single-slash scheme on a bare subdomain host (`https:/www.github.com`)
+  // missed the strip, the label survived, and this resolver answered the
+  // raw URL (`https://www.github.com`) — a repo every `repos/{repo}` route
+  // 404s on and `gh --repo` rejects — while its `://` sibling answered the
+  // documented `""` and the REPO= recipe agreed with the sibling (the
+  // one-spelling contract, reopened through the rewrite's position, in the
+  // one shape that needs a lost slash, a label, and no path). The rewrite's
+  // lookahead already tolerates the label (`(?:[A-Za-z0-9-]+\.)*` ahead of
+  // the host word), so hoisting it is behavior-identical for every healthy
+  // spelling.
+  const schemeSeparatorFixed = subdomainTrimmed.replace(
+    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
+    "$1://"
+  );
+  const subdomainStripped = schemeSeparatorFixed.replace(
     /^((?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@\/\s]+@)?)(?![Aa][Pp][Ii]\.)([a-zA-Z][a-zA-Z0-9-]*\.)([Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm])(?=:\d+(?:[\/:]|$)|[\/:]|$)/u,
     (_m: string, scheme: string, _sub: string, host: string) =>
       `${scheme}${host.toLowerCase()}`
   );
-  // The same scheme-separator normalization the sibling resolvers apply
-  // (`orgOf`, `resolveConfigDirName` in gh-app-registry.ts, the allowlist in
-  // gh-app-github-api.ts; see their sites for the full class): a scheme
-  // whose separator lost a slash — `https:/github.com/acme/widgets`,
-  // `https:github.com/acme/widgets` (curl normalizes both and answers 200,
-  // so they are real client-accepted spellings of the same URL) — fell the
-  // `://`-anchored bare-host and index branches below, so the bare form
-  // `https:/github.com` flowed on whole as the "repo" (a value every
-  // `repos/{repo}` route 404s on and `gh --repo` rejects) while its `://`
-  // sibling answered "" (the documented no-repo answer the callers fail
-  // loudly on), and a host-case single-slash owner form
-  // (`HTTPS:/GitHub.com/acme/widgets`) answered the raw host string while
-  // its slash-bearing sibling answered the healthy pair. The deep/tail
-  // branches (no scheme anchor) already rescued the lowercase owner-bearing
-  // forms, which is exactly the one-spelling contract this closes for the
-  // rest. Rewrite ONLY the scheme's own separator, only ahead of a
-  // github.com-shaped host; an scp spec (`git@github.com:acme/widgets`)
-  // carries no scheme word before its colon and a bare `acme:widgets` names
-  // no host, so neither is touched. Idempotent; the chain below re-runs its
-  // strips harmlessly.
-  const schemeSeparatorFixed = subdomainStripped.replace(
-    /^([a-zA-Z][a-zA-Z0-9+.-]*):\/?(?=(?:[^@\/\s]+@)?(?:[A-Za-z0-9-]+\.)*(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]|[Rr][Aa][Ww]\.[Gg][Ii][Tt][Hh][Uu][Bb][Uu][Ss][Ee][Rr][Cc][Oo][Nn][Tt][Ee][Nn][Tt]\.[Cc][Oo][Mm])(?:[\/:?#.]|$))/u,
-    "$1://"
-  );
-  const raw = schemeSeparatorFixed
+  // `subdomainStripped` (not `schemeSeparatorFixed`): the strip has now run
+  // ON the separator-fixed string, so its result is the value every branch
+  // below must see — feeding the pre-strip value would re-introduce the
+  // label the strip removed.
+  const raw = subdomainStripped
     .trim()
     // The strips the tail exposes — query/fragment riders, then the trailing
     // separator/whitespace, then whatever the separator exposed — mirror the
