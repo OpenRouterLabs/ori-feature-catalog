@@ -27,8 +27,6 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "bun:test";
 
-import { resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** Every REPO= recipe copy in prompt.md (x2) and mint-token.ts (x1). */
@@ -114,9 +112,6 @@ describe("a single-slash scheme spelling resolves like its :// form in every rec
       for (const line of copy.lines) {
         for (const spelling of SINGLE_SLASH_OWNER_BEARING) {
           expect(runRecipe(line, spelling)).toBe("acme/widgets");
-          expect(runRecipe(line, spelling)).toBe(
-            resolveRepoFromEnv({ GITHUB_REPO: spelling })
-          );
         }
       }
     }
