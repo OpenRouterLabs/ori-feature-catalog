@@ -322,7 +322,24 @@ export const resolveRepoFromEnv = (
   // rider-less form answered the healthy `""` and the REPO= recipe agreed
   // (the #285 one-spelling contract, reopened through the rider position).
   // The strips are idempotent; `raw` below re-runs them harmlessly.
+  // Strip LEADING slashes AND the whitespace they expose, in ONE step
+  // (`^[/\s]+`), BEFORE every host-keyed strip below — the same order the
+  // sibling resolvers now apply (see gh-app-registry.ts `orgOf`). A leading
+  // slash in front of the HOST word (`//github.com/o/r` — a
+  // protocol-relative URL, the browser-address-bar form that lost its
+  // scheme; `/GitHub.com/o/r` — a shell-autocomplete paste) is the same
+  // URL, but every HOST-KEYED strip below is `^`-ANCHORED (the subdomain
+  // strip, the case-lower, the api strip), so pre-fix the slash DEFEATED
+  // each one exactly the way a rider does: a case-variant host behind a
+  // slash (`//GitHub.com/o/r`) kept its case, fell every case-paired
+  // branch, and this resolver answered `GitHub.com/acme` — a repo every
+  // `repos/{repo}` route 404s on and `gh --repo` rejects — while its
+  // slash-LESS form answered the healthy pair (the one-spelling contract,
+  // reopened through the leading slash). The strip is idempotent; the
+  // collapse below never re-exposes it and a healthy `acme/widgets`
+  // never changes.
   const subdomainTrimmed = (env.GITHUB_REPO ?? "")
+    .replace(/^[\/\s]+/u, "")
     .trim()
     .replace(/\?.*$/u, "")
     .replace(/#.*$/u, "")

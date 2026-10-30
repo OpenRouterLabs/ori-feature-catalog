@@ -171,7 +171,26 @@ export const orgOf = (repo: string): string => {
   // ones `hostLowered` applies after its own trim (idempotent; re-run there
   // harmlessly), so the strip below now sees the same cleaned host word the
   // plain-host case-lower already sees.
-  const subdomainTrimmed = repo
+  // Strip LEADING slashes AND the whitespace they expose, in ONE step
+  // (`^[/\s]+`), BEFORE every host-keyed strip below — the same order the
+  // hostless leading-slash fix already applies at `leadingSlashStripped`.
+  // A leading slash in front of the HOST word (`//github.com/o/r` — a
+  // protocol-relative URL, the browser-address-bar form that lost its
+  // scheme; `/github.com/o/r` — a shell-autocomplete paste) is the same
+  // URL as `github.com/o/r`, but every HOST-KEYED strip below is
+  // `^`-ANCHORED (the subdomain strip, the case-lower, the api strip), so
+  // pre-fix the slash DEFEATED each one exactly the way a rider does: the
+  // subdomain label survived `//www.github.com` and this function answered
+  // the host word whole as the "org" (a registry key no mint can ever
+  // derive) while its rider-less form answered the healthy `""`, and a
+  // case-variant host behind a slash (`//GitHub.com/o/r`) kept its case,
+  // fell every case-paired branch, and the raw junk flowed on whole —
+  // while the slash-LESS form answered the healthy owner (the
+  // one-spelling contract, reopened through the leading slash). The strip
+  // is idempotent and the collapse below never re-exposes it; a healthy
+  // `acme/widgets` spelling never changes.
+  const leadStrippedRepo = repo.replace(/^[\/\s]+/u, "");
+  const subdomainTrimmed = leadStrippedRepo
     .trim()
     .replace(/\?.*$/u, "")
     .replace(/#.*$/u, "")
@@ -636,7 +655,24 @@ export const resolveConfigDirName = (
   // documented `intern` fallback and the REPO= recipe agreed (#285's class,
   // reopened through the rider position). The strips are idempotent;
   // `hostLoweredRepo` below re-runs them harmlessly.
-  const subdomainTrimmedRepo = (env.GITHUB_REPO ?? "")
+  // Strip LEADING slashes AND the whitespace they expose, in ONE step
+  // (`^[/\s]+`), BEFORE every host-keyed strip below — the same order
+  // `orgOf` (this file) and the two sibling resolvers apply: a leading
+  // slash in front of the HOST word (`//github.com/o/r` — a
+  // protocol-relative URL, the browser-address-bar form that lost its
+  // scheme; `/github.com/o/r` — a shell-autocomplete paste) is the same
+  // URL, but every HOST-KEYED strip below is `^`-ANCHORED (the subdomain
+  // strip, the case-lower, the api strip), so pre-fix the slash DEFEATED
+  // each one exactly the way a rider does: the subdomain label survived
+  // `//www.github.com` and the fallback below sanitized the raw URL into
+  // the dir name (`www.github.com`) — a directory no sibling resolver'''s
+  // key ever derives, silently migrating the registry/cache DB — while its
+  // slash-less form took the documented `intern` fallback and the REPO=
+  // recipe agreed (the one-spelling contract, reopened through the leading
+  // slash). The strip is idempotent; `hostLoweredRepo` below re-runs the
+  // tail strips harmlessly.
+  const leadStrippedRepo = (env.GITHUB_REPO ?? "").replace(/^[\/\s]+/u, "");
+  const subdomainTrimmedRepo = leadStrippedRepo
     .trim()
     .replace(/\?.*$/u, "")
     .replace(/#.*$/u, "")
