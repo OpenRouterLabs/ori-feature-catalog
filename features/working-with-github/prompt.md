@@ -261,13 +261,17 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues):
 
    ```bash
+   # A PR body is prose: it carries apostrophes ("don't", "the user's repo") that
+   # break a single-quoted --field at shell-parse time. Write it to a temp file —
+   # the same pattern --message-file uses — and let "$(cat …)" quote it.
+   BODY=$(mktemp); printf '%s\n' "Closes #N. Description of the change." > "$BODY"
    PR_URL=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls" --method POST \
      --field title='your PR title' \
      --field head='branch-name' \
      --field base='main' \
-     --field body='Description of the change.' \
+     --field body="$(cat "$BODY")" \
      --jq '.html_url')
-   echo "$PR_URL"
+   rm -f "$BODY"; echo "$PR_URL"
    ```
 
    Output the PR URL so a button is posted in Slack. You may **merge your own PR** once every merge-readiness condition holds (see "Merging your own PRs" below); otherwise leave it open for a human to review and merge.
@@ -304,9 +308,12 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" \
   --method DELETE
 
-# Post the brief summary comment:
+# Post the brief summary comment (a temp file again: a summary is prose and
+# may carry apostrophes):
+SUMMARY=$(mktemp); printf '%s\n' "Merged: <one-line summary>" > "$SUMMARY"
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/issues/PR_NUMBER/comments" \
-  --method POST --field body='Merged: <one-line summary>'
+  --method POST --field body="$(cat "$SUMMARY")"
+rm -f "$SUMMARY"
 ```
 
 If any condition is not met, **do not merge** — fix what's blocking (resolve threads, get CI green) or, if it needs a human decision, leave the PR open, output its URL so a button is posted in Slack, and say what's blocking. Never merge to bypass an unresolved review or a red check. When in doubt, leave it for a human.
