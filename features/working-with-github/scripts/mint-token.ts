@@ -1,20 +1,19 @@
 #!/usr/bin/env bun
 /**
- * mint-token.ts — print a fresh, short-lived GitHub App installation token to
- * stdout. This is the intern's primary GitHub auth path.
+ * mint-token.ts — print the GitHub token to use to stdout. With no flags (or a
+ * target with no registered alternate App) that is the host-rotated
+ * `GH_TOKEN`, never a fresh mint: the host rotates it on a cadence, and minting
+ * per call hit GitHub's rate limits. Only a target routed to a registered
+ * alternate App mints an installation token.
  *
  * # When to use this
  *
- * `gh` and `git` are NOT pre-authenticated on the VM — there is no
- * `/usr/local/bin/gh` wrapper, no git credential helper, and no
- * `~/.config/gh/hosts.yml`. A bare `gh ...` / `git fetch` fails with an auth
- * error. So for ANY GitHub call (gh, git, or a raw curl) you mint a token here
- * and inject it ephemerally as `GH_TOKEN` (or a per-command remote URL).
- * Mint right before you need it and
- * let it die with the process; re-mint freely.
+ * `gh` reads the rotated `GH_TOKEN` directly. Use this script when you need the
+ * token as a value (a raw curl, a per-command git remote URL) or need an
+ * alternate App's token via `--repo`/`--purpose`.
  *
- * `commit-via-api.ts` is the one exception: it mints internally via
- * `mintInstallationToken()`, so you do not feed it a token.
+ * `commit-via-api.ts` resolves its own token via `resolveGitHubToken()`, so you
+ * do not feed it one.
  *
  * # Usage
  *
@@ -34,13 +33,10 @@
  *     -H "Accept: application/vnd.github+json" \
  *     "https://api.github.com/repos/$REPO"
  *
- * The ~1-hour installation token is derived on demand from the App credentials
- * in the service env (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`) — nothing at rest. The
- * App's installation is discovered at mint time (matching the `GITHUB_REPO` org,
- * or the App's sole installation), so no installation id is configured. On
- * success it prints ONLY the token followed by a newline (so `$(...)` capture is
- * clean) and exits 0. On a mint failure it prints a diagnostic to stderr and
- * exits non-zero — never a partial or empty token to stdout.
+ * On success it prints ONLY the token followed by a newline (so `$(...)`
+ * capture is clean) and exits 0. On failure (e.g. `GH_TOKEN` unset) it prints a
+ * diagnostic to stderr and exits non-zero — never a partial or empty token to
+ * stdout.
  *
  * Treat the output as a secret: assign it to a variable, never echo it, never
  * write it to a file, never run `gh auth login`, and never embed it in a
@@ -49,12 +45,10 @@
 
 import { Effect } from "effect";
 
-import type {
-  GhAppError,
-  InstallationToken,
-} from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
-import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import {
   findJunkArgv,
@@ -73,10 +67,10 @@ export interface MintWriters {
  * `out` on success, or a diagnostic to `err` on failure. Resolves to the
  * intended process exit code (0 success, 1 failure) — never throws. The `mint`
  * Effect is injected so a test drives both channels with a fake; the entrypoint
- * passes the real `mintInstallationToken()`.
+ * passes the real `resolveGitHubToken()`.
  */
 export const runMint = (
-  mint: Effect.Effect<InstallationToken, GhAppError>,
+  mint: Effect.Effect<GitHubToken, GhAppError>,
   writers: MintWriters
 ): Effect.Effect<number> =>
   mint.pipe(
@@ -516,7 +510,7 @@ if (import.meta.main) {
     process.exit(1);
   }
   const code = await Effect.runPromise(
-    runMint(mintInstallationToken(mintDeps), {
+    runMint(resolveGitHubToken(mintDeps), {
       out: (text) => {
         process.stdout.write(text);
       },

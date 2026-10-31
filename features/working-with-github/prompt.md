@@ -54,13 +54,13 @@ Some hosts route GitHub traffic through an egress proxy that attaches this works
 
 If ambient requests are denied (401/403/404 on a repo you expect to reach), that is the answer: this workspace's credential does not reach that repo. Say so plainly; do not hunt for local credentials that were never there.
 
-## Access mode 2 — explicit ephemeral tokens (mint → inject → discard), when `GH_APP_ID` is set
+## Access mode 2 — the host-rotated `GH_TOKEN`, when `GH_APP_ID` is set
 
-This pattern is mandatory whenever `GH_APP_ID` is set. `gh` and `git` are **not** auto-authenticated: there is no `/usr/local/bin/gh` wrapper, no git credential helper, and no `~/.config/gh/hosts.yml`. A bare `gh ...` or `git fetch` will fail with an auth error. The only secret at rest is the GitHub App private key in the service env (`GH_APP_ID`, `GH_APP_PRIVATE_KEY`); the App's installation is discovered at mint time (matching the `GITHUB_REPO` org), so no installation id is configured. Every token is derived on demand and discarded when the process exits.
+This pattern is mandatory whenever `GH_APP_ID` is set. `gh` and `git` are **not** auto-authenticated: there is no `/usr/local/bin/gh` wrapper, no git credential helper, and no `~/.config/gh/hosts.yml`. A bare `gh ...` or `git fetch` will fail with an auth error. The host rotates the default App's installation token on a cadence and injects it as `GH_TOKEN`. **Never mint a token per command** — minting on every run is what hit GitHub's rate limits (429), and is why the host owns rotation.
 
 Your own repo is in the `GITHUB_REPO` env var. Use `gh` for all GitHub operations against it (or any other repo the team asks about). `GITHUB_REPO` may carry any of the spellings the sibling resolvers in this feature tolerate (bare `owner/repo`, a full `https://` URL, an optional `.git` suffix, a trailing slash), but `gh --repo`, the `repos/{owner}/{repo}` API routes, and the `github.com/…` fetch URL all take bare `owner/repo` only — so normalize once per shell and interpolate `$REPO` in every recipe below.
 
-To authenticate, **mint a fresh ~1-hour installation token and inject it as `GH_TOKEN` into the single command that needs it** — `scripts/mint-token.ts` prints the token to stdout:
+To authenticate, **pass the rotated token as `GH_TOKEN` to the command that needs it** — `scripts/mint-token.ts` prints it to stdout (it reads the rotated `GH_TOKEN`; it does not mint for the default App):
 
 ```bash
 # Normalize GITHUB_REPO to bare owner/repo (tolerating a full https URL, an
@@ -139,14 +139,14 @@ git fetch "https://x-access-token:${TOKEN}@github.com/${REPO}.git" main
 
 **Token-handling rules — mandatory, never bypass:**
 
-- **Always inject as `GH_TOKEN`** (or a per-command remote URL). Mint right before you need it; let it die with the process. Re-mint freely — tokens are cheap and short-lived.
+- **Always inject as `GH_TOKEN`** (or a per-command remote URL). Do not mint your own token for the default App: the host rotates it, and per-run minting gets rate-limited.
 - **NEVER run `gh auth login` / `gh auth switch`, and NEVER write to `~/.config/gh/hosts.yml`.** That store is a process-global mutable singleton; persisting a token there races every concurrent `gh` call and has historically caused identity/attribution bugs across the fleet. Ephemeral injection is the _only_ sanctioned path.
 - **Treat the token as a secret.** Assign it to a shell var — never echo it, never write it to a file, never persist it in a git remote (`git remote set-url`), never paste it into Slack or a PR.
-- **`commit-via-api.ts` mints its own token internally** — you do not pass it one. Same for any future feature script that needs auth: mint inside via `mintInstallationToken()` from `gh-app-token.ts`.
+- **`commit-via-api.ts` resolves its own token** — you do not pass it one. Same for any future feature script that needs auth: use `resolveGitHubToken()` from `gh-app-token-mint.ts`, never `mintInstallationToken()` directly.
 
 A token is only ever minted against an installation whose owner is allowlisted: the logins in `GH_APP_ALLOWED_ORGS` (comma or space separated), or else only the owner of `GITHUB_REPO`. A public App can be installed by anyone, so a foreign installation is never used. To act in another org, the operator adds it to `GH_APP_ALLOWED_ORGS`.
 
-If minting itself fails, the App credentials or installation are broken (the `gh-auth-health` schedule alerts on this) — fixing the service env is the remedy, never re-authing `gh`.
+If `GH_TOKEN` is missing or rejected, the host's rotation or the App installation is broken (the `gh-auth-health` schedule alerts on this) — fixing that is the remedy, never re-authing `gh` or minting your own.
 
 ### Acting with a different App — another org, or a different role in your own org
 

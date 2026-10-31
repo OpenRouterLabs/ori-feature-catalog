@@ -56,12 +56,10 @@
 
 import { Effect } from "effect";
 
-import type {
-  GhAppError,
-  InstallationToken,
-} from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
-import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
@@ -253,7 +251,7 @@ export const formatOutcome = (outcome: WorktreeOutcome): string =>
  */
 export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
   function* (
-    mint: Effect.Effect<InstallationToken, GhAppError> | undefined,
+    mint: Effect.Effect<GitHubToken, GhAppError> | undefined,
     args: CleanupCliArgs,
     writers: CleanupWriters,
     // Ambient mode (GH_APP_ID unset): no App token can be minted, and the
@@ -326,7 +324,7 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
     }
     const token = ambient
       ? undefined
-      : yield* (mint as Effect.Effect<InstallationToken, GhAppError>).pipe(
+      : yield* (mint as Effect.Effect<GitHubToken, GhAppError>).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
               writers.err(
@@ -375,7 +373,7 @@ if (import.meta.main) {
     runCleanup(
       // In ambient mode the mint cannot succeed (no App credentials exist);
       // the runCleanup call above skips it, and this Effect is never forced.
-      ambient ? undefined : mintInstallationToken({ targetRepo: args.repo }),
+      ambient ? undefined : resolveGitHubToken({ targetRepo: args.repo }),
       args,
       {
         err: (text) => {

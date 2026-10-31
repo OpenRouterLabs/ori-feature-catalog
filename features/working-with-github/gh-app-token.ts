@@ -19,13 +19,10 @@
  * Every method returns an `Effect` whose only typed failure is `GhAppError`
  * (carrying the failing `op` so a failed mint is diagnosable from the logs).
  *
- * Nothing here ever persists the token. Callers mint on demand and inject the
- * token ephemerally — `scripts/mint-token.ts` prints one to stdout for
- * `GH_TOKEN=$(...)` injection into a single `gh`/`git`/`curl` call, and
- * `scripts/commit-via-api.ts` mints internally for one signed commit. The
- * `gh-auth-health` schedule only verifies a mint succeeds. The only secret at
- * rest on the VM is the App private key in the service env — the token is
- * always derived on demand, so there is no `~/.config/gh/hosts.yml`, no token
+ * Nothing here ever persists the token. The default App's token is rotated by
+ * the host and injected as `GH_TOKEN`; callers go through `resolveGitHubToken()`
+ * (`gh-app-token-mint.ts`), which only reaches this minting service for a
+ * registered alternate App. There is no `~/.config/gh/hosts.yml`, no token
  * embedded in a git remote URL, and no token file.
  *
  * A single App installation only covers the orgs it's installed on, so the

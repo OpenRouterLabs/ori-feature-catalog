@@ -27,7 +27,7 @@ import {
   isRepoUnset,
   resolveRepoFromEnv,
 } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 const WORKTREES_ROOT = "/tmp/worktrees";
 
@@ -63,7 +63,7 @@ const sweepWorktrees = Effect.fn("WorktreeCleanupSchedule.sweep")(function* (
   }
   const token = ambient
     ? undefined
-    : yield* mintInstallationToken({ targetRepo: repo }).pipe(
+    : yield* resolveGitHubToken({ targetRepo: repo }).pipe(
         Effect.catch((error) =>
           Effect.die(
             new Error(

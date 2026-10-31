@@ -14,10 +14,8 @@
 
 import { Data, Effect, Option, Schema } from "effect";
 
-import type {
-  GhAppError,
-  InstallationToken,
-} from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
+import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 /** The outcome of a completed health check — which access mode was proven and,
  *  in ambient mode, whether the host's GitHub access is reachable at all. */
@@ -165,9 +163,9 @@ type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export interface HealthCheckInput {
   readonly fetchImpl?: FetchLike;
-  /** Mint a fresh installation token — an Effect, injected so the check is
-   *  testable with a fake that succeeds or fails in the GhAppError channel. */
-  readonly mint: Effect.Effect<InstallationToken, GhAppError>;
+  /** Obtain the token — an Effect, injected so the check is testable with a
+   *  fake that succeeds or fails in the GhAppError channel. */
+  readonly mint: Effect.Effect<GitHubToken, GhAppError>;
   /** `owner/repo` to round-trip against (the intern's own repo). */
   readonly repo: string;
 }
@@ -176,7 +174,8 @@ export interface HealthCheckInput {
  *  the Effect's success channel. */
 export interface HealthCheckOk {
   readonly repoFullName: string;
-  readonly tokenExpiresAt: string;
+  /** Absent for the host-rotated `GH_TOKEN`, which carries no expiry. */
+  readonly tokenExpiresAt?: string;
 }
 
 /**
@@ -342,7 +341,9 @@ export const ghAuthHealthCheck = (
     });
     return {
       repoFullName,
-      tokenExpiresAt: token.expiresAt,
+      ...(token.expiresAt === undefined
+        ? {}
+        : { tokenExpiresAt: token.expiresAt }),
     } satisfies HealthCheckOk;
   });
 };
@@ -359,13 +360,13 @@ export const renderHealthAlert = (
     `Stage: *${stageLabel}*`,
     `Detail: ${failure.detail}`,
     "",
-    "Mint-on-demand GitHub auth is not working — `git`/`gh` operations will fail until this is fixed. Check `GH_APP_ID`, `GH_APP_PRIVATE_KEY`, and `GITHUB_REPO` (its org is used to discover the App installation) in the service env, and the App's installation/repo access.",
+    "GitHub auth is not working — `git`/`gh` operations will fail until this is fixed. Check that the host is injecting and rotating `GH_TOKEN`, `GITHUB_REPO` in the service env, and the App's installation/repo access.",
   ].join("\n");
 };
 
 /** One-line, log-friendly success summary (no token material). */
 export const formatHealthOkLog = (repo: string, ok: HealthCheckOk): string =>
-  `gh-auth-health: ok — minted token reaches ${ok.repoFullName} (expires ${ok.tokenExpiresAt}) for ${repo}.`;
+  `gh-auth-health: ok — token reaches ${ok.repoFullName}${ok.tokenExpiresAt === undefined ? "" : ` (expires ${ok.tokenExpiresAt})`} for ${repo}.`;
 
 /** One-line, log-friendly failure summary (no token material). */
 export const formatHealthErrorLog = (
