@@ -494,6 +494,23 @@ export const resolveAllowedOrgs = (
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch =
     /[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(apiRepoStripped);
+  // A repo-match owner that is ITSELF a host word — `github.com:github.com/orgs`,
+  // `github.com:api.github.com/users` (a paste whose tail carries a SECOND
+  // host word ahead of the reserved index one) — is the orgs-INDEX spelling
+  // riding past a first host, never an owner: no installation owner is a host
+  // string, so the captured segment would key the allowlist on a dead login
+  // (`github.com`, `api.github.com`) and every mint failed closed while
+  // `orgOf` and `resolveRepoFromEnv` answered "" for the same spelling —
+  // the one-spelling contract the README states. The org-naming tails keep
+  // their owners: `x/github.com/orgs/acme` captures `acme` (not a host
+  // word), and the orgs-page branch above consumes `orgs/<org>` first.
+  const repoMatchOwnerIsHost =
+    repoMatch?.[1] !== undefined &&
+    /^(?:git@)?(?:[Aa][Pp][Ii]\.)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$/iu.test(
+      repoMatch[1]
+    );
+  const repoMatchOwner =
+    repoMatchOwnerIsHost ? undefined : repoMatch?.[1];
   // The HOSTLESS index spelling — a bare `organizations` word with no host
   // and no org segment — is the same page the orgs-index branch guards in
   // `orgOf` and `resolveRepoFromEnv`: it names no org, so the REPO source
@@ -531,7 +548,7 @@ export const resolveAllowedOrgs = (
   const repoOwner = /^(organizations|users)$/u.test(apiRepoStripped)
     ? undefined
     : (orgsPageMatch?.[1] ??
-      repoMatch?.[1] ??
+      repoMatchOwner ??
       // A BARE-HOST spelling — `https://github.com`, `github.com`, the
       // scp/ssh forms (a copied landing page or a truncated `git remote -v`
       // paste, no owner and no repo segment at all) — names no owner, the
