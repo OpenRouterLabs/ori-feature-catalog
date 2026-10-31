@@ -1120,10 +1120,33 @@ export const resolveConfigDirName = (
     // `github.com[/:]` the engine can still match, so the strip leaves
     // exactly the tail `orgOf`/`resolveRepoFromEnv`/
     // `resolveAllowedOrgs` derive their pair from.
-    const hostPortStripped = apiRepoStripped.replace(
-      /^.*(?:git@)?github\.com(?::\d+)?[/:]/u,
-      ""
-    );
+    // #317: a spelling that GENUINELY STARTS with a scheme+host carries its
+    // real host at the FRONT, and the greedy LAST-occurrence strip below
+    // would consume through a LATER `github.com` path segment-word instead
+    // (`github.com/x/github.com/y/z` → `y/z`, `github.com/github.com/o/r` →
+    // `o/r`) while `orgOf`/`resolveRepoFromEnv`/`resolveAllowedOrgs` answer
+    // the pair past the FIRST, anchored host word (`x/github.com`,
+    // `github.com/o`) — the one-spelling contract broken four ways. Anchor
+    // the FIRST-host strip when a scheme+host genuinely leads the string and
+    // let it REPLACE the greedy strip; hostless paths keep the greedy
+    // LAST-host strip #314 pins for them.
+    // A SINGLE separator, never `[\/:]+`: a doubled separator past the host
+    // (`github.com::acme` — the paste class prompt-recipes-apirest-users-tail
+    // pins) keeps its `:acme`-shaped tail, so the anchored strip must consume
+    // exactly one separator and let the pair rules below see the second.
+    const anchoredHostMatch =
+      /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[\/:]/u.test(
+        apiRepoStripped
+      );
+    const hostPortStripped = anchoredHostMatch
+        ? apiRepoStripped.replace(
+            /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[\/:]/u,
+          ""
+        )
+      : apiRepoStripped.replace(
+          /^.*(?:git@)?github\.com(?::\d+)?[/:]/u,
+          ""
+        );
     // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
     // blob/tree/PR/releases address) — resolved the config-dir name from its
     // LAST segment (`main`, `x.ts`, even `42`), silently migrating the
@@ -1131,7 +1154,19 @@ export const resolveConfigDirName = (
     // because the regex anchored to the string's tail. Match the owner/repo
     // pair right after the host (or at the head of a bare string) so a deep
     // path keeps resolving to the repo name, like every other spelling.
+    // #317: in the ANCHORED case the strip above already consumed the FIRST,
+    // genuine host word, so the pair sits at the HEAD of the stripped tail —
+    // match it there (`github.com/x/github.com/y/z` → `x/github.com` →
+    // `github.com`), never from the tail, which would key the dir on the
+    // LAST-host reading (`z`) while every sibling resolver answers the
+    // first-host pair.
+    const anchoredPairMatch =
+      anchoredHostMatch
+        ? /^([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(hostPortStripped) ??
+          /^([^/\s]+)\/([^/\s]+)$/u.exec(hostPortStripped)
+        : undefined;
     const match =
+      anchoredPairMatch ??
       /(?:github\.com[/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(
         hostPortStripped
       ) ??
