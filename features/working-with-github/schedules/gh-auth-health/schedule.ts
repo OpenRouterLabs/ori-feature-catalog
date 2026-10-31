@@ -5,8 +5,10 @@
  * `working-with-github` feature). Every 30 minutes the runtime fires it, in
  * whichever access mode the workspace runs:
  *
- * - **App mode** (`GH_APP_ID` set): mints a fresh GitHub App installation token
- *   and verifies the token actually reaches the intern's repo.
+ * - **App mode** (`GH_APP_ID` set): verifies the host-rotated `GH_TOKEN`
+ *   actually reaches the intern's repo. It never mints: the host rotates the
+ *   token on a cadence, and minting on every fire counted against GitHub's
+ *   rate limits.
  * - **Ambient mode** (`GH_APP_ID` unset): probes `GET https://api.github.com/`
  *   with no Authorization header — the request a host's egress proxy attaches
  *   the workspace credential to. A reachable API is healthy (including the
@@ -18,23 +20,16 @@
  * before it blocks real `git`/`gh` work.
  *
  * This is the honest mapping of "keep GitHub access working" onto the two
- * access models: in App mode there is no token at rest to refresh, so the
- * schedule's job is to continuously prove the mint path is healthy; in ambient
- * mode there is no credential at all, so its job is to prove the API is
- * reachable. The token minted here is used only for the in-memory round-trip
- * check and is discarded when the handler returns — the same no-token-at-rest
- * guarantee as the ephemeral `GH_TOKEN` injection callers use for real
- * `git`/`gh` work.
- *
- * The handler runs in-process in the runtime (which holds GH_APP_PRIVATE_KEY in
- * its environment), so it can mint directly without spawning an agent.
+ * access models: in App mode its job is to continuously prove the rotated
+ * token still reaches the repo; in ambient mode there is no credential at all,
+ * so its job is to prove the API is reachable.
  */
 
 import { Data, Effect } from "effect";
 import { defineSchedule } from "ori";
 
 import { isRepoUnset, resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 import { postAlert } from "@ori-monorepo/working-with-github/post-alert.ts";
 
 import { readGhAuthHealthConfig } from "./config.ts";
@@ -158,7 +153,7 @@ export const schedule = defineSchedule({
           return;
         }
 
-        // App mode: mint + repo round-trip.
+        // App mode: token + repo round-trip.
         // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
         const repo = resolveRepoFromEnv(process.env);
         if (repo === "") {
@@ -179,7 +174,7 @@ export const schedule = defineSchedule({
         }
 
         yield* ghAuthHealthCheck({
-          mint: mintInstallationToken(),
+          mint: resolveGitHubToken(),
           repo,
         }).pipe(
           Effect.matchEffect({

@@ -13,17 +13,16 @@
  * required.
  *
  * This is a minimal, self-contained port of the Git-Data-API commit flow. It is
- * built on this feature's `mintInstallationToken()` (the same token mint that
- * `scripts/mint-token.ts` prints for ephemeral `GH_TOKEN` injection) — it has no
- * external monorepo or `.agents/skills/*` dependency. The flow itself lives in
+ * built on this feature's `resolveGitHubToken()` (the same token
+ * `scripts/mint-token.ts` prints) — it has no external monorepo or
+ * `.agents/skills/*` dependency. The flow itself lives in
  * `commit-flow.ts` (and its shared pieces in `commit-api-core.ts`); this file
  * is just the CLI wrapper: argv parsing, `--message-file` read, process exit.
  *
  * # What it does
  *
- *   1. Mint a fresh installation token (it mints internally — an ambient
- *      `GH_TOKEN` in the environment is NOT read, matching the feature
- *      prompt's rule that this script owns its own minting).
+ *   1. Resolve the token: the host-rotated `GH_TOKEN` for the default App, or
+ *      a minted token when `--repo` routes to a registered alternate App.
  *   2. Read the branch's current head commit + its tree (the base tree).
  *   3. For every changed file in the worktree (`git status --porcelain`):
  *        - added / modified → create a blob, stage it in the new tree;

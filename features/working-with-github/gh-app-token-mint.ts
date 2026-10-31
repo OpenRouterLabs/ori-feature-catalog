@@ -10,7 +10,6 @@ import { Effect, Layer } from "effect";
 
 import type {
   FetchLike,
-  GhAppError,
   InstallationToken,
 } from "./gh-app-github-api.ts";
 import type { InstallationCache } from "./gh-app-registry.ts";
@@ -18,10 +17,13 @@ import type { GhAppKeyNames } from "./gh-app-registry.ts";
 import type { GhAppConfigDeps, RegistryResolver } from "./gh-app-token.ts";
 
 import {
+  DEFAULT_PURPOSE,
   openGhAppRegistryDb,
+  orgOf,
   resolveApp,
   sqliteInstallationCache,
 } from "./gh-app-registry.ts";
+import { GhAppError } from "./gh-app-github-api.ts";
 import { GhApp, GhAppConfigLayer, GhAppLive } from "./gh-app-token.ts";
 
 /**
@@ -147,3 +149,56 @@ export const mintInstallationToken = (
     return yield* app.mint();
   }).pipe(Effect.provide(layer));
 };
+
+/**
+ * A token a caller authenticates with. `expiresAt` is known only for a token
+ * minted from a registered alternate App; the host-rotated `GH_TOKEN` carries
+ * no expiry.
+ */
+export interface GitHubToken {
+  readonly token: string;
+  readonly expiresAt?: string;
+}
+
+const readRotatedToken = (
+  env: Readonly<Record<string, string | undefined>>
+): Effect.Effect<GitHubToken, GhAppError> => {
+  const token = (env.GH_TOKEN ?? "").trim();
+  return token === ""
+    ? Effect.fail(
+        new GhAppError({
+          message:
+            "GH_TOKEN is not set — the default App's token is rotated by the host and injected as GH_TOKEN; it is never minted here",
+          op: "config",
+        })
+      )
+    : Effect.succeed({ token });
+};
+
+/**
+ * The token every caller should use. The default App's token is rotated by the
+ * host on a cadence (minting per run hit GitHub's rate limits), so it is read
+ * from `GH_TOKEN`. Only an `(org, purpose)` that resolves to a registered
+ * alternate App still mints, since the host rotates no token for it.
+ */
+export const resolveGitHubToken = (
+  deps: MintDeps = {}
+): Effect.Effect<GitHubToken, GhAppError> =>
+  Effect.suspend(() => {
+    // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+    const env = deps.env ?? process.env;
+    const org =
+      deps.targetRepo === undefined ? "" : orgOf(deps.targetRepo);
+    if (org === "") {
+      return readRotatedToken(env);
+    }
+    const purpose = deps.purpose ?? DEFAULT_PURPOSE;
+    const keys = (deps.registry ?? defaultRegistryResolver)(org, purpose);
+    if (keys === null) {
+      process.stderr.write(
+        `gh-app-token: no registered app for ${org} (${purpose}); using the host-rotated GH_TOKEN\n`
+      );
+      return readRotatedToken(env);
+    }
+    return mintInstallationToken({ ...deps, registry: () => keys });
+  });

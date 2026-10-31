@@ -11,7 +11,7 @@ import { Effect, Schema } from "effect";
 import { accessSync, constants, lstatSync } from "node:fs";
 import { readlink } from "node:fs/promises";
 
-import { mintInstallationToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import type {
   ChangedFile,
@@ -81,14 +81,13 @@ const IgnoredBody = Schema.Unknown;
 // #region The commit flow
 
 /**
- * Mint a fresh installation token for the target repo. Routing through
- * `mintInstallationToken({ targetRepo })` matters when `--repo` points at a
- * repo outside the default `GITHUB_REPO` org: the bare `GhApp` default only
- * discovers the installation for the default org, so a cross-org target would
- * mint a token that can't see the repo (every API call 404s).
+ * Get the token for the target repo. Routing through
+ * `resolveGitHubToken({ targetRepo })` matters when `--repo` points at a repo
+ * covered by a registered alternate App: the default App's host-rotated
+ * `GH_TOKEN` can't see it (every API call 404s).
  */
 const mintToken = (targetRepo: string): Effect.Effect<string, CommitApiError> =>
-  mintInstallationToken({ targetRepo }).pipe(
+  resolveGitHubToken({ targetRepo }).pipe(
     Effect.map((token) => token.token),
     Effect.mapError(
       (error) =>

@@ -48,9 +48,9 @@ export interface GhAppCredentials {
 }
 
 /**
- * A live installation token plus the moment GitHub says it expires. Callers
- * that cache (none today) could honour `expiresAt`; the wrappers ignore it and
- * mint fresh every invocation.
+ * A live installation token plus the moment GitHub says it expires. Minted only
+ * for registered alternate Apps; the default App's token is the host-rotated
+ * `GH_TOKEN`.
  */
 export interface InstallationToken {
   readonly expiresAt: string;
