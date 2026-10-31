@@ -71,11 +71,19 @@ const MIDSTRING_SPELLINGS: readonly {
   readonly raw: string;
 }[] = [
   { expected: "widgets", raw: "acme/github.com/widgets" },
+  // #317: a spelling that GENUINELY STARTS with a scheme+host carries its
+  // real host at the FRONT, so the pair past the FIRST, anchored host word
+  // is the repo (`x/github.com`, `github.com/o`) — never the tail past a
+  // LATER path segment that happens to read as a host word (`y/z`, `o/r`).
+  // The org-side resolvers (`orgOf`, `resolveAllowedOrgs`) already read the
+  // anchored host; the recipe and the repo-side resolvers must agree with
+  // them on every hosted spelling.
   { expected: "y/z", raw: "x/github.com/y/z" },
   { expected: "tail", raw: "owner/repo/github.com/tail" },
   { expected: "widgets", raw: "acme/api.github.com/widgets" },
-  { expected: "y/z", raw: "github.com/x/github.com/y/z" },
-  { expected: "o/r", raw: "github.com/github.com/o/r" },
+  { expected: "x/github.com", raw: "github.com/x/github.com/y/z" },
+  { expected: "github.com/o", raw: "github.com/github.com/o/r" },
+  { expected: "acme/github.com", raw: "https://github.com/acme/github.com/tree/main" },
 ];
 
 /** Every previously-healthy spelling the recipe answered must stay byte-identical. */

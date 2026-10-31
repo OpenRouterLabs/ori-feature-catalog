@@ -718,6 +718,39 @@ export const resolveRepoFromEnv = (
   if (/^(organizations|users)$/u.test(apiRepoStripped)) {
     return "";
   }
+  // The two-segment and deep branches below read the LAST `github.com` host
+  // word their unanchored regexes can reach — the reading the mid-string
+  // corpus pins for a HOSTLESS path (`acme/github.com/widgets` → `widgets`,
+  // #314). But a spelling that GENUINELY STARTS with a scheme+host —
+  // `https://github.com/acme/github.com/tree/main`, `github.com/x/
+  // github.com/y/z`, `github.com/github.com/o/r` (a repo whose owner or name
+  // is literally `github.com`; GitHub repo names may carry dots) — carries
+  // its real host at the FRONT, and the anchored branches above (the host
+  // strip, the case-lower) already normalized THAT host: `orgOf`,
+  // `resolveAllowedOrgs` and the orgs-page guard here all read the FIRST,
+  // anchored host word. One spelling, resolvers disagreeing (#317):
+  // `resolveRepoFromEnv` answered the tail past the LAST host word
+  // (`tree/main`, `y/z` — every `repos/{repo}` route 404s) while the org
+  // resolvers answered `acme`/`x` (the anchored reading), so the registry
+  // key and the Git-Data routes were derived from different host words of
+  // the same spelling. Anchor the FIRST-host reading: when the spelling
+  // starts with a scheme+host, the repo pair sits immediately after that
+  // host — match it there FIRST, and let the unanchored LAST-host reading
+  // serve only the hostless paths it exists for. The `(?::\d+)?` port group
+  // and `[/:]` separator tolerate the ported spellings the corpus pins.
+  // A SINGLE separator, never `[\/:]+`: a doubled separator past the host
+  // (`github.com::acme`, `https://github.com::acme/widgets` — the paste class
+  // prompt-recipes-apirest-users-tail.test.ts pins) keeps its `:acme`-shaped
+  // pair (the second separator glyph belongs to the pair the corpus pins),
+  // so the anchored capture must consume exactly one — the same single
+  // `[/:]` the unanchored two-segment regex below applies.
+  const anchoredHostMatch =
+    /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[\/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(
+      apiRepoStripped
+    );
+  if (anchoredHostMatch?.[1] !== undefined) {
+    return anchoredHostMatch[1];
+  }
   const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(apiRepoStripped);
   if (match?.[1] !== undefined) {
     return match[1];
