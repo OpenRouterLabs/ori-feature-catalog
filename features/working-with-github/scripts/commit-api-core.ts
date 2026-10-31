@@ -667,7 +667,7 @@ export const resolveRepoFromEnv = (
   // A port in the host separator (ssh://git@github.com:22/…) must not become
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)(?:\/.*)?$/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)(?:\/.*)?$/u.exec(
       apiRepoStripped
     );
   if (orgsPageMatch?.[1] !== undefined) {
@@ -704,7 +704,7 @@ export const resolveRepoFromEnv = (
   // under a real owner never reaches here: the repo branches below
   // capture the real owner/repo pair first.
   const orgsIndexMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)$/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)$/u.exec(
       apiRepoStripped
     );
   if (orgsIndexMatch !== null) {
@@ -751,7 +751,7 @@ export const resolveRepoFromEnv = (
   if (anchoredHostMatch?.[1] !== undefined) {
     return anchoredHostMatch[1];
   }
-  const match = /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(apiRepoStripped);
+  const match = /[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+\/[^/]+)$/u.exec(apiRepoStripped);
   if (match?.[1] !== undefined) {
     return match[1];
   }
@@ -761,7 +761,7 @@ export const resolveRepoFromEnv = (
   // route 404, exactly the class the URL-spelling fix closed for the
   // two-segment form.
   const deepMatch =
-    /github\.com(?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(apiRepoStripped);
+    /[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+\/[^/]+)(?:\/.*)?$/u.exec(apiRepoStripped);
   if (deepMatch?.[1] !== undefined) {
     return deepMatch[1];
   }
@@ -771,7 +771,7 @@ export const resolveRepoFromEnv = (
   // and the bare pass-through below would return the raw URL whole, which
   // every `repos/{repo}` route 404s on. Same treatment as the orgs-page
   // branch above: return the org it names, like `orgOf`'s org-URL branch.
-  const orgUrlMatch = /(?:git@)?github\.com(?::\d+)?[\/:]([^/]+)$/u.exec(
+  const orgUrlMatch = /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[\/:]([^/]+)$/u.exec(
     apiRepoStripped
   );
   if (orgUrlMatch?.[1] !== undefined) {
