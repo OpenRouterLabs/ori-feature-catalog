@@ -798,22 +798,6 @@ export const resolveRepoFromEnv = (
   if (bareHostMatch !== null) {
     return "";
   }
-  // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
-  // copied blob/tree/PR/releases address, pasted without the host) — is
-  // the same deep spelling the `deepMatch` branch above closes for the
-  // hosted form: pre-fix it fell every branch (the bare pass-through below
-  // returned the whole string), so every `repos/{repo}` route 404'd —
-  // exactly the class the prompt's own `REPO=` sed recipe closes for the
-  // same paste (`s#(^[^/]+/[^/]+)(/.*)?$#\1#` collapses it to the
-  // `owner/repo` tail). One spelling contract, four resolvers: the recipe
-  // and the code must agree, or a hostless deep paste in `$GITHUB_REPO`
-  // silently targets a repo no route answers.
-  const hostlessDeepMatch = /^([^/]+\/[^/]+)(?:\/.*)?$/u.exec(
-    apiRepoStripped
-  );
-  if (hostlessDeepMatch?.[1] !== undefined) {
-    return hostlessDeepMatch[1];
-  }
   // A TRUNCATED scp/ssh host word — `github.com:`, `git@github.com:`,
   // `ssh://git@github.com:`, `https://github.com:` (a colon after the host
   // with no path after it — a `git remote -v` paste cut at the colon, the
@@ -832,6 +816,37 @@ export const resolveRepoFromEnv = (
     )
   ) {
     return "";
+  }
+  // This guard runs BEFORE the hostless two-segment/deep branches below it,
+  // never after — the same order `orgOf` applies (its own truncated-colon
+  // guard sits above its hostless-deep match): pre-fix a HOSTLESS spelling
+  // ending at the truncated host word (`acme/github.com:`,
+  // `o/r/github.com:`, `acme/api.github.com:` — a `git remote -v` paste cut
+  // at the scp colon, pasted onto a bare path) matched
+  // `^([^/]+/[^/]+)(?:/.*)?$` FIRST (`acme` / `github.com:` captured across
+  // the two segments, the colon riding inside the second `[^/]+`), so the
+  // guard sat below it was DEAD for exactly those shapes and the raw junk
+  // flowed on as the "repo" — `orgOf`, `resolveAllowedOrgs` and the recipe
+  // all answered the honest no-owner value for the same spelling, the
+  // one-spelling contract the README states, reopened through the
+  // truncated-colon tail. A repo genuinely named `github.com:` cannot exist
+  // (GitHub repo names carry no colon), and a hosted spelling
+  // (`github.com/o/r/...`) is consumed by the anchored branches above.
+  // A HOSTLESS deep paste — bare `owner/repo/<tail>` (the URL path of a
+  // copied blob/tree/PR/releases address, pasted without the host) — is
+  // the same deep spelling the `deepMatch` branch above closes for the
+  // hosted form: pre-fix it fell every branch (the bare pass-through below
+  // returned the whole string), so every `repos/{repo}` route 404'd —
+  // exactly the class the prompt's own `REPO=` sed recipe closes for the
+  // same paste (`s#(^[^/]+/[^/]+)(/.*)?$#\1#` collapses it to the
+  // `owner/repo` tail). One spelling contract, four resolvers: the recipe
+  // and the code must agree, or a hostless deep paste in `$GITHUB_REPO`
+  // silently targets a repo no route answers.
+  const hostlessDeepMatch = /^([^/]+\/[^/]+)(?:\/.*)?$/u.exec(
+    apiRepoStripped
+  );
+  if (hostlessDeepMatch?.[1] !== undefined) {
+    return hostlessDeepMatch[1];
   }
   // A bare string (no github.com host) keeps its historical pass-through.
   return apiRepoStripped;
