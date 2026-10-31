@@ -1105,8 +1105,23 @@ export const resolveConfigDirName = (
     // `github.com`/`git@github.com` with an optional `:<port>` host word is
     // stripped down to its `owner/repo` tail so the existing regexes see the
     // real path start.
+    // The strip is GREEDY (`^.*` ahead of the host word), never the first
+    // occurrence: a github.com host word in the MIDDLE of a hostless path —
+    // `acme/github.com/widgets`, `x/github.com/y/z`,
+    // `owner/repo/github.com/tail`, `acme/api.github.com/widgets` (#314) —
+    // made the first-occurrence strip eat the FIRST `github.com[/:]` and
+    // weld the prefix onto the path, so the config dir keyed on
+    // `acme/widgets`→`widgets`-shaped junk segments (`y`, `repo`,
+    // `api.widgets`) while every sibling resolver's own unanchored
+    // `$`-anchored `github.com` branch matched the LAST occurrence and
+    // answered the tail past it (`widgets`, `y/z`, `tail`, `widgets`) —
+    // the one-spelling contract the README states, four resolvers
+    // disagreeing. A greedy `.*` consumes through the final
+    // `github.com[/:]` the engine can still match, so the strip leaves
+    // exactly the tail `orgOf`/`resolveRepoFromEnv`/
+    // `resolveAllowedOrgs` derive their pair from.
     const hostPortStripped = apiRepoStripped.replace(
-      /(?:git@)?github\.com(?::\d+)?[/:]/u,
+      /^.*(?:git@)?github\.com(?::\d+)?[/:]/u,
       ""
     );
     // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
@@ -1126,7 +1141,14 @@ export const resolveConfigDirName = (
     // digits would survive into the sanitized dir name (`…-22`) — a
     // different directory than the same env var spelled without the port
     // resolves to, silently migrating the registry/cache DB.
-    const repoName = match?.[2] ?? apiRepoStripped;
+    // The fallback carries the STRIPPED tail, never `apiRepoStripped`: a
+    // greedy strip that leaves a single segment (`acme/github.com/widgets`
+    // → `widgets`) is the org-page reading the repo resolvers answer
+    // (`github.com/<word>`), so the config dir must key on that segment —
+    // pre-fix the no-match fallback carried the unstripped string and the
+    // dir name sanitized the WHOLE spelling (`acme-github.com-widgets`),
+    // a directory no sibling resolver's key ever derives (#314's class).
+    const repoName = match?.[2] ?? hostPortStripped;
     const sanitized = sanitizeSegment(repoName);
     if (sanitized !== "") {
       return sanitized;
