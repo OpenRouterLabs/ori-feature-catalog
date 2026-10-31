@@ -219,8 +219,13 @@ describe("an orgs page whose org segment is github.com resolves on one spelling 
       ["https://raw.githubusercontent.com/acme/github.com/widgets/main/x.ts", "widgets/main"],
       ["https://github.com/users/acme/followers", "acme"],
       ["https://api.github.com//users/acme", "acme"],
-      ["x/github.com/users", "x/"],
-      ["x/github.com/orgs/acme", "x/acme"],
+      // #324: these two rows pinned the recipe DIVERGENCE the issue filed —
+      // the code resolvers answer "" / "acme" for these spellings (the
+      // orgs-page reading), while the recipe left the junk prefix standing.
+      // They now pin the one-spelling contract: the recipe answers exactly
+      // what the code resolvers answer. See prompt-recipes-reserved-tail.
+      ["x/github.com/users", ""],
+      ["x/github.com/orgs/acme", "acme"],
     ] as const) {
       expect(runRecipe(promptRecipe, spelling)).toBe(expected);
       expect(runRecipe(mintRecipe, spelling)).toBe(expected);
