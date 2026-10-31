@@ -494,7 +494,7 @@ export const orgOf = (repo: string): string => {
   // immediately after the host; consume it so the separators below see the
   // real path start.
   const orgsPageMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)/u.exec(
       apiRepoStripped
     );
   if (orgsPageMatch?.[1] !== undefined) {
@@ -543,7 +543,7 @@ export const orgOf = (repo: string): string => {
   // below capture the owner past the host path first, and the org-naming
   // spellings (`orgs/<org>`) already returned above.
   const orgsIndexMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)$/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)$/u.exec(
       apiRepoStripped
     );
   if (orgsIndexMatch !== null) {
@@ -567,7 +567,7 @@ export const orgOf = (repo: string): string => {
   // silently fell back to the default App (#101 class reopened through the
   // deep path).
   const hostMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(
       apiRepoStripped
     );
   if (hostMatch?.[1] !== undefined) {
@@ -581,7 +581,7 @@ export const orgOf = (repo: string): string => {
   // fell back to the default App — the #101 class reopened through the org
   // side. Strip the host down to its org segment.
   const orgUrlMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:]([^/]+)$/u.exec(apiRepoStripped);
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+)$/u.exec(apiRepoStripped);
   if (orgUrlMatch?.[1] !== undefined) {
     return orgUrlMatch[1];
   }
@@ -995,7 +995,7 @@ export const resolveConfigDirName = (
   // (`https://github.com/acme`) and a repo named `orgs` under a real owner
   // are untouched — they carry a segment past the host word.
   if (
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)$/u.test(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)$/u.test(
       apiRepoStripped
     )
   ) {
@@ -1144,7 +1144,7 @@ export const resolveConfigDirName = (
           ""
         )
       : apiRepoStripped.replace(
-          /^.*(?:git@)?github\.com(?::\d+)?[/:]/u,
+          /^.*(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]/u,
           ""
         );
     // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
@@ -1167,10 +1167,10 @@ export const resolveConfigDirName = (
         : undefined;
     const match =
       anchoredPairMatch ??
-      /(?:github\.com[/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(
+      /(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:])?([^/\s]+)\/([^/\s]+)(?:\/.*)?$/u.exec(
         hostPortStripped
       ) ??
-      /(?:github\.com[/:])?([^/]+)\/([^/]+)$/u.exec(hostPortStripped);
+      /(?:[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][/:])?([^/]+)\/([^/]+)$/u.exec(hostPortStripped);
     // The fallback carries the PORT-STRIPPED string: `repoRaw` still holds
     // the bare host+PORT spelling (`ssh://git@github.com:22`), whose port
     // digits would survive into the sanitized dir name (`…-22`) — a

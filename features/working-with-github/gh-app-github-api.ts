@@ -484,7 +484,7 @@ export const resolveAllowedOrgs = (
   // A port in the host separator (ssh://git@github.com:22/…) must not become
   // the "owner" segment — see gh-app-registry.ts orgOf for the full class.
   const orgsPageMatch =
-    /(?:git@)?github\.com(?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)/u.exec(
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:](?:orgs|organizations|users)[/:]([^/]+)/u.exec(
       apiRepoStripped
     );
   // A deep GitHub URL — `https://github.com/o/r/tree/main` (a copied
@@ -493,7 +493,7 @@ export const resolveAllowedOrgs = (
   // reduced the URL to its SCHEME (`https:`), a login no installation can
   // ever carry — so every mint failed closed with no hint why.
   const repoMatch =
-    /github\.com(?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(apiRepoStripped);
+    /[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?[/:]([^/]+)\/[^/]+(?:\/.*)?$/u.exec(apiRepoStripped);
   // The HOSTLESS index spelling — a bare `organizations` word with no host
   // and no org segment — is the same page the orgs-index branch guards in
   // `orgOf` and `resolveRepoFromEnv`: it names no org, so the REPO source
