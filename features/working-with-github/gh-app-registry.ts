@@ -598,7 +598,7 @@ export const orgOf = (repo: string): string => {
   // leaves. The prompt's `REPO=` sed recipe empties the same spellings; a
   // host word plus a trailing colon is a bare host, never an owner.
   if (
-    /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?:$/u.test(apiRepoStripped) ||
     /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
       apiRepoStripped
     )
@@ -1088,7 +1088,7 @@ export const resolveConfigDirName = (
     // `resolveRepoFromEnv` and the prompt's `REPO=` recipe all answer ""
     // for the same spellings.
     if (
-      /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+      /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?:$/u.test(apiRepoStripped) ||
       /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
         apiRepoStripped
       )
