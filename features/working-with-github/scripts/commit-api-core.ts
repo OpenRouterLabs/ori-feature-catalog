@@ -810,7 +810,7 @@ export const resolveRepoFromEnv = (
   // same spelling. A repo resolver cannot invent a repo from a host string;
   // "" is the honest no-repo answer (the callers fail loudly on it).
   if (
-    /(?:git@)?github\.com(?::\d+)?:$/u.test(apiRepoStripped) ||
+    /(?:git@)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::\d+)?:$/u.test(apiRepoStripped) ||
     /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:[^@/\s]+@)?github\.com:$/u.test(
       apiRepoStripped
     )
