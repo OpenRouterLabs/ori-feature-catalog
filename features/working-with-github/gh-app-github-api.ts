@@ -506,7 +506,7 @@ export const resolveAllowedOrgs = (
   // word), and the orgs-page branch above consumes `orgs/<org>` first.
   const repoMatchOwnerIsHost =
     repoMatch?.[1] !== undefined &&
-    /^(?:git@)?(?:[Aa][Pp][Ii]\.)?[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$/iu.test(
+    /^(?:git@)?(?:[A-Za-z0-9-]+\.)*[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm]$/iu.test(
       repoMatch[1]
     );
   const repoMatchOwner =
