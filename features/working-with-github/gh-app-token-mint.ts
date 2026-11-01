@@ -82,10 +82,13 @@ interface MintDeps {
  * A clean "no mapping for this (org, purpose)" is `resolveApp` returning `null`
  * — the expected, silent path to the bare default app. A *thrown* error (DB
  * unavailable, permissions, corrupt file) is a misconfiguration, not a routing
- * decision: it still degrades to `null` so minting the default app keeps
- * working, but emits a one-line stderr diagnostic (never a secret) so the
- * fallback isn't silent. It stays on stderr so `mint-token.ts`'s stdout — which
- * carries ONLY the token for `$(...)` capture — is unaffected.
+ * decision: it still degrades to `null` so the default path keeps working, but
+ * emits a one-line stderr diagnostic (never a secret) so the fallback isn't
+ * silent. The note names only the failure: the route the `null` then takes is
+ * the caller's to report (the host-rotated `GH_TOKEN` in `resolveGitHubToken`,
+ * the default `GH_APP_*` in a direct mint), so it never claims one it does not
+ * take. It stays on stderr so `mint-token.ts`'s stdout — which carries ONLY
+ * the token for `$(...)` capture — is unaffected.
  */
 const defaultRegistryResolver: RegistryResolver = (org, purpose) => {
   try {
@@ -98,7 +101,7 @@ const defaultRegistryResolver: RegistryResolver = (org, purpose) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     process.stderr.write(
-      `gh-app-token: registry lookup for ${org} (${purpose}) failed (${detail}); falling back to the default GH_APP_*\n`
+      `gh-app-token: registry lookup for ${org} (${purpose}) failed (${detail}); treating it as unregistered\n`
     );
     return null;
   }
