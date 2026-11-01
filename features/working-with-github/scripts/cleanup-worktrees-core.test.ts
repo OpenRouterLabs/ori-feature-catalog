@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -57,8 +57,9 @@ const withRealSlugDir = async (
   }
 };
 
-/** A real temp root with one "branch-a" subdir, cleaned up after `run`
- *  resolves. `root` is real-pathed before handing it to `run`, so it matches
+/** A real temp root with one "branch-a" subdir — a checkout, so it holds its
+ *  `.git` link (an empty dir is never a stray worktree) — cleaned up after
+ *  `run` resolves. `root` is real-pathed before handing it to `run`, so it matches
  *  what production code sees (`macOS` symlinks `/tmp` → `/private/tmp`, and the
  *  sweep canonicalizes every path it reports). */
 const withRealTmpDir = async (
@@ -67,6 +68,7 @@ const withRealTmpDir = async (
   const rawRoot = await mkdtemp(join(tmpdir(), "cleanup-worktrees-test-"));
   try {
     await mkdir(join(rawRoot, "branch-a"));
+    await writeFile(join(rawRoot, "branch-a", ".git"), "gitdir: /gone\n");
     await run(await realpath(rawRoot));
   } finally {
     await rm(rawRoot, {
