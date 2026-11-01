@@ -250,8 +250,13 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 5. **Create the branch on the remote**, then **commit via the Git Data API** (signed/Verified — never `git commit`):
 
    ```bash
-   # Create the remote branch from main (the Git Data API commits against an existing remote ref).
-   BASE_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/main" --jq '.object.sha')
+   # Create the remote branch (the Git Data API commits against an existing remote ref)
+   # at the commit the worktree was cut from in step 1 — never main read again now:
+   # main may have moved since, and commit-via-api.ts sends each changed file's FULL
+   # content on top of the branch head, so a newer base silently reverts any merge
+   # that touched the same files. On the worktree's own base a real overlap shows
+   # up as a merge conflict on the PR instead.
+   BASE_SHA=$(git -C "$WT" rev-parse HEAD)
    GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs" \
      --method POST --field ref='refs/heads/branch-name' --field sha="$BASE_SHA"
 
