@@ -9,9 +9,11 @@
  *   actually reaches the intern's repo. It never mints: the host rotates the
  *   token on a cadence, and minting on every fire counted against GitHub's
  *   rate limits.
- * - **Ambient mode** (`GH_APP_ID` unset): probes `GET https://api.github.com/`
- *   with no Authorization header — the request a host's egress proxy attaches
- *   the workspace credential to. A reachable API is healthy (including the
+ * - **Ambient mode** (`GH_APP_ID` unset): probes `GET /repos/{GITHUB_REPO}`
+ *   (bare `GET https://api.github.com/` when GITHUB_REPO resolves to no repo)
+ *   with no Authorization header — an owner-scoped request is the one a host's
+ *   egress proxy attaches the workspace credential to; the unscoped root goes
+ *   out anonymously. A reachable API is healthy (including the
  *   401/403/404 of a host that attaches no credential — that is the honest
  *   answer there, not a breakage); only unreachability or a 5xx alerts.
  *
@@ -94,10 +96,12 @@ export const schedule = defineSchedule({
 
         // Ambient mode: probe the API the way the feature prompt teaches —
         // bare, no Authorization header; the host's proxy attaches the
-        // credential when there is one. No repo is needed: there is nothing to
-        // mint against.
+        // credential when there is one. Probe the intern's own repo when
+        // GITHUB_REPO resolves: the proxy credentials owner-scoped routes, and
+        // the unscoped root alone reads the anonymous bucket.
         if (appId === "") {
-          yield* ambientGitHubReachable({}).pipe(
+          // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
+          yield* ambientGitHubReachable({ repo: resolveRepoFromEnv(process.env) }).pipe(
             Effect.matchEffect({
               onSuccess: (ok) =>
                 Effect.sync(() => {
