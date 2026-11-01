@@ -256,7 +256,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    rm -f "$MSG"
    ```
 
-   `commit-via-api.ts` resolves its own token — the host-rotated `GH_TOKEN`, minting only for a registered alternate App or another org (you do not pass it one) — reads every changed file in the worktree, and creates blobs → tree → commit → updates the branch ref. It prints the new commit sha on success. For each further round of changes on the same branch, just run it again — it always commits against the current branch head.
+   `commit-via-api.ts` resolves its own token — the host-rotated `GH_TOKEN`, minting only for a registered alternate App or another org (you do not pass it one) — reads every changed file in the worktree, and creates blobs → tree → commit → updates the branch ref. It prints the new commit sha on success, and points the worktree's local branch at that commit so the worktree reads clean — step 7's `git worktree remove` and the cleanup sweep both refuse a worktree that still lists changes (when the branch moved remotely it leaves the worktree as-is and says so on stderr). For each further round of changes on the same branch, just run it again — it always commits against the current branch head.
 
 6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues):
 

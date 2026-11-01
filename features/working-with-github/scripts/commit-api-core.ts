@@ -88,6 +88,14 @@ export interface CommitDeps {
   readonly readLink?: ReadLink;
   /** Pre-resolved token; when set, minting is skipped. */
   readonly token?: string;
+  /**
+   * The fetch URL the post-commit local sync reads the new commit from.
+   * Defaults to the authenticated github.com URL; tests point it at a local
+   * bare repo.
+   */
+  readonly remoteUrl?: (repo: string, token: string) => string;
+  /** Where a non-fatal note goes (the post-commit sync); defaults to stderr. */
+  readonly warn?: (text: string) => void;
 }
 
 export const GITHUB_API = "https://api.github.com";
