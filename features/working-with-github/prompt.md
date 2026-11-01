@@ -47,7 +47,7 @@ In ambient mode the scripts are not needed — the minting path requires an App.
 
 ## Access mode 1 — ambient credential (no `GH_APP_ID`)
 
-Some hosts route GitHub traffic through an egress proxy that attaches this workspace's credential to every `api.github.com` and `codeload.github.com` request automatically. In that mode GitHub is used through the **REST API with plain `curl`** — no `gh auth login`, no token minting, no SSH keys, no `git clone`. If a `curl` to `https://api.github.com/` succeeds without an `Authorization` header, you are here.
+Some hosts route GitHub traffic through an egress proxy that attaches this workspace's credential to `api.github.com` and `codeload.github.com` requests automatically. In that mode GitHub is used through the **REST API with plain `curl`** — no `gh auth login`, no token minting, no SSH keys, no `git clone`. If a `curl` to an owner-scoped route — `https://api.github.com/repos/{owner}/{repo}` or `https://api.github.com/orgs/{owner}` — succeeds without an `Authorization` header, you are here. Probe an owner-scoped route, never the bare root: such a proxy attaches the credential per owner, so an unscoped route (`https://api.github.com/`, `/rate_limit`, `/users/{someone-else}`) goes out anonymously on the shared 60/h limit and can answer 403 `API rate limit exceeded` while every owner-scoped call works.
 
 - **Read the repository before answering.** Issue trackers, docs, and chat describe intent; the repository shows what shipped.
 - Read a file: `curl -sL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}`. Use `/search/code`, `/pulls`, and `/commits` for the rest.

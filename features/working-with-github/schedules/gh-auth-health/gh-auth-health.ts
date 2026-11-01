@@ -21,7 +21,8 @@ import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token
  *  in ambient mode, whether the host's GitHub access is reachable at all. */
 export type HealthMode = "app-token" | "ambient";
 
-/** What "healthy" means in ambient mode: a bare `GET /` on the API resolves.
+/** What "healthy" means in ambient mode: a bare `GET /repos/{repo}` (or `GET /`
+ *  with no repo) on the API resolves.
  *  The workspace credential — when the host's proxy attaches one — rides the
  *  request automatically; there is no token to inspect, so the check proves
  *  reachability, not identity. `limited` carries GitHub's `x-oauth-scopes`
@@ -85,19 +86,32 @@ const ROUND_TRIP_TIMEOUT_MS = 15_000;
 const ROUND_TRIP_BODY_TIMEOUT_MS = ROUND_TRIP_TIMEOUT_MS;
 
 /**
- * Bare `GET https://api.github.com/` — the ambient-mode probe. Sends no
- * Authorization header: on hosts that attach a workspace credential through an
- * egress proxy it still reaches GitHub (and echoes the effective scopes); on
+ * The ambient-mode probe: `GET /repos/{repo}` for the intern's own repo, or
+ * bare `GET https://api.github.com/` when there is no repo to ask about. Sends
+ * no Authorization header: on hosts that attach a workspace credential through
+ * an egress proxy it still reaches GitHub (and echoes the effective scopes); on
  * hosts without one it lands on the anonymous rate limit, which is healthy.
+ *
+ * The repo route comes first because such a proxy attaches the credential PER
+ * OWNER: a route naming an owner it reaches goes out credentialed, while the
+ * unscoped root names no owner and goes out anonymously, on the shared 60/h
+ * bucket. Reproduced live: the root answered 403 `x-ratelimit-remaining: 0`
+ * (limit 60) while `GET /repos/<owner>/<repo>` answered 200 on a 15000/h
+ * credential — a root-only probe paged "every GitHub REST call fails" while
+ * every call the intern makes worked.
  */
 export const ambientGitHubReachable = (input: {
   readonly fetchImpl?: FetchLike;
+  /** Bare `owner/repo` to probe; empty or omitted probes the root. */
+  readonly repo?: string;
 }): Effect.Effect<AmbientProbeOk, AmbientProbeError> => {
   const fetchImpl = input.fetchImpl ?? fetch;
+  const repo = (input.repo ?? "").trim();
+  const route = repo === "" ? "/" : `/repos/${repo}`;
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () =>
-        fetchImpl("https://api.github.com/", {
+        fetchImpl(`https://api.github.com${route}`, {
           headers: {
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -114,13 +128,13 @@ export const ambientGitHubReachable = (input: {
         duration: AMBIENT_PROBE_TIMEOUT_MS,
         orElse: () =>
           new AmbientProbeError({
-            detail: `GET / did not answer within ${AMBIENT_PROBE_TIMEOUT_MS / 1000}s`,
+            detail: `GET ${route} did not answer within ${AMBIENT_PROBE_TIMEOUT_MS / 1000}s`,
           }),
       })
     );
     if (response.status >= 500) {
       return yield* new AmbientProbeError({
-        detail: `GET / answered HTTP ${String(response.status)}`,
+        detail: `GET ${route} answered HTTP ${String(response.status)}`,
       });
     }
     // A 403 whose rate limit is exhausted (the anonymous 60/h shared bucket
@@ -136,7 +150,7 @@ export const ambientGitHubReachable = (input: {
     ) {
       return yield* new AmbientProbeError({
         detail:
-          "GET / answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets",
+          `GET ${route} answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets`,
       });
     }
     // A 429 (secondary/abuse rate limit) blocks every REST call the same way
@@ -144,7 +158,7 @@ export const ambientGitHubReachable = (input: {
     // is a "cannot work" state, not an identity answer.
     if (response.status === 429) {
       return yield* new AmbientProbeError({
-        detail: "GET / answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace",
+        detail: `GET ${route} answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace`,
       });
     }
     const scopes =
