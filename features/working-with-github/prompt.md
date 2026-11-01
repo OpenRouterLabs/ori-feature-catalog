@@ -320,8 +320,18 @@ You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly
 When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment. The squash-merge does NOT delete the head branch on its own — the delete is a separate call, and the recipe below carries both steps plus the comment:
 
 ```bash
+# Read the head sha ONCE and check every condition against THAT commit — a
+# push landing after your checks (a bot's merge commit, a co-author's fixup)
+# would otherwise be squashed into main with no CI run and no review:
+HEAD_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER" --jq '.head.sha')
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+  --jq '[.check_runs[] | {name, status, conclusion}]'
+
+# Pin the merge to that sha: GitHub refuses it (409 "Head branch was
+# modified") if the head moved since — then re-check the new head, never retry
+# blind. --raw-field keeps the sha a string.
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
-  --method PUT --field merge_method='squash'
+  --method PUT --field merge_method='squash' --raw-field sha="$HEAD_SHA"
 
 # Delete the merged branch (a squash-merge leaves it behind):
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" \
