@@ -7,7 +7,7 @@ order: 0
 
 You have access to a full shell and the `gh` CLI. Use them freely to look things up, run commands, query APIs, and take action. How you authenticate depends on which of the two access models this workspace runs — detect it, never assume.
 
-- **App mode** — `GH_APP_ID` is set: `gh` and `git` are **not** pre-authenticated. You mint a short-lived installation token and inject it yourself for every GitHub call (see below).
+- **App mode** — `GH_APP_ID` is set: `gh` and `git` are **not** pre-authenticated. The host rotates the default App's installation token into `GH_TOKEN`; you pass it to each GitHub call yourself and never mint one per command (see below).
 - **Ambient mode** — `GH_APP_ID` is unset: the machine holds no local credentials by design. Many hosts run an egress proxy that attaches a workspace credential to `api.github.com` and `codeload.github.com` requests automatically. A bare `curl` to the API then just works, and this is the primary GitHub path. Detect it by calling the API and letting the response tell you; missing local tooling (`gh`, tokens, SSH keys) says nothing about your access.
 
 In either mode, **source on GitHub is the primary evidence for how a system works.** When a question touches code, architecture, configuration, or what changed, read the repository before answering. Issue trackers, docs, and chat describe intent; the repository shows what shipped.
@@ -158,14 +158,14 @@ GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts \
   gh pr view 123 --repo acme-corp/widgets
 ```
 
-This routes by `(org, purpose)` with fallback `(org, purpose)` → `(org, "default")` → the bare `GH_APP_*` default. The fallback only picks _which_ App's credentials are used, not whether the mint succeeds — if the chosen App isn't installed on the target org, minting still fails with a 404 (register an App that is; see below). All the token-handling rules above apply unchanged.
+This routes by `(org, purpose)` with fallback `(org, purpose)` → `(org, "default")` → the default App: the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org, or a default-App token minted against the target org's own installation (allowlist-gated by `GH_APP_ALLOWED_ORGS`) for any other org. The fallback only picks _which_ App's credentials are used, not whether the mint succeeds — if the chosen App isn't installed on the target org, minting still fails with a 404 (register an App that is; see below). All the token-handling rules above apply unchanged.
 
 That routing only works once the alternate App is **registered** (a one-time step mapping an `(org, purpose)` to the env-var names holding its credentials). If a `--repo`/`--org` mint unexpectedly falls back to the default App, or you need to set up a new App, use the **`register-gh-app` skill** in this feature — it covers registering and listing apps. Everyday work under the default App needs none of this; plain `mint-token.ts` with no flags is enough.
 
 ## Filing issues
 
 How you file follows the access mode: in App mode use the `gh` commands below
-with a minted token; in ambient mode `gh` is not authenticated (and may not
+with the token from `mint-token.ts`; in ambient mode `gh` is not authenticated (and may not
 even be installed) — use the REST API with plain `curl` instead
 (`GET /repos/{owner}/{repo}/issues?state=all` for the duplicate check, and
 `POST /repos/{owner}/{repo}/issues` to file; anonymous filing works on public
@@ -199,7 +199,7 @@ When changing code — yours or an upstream's — **never edit the main checkout
 
 The whole flow (shown for your own repo, `$GITHUB_REPO`; for a composed feature, replace **every** `$GITHUB_REPO` below with the upstream `$UPSTREAM` — the `git fetch` remote URL, each `repos/$GITHUB_REPO/...` API path, and the `--repo "$UPSTREAM"` flag on **both** `mint-token.ts` and `commit-via-api.ts`, so the token is minted and the commit is created against the upstream, not your own repo):
 
-First, mint a token once for this whole flow, and normalize the repo string once for the same shell (inject the token into each `gh`/`git`/`curl` call below; interpolate `$REPO` in every route — a URL-shaped `GITHUB_REPO` interpolates raw into `repos/https://…` 404s and `github.com/https://…` fetch URLs):
+First, read the token once for this whole flow, and normalize the repo string once for the same shell (inject the token into each `gh`/`git`/`curl` call below; interpolate `$REPO` in every route — a URL-shaped `GITHUB_REPO` interpolates raw into `repos/https://…` 404s and `github.com/https://…` fetch URLs):
 
 ```bash
 TOKEN=$(bun "$WWG"/scripts/mint-token.ts)
@@ -256,7 +256,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    rm -f "$MSG"
    ```
 
-   `commit-via-api.ts` mints a fresh installation token itself (you do not pass it one), reads every changed file in the worktree, and creates blobs → tree → commit → updates the branch ref. It prints the new commit sha on success. For each further round of changes on the same branch, just run it again — it always commits against the current branch head.
+   `commit-via-api.ts` resolves its own token — the host-rotated `GH_TOKEN`, minting only for a registered alternate App or another org (you do not pass it one) — reads every changed file in the worktree, and creates blobs → tree → commit → updates the branch ref. It prints the new commit sha on success. For each further round of changes on the same branch, just run it again — it always commits against the current branch head.
 
 6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues):
 
