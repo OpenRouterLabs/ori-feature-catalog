@@ -18,8 +18,9 @@ The commands below run scripts that ship with this feature. Its directory depend
 
 ```bash
 WWG=$(find -L features .ori/remote-features vendor node_modules \
-  -name node_modules -prune -o -name .bun -prune -o \
+  \( -name node_modules ! -path node_modules \) -prune -o -name .bun -prune -o \
   -type d -name working-with-github -print -quit 2>/dev/null)
+WWG=${WWG:+$PWD/$WWG}
 ```
 
 The search order is deliberate: a local `features/` folder, then the
@@ -32,7 +33,15 @@ reach that store copy until a root `bun install` re-syncs it (see the README's
 keeps the descent out of the store copies and the vendored tree's own
 `node_modules`, so a bare `find` resolves the tree the daemon actually
 SERVES: the workspace's real source, never a stale store copy. `-L` follows
-the symlinked `vendor` layout where it exists.
+the symlinked `vendor` layout where it exists. The top-level `node_modules`
+starting point itself is exempt from that prune (`! -path node_modules`) —
+`find` tests its starting points too, so a bare `-name node_modules -prune`
+pruned it before descending and the installed package was never searched at
+all. The second line makes the path ABSOLUTE: `find` prints it relative to
+the workspace root, and the change flow below `cd`s into a worktree before
+running `bun "$WWG"/scripts/commit-via-api.ts` — a relative path then names
+a file under the worktree (missing for a vendored or remote-features layout,
+the worktree's own half-edited copy for a local `features/` one).
 
 In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.
 
@@ -226,7 +235,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    cd "$WT" && bun install
    ```
 
-3. **Edit files** using absolute paths into the worktree (e.g. `"$WT/"$WWG"/gh-app-token.ts"`).
+3. **Edit files** using absolute paths into the worktree, by the file's path inside the repo (e.g. `"$WT/features/working-with-github/gh-app-token.ts"`) — never `$WWG`, which names this workspace's loaded copy, not a path inside the worktree.
 
 4. **Test and lint** in the worktree before committing — all must pass. Add `ori features validate` whenever a feature's shape changed (a new `features/<id>/`, or an edit to a `feature.ts` / `SKILL.md` / `package.json`):
 
