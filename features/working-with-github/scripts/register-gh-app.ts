@@ -359,7 +359,7 @@ const runList = (
   }
   if (rows.length === 0) {
     writers.out(
-      "(no registered apps — the bare default GH_APP_* is used everywhere)\n"
+      "(no registered apps — the default App serves every org: the host-rotated GH_TOKEN for the GITHUB_REPO org, a default GH_APP_* mint against any other org's installation)\n"
     );
     return 0;
   }
