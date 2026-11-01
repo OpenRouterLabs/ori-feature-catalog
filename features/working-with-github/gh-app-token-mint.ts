@@ -179,7 +179,12 @@ const readRotatedToken = (
  * The token every caller should use. The default App's token is rotated by the
  * host on a cadence (minting per run hit GitHub's rate limits), so it is read
  * from `GH_TOKEN`. Only an `(org, purpose)` that resolves to a registered
- * alternate App still mints, since the host rotates no token for it.
+ * alternate App still mints, since the host rotates no token for it — and so
+ * does a target in an org OTHER than the `GITHUB_REPO` owner: the rotated
+ * token is the installation token of the own org's installation, which never
+ * reaches another account, so handing it back made every call 404. That
+ * target mints the default App against its own installation, allowlist-gated
+ * by `GH_APP_ALLOWED_ORGS` (fail-closed for an org outside it).
  */
 export const resolveGitHubToken = (
   deps: MintDeps = {}
@@ -195,6 +200,13 @@ export const resolveGitHubToken = (
     const purpose = deps.purpose ?? DEFAULT_PURPOSE;
     const keys = (deps.registry ?? defaultRegistryResolver)(org, purpose);
     if (keys === null) {
+      const ownOrg = orgOf(env.GITHUB_REPO ?? "").toLowerCase();
+      if (ownOrg !== "" && org.toLowerCase() !== ownOrg) {
+        process.stderr.write(
+          `gh-app-token: ${org} is outside the GITHUB_REPO org (${ownOrg}) the host-rotated GH_TOKEN covers; minting the default App for ${org}'s installation\n`
+        );
+        return mintInstallationToken({ ...deps, registry: () => null });
+      }
       process.stderr.write(
         `gh-app-token: no registered app for ${org} (${purpose}); using the host-rotated GH_TOKEN\n`
       );
