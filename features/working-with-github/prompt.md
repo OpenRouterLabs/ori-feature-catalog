@@ -264,12 +264,17 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    # A PR body is prose: it carries apostrophes ("don't", "the user's repo") that
    # break a single-quoted --field at shell-parse time. Write it to a temp file —
    # the same pattern --message-file uses — and let "$(cat …)" quote it.
+   # Pass prose with --raw-field, never --field: --field is gh's TYPED form — a
+   # value starting with @ is read as a FILENAME ("@reviewer please look" fails
+   # with "open reviewer please look: no such file"), {owner}/{repo}/{branch}
+   # anywhere in it are rewritten from the cwd's git remote, and a bare number
+   # or true/false/null is sent as JSON, not a string (GitHub 422s the body).
    BODY=$(mktemp); printf '%s\n' "Closes #N. Description of the change." > "$BODY"
    PR_URL=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls" --method POST \
-     --field title='your PR title' \
-     --field head='branch-name' \
-     --field base='main' \
-     --field body="$(cat "$BODY")" \
+     --raw-field title='your PR title' \
+     --raw-field head='branch-name' \
+     --raw-field base='main' \
+     --raw-field body="$(cat "$BODY")" \
      --jq '.html_url')
    rm -f "$BODY"; echo "$PR_URL"
    ```
@@ -309,10 +314,11 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" \
   --method DELETE
 
 # Post the brief summary comment (a temp file again: a summary is prose and
-# may carry apostrophes):
+# may carry apostrophes; --raw-field, like the PR body, so gh never reads a
+# leading @ as a filename or rewrites {owner}/{repo} placeholders in it):
 SUMMARY=$(mktemp); printf '%s\n' "Merged: <one-line summary>" > "$SUMMARY"
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/issues/PR_NUMBER/comments" \
-  --method POST --field body="$(cat "$SUMMARY")"
+  --method POST --raw-field body="$(cat "$SUMMARY")"
 rm -f "$SUMMARY"
 ```
 
