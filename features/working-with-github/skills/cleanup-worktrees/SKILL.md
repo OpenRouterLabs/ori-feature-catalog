@@ -15,7 +15,7 @@ A worktree is removed only when **both** hold:
 - Its branch has a **merged or closed** PR (matched via `GET /pulls?head=owner:branch`) — never an open PR, and never "no PR found at all". An abandoned branch with no PR is **reported, not deleted**, since nothing signals the work is actually done.
 - `git status --porcelain` in the worktree is **empty** — no uncommitted changes.
 
-Every other case (open PR, no PR found, dirty tree) is reported with a reason and left untouched. A directory on disk that `git worktree list` doesn't recognize (e.g. one manually `rm -rf`'d outside git) is reported as a **stray** and never acted on directly — only `git worktree prune` (run automatically, once per sweep) clears git's own bookkeeping for it.
+Every other case (open PR, no PR found, dirty tree) is reported with a reason and left untouched. A directory on disk that `git worktree list` doesn't recognize (e.g. one manually `rm -rf`'d outside git) is reported as a **stray** and never acted on directly (an EMPTY directory is not one — it is the `fix/` a removed `fix/topic` worktree leaves behind, never a checkout) — only `git worktree prune` (run automatically, once per sweep) clears git's own bookkeeping for it.
 
 ## Run it
 

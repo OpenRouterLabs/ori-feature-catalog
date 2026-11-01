@@ -77,6 +77,9 @@ export interface CleanupDeps {
   readonly runGit?: RunGit;
   readonly fetchImpl?: FetchLike;
   readonly readDir?: (path: string) => Promise<readonly string[]>;
+  /** True when `path` holds no entries at all. Defaults to a real `readdir`;
+   *  an unreadable path answers false (still reported). */
+  readonly isEmptyDir?: (path: string) => Promise<boolean>;
   /**
    * Bearer token for the PR lookup. Optional for ambient mode (`GH_APP_ID`
    * unset): the lookup then goes bare, and the host's egress proxy attaches
@@ -100,6 +103,12 @@ const defaultReadDir = async (path: string): Promise<readonly string[]> => {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
 };
+
+const defaultIsEmptyDir = (path: string): Promise<boolean> =>
+  readdir(path).then(
+    (entries) => entries.length === 0,
+    () => false
+  );
 
 /** One `git worktree list --porcelain` entry: a worktree path plus its
  *  checked-out branch and the optional attributes git reports for it. */
@@ -531,6 +540,7 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     readonly resolvedRoot: string;
     readonly tracked: readonly TrackedWorktree[];
     readonly readDir: (path: string) => Promise<readonly string[]>;
+    readonly isEmptyDir: (path: string) => Promise<boolean>;
     /** Only strays under this directory are reported. Omitted → every stray
      *  under `resolvedRoot` (the historical behavior). */
     readonly scopeDir?: string;
@@ -541,7 +551,7 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     // listing the root (the historical behavior the unscoped tests pin).
     const listDir = input.scopeDir ?? input.resolvedRoot;
     const onDisk = yield* Effect.promise(() => input.readDir(listDir));
-    return onDisk
+    const candidates = onDisk
       .map((name) => join(listDir, name))
       .filter(
         (path) =>
@@ -571,7 +581,16 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
           !Array.from(trackedPaths).some((tracked) =>
             tracked.startsWith(`${path}${sep}`)
           )
-      )
+      );
+    // A worktree checkout is never empty (it always holds its `.git` link):
+    // an empty directory is the namespace container `git worktree remove`
+    // leaves behind for a slash-bearing branch (`fix/` after `fix/topic`),
+    // which `git worktree prune` can never clear — not a stray worktree.
+    const empty = yield* Effect.promise(() =>
+      Promise.all(candidates.map((path) => input.isEmptyDir(path)))
+    );
+    return candidates
+      .filter((_path, index) => empty[index] !== true)
       .map(
         (path): WorktreeOutcome => ({
           branch: "",
@@ -640,6 +659,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const runGit = deps.runGit ?? defaultRunGit;
     const fetchImpl = deps.fetchImpl ?? fetch;
     const readDir = deps.readDir ?? defaultReadDir;
+    const isEmptyDir = deps.isEmptyDir ?? defaultIsEmptyDir;
 
     const resolvedRoot = yield* toRealPath(options.worktreesRoot);
     // The repo checkout git runs from — resolved the same way as every other
@@ -702,6 +722,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     );
 
     const strays = yield* findStrayDirs({
+      isEmptyDir,
       readDir,
       resolvedRoot,
       scopeDir: resolvedSlugDir,
