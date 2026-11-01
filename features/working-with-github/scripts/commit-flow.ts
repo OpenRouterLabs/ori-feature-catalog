@@ -542,6 +542,70 @@ const createAndPushCommit = (
     return newCommitSha;
   });
 
+interface SyncLocalBranchInput {
+  readonly args: CommitArgs;
+  readonly token: string;
+  readonly runGit: RunGit;
+  readonly headSha: string;
+  readonly newCommitSha: string;
+  readonly remoteUrl: (repo: string, token: string) => string;
+}
+
+/** The authenticated fetch URL for `repo` — the prompt's own per-command shape. */
+export const githubFetchUrl = (repo: string, token: string): string =>
+  `https://x-access-token:${token}@github.com/${repo}.git`;
+
+const defaultWarn = (text: string): void => {
+  process.stderr.write(text);
+};
+
+/**
+ * Point the worktree's branch at the commit just pushed, so the worktree
+ * reads clean — exactly what `git commit && git push` leaves behind. Pre-fix
+ * the flow committed through the API only, so every committed edit stayed an
+ * UNCOMMITTED local modification forever: the prompt's own last step
+ * (`git worktree remove "$WT"`) refused the worktree ("contains modified or
+ * untracked files") and the cleanup sweep skipped it as `skipped-dirty` even
+ * after its PR merged — no worktree this flow made was ever removed.
+ *
+ * Synced only when the worktree has the target branch checked out AND its
+ * HEAD is the remote parent the new commit was built on: then the pushed tree
+ * is the local HEAD tree plus exactly the files just read, and a mixed reset
+ * (index + branch ref only, never the working files) leaves the status clean.
+ * A branch that moved remotely (someone else's push) is left alone, since a
+ * reset onto it would make the next round revert that push. The commit has
+ * already landed, so a sync that cannot run only returns a warning.
+ */
+const syncLocalBranch = (input: SyncLocalBranchInput): string | undefined => {
+  const { worktree, branch, repo } = input.args;
+  const checkedOut = input.runGit(["symbolic-ref", "--short", "HEAD"], worktree);
+  const localHead = input.runGit(["rev-parse", "HEAD"], worktree);
+  if (
+    !checkedOut.ok ||
+    checkedOut.stdout.trim() !== branch ||
+    !localHead.ok ||
+    localHead.stdout.trim() !== input.headSha
+  ) {
+    return `the worktree was left as-is (it is not ${branch} at ${input.headSha.slice(0, 7)}), so it still lists the committed files as modified`;
+  }
+  const fetched = input.runGit(
+    [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      input.remoteUrl(repo, input.token),
+      `refs/heads/${branch}`,
+    ],
+    worktree
+  );
+  const reset = fetched.ok
+    ? input.runGit(["reset", "--quiet", "--mixed", input.newCommitSha], worktree)
+    : fetched;
+  return reset.ok
+    ? undefined
+    : `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git ${fetched.ok ? "reset" : "fetch"} failed), so the worktree still lists the committed files as modified`;
+};
+
 /**
  * Create one GitHub-signed commit from the worktree's changes. Succeeds with
  * the new commit sha; any stage failure is a `CommitApiError` in the failure
@@ -587,13 +651,27 @@ export const commitViaApi = (
     });
 
     // 5-6. Create the commit and fast-forward the branch ref to it.
-    return yield* createAndPushCommit({
+    const newCommitSha = yield* createAndPushCommit({
       args,
       token,
       fetchImpl,
       headSha,
       newTreeSha,
     });
+
+    // 7. Point the local branch at it, so the worktree reads clean.
+    const warning = syncLocalBranch({
+      args,
+      token,
+      runGit,
+      headSha,
+      newCommitSha,
+      remoteUrl: deps.remoteUrl ?? githubFetchUrl,
+    });
+    if (warning !== undefined) {
+      (deps.warn ?? defaultWarn)(`commit-via-api: ${warning}\n`);
+    }
+    return newCommitSha;
   });
 };
 

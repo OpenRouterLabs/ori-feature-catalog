@@ -30,6 +30,9 @@
  *   4. Create a new tree on top of the base tree.
  *   5. Create a commit (parent = old head) — **GitHub signs this**.
  *   6. Fast-forward the branch ref to the new commit.
+ *   7. Point the worktree's local branch at it (fetch + mixed reset, only when
+ *      the worktree is that branch at the old head), so the worktree reads
+ *      clean and `git worktree remove` / the cleanup sweep can retire it.
  *
  * One signed commit covers an arbitrary mix of adds / modifies / deletes.
  *
