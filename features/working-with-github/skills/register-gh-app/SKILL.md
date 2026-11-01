@@ -43,7 +43,7 @@ GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts \
   gh pr view 123 --repo acme-corp/widgets
 ```
 
-Resolution falls back `(org, purpose)` → `(org, "default")` → the bare `GH_APP_*` default. This is a **routing** fallback (which App's credentials are used), not a guarantee the mint succeeds: if the chosen App isn't installed on the target org, installation discovery still fails with a 404 — that's the signal to register an App that _is_ installed there. A registered App carries no pinned installation id; the mint path discovers the installation for the org automatically.
+Resolution falls back `(org, purpose)` → `(org, "default")` → the default App (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org; a default-App mint against the target org's installation, allowlist-gated, for any other org). This is a **routing** fallback (which App's credentials are used), not a guarantee the mint succeeds: if the chosen App isn't installed on the target org, installation discovery still fails with a 404 — that's the signal to register an App that _is_ installed there. A registered App carries no pinned installation id; the mint path discovers the installation for the org automatically.
 
 ## Rules
 
