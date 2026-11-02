@@ -122,6 +122,12 @@ interface TrackedWorktree {
   readonly detached?: boolean;
   /** True when the block carries a `bare` line (a bare repository). */
   readonly bare?: boolean;
+  /**
+   * True when the block carries a `prunable` line: its directory is gone, so
+   * `git worktree prune` drops it. Only a dry run still sees such an entry
+   * (a real sweep pruned it before listing).
+   */
+  readonly prunable?: boolean;
 }
 
 /**
@@ -143,6 +149,7 @@ export const parseWorktreeList = (
   let locked = false;
   let detached = false;
   let bare = false;
+  let prunable = false;
   const flush = (): void => {
     if (path !== undefined) {
       entries.push({
@@ -150,6 +157,7 @@ export const parseWorktreeList = (
         ...(bare ? { bare: true } : {}),
         ...(detached ? { detached: true } : {}),
         ...(locked ? { locked: true } : {}),
+        ...(prunable ? { prunable: true } : {}),
         path,
       });
     }
@@ -158,6 +166,7 @@ export const parseWorktreeList = (
     locked = false;
     detached = false;
     bare = false;
+    prunable = false;
   };
   for (const line of output.split("\n")) {
     if (line === "") {
@@ -178,6 +187,10 @@ export const parseWorktreeList = (
     }
     if (line.startsWith("locked")) {
       locked = true;
+      continue;
+    }
+    if (line.startsWith("prunable")) {
+      prunable = true;
       continue;
     }
     if (line.startsWith("branch refs/heads/")) {
@@ -649,7 +662,9 @@ const resolveWithinRoot = Effect.fn("CleanupWorktrees.resolveWithinRoot")(
  * Sweep every worktree `git` tracks under `options.worktreesRoot`, removing
  * (unless `options.dryRun`) any whose branch has a merged/closed PR and a clean
  * tree. Always runs `git worktree prune` first so stale metadata for
- * already-vanished directories doesn't linger, then reports (never deletes)
+ * already-vanished directories doesn't linger (a dry run passes `--dry-run`
+ * to it and sets the prunable entries aside, so it changes nothing yet
+ * reports exactly what the real sweep would), then reports (never deletes)
  * any on-disk directory `git worktree list` doesn't recognize. Anything `git`
  * tracks outside `options.worktreesRoot` (e.g. the repo checkout itself) is
  * simply not swept — it never appears in the result.
@@ -667,7 +682,12 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const resolvedRepoDir = yield* toRealPath(options.repoDir);
     let worktreeScope: readonly TrackedWorktree[] | undefined;
 
-    runGit(["worktree", "prune"], options.repoDir);
+    // A dry run must not prune either: `git worktree prune` deletes the
+    // admin entries of EVERY worktree whose directory is gone, repo-wide.
+    runGit(
+      ["worktree", "prune", ...(options.dryRun ? ["--dry-run"] : [])],
+      options.repoDir
+    );
     const listed = runGit(["worktree", "list", "--porcelain"], options.repoDir);
     if (!listed.ok) {
       const detail = listed.stderr.trim();
@@ -684,7 +704,9 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
         outcomes: [failure],
       } satisfies CleanupSummary;
     }
-    const tracked = parseWorktreeList(listed.stdout);
+    const tracked = parseWorktreeList(listed.stdout).filter(
+      (entry) => entry.prunable !== true
+    );
     const resolvedSlugDir =
       options.repoSlug !== undefined
         ? yield* toRealPath(join(options.worktreesRoot, options.repoSlug))
