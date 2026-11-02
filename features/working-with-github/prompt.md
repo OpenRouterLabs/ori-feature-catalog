@@ -312,7 +312,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 
 You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly true — the same bar Ori's `pr-merge` cron holds itself to:
 
-- **CI is green** — every required check passes (no failures, nothing still pending).
+- **CI is green** — every required check passes (no failures, nothing still pending). No checks at all is not green: CI registers its runs seconds after a push, so an empty list on a fresh head means CI has not started yet — wait and read again.
 - **All review threads are resolved** — including outdated ones. Branch protection blocks the merge only on a repo that requires thread resolution; anywhere else the review read below is the only check.
 - **No changes requested** — no reviewer's latest approve-or-request-changes review is `CHANGES_REQUESTED`. A comment-only review posted after a changes request does not withdraw it. Do not rely on `reviewDecision`: on a repo that requires no reviews it stays `null` even while a reviewer has requested changes.
 - **No merge conflicts** — the PR is mergeable.
@@ -329,6 +329,13 @@ HEAD_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER" --jq '.head.
 # shows — so page through all of them:
 GH_TOKEN="$TOKEN" gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" \
   --jq '.check_runs[] | {name, status, conclusion}'
+# An EMPTY list is not green. GitHub creates the runs seconds after the push
+# (the catalog's `test` run starts ~7s after its PR opens), so a read right
+# after opening the PR prints nothing: no failure, nothing pending, and CI
+# has not run at all. Wait and read again until the runs appear. Zero runs
+# that stay zero are an answer only when no workflow runs on this PR (none
+# under .github/workflows, or path filters skip every changed file) — say so
+# in the merge summary instead of calling it green.
 # Commit statuses are a separate API the check-runs list never includes
 # (external CI, deploy previews and review bots post there). `state` must be
 # "success"; "pending" with `total_count` 0 only means no status was posted.
