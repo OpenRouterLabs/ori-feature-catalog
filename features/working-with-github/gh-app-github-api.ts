@@ -631,6 +631,12 @@ const JWT_BACKDATE_SECONDS = SECONDS_PER_MINUTE;
 const base64Url = (input: Buffer | string): string =>
   Buffer.from(input).toString("base64url");
 
+/**
+ * The longest App id value an error message echoes back. Real App ids are a
+ * handful of digits; anything longer is withheld (see signAppJwt).
+ */
+const MAX_ECHOED_APP_ID_CHARS = 20;
+
 /** Sign a GitHub App JWT (RS256), as an Effect; terminal `sign` GhAppError on failure. */
 export const signAppJwt = (
   credentials: GhAppCredentials,
@@ -640,11 +646,22 @@ export const signAppJwt = (
     // GitHub's JWT `iss` must be the numeric App id. `Number("abc")` is NaN,
     // which `JSON.stringify` serializes as `null` — a silent bad JWT that fails
     // opaquely at GitHub. Fail loudly here with the App id NAME, never a secret.
+    //
+    // The VALUE is echoed only while it is short enough to be a mistyped id.
+    // A long value in that slot is a swapped pair (GH_APP_ID holding the
+    // base64 private key, or a register call with --app-id-key and
+    // --private-key-key reversed); echoing it printed the whole private key
+    // into stderr, the schedule logs, and any chat the agent relays the
+    // error to. Withhold it and name its length instead.
     const appIdNumber = Number(credentials.appId);
     if (!Number.isInteger(appIdNumber) || appIdNumber <= 0) {
+      const got =
+        credentials.appId.length <= MAX_ECHOED_APP_ID_CHARS
+          ? `"${credentials.appId}"`
+          : `a ${credentials.appId.length}-character value (withheld: far too long for an App id, likely a secret such as the private key in the wrong env var)`;
       return Effect.fail(
         new GhAppError({
-          message: `GitHub App id must be a positive integer, got "${credentials.appId}" — check GH_APP_ID (or the registered app-id env var).`,
+          message: `GitHub App id must be a positive integer, got ${got} — check GH_APP_ID (or the registered app-id env var).`,
           op: "config",
         })
       );
