@@ -324,8 +324,16 @@ When every condition holds, merge it (squash + delete branch) via the REST API a
 # push landing after your checks (a bot's merge commit, a co-author's fixup)
 # would otherwise be squashed into main with no CI run and no review:
 HEAD_SHA=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER" --jq '.head.sha')
-GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
-  --jq '[.check_runs[] | {name, status, conclusion}]'
+# CI is TWO lists, and both must be green. The check runs come 30 to a page
+# by default — a busy head carries more, and a red run on page two never
+# shows — so page through all of them:
+GH_TOKEN="$TOKEN" gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" \
+  --jq '.check_runs[] | {name, status, conclusion}'
+# Commit statuses are a separate API the check-runs list never includes
+# (external CI, deploy previews and review bots post there). `state` must be
+# "success"; "pending" with `total_count` 0 only means no status was posted.
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits/${HEAD_SHA}/status?per_page=100" \
+  --jq '{state, total_count, statuses: [.statuses[] | {context, state}]}'
 
 # Pin the merge to that sha: GitHub refuses it (409 "Head branch was
 # modified") if the head moved since — then re-check the new head, never retry
