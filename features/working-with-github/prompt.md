@@ -314,7 +314,7 @@ You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly
 
 - **CI is green** — every required check passes (no failures, nothing still pending).
 - **All review threads are resolved** — including outdated ones. Branch protection blocks the merge only on a repo that requires thread resolution; anywhere else the review read below is the only check.
-- **No changes requested** — no reviewer's latest review is `CHANGES_REQUESTED`. Do not rely on `reviewDecision`: on a repo that requires no reviews it stays `null` even while a reviewer has requested changes.
+- **No changes requested** — no reviewer's latest approve-or-request-changes review is `CHANGES_REQUESTED`. A comment-only review posted after a changes request does not withdraw it. Do not rely on `reviewDecision`: on a repo that requires no reviews it stays `null` even while a reviewer has requested changes.
 - **No merge conflicts** — the PR is mergeable.
 
 When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment. The squash-merge does NOT delete the head branch on its own — the delete is a separate call, and the recipe below carries both steps plus the comment:
@@ -334,19 +334,22 @@ GH_TOKEN="$TOKEN" gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-run
 # "success"; "pending" with `total_count` 0 only means no status was posted.
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits/${HEAD_SHA}/status?per_page=100" \
   --jq '{state, total_count, statuses: [.statuses[] | {context, state}]}'
-# Reviews and threads come only from GraphQL. Read each reviewer's LATEST
-# review, not `reviewDecision`, and every thread; both lists must be empty:
+# Reviews and threads come only from GraphQL. Read each reviewer's latest
+# OPINIONATED review (approve or request changes), not `reviewDecision`, and
+# every thread; both lists must be empty. Not `latestReviews`: a reviewer who
+# requested changes and then left a comment-only review shows COMMENTED
+# there, which hides the changes request still standing:
 GH_TOKEN="$TOKEN" gh api graphql -F number=PR_NUMBER \
   -f owner="${REPO%%/*}" -f name="${REPO#*/}" -f query='
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      latestReviews(first: 100) { nodes { author { login } state } }
+      latestOpinionatedReviews(first: 100) { nodes { author { login } state } }
       reviewThreads(first: 100) { nodes { isResolved path } }
     }
   }
 }' --jq '.data.repository.pullRequest | {
-  changesRequested: [.latestReviews.nodes[] | select(.state == "CHANGES_REQUESTED") | .author.login],
+  changesRequested: [.latestOpinionatedReviews.nodes[] | select(.state == "CHANGES_REQUESTED") | .author.login],
   unresolvedThreads: [.reviewThreads.nodes[] | select(.isResolved | not) | .path]}'
 
 # Pin the merge to that sha: GitHub refuses it (409 "Head branch was
