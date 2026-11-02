@@ -221,6 +221,8 @@ const isUnderResolvedRoot = (path: string, resolvedRoot: string): boolean =>
 interface PrLookup {
   readonly state: "open" | "closed";
   readonly number: number;
+  /** The commit the PR's head branch pointed at (GitHub always sends it). */
+  readonly head?: { readonly sha: string };
 }
 
 /** The PR lookup failed: a network error or an HTTP error status (403 rate
@@ -244,6 +246,7 @@ const PullRequestPage = Schema.Array(
   Schema.Struct({
     number: Schema.Number,
     state: Schema.Literals(["open", "closed"]),
+    head: Schema.optional(Schema.Struct({ sha: Schema.String })),
   })
 );
 
@@ -370,6 +373,12 @@ const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
 const isTreeClean = (worktreePath: string, runGit: RunGit): boolean => {
   const result = runGit(["status", "--porcelain"], worktreePath);
   return result.ok && result.stdout.trim() === "";
+};
+
+/** The worktree's HEAD commit, or "" when git cannot read it. */
+const headOf = (worktreePath: string, runGit: RunGit): string => {
+  const result = runGit(["rev-parse", "HEAD"], worktreePath);
+  return result.ok ? result.stdout.trim() : "";
 };
 
 /** Build a `WorktreeOutcome` for `tracked` — cuts the four-field boilerplate
@@ -504,6 +513,25 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
         tracked,
         "skipped-open-pr",
         `PR #${pr.number} is still open`
+      );
+    }
+    // A closed PR only retires the work it carried. A branch name is reused
+    // once its worktree and local branch are gone (the sweep's own `branch
+    // -D`, step 7 of the change flow), and the new worktree on that name is
+    // clean right after `git worktree add` and after every commit-via-api
+    // run. Pre-fix the OLD closed PR decided for it, and the sweep removed a
+    // worktree mid-task, reporting "PR #N closed" for work that PR never
+    // held. A HEAD other than the PR's head is new work with no PR yet.
+    const worktreeHead = headOf(tracked.path, runGit);
+    if (
+      pr.head !== undefined &&
+      worktreeHead !== "" &&
+      worktreeHead !== pr.head.sha
+    ) {
+      return outcomeFor(
+        tracked,
+        "skipped-no-pr",
+        `PR #${pr.number} is closed, but it was for an earlier head of this branch (${pr.head.sha.slice(0, 7)}); no PR covers the worktree's HEAD ${worktreeHead.slice(0, 7)}`
       );
     }
     if (!isTreeClean(tracked.path, runGit)) {
