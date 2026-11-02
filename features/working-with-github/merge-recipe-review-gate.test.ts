@@ -20,6 +20,15 @@ import { fileURLToPath } from "node:url";
  * unprotected, so the recipe is the only gate. The recipe now reads each
  * reviewer's latest review and every thread through GraphQL, the only API
  * that reports thread resolution.
+ *
+ * "Latest review" must be the latest OPINIONATED one. `latestReviews` counts
+ * a comment-only review too, so a reviewer who requested changes and then
+ * commented shows COMMENTED there and the gate read no changes requested.
+ * Live on OpenRouterIncubator/ori #4084 (perry-the-pr-reviewer:
+ * CHANGES_REQUESTED, then two COMMENTED reviews):
+ *
+ *   latestReviews             perry-the-pr-reviewer COMMENTED
+ *   latestOpinionatedReviews  perry-the-pr-reviewer CHANGES_REQUESTED
  */
 const prompt = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "prompt.md"),
@@ -44,9 +53,16 @@ describe("the merge recipe reads the review conditions it lists", () => {
   });
 
   test("it keys changes-requested on each reviewer's latest review, not reviewDecision", () => {
-    expect(reviewRead).toContain("latestReviews(first: 100)");
+    expect(reviewRead).toContain("latestOpinionatedReviews(first: 100)");
     expect(reviewRead).toContain('select(.state == "CHANGES_REQUESTED")');
     expect(reviewRead).not.toContain("reviewDecision");
+  });
+
+  test("a comment-only review after a changes request cannot hide it", () => {
+    const query = reviewRead.slice(0, reviewRead.indexOf("--jq"));
+    expect(query).not.toMatch(/\blatestReviews\(/);
+    expect(reviewRead).toContain(".latestOpinionatedReviews.nodes[]");
+    expect(reviewRead).not.toContain(".latestReviews.nodes[]");
   });
 
   test("it lists every unresolved thread", () => {
