@@ -47,6 +47,18 @@ const sweepWorktrees = Effect.fn("WorktreeCleanupSchedule.sweep")(function* (
   // nothing to sweep.
   const ambient = (process.env.GH_APP_ID ?? "") === "";
   const repo = resolveRepoFromEnv();
+  // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
+  if (repo === "" && ambient && isRepoUnset(process.env)) {
+    // Ambient mode does not require GITHUB_REPO (gh-auth-health probes the
+    // root without one), and the change flow that makes worktrees under
+    // /tmp/worktrees/<slug>/ keys them by that repo. With no repo there is
+    // no slug to sweep, so finish quietly. Pre-fix this died, and every
+    // daily fire on such a host was recorded as an error.
+    logger.info(
+      "worktree-cleanup: GITHUB_REPO is not set in ambient mode — no repo slug to sweep."
+    );
+    return;
+  }
   if (repo === "") {
     // The two causes of an empty repo need different guidance: genuinely
     // unset (the operator must configure it) vs SET to a spelling that
