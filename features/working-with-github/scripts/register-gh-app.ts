@@ -104,6 +104,23 @@ const KNOWN_FLAGS = [
  *  contract, both paths. */
 const LIST_KNOWN_FLAGS: readonly string[] = [];
 
+/** A conventional env var NAME: upper-case letters, digits and underscores,
+ *  not starting with a digit. */
+const ENV_VAR_NAME = /^[A-Z_][A-Z0-9_]*$/u;
+
+/**
+ * How a key-flag argument is shown in a diagnostic. The flags take env var
+ * NAMES, and the most likely mistake is pasting the VALUE instead: the base64
+ * private key, or a `ghp_…` token. Pre-fix the "not set" line echoed the
+ * argument whole, so that mistake printed the secret into stderr, the logs,
+ * and any chat the agent relays the error to. Only a conventional env var
+ * name is echoed; anything else is withheld and named by flag and length.
+ */
+const displayKeyArg = (flag: string, arg: string): string =>
+  ENV_VAR_NAME.test(arg)
+    ? arg
+    : `the ${arg.length}-character ${flag} value (withheld: not an env var name — pass the variable's NAME, never its value)`;
+
 /**
  * A POSITIONAL token in argv: one with no `--` prefix that does NOT
  * immediately follow a known value-taking flag (the token after a flag
@@ -254,13 +271,20 @@ const runRegister = (ctx: RegisterCliContext): number => {
   }
   // Validate the named env vars are actually present (never print their values),
   // so a typo in a key name fails loudly at registration rather than at mint time.
-  const absent = [appIdKey, privateKeyKey].filter((key) => {
+  const absent = (
+    [
+      ["--app-id-key", appIdKey],
+      ["--private-key-key", privateKeyKey],
+    ] as const
+  ).filter(([, key]) => {
     const value = env[key];
     return value === undefined || value === "";
   });
   if (absent.length > 0) {
     writers.err(
-      `register-gh-app: named env var(s) not set: ${absent.join(", ")}\n`
+      `register-gh-app: named env var(s) not set: ${absent
+        .map(([flag, key]) => displayKeyArg(flag, key))
+        .join(", ")}\n`
     );
     return 1;
   }
