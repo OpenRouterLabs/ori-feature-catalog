@@ -10,6 +10,7 @@ import { Effect, Schema } from "effect";
 
 import { accessSync, constants, lstatSync } from "node:fs";
 import { readlink } from "node:fs/promises";
+import { relative } from "node:path";
 
 import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
@@ -158,6 +159,46 @@ const gitlinkSha = (
 const defaultReadLink = (absolutePath: string): Promise<string> =>
   readlink(absolutePath);
 
+/**
+ * The default read-file seam: a worktree file's bytes AS `git add` WOULD
+ * STAGE THEM, not as they sit on disk. Git runs every file it stages through
+ * the repo's clean pipeline — `.gitattributes` `text`/`eol` normalization,
+ * `core.autocrlf`, `ident`, and any `filter=` driver (Git LFS stores a
+ * pointer, never the binary). Pre-fix the flow uploaded the raw disk bytes:
+ * a `*.bat text eol=crlf` file (checked out CRLF, stored LF) came back as a
+ * whole-file CRLF rewrite of every line, a CRLF-pasted file under
+ * `* text=auto` landed CRLF where `git add` stores LF, and an LFS-tracked
+ * file was committed as its full binary instead of its pointer.
+ * `git hash-object -w -- <path>` applies exactly that pipeline for the path
+ * (and fails where `git add` fails — a required filter that cannot run);
+ * `git cat-file blob` reads the staged bytes back.
+ */
+const readAsStaged =
+  (worktree: string): ReadFile =>
+  (absolutePath) => {
+    const path = relative(worktree, absolutePath);
+    const hashed = Bun.spawnSync(["git", "hash-object", "-w", "--", path], {
+      cwd: worktree,
+      stderr: "pipe",
+    });
+    const sha = hashed.stdout.toString().trim();
+    if (!hashed.success || sha === "") {
+      return Promise.reject(
+        new Error(`git hash-object failed: ${hashed.stderr.toString().trim()}`)
+      );
+    }
+    const blob = Bun.spawnSync(["git", "cat-file", "blob", sha], {
+      cwd: worktree,
+      stderr: "pipe",
+    });
+    if (!blob.success) {
+      return Promise.reject(
+        new Error(`git cat-file failed: ${blob.stderr.toString().trim()}`)
+      );
+    }
+    return Promise.resolve(new Uint8Array(blob.stdout).buffer);
+  };
+
 /** True when git tracks the worktree's file mode for this repo
  *  (`core.fileMode`, default true). When it is false — a checkout on a
  *  filesystem without real permission bits (Windows/CIFS/FAT), where every
@@ -250,8 +291,8 @@ const createBlobForFile = (
   input: BuildTreeEntryInput
 ): Effect.Effect<string, CommitApiError> =>
   Effect.gen(function* () {
-    // Read the file's bytes from disk and create a base64 blob — robust for both
-    // text and binary content.
+    // Read the file's bytes as `git add` stages them (see readAsStaged) and
+    // create a base64 blob — robust for both text and binary content.
     const bytes = yield* Effect.tryPromise({
       try: () => input.readFile(`${input.args.worktree}/${input.file.path}`),
       catch: (cause) =>
@@ -618,10 +659,7 @@ export const commitViaApi = (
 ): Effect.Effect<string, CommitApiError> => {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const runGit = deps.runGit ?? defaultRunGit;
-  const readFile =
-    deps.readFile ??
-    ((absolutePath: string): Promise<ArrayBuffer> =>
-      Bun.file(absolutePath).arrayBuffer());
+  const readFile = deps.readFile ?? readAsStaged(args.worktree);
   const readLink = deps.readLink ?? defaultReadLink;
 
   return Effect.gen(function* () {
