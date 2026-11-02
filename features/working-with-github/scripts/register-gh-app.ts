@@ -39,6 +39,7 @@ import {
   listApps,
   openGhAppRegistryDb,
   orgOf,
+  redactUserinfo,
   registerApp,
 } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
@@ -279,7 +280,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
   // URL-shaped spellings; fail loudly naming the argument instead.
   if (normalizedOrg === "") {
     writers.err(
-      `register-gh-app: --org "${org}" resolves to no GitHub org — pass an org login, an owner/repo, or a github.com URL\n`
+      `register-gh-app: --org "${redactUserinfo(org)}" resolves to no GitHub org — pass an org login, an owner/repo, or a github.com URL\n`
     );
     return 1;
   }

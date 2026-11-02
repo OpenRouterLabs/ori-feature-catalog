@@ -61,6 +61,7 @@ import {
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-flow.ts";
+import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 export { CommitApiError, resolveRepoFromEnv } from "./commit-api-core.ts";
 export type { ChangedFile, CommitArgs, CommitDeps } from "./commit-api-core.ts";
@@ -247,13 +248,13 @@ export const parseCliArgs = (
         if (repoFlag !== undefined) {
           return yield* new CommitApiError({
             stage: "args",
-            message: `--repo "${repoFlag}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
+            message: `--repo "${redactUserinfo(repoFlag)}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
           });
         }
         if (!isRepoUnset(env)) {
           return yield* new CommitApiError({
             stage: "args",
-            message: `GITHUB_REPO "${(env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
+            message: `GITHUB_REPO "${redactUserinfo((env.GITHUB_REPO ?? "").trim())}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)`,
           });
         }
       }

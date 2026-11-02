@@ -1,0 +1,138 @@
+import { afterEach, describe, expect, test } from "bun:test";
+
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { Effect } from "effect";
+
+import { discoverInstallationId } from "./gh-app-github-api.ts";
+import { orgOf, redactUserinfo } from "./gh-app-registry.ts";
+
+// Every resolver tolerates a userinfo prefix because `git remote -v` pastes
+// carry one, and a remote that persisted its credential reads
+// `https://x-access-token:<token>@github.com/…`. When such a spelling resolves
+// to no owner/repo (a truncated paste: the bare host, the orgs index), every
+// "resolves to no owner/repo" diagnostic quoted the raw value — printing the
+// token into stderr, the schedule logs, and any chat the agent relays them to.
+
+const SECRET = "ghs_0123456789abcdefSECRETtoken";
+const HERE = dirname(fileURLToPath(import.meta.url));
+const UNRESOLVABLE = [
+  `https://x-access-token:${SECRET}@github.com`,
+  `https://x-access-token:${SECRET}@github.com/orgs`,
+  `https://${SECRET}@github.com/`,
+  `x-access-token:${SECRET}@github.com:orgs`,
+];
+
+const scratch: string[] = [];
+afterEach(() => {
+  for (const path of scratch.splice(0)) {
+    rmSync(path, { force: true, recursive: true });
+  }
+});
+
+const run = (script: string, argv: string[], env: Record<string, string>) => {
+  const home = mkdtempSync(join(tmpdir(), "wwg-cred-echo-"));
+  scratch.push(home);
+  const child = Bun.spawnSync(["bun", join(HERE, script), ...argv], {
+    cwd: home,
+    env: {
+      GH_APP_REGISTRY_DIR: home,
+      HOME: home,
+      PATH: process.env.PATH ?? "",
+      ...env,
+    },
+    stderr: "pipe",
+    stdout: "pipe",
+  });
+  return {
+    code: child.exitCode,
+    out: `${child.stdout.toString()}${child.stderr.toString()}`,
+  };
+};
+
+describe("redactUserinfo", () => {
+  test("masks a credential userinfo and keeps the conventional ssh user", () => {
+    expect(redactUserinfo(`https://x-access-token:${SECRET}@github.com`)).toBe(
+      "https://***@github.com"
+    );
+    expect(redactUserinfo(`${SECRET}@github.com:orgs`)).toBe(
+      "***@github.com:orgs"
+    );
+    expect(redactUserinfo("git@github.com:orgs")).toBe("git@github.com:orgs");
+    expect(redactUserinfo("ssh://git@github.com:22")).toBe(
+      "ssh://git@github.com:22"
+    );
+    expect(redactUserinfo("https://github.com/orgs")).toBe(
+      "https://github.com/orgs"
+    );
+  });
+
+  test.each(UNRESOLVABLE)("the corpus spelling %p resolves to no org", (spelling) => {
+    expect(orgOf(spelling)).toBe("");
+  });
+});
+
+describe("no unresolvable-spelling diagnostic echoes a URL credential", () => {
+  test.each(UNRESOLVABLE)("%p", (spelling) => {
+    const runs = [
+      run("scripts/mint-token.ts", ["--repo", spelling], { GH_APP_ID: "1" }),
+      run("scripts/mint-token.ts", ["--purpose", "reviewer"], {
+        GH_APP_ID: "1",
+        GITHUB_REPO: spelling,
+      }),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run", "--repo", spelling], {}),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run"], {
+        GITHUB_REPO: spelling,
+      }),
+      run("scripts/commit-via-api.ts", ["--repo", spelling], {}),
+      run("scripts/commit-via-api.ts", [], { GITHUB_REPO: spelling }),
+      run(
+        "scripts/register-gh-app.ts",
+        [
+          "register",
+          "--org",
+          spelling,
+          "--app-id-key",
+          "TEAM_ID",
+          "--private-key-key",
+          "TEAM_KEY",
+        ],
+        { TEAM_ID: "222", TEAM_KEY: "k" }
+      ),
+    ];
+    for (const result of runs) {
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("resolves to no");
+      expect(result.out).toContain("***@");
+      expect(result.out).not.toContain(SECRET);
+    }
+  }, 60_000);
+
+  test("installation discovery's orgless GITHUB_REPO message", async () => {
+    const saved = process.env.GITHUB_REPO;
+    process.env.GITHUB_REPO = `https://x-access-token:${SECRET}@github.com/orgs`;
+    try {
+      const error = await Effect.runPromise(
+        Effect.flip(
+          discoverInstallationId(
+            () => Promise.resolve(Response.json([])),
+            "jwt",
+            "",
+            new Set(["acme"])
+          )
+        )
+      );
+      expect(error.message).toContain("resolves to no GitHub org");
+      expect(error.message).not.toContain(SECRET);
+    } finally {
+      if (saved === undefined) {
+        delete process.env.GITHUB_REPO;
+      } else {
+        process.env.GITHUB_REPO = saved;
+      }
+    }
+  });
+});

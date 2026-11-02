@@ -50,6 +50,21 @@ const MS_PER_SECOND = 1000;
 export const DEFAULT_PURPOSE = "default";
 
 /**
+ * Mask URL userinfo before a repo or org spelling is echoed in a diagnostic.
+ * Every resolver here tolerates a userinfo prefix because `git remote -v`
+ * pastes carry one, and a remote that persisted its credential reads
+ * `https://x-access-token:<token>@github.com/…`; the "resolves to no
+ * owner/repo" messages that quote the raw value printed that token into
+ * stderr, the schedule logs, and any chat the agent relays them to. The
+ * conventional ssh user `git` names no secret and is kept, so a
+ * `git@github.com:…` spelling still reads as typed.
+ */
+export const redactUserinfo = (spelling: string): string =>
+  spelling.replaceAll(/[^\s@/]+@/gu, (userinfo) =>
+    userinfo.toLowerCase() === "git@" ? userinfo : "***@"
+  );
+
+/**
  * Extract the org from an `owner/repo`, full `https://` URL, or ssh/scp-style
  * (`git@github.com:owner/repo`) string. Mirrors the sibling normalizers
  * (`resolveRepoFromEnv` in scripts/commit-api-core.ts, `resolveAllowedOrgs`
