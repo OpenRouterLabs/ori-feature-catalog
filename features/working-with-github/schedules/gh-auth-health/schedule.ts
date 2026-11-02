@@ -32,6 +32,7 @@ import { defineSchedule } from "ori";
 
 import { isRepoUnset, resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 import { postAlert } from "@ori-monorepo/working-with-github/post-alert.ts";
 
 import { readGhAuthHealthConfig } from "./config.ts";
@@ -172,7 +173,7 @@ export const schedule = defineSchedule({
             new Error(
               isRepoUnset(process.env)
                 ? "gh-auth-health: GITHUB_REPO is not set — cannot run the auth round-trip check."
-                : `gh-auth-health: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — cannot run the auth round-trip check. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
+                : `gh-auth-health: GITHUB_REPO "${redactUserinfo((process.env.GITHUB_REPO ?? "").trim())}" resolves to no owner/repo — cannot run the auth round-trip check. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
             )
           );
         }

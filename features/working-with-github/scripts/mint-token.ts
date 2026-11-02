@@ -54,7 +54,7 @@ import {
   findJunkArgv,
   isRepoUnset,
 } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { orgOf } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { orgOf, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {
@@ -491,7 +491,7 @@ if (import.meta.main) {
       args.repeatedFlag !== undefined
         ? `mint-token: ${args.repeatedFlag} was passed more than once — pass exactly one value\n`
         : args.unresolvableRepoValue !== undefined
-        ? `mint-token: --repo "${args.unresolvableRepoValue}" resolves to no GitHub org — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
+        ? `mint-token: --repo "${redactUserinfo(args.unresolvableRepoValue)}" resolves to no GitHub org — check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
         : args.missingRepoValue === true
         ? "mint-token: --repo/--org needs a value (e.g. --repo owner/repo)\n"
         : args.missingPurposeValue === true
@@ -504,7 +504,7 @@ if (import.meta.main) {
           // problem at all — pre-fix both printed the orgless message, so a
           // genuinely unset var was blamed for a spelling it never had.
           : !isRepoUnset(process.env)
-          ? `mint-token: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no GitHub org — --purpose cannot route to a registered App. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
+          ? `mint-token: GITHUB_REPO "${redactUserinfo((process.env.GITHUB_REPO ?? "").trim())}" resolves to no GitHub org — --purpose cannot route to a registered App. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner)\n`
           : "mint-token: --purpose needs a target org: pass --repo/--org or set GITHUB_REPO\n"
     );
     process.exit(1);

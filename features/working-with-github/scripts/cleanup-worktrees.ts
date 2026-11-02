@@ -60,6 +60,7 @@ import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.
 import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
@@ -315,10 +316,10 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       // actual cause" class, reopened through the flag path).
       writers.err(
         args.repoFlagValue !== undefined
-          ? `cleanup-worktrees: --repo "${args.repoFlagValue}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
+          ? `cleanup-worktrees: --repo "${redactUserinfo(args.repoFlagValue)}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
           : isRepoUnset(env)
           ? "cleanup-worktrees: no --repo given and GITHUB_REPO is not set.\n"
-          : `cleanup-worktrees: GITHUB_REPO "${(env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
+          : `cleanup-worktrees: GITHUB_REPO "${redactUserinfo((env.GITHUB_REPO ?? "").trim())}" resolves to no owner/repo — check its spelling (e.g. github.com/orgs, the organizations index, names no owner).\n`
       );
       return 1;
     }

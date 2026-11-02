@@ -16,7 +16,7 @@ import { createSign } from "node:crypto";
 
 import { Data, Effect, Option, Schema } from "effect";
 
-import { orgOf } from "./gh-app-registry.ts";
+import { orgOf, redactUserinfo } from "./gh-app-registry.ts";
 
 // #region Error
 
@@ -961,10 +961,10 @@ export const discoverInstallationId = (
           all.length === 0
             ? orglessEnvRepo === undefined
               ? "No GitHub App installation found. Install the App, or set GITHUB_REPO so its org can be matched."
-              : `No GitHub App installation found. GITHUB_REPO "${orglessEnvRepo}" resolves to no GitHub org, so none can be matched — check its spelling (e.g. github.com/orgs, the organizations index, names no owner), or target a repo.`
+              : `No GitHub App installation found. GITHUB_REPO "${redactUserinfo(orglessEnvRepo)}" resolves to no GitHub org, so none can be matched — check its spelling (e.g. github.com/orgs, the organizations index, names no owner), or target a repo.`
             : orglessEnvRepo === undefined
             ? `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); set GITHUB_REPO or target a repo so the right one can be chosen.`
-            : `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); GITHUB_REPO "${orglessEnvRepo}" resolves to no GitHub org, so the right one cannot be chosen — check its spelling, or target a repo.`,
+            : `GitHub App has ${all.length} installations (${all.map((i) => i.login).join(", ")}); GITHUB_REPO "${redactUserinfo(orglessEnvRepo)}" resolves to no GitHub org, so the right one cannot be chosen — check its spelling, or target a repo.`,
         op: "discover",
       });
     }

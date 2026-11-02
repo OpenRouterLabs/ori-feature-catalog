@@ -28,6 +28,7 @@ import {
   resolveRepoFromEnv,
 } from "@ori-monorepo/working-with-github/commit-api-core.ts";
 import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 const WORKTREES_ROOT = "/tmp/worktrees";
 
@@ -57,7 +58,7 @@ const sweepWorktrees = Effect.fn("WorktreeCleanupSchedule.sweep")(function* (
       new Error(
         isRepoUnset(process.env)
           ? "worktree-cleanup: GITHUB_REPO is not set — cannot resolve which slug to sweep."
-          : `worktree-cleanup: GITHUB_REPO "${(process.env.GITHUB_REPO ?? "").trim()}" resolves to no owner/repo — cannot resolve which slug to sweep. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
+          : `worktree-cleanup: GITHUB_REPO "${redactUserinfo((process.env.GITHUB_REPO ?? "").trim())}" resolves to no owner/repo — cannot resolve which slug to sweep. Check its spelling (e.g. github.com/orgs, the organizations index, names no owner).`
       )
     );
   }
