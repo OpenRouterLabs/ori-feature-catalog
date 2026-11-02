@@ -295,7 +295,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 
    Output the PR URL so a button is posted in Slack. You may **merge your own PR** once every merge-readiness condition holds (see "Merging your own PRs" below); otherwise leave it open for a human to review and merge.
 
-7. **Verify the commits are signed**, then clean up the worktree:
+7. **Verify the commits are signed**, then clean up the worktree and its local branch:
 
    ```bash
    GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits?sha=branch-name&per_page=10" \
@@ -305,7 +305,15 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    # GitHub signs the SQUASH-MERGE commit, never that PR head, so an unsigned
    # head on the member path is the expected result, not a blocker; only the
    # merged result carries the Verified badge.
-   git worktree remove "$WT"
+   # Leave the worktree for the checkout it was cut from (step 2 left you
+   # inside it, and git cannot run from a deleted directory), remove it, and
+   # delete its local branch: `git worktree remove` keeps the branch, so the
+   # next `git worktree add -b branch-name` fails with "a branch named ...
+   # already exists", and the cleanup sweep only visits worktrees, never a
+   # leftover branch. Every commit is already on the remote (step 5), so -D
+   # loses nothing.
+   cd "$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)/.."
+   git worktree remove "$WT" && git branch -D branch-name
    ```
 
 ## Merging your own PRs
