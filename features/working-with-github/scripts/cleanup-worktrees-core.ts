@@ -375,6 +375,64 @@ const isTreeClean = (worktreePath: string, runGit: RunGit): boolean => {
   return result.ok && result.stdout.trim() === "";
 };
 
+/** `GET /repos/{repo}/pulls/{number}/commits` — the commits a PR carries
+ *  (only the `sha` is read). */
+const PullRequestCommitPage = Schema.Array(Schema.Struct({ sha: Schema.String }));
+
+/** GitHub lists at most 250 commits for a PR: three pages of 100. */
+const PR_COMMITS_MAX_PAGES = 3;
+
+/**
+ * True when `sha` is one of the commits PR `number` carried. A closed PR whose
+ * head is NOT the worktree's HEAD is either for an EARLIER head of a reused
+ * branch name (new work, keep it — the #360 case) or for a LATER head: GitHub's
+ * "Update branch" button, a bot's merge commit, or a review fix pushed from
+ * another checkout moved the PR past the worktree's last commit before it
+ * merged. Pre-fix both read as the first, so every worktree whose PR merged
+ * after such a push was reported "skipped-no-pr" ("no PR covers the
+ * worktree's HEAD") on every sweep and never reclaimed. The PR's own commit
+ * list tells them apart: the worktree's HEAD is in it only when that PR
+ * carried the work. A reused branch's fresh HEAD (main's tip, or the base an
+ * unmerged PR was cut from) is never in it.
+ */
+const prCarriesCommit = Effect.fn("CleanupWorktrees.prCarriesCommit")(
+  function* (input: {
+    readonly fetchImpl: FetchLike;
+    readonly token?: string;
+    readonly repo: string;
+    readonly number: number;
+    readonly sha: string;
+  }) {
+    for (let page = 1; page <= PR_COMMITS_MAX_PAGES; page += 1) {
+      const commits = yield* ghJson({
+        fetchImpl: input.fetchImpl,
+        method: "GET",
+        schema: PullRequestCommitPage,
+        token: input.token,
+        url: `${GITHUB_API}/repos/${input.repo}/pulls/${input.number}/commits?per_page=${PULLS_PAGE_SIZE}&page=${page}`,
+      }).pipe(
+        Effect.timeoutOrElse({
+          duration: PR_LOOKUP_TIMEOUT_MS,
+          orElse: () =>
+            Effect.fail(
+              new CommitApiError({
+                stage: "http",
+                message: `GET pulls/${input.number}/commits page ${page} did not answer within ${PR_LOOKUP_TIMEOUT_MS / 1000}s`,
+              })
+            ),
+        })
+      );
+      if (commits.some((commit) => commit.sha === input.sha)) {
+        return true;
+      }
+      if (commits.length < PULLS_PAGE_SIZE) {
+        return false;
+      }
+    }
+    return false;
+  }
+);
+
 /** The worktree's HEAD commit, or "" when git cannot read it. */
 const headOf = (worktreePath: string, runGit: RunGit): string => {
   const result = runGit(["rev-parse", "HEAD"], worktreePath);
@@ -521,18 +579,44 @@ const evaluateWorktree = Effect.fn("CleanupWorktrees.evaluateWorktree")(
     // clean right after `git worktree add` and after every commit-via-api
     // run. Pre-fix the OLD closed PR decided for it, and the sweep removed a
     // worktree mid-task, reporting "PR #N closed" for work that PR never
-    // held. A HEAD other than the PR's head is new work with no PR yet.
+    // held. A HEAD other than the PR's head is new work with no PR yet,
+    // unless the PR's own commit list carries it (see prCarriesCommit).
     const worktreeHead = headOf(tracked.path, runGit);
     if (
       pr.head !== undefined &&
       worktreeHead !== "" &&
       worktreeHead !== pr.head.sha
     ) {
-      return outcomeFor(
-        tracked,
-        "skipped-no-pr",
-        `PR #${pr.number} is closed, but it was for an earlier head of this branch (${pr.head.sha.slice(0, 7)}); no PR covers the worktree's HEAD ${worktreeHead.slice(0, 7)}`
+      // A HEAD the closed PR carried (the PR moved past it remotely before
+      // it merged) is covered work; any other HEAD is new work. A failed
+      // read leaves the PR's coverage unknown: an error, never a removal.
+      const carried = yield* prCarriesCommit({
+        fetchImpl,
+        number: pr.number,
+        repo: options.repo,
+        sha: worktreeHead,
+        token,
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.succeed<WorktreeOutcome>(
+            outcomeFor(
+              tracked,
+              "error",
+              `PR #${pr.number} commit lookup failed: ${error.message}`
+            )
+          )
+        )
       );
+      if (typeof carried !== "boolean") {
+        return carried;
+      }
+      if (!carried) {
+        return outcomeFor(
+          tracked,
+          "skipped-no-pr",
+          `PR #${pr.number} is closed, but it was for an earlier head of this branch (${pr.head.sha.slice(0, 7)}); no PR covers the worktree's HEAD ${worktreeHead.slice(0, 7)}`
+        );
+      }
     }
     if (!isTreeClean(tracked.path, runGit)) {
       return outcomeFor(
