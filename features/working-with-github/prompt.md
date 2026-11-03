@@ -176,7 +176,7 @@ That routing only works once the alternate App is **registered** (a one-time ste
 How you file follows the access mode: in App mode use the `gh` commands below
 with the token from `mint-token.ts`; in ambient mode `gh` is not authenticated (and may not
 even be installed) — use the REST API with plain `curl` instead
-(`GET /repos/{owner}/{repo}/issues?state=all` for the duplicate check, and
+(the paged issue list below for the duplicate check, and
 `POST /repos/{owner}/{repo}/issues` to file). Filing always needs a
 credential: GitHub answers an unauthenticated POST with 401 `Requires
 authentication`, even on a public repo, so it works only when the host
@@ -188,6 +188,25 @@ Before filing a new issue, do a duplicate check:
 
 1. Extract 3-5 keywords from the proposed issue.
 2. Search open and closed issues: `gh issue list --repo "$REPO" --state all --search "KEYWORDS" --limit 20`
+
+   In ambient mode, search the issue list yourself. One read of `GET /repos/{owner}/{repo}/issues?state=all` is not a search: it takes no keywords, returns only the 30 newest entries, and counts pull requests as issues. On a busy repo page one can hold no issue at all, so an older duplicate never shows. `/search/issues` does not fix this. It is an unscoped route that goes out without the workspace credential, so it answers 422 for a private repo. Page through every issue and match the keywords against titles and bodies:
+
+   ```bash
+   bun -e '
+   const [repo, ...words] = process.argv.slice(1);
+   for (let page = 1; ; page += 1) {
+     const res = await fetch(`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=${page}`);
+     if (!res.ok) { console.error(`HTTP ${res.status}`); process.exit(1); }
+     const items = await res.json();
+     for (const item of items) {
+       const text = `${item.title}\n${item.body ?? ""}`.toLowerCase();
+       if (!item.pull_request && words.some((word) => text.includes(word.toLowerCase()))) {
+         console.log(`#${item.number} [${item.state}] ${item.title}`);
+       }
+     }
+     if (items.length < 100) break;
+   }' "{owner}/{repo}" KEYWORD1 KEYWORD2 KEYWORD3
+   ```
 3. If a matching closed issue exists, check whether the fix is still in the codebase. If fixed → say so. If regressed → reopen.
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
