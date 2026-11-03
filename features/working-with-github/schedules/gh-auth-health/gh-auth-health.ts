@@ -36,10 +36,10 @@ export interface AmbientProbeOk {
 /** Ambient-mode failure: GitHub is unreachable, answers with a server error,
  *  or refuses the request because the effective rate limit is exhausted. A
  *  401/403/404 on `GET /` is healthy-but-unauthenticated (on a host with no
- *  proxy credential those are the honest answer) — EXCEPT the one 403 that
- *  means the workspace cannot work at all: `x-ratelimit-remaining: 0`. That
- *  state fails every real GitHub call the feature makes, so the schedule must
- *  surface it, not log ok. */
+ *  proxy credential those are the honest answer) — EXCEPT the 403s that mean
+ *  the workspace cannot work at all: `x-ratelimit-remaining: 0`, or a
+ *  secondary rate limit. Those fail every real GitHub call the feature makes,
+ *  so the schedule must surface them, not log ok. */
 export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
   readonly detail: string;
 }> {}
@@ -84,6 +84,22 @@ const ROUND_TRIP_TIMEOUT_MS = 15_000;
  * already uses, naming the deadline and the repo.
  */
 const ROUND_TRIP_BODY_TIMEOUT_MS = ROUND_TRIP_TIMEOUT_MS;
+
+/**
+ * True when a 403 is GitHub's secondary rate limit rather than an auth
+ * answer: a `retry-after` header, or a body message naming the limit. The
+ * body read is bounded like the fetch; an unreadable or stalled body reads
+ * as no message.
+ */
+const isSecondaryRateLimit = (response: Response): Effect.Effect<boolean> =>
+  response.headers.get("retry-after") !== null
+    ? Effect.succeed(true)
+    : Effect.promise(() => response.text().catch(() => "")).pipe(
+        Effect.timeoutOption(AMBIENT_PROBE_TIMEOUT_MS),
+        Effect.map((body) =>
+          /secondary rate limit/iu.test(Option.getOrElse(body, () => ""))
+        )
+      );
 
 /**
  * The ambient-mode probe: `GET /repos/{repo}` for the intern's own repo, or
@@ -159,6 +175,16 @@ export const ambientGitHubReachable = (input: {
     if (response.status === 429) {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace`,
+      });
+    }
+    // GitHub answers a secondary rate limit with a 403 as often as a 429,
+    // with quota still remaining, so the header check above misses it.
+    // Its marks are a `retry-after` header or a message naming the limit
+    // (the header is not always sent). Pre-fix that 403 logged ok while
+    // every call failed, though the same limit as a 429 alerted.
+    if (response.status === 403 && (yield* isSecondaryRateLimit(response))) {
+      return yield* new AmbientProbeError({
+        detail: `GET ${route} answered HTTP 403 (secondary rate limit) — GitHub is refusing requests from this workspace`,
       });
     }
     const scopes =
