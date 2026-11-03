@@ -36,6 +36,7 @@ import {
 
 import {
   DEFAULT_PURPOSE,
+  displayArgvToken,
   listApps,
   openGhAppRegistryDb,
   orgOf,
@@ -122,6 +123,23 @@ const displayKeyArg = (flag: string, arg: string): string =>
     : `the ${arg.length}-character ${flag} value (withheld: not an env var name — pass the variable's NAME, never its value)`;
 
 /**
+ * How a refused argv token is quoted. The key flags take env var NAMES, so
+ * an equals-form value there that is not a name is the secret pasted in its
+ * place (`--private-key-key=ghp_…`) and is withheld at any length; every
+ * other token goes through the shared {@link displayArgvToken} rule.
+ */
+const displayRegisterArgv = (token: string): string => {
+  const keyFlag = /^(--app-id-key|--private-key-key)=(.*)$/su.exec(token);
+  if (keyFlag !== null) {
+    const [, flag = "", value = ""] = keyFlag;
+    return ENV_VAR_NAME.test(value)
+      ? token
+      : `${flag}=<a ${value.length}-character value, withheld>`;
+  }
+  return displayArgvToken(token);
+};
+
+/**
  * A POSITIONAL token in argv: one with no `--` prefix that does NOT
  * immediately follow a known value-taking flag (the token after a flag
  * occurrence is that flag's value slot — usable, flag-shaped, padded, or
@@ -154,7 +172,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
     // ignoring it silently coerced the row to the org-level CATCH-ALL purpose —
     // re-routing every future mint without --purpose (the #117 class).
     writers.err(
-      `register-gh-app: unrecognized argument "${junkArgv}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
+      `register-gh-app: unrecognized argument "${displayRegisterArgv(junkArgv)}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
     );
     return 1;
   }
@@ -169,7 +187,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
     const unknownFlag = findUnknownFlag(ctx.argv, KNOWN_FLAGS);
     if (unknownFlag !== undefined) {
       writers.err(
-        `register-gh-app: unrecognized argument "${unknownFlag}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
+        `register-gh-app: unrecognized argument "${displayRegisterArgv(unknownFlag)}" — flags are space-separated "--org acme", never "--org=acme", single-dash, or an unknown flag\n`
       );
       return 1;
     }
@@ -181,7 +199,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
   const positionalArgv = findPositionalArgv(argv, KNOWN_FLAGS);
   if (positionalArgv !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${positionalArgv}" — this CLI takes a subcommand plus flags, e.g. "--org acme", never a bare positional\n`
+      `register-gh-app: unrecognized argument "${displayRegisterArgv(positionalArgv)}" — this CLI takes a subcommand plus flags, e.g. "--org acme", never a bare positional\n`
     );
     return 1;
   }
@@ -348,7 +366,7 @@ const runList = (
   const junkArgv = findJunkArgv(argv.slice(1));
   if (junkArgv !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${junkArgv}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
+      `register-gh-app: unrecognized argument "${displayRegisterArgv(junkArgv)}" — flags are space-separated "--org acme", never "--org=acme" or single-dash\n`
     );
     return 1;
   }
@@ -359,7 +377,7 @@ const runList = (
   const unknownFlag = findUnknownFlag(argv.slice(1), LIST_KNOWN_FLAGS);
   if (unknownFlag !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${unknownFlag}" — list takes no flags\n`
+      `register-gh-app: unrecognized argument "${displayRegisterArgv(unknownFlag)}" — list takes no flags\n`
     );
     return 1;
   }
@@ -369,7 +387,7 @@ const runList = (
   const positionalArgv = findPositionalArgv(argv.slice(1), LIST_KNOWN_FLAGS);
   if (positionalArgv !== undefined) {
     writers.err(
-      `register-gh-app: unrecognized argument "${positionalArgv}" — list takes no arguments\n`
+      `register-gh-app: unrecognized argument "${displayRegisterArgv(positionalArgv)}" — list takes no arguments\n`
     );
     return 1;
   }

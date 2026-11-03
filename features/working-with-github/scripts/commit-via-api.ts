@@ -61,7 +61,7 @@ import {
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-flow.ts";
-import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { displayArgvToken, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 export { CommitApiError, resolveRepoFromEnv } from "./commit-api-core.ts";
 export type { ChangedFile, CommitArgs, CommitDeps } from "./commit-api-core.ts";
@@ -168,7 +168,7 @@ export const parseCliArgs = (
     if (junkArgv !== undefined) {
       return yield* new CommitApiError({
         stage: "args",
-        message: `unrecognized argument "${junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash`,
+        message: `unrecognized argument "${displayArgvToken(junkArgv)}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash`,
       });
     }
     // A repeated `--flag` is a usage error, never a silent winner: the Map
@@ -190,7 +190,7 @@ export const parseCliArgs = (
     if (unknownFlag !== undefined) {
       return yield* new CommitApiError({
         stage: "args",
-        message: `unrecognized argument "${unknownFlag}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo", single-dash, or an unknown flag`,
+        message: `unrecognized argument "${displayArgvToken(unknownFlag)}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo", single-dash, or an unknown flag`,
       });
     }
     for (let i = 0; i < argv.length; i += FLAG_STRIDE) {
