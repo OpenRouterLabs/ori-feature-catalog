@@ -64,6 +64,25 @@ export const redactUserinfo = (spelling: string): string =>
     userinfo.toLowerCase() === "git@" ? userinfo : "***@"
   );
 
+/** The longest argv token a usage error quotes back whole. */
+const MAX_ECHOED_ARGV_CHARS = 64;
+
+/**
+ * How a CLI usage error quotes the argv token it refused. A pasted secret
+ * reaches these messages first: a PEM private key starts with dashes, so it
+ * is refused as a single-dash token, and a `--flag=<secret>` paste is
+ * refused as the equals form, both before any guard that withholds values.
+ * Pre-fix every CLI echoed the token whole into stderr and any chat the
+ * agent relays it to. URL userinfo is masked, and a token that spans lines
+ * or is longer than any flag spelling is named by its length only.
+ */
+export const displayArgvToken = (token: string): string => {
+  const shown = redactUserinfo(token);
+  return /[\r\n]/u.test(shown) || shown.length > MAX_ECHOED_ARGV_CHARS
+    ? `<a ${token.length}-character argument, withheld>`
+    : shown;
+};
+
 /**
  * Extract the org from an `owner/repo`, full `https://` URL, or ssh/scp-style
  * (`git@github.com:owner/repo`) string. Mirrors the sibling normalizers

@@ -60,7 +60,7 @@ import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.
 import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 
 import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
-import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { displayArgvToken, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 
@@ -291,7 +291,7 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       // A single-dash token (`-repo o/r`) is a typo no CLI accepts: fail loudly
       // rather than silently sweeping the default repo's slug directory.
       writers.err(
-        `cleanup-worktrees: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
+        `cleanup-worktrees: unrecognized argument "${displayArgvToken(args.junkArgv)}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
       );
       return 1;
     }
@@ -300,7 +300,7 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
       // was never part of any documented invocation, and swallowing it
       // silently retargets a DESTRUCTIVE sweep at the default repo.
       writers.err(
-        `cleanup-worktrees: unrecognized argument "${args.positionalArgv}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
+        `cleanup-worktrees: unrecognized argument "${displayArgvToken(args.positionalArgv)}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
       );
       return 1;
     }

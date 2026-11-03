@@ -54,7 +54,7 @@ import {
   findJunkArgv,
   isRepoUnset,
 } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { orgOf, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { displayArgvToken, orgOf, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {
@@ -471,13 +471,13 @@ if (import.meta.main) {
   const args = parseMintArgs(process.argv.slice(2));
   if (args.positionalArgv !== undefined) {
     process.stderr.write(
-      `mint-token: unrecognized argument "${args.positionalArgv}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
+      `mint-token: unrecognized argument "${displayArgvToken(args.positionalArgv)}" — this CLI takes flags only, e.g. "--repo owner/repo", never a bare positional\n`
     );
     process.exit(1);
   }
   if (args.junkArgv !== undefined) {
     process.stderr.write(
-      `mint-token: unrecognized argument "${args.junkArgv}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
+      `mint-token: unrecognized argument "${displayArgvToken(args.junkArgv)}" — flags are space-separated "--repo owner/repo", never "--repo=owner/repo" or single-dash\n`
     );
     process.exit(1);
   }
