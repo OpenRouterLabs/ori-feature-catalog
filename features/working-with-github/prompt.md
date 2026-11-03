@@ -338,6 +338,11 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
    # upstream clone) keeps it under the superproject's `.git/modules/`, and a
    # `--separate-git-dir` clone keeps it anywhere, so `/..` landed outside the
    # repository and both commands failed.
+   # A worktree with an initialized submodule is refused even when clean
+   # ("working trees containing submodules cannot be moved or removed"). Its
+   # submodule repos live under the worktree's git dir, so rerun the remove with
+   # --force only once `git -C "$WT" status --porcelain --ignore-submodules=none`
+   # prints nothing and every submodule commit is pushed.
    cd "$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)"
    git worktree remove "$WT" && git branch -D branch-name
    ```

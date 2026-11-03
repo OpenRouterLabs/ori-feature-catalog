@@ -452,6 +452,44 @@ const outcomeFor = (
   path: tracked.path,
 });
 
+/** `git worktree remove`'s refusal of a worktree with a populated submodule. */
+const SUBMODULE_REFUSAL = "working trees containing submodules";
+
+/**
+ * Why a forced removal would lose work in a worktree git refused for its
+ * submodules, or "" when it would not. `git worktree remove` refuses ANY
+ * worktree with a populated submodule, clean or not, and only `--force`
+ * removes one — but the submodule repos live under the worktree's own git
+ * dir, so the force deletes them. It is safe only when the tree is clean
+ * with submodule changes counted (`--ignore-submodules=none` overrides a
+ * `submodule.<name>.ignore=all` that hides them from the sweep's own
+ * status read) and every submodule's HEAD is on one of its remotes.
+ */
+const submoduleLoss = (worktreePath: string, runGit: RunGit): string => {
+  const status = runGit(
+    ["status", "--porcelain", "--ignore-submodules=none"],
+    worktreePath
+  );
+  if (!status.ok || status.stdout.trim() !== "") {
+    return "the tree has uncommitted changes in a submodule";
+  }
+  const unpushed = runGit(
+    [
+      "submodule",
+      "foreach",
+      "--quiet",
+      "--recursive",
+      'test -n "$(git for-each-ref --count=1 --contains HEAD refs/remotes)" || echo "$displaypath"',
+    ],
+    worktreePath
+  );
+  if (!unpushed.ok) {
+    return "the submodules could not be read";
+  }
+  const paths = unpushed.stdout.trim().split("\n").filter((line) => line !== "");
+  return paths.length > 0 ? `submodule commits on no remote: ${paths.join(", ")}` : "";
+};
+
 /** Remove `tracked`'s worktree and (best-effort) its now-served branch. */
 const removeWorktree = (input: {
   readonly tracked: TrackedWorktree;
@@ -460,12 +498,20 @@ const removeWorktree = (input: {
   readonly prNumber: number;
 }): WorktreeOutcome => {
   const { tracked, options, runGit, prNumber } = input;
-  const removed = runGit(["worktree", "remove", tracked.path], options.repoDir);
+  const plain = runGit(["worktree", "remove", tracked.path], options.repoDir);
+  const loss =
+    !plain.ok && plain.stderr.includes(SUBMODULE_REFUSAL)
+      ? submoduleLoss(tracked.path, runGit)
+      : undefined;
+  const removed =
+    loss === ""
+      ? runGit(["worktree", "remove", "--force", tracked.path], options.repoDir)
+      : plain;
   if (!removed.ok) {
     return outcomeFor(
       tracked,
       "error",
-      `git worktree remove failed: ${removed.stderr.trim()}`
+      `git worktree remove failed: ${removed.stderr.trim()}${loss === undefined || loss === "" ? "" : `; ${loss}`}`
     );
   }
   // Best-effort: the branch has served its purpose once its PR merged/closed.
