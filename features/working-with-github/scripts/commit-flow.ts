@@ -703,21 +703,29 @@ const defaultWarn = (text: string): void => {
  * HEAD is the remote parent the new commit was built on: then the pushed tree
  * is the local HEAD tree plus exactly the files just read, and a mixed reset
  * (index + branch ref only, never the working files) leaves the status clean.
- * A branch that moved remotely (someone else's push) is left alone, since a
- * reset onto it would make the next round revert that push. The commit has
- * already landed, so a sync that cannot run only returns a warning.
+ * A branch that moved remotely is synced too when it only moved AHEAD of the
+ * worktree HEAD (the one move `guardMovedBranch` lets a round commit on): the
+ * paths that move changed are first restored from the new commit, so the
+ * mixed reset cannot make the next round revert them. Pre-fix that round was
+ * left as-is, so the worktree kept listing its committed files, the next
+ * round was refused for them, and the `git merge FETCH_HEAD` the refusal
+ * names failed on those same local changes. Any other move, or one that
+ * changed a submodule (the nested checkout would stay at the old commit), is
+ * left alone. The commit has already landed, so a sync that cannot run only
+ * returns a warning.
  */
 const syncLocalBranch = (input: SyncLocalBranchInput): string | undefined => {
   const { worktree, branch, repo } = input.args;
   const checkedOut = input.runGit(["symbolic-ref", "--short", "HEAD"], worktree);
   const localHead = input.runGit(["rev-parse", "HEAD"], worktree);
+  const head = localHead.ok ? localHead.stdout.trim() : "";
+  const leftAsIs = `the worktree was left as-is (it is not ${branch} at ${input.headSha.slice(0, 7)}), so it still lists the committed files as modified`;
   if (
     !checkedOut.ok ||
     checkedOut.stdout.trim() !== branch ||
-    !localHead.ok ||
-    localHead.stdout.trim() !== input.headSha
+    head === ""
   ) {
-    return `the worktree was left as-is (it is not ${branch} at ${input.headSha.slice(0, 7)}), so it still lists the committed files as modified`;
+    return leftAsIs;
   }
   const fetched = input.runGit(
     [
@@ -729,12 +737,75 @@ const syncLocalBranch = (input: SyncLocalBranchInput): string | undefined => {
     ],
     worktree
   );
-  const reset = fetched.ok
-    ? input.runGit(["reset", "--quiet", "--mixed", input.newCommitSha], worktree)
-    : fetched;
+  if (!fetched.ok) {
+    return `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git fetch failed), so the worktree still lists the committed files as modified`;
+  }
+  if (head !== input.headSha) {
+    const moved = movedAheadPaths(input.runGit, worktree, head, input.headSha);
+    if (moved === undefined) {
+      return leftAsIs;
+    }
+    if (moved.length > 0) {
+      const restored = input.runGit(
+        [
+          "--literal-pathspecs",
+          "restore",
+          `--source=${input.newCommitSha}`,
+          "--worktree",
+          "--",
+          ...moved,
+        ],
+        worktree
+      );
+      if (!restored.ok) {
+        return `could not bring the files ${branch} changed remotely into the worktree (git restore failed), so it still lists the committed files as modified`;
+      }
+    }
+  }
+  const reset = input.runGit(
+    ["reset", "--quiet", "--mixed", input.newCommitSha],
+    worktree
+  );
   return reset.ok
     ? undefined
-    : `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git ${fetched.ok ? "reset" : "fetch"} failed), so the worktree still lists the committed files as modified`;
+    : `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git reset failed), so the worktree still lists the committed files as modified`;
+};
+
+/**
+ * The paths the remote branch changed between the worktree HEAD `head` and
+ * the remote parent `headSha`, or `undefined` when the sync must not run:
+ * `headSha` is not a fast-forward of `head`, the diff cannot be read, or the
+ * move touched a gitlink (`160000`), whose nested checkout a restore does not
+ * update. Read from the raw diff without rename detection, so a rename yields
+ * both its source and its destination.
+ */
+const movedAheadPaths = (
+  runGit: RunGit,
+  worktree: string,
+  head: string,
+  headSha: string
+): readonly string[] | undefined => {
+  const ancestor = runGit(["merge-base", "--is-ancestor", head, headSha], worktree);
+  if (!ancestor.ok) {
+    return undefined;
+  }
+  const diff = runGit(["diff", "--raw", "--no-renames", "-z", head, headSha], worktree);
+  if (!diff.ok) {
+    return undefined;
+  }
+  const fields = diff.stdout.split("\0");
+  const paths: string[] = [];
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const meta = fields[i] ?? "";
+    const path = fields[i + 1] ?? "";
+    if (meta.split(" ").some((mode) => mode.endsWith(GITLINK_MODE))) {
+      return undefined;
+    }
+    if (path !== "") {
+      paths.push(path);
+    }
+  }
+  return paths;
 };
 
 /**
