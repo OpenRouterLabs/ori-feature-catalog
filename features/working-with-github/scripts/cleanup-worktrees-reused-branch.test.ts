@@ -16,6 +16,14 @@ import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
 // decided for the new worktree: the sweep removed it mid-task and deleted its
 // branch, reporting "removed (PR #42 closed, tree clean)" for work PR #42
 // never carried. The PR's head sha now has to be the worktree's HEAD.
+//
+// The PR can also have moved PAST the worktree's HEAD before it merged:
+// GitHub's "Update branch" button, a bot's merge commit, or a review fix
+// pushed from another checkout. The worktree's HEAD is then one of the PR's
+// own commits, and the PR did carry its work. Pre-fix that read as "an
+// earlier head" too, so the worktree was reported skipped-no-pr on every
+// sweep and never reclaimed. The sweep now reads the PR's commit list when
+// the heads differ.
 
 const GIT_ENV = {
   GIT_AUTHOR_EMAIL: "t@example.com",
@@ -62,16 +70,30 @@ const sweep = (input: {
   readonly checkout: string;
   readonly root: string;
   readonly headSha: string;
+  /** The PR's own commit list; omitted → the PR carried only its head. */
+  readonly prCommits?: readonly string[] | "fails";
+  readonly urls?: string[];
 }) =>
   Effect.runPromise(
     cleanupWorktrees(
       {
-        fetchImpl: () =>
-          Promise.resolve(
+        fetchImpl: (url) => {
+          input.urls?.push(url);
+          if (url.includes("/pulls/42/commits")) {
+            return Promise.resolve(
+              input.prCommits === "fails"
+                ? Response.json({ message: "Server Error" }, { status: 502 })
+                : Response.json(
+                    (input.prCommits ?? [input.headSha]).map((sha) => ({ sha }))
+                  )
+            );
+          }
+          return Promise.resolve(
             Response.json([
               { head: { sha: input.headSha }, number: 42, state: "closed" },
             ])
-          ),
+          );
+        },
         token: "tok",
       },
       {
@@ -88,7 +110,8 @@ describe("a closed PR only retires the worktree whose HEAD it carried", () => {
   test("a reused branch name with new work keeps its worktree and branch", async () => {
     const { checkout, root, wt } = fixture();
     const oldHead = "1111111111111111111111111111111111111111";
-    const summary = await sweep({ checkout, headSha: oldHead, root });
+    const urls: string[] = [];
+    const summary = await sweep({ checkout, headSha: oldHead, root, urls });
     const outcome = summary.outcomes.find((entry) => entry.path === wt);
     expect(outcome?.decision).toBe("skipped-no-pr");
     expect(outcome?.detail).toContain("PR #42 is closed");
@@ -96,6 +119,53 @@ describe("a closed PR only retires the worktree whose HEAD it carried", () => {
     expect(git(["branch", "--list", "fix-typo"], checkout)).toContain(
       "fix-typo"
     );
+    expect(git(["worktree", "list", "--porcelain"], checkout)).toContain(wt);
+    expect(urls.some((url) => url.includes("/pulls/42/commits"))).toBe(true);
+  });
+
+  test("a PR merged after its branch moved past the worktree's HEAD still retires the worktree", async () => {
+    const { checkout, root, wt } = fixture();
+    git(["commit", "-q", "--allow-empty", "-m", "the fix"], wt);
+    const worktreeHead = git(["rev-parse", "HEAD"], wt);
+    const updatedHead = "2222222222222222222222222222222222222222";
+    const summary = await sweep({
+      checkout,
+      headSha: updatedHead,
+      prCommits: [worktreeHead, updatedHead],
+      root,
+    });
+    const outcome = summary.outcomes.find((entry) => entry.path === wt);
+    expect(outcome?.decision).toBe("removed");
+    expect(outcome?.detail).toBe("removed (PR #42 closed, tree clean)");
+    expect(git(["branch", "--list", "fix-typo"], checkout)).toBe("");
+  });
+
+  test("a reused branch cut from the base an unmerged PR started on keeps its worktree", async () => {
+    const { base, checkout, root, wt } = fixture();
+    const oldHead = "1111111111111111111111111111111111111111";
+    const summary = await sweep({
+      checkout,
+      headSha: oldHead,
+      prCommits: [oldHead],
+      root,
+    });
+    const outcome = summary.outcomes.find((entry) => entry.path === wt);
+    expect(git(["rev-parse", "HEAD"], wt)).toBe(base);
+    expect(outcome?.decision).toBe("skipped-no-pr");
+    expect(git(["worktree", "list", "--porcelain"], checkout)).toContain(wt);
+  });
+
+  test("a commit lookup that fails is an error and keeps the worktree", async () => {
+    const { checkout, root, wt } = fixture();
+    const summary = await sweep({
+      checkout,
+      headSha: "3333333333333333333333333333333333333333",
+      prCommits: "fails",
+      root,
+    });
+    const outcome = summary.outcomes.find((entry) => entry.path === wt);
+    expect(outcome?.decision).toBe("error");
+    expect(outcome?.detail).toContain("PR #42 commit lookup failed");
     expect(git(["worktree", "list", "--porcelain"], checkout)).toContain(wt);
   });
 
