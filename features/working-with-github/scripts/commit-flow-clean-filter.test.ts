@@ -28,6 +28,9 @@ import { commitViaApi } from "./commit-flow.ts";
 const uploadedBlobs = async (dir: string): Promise<string[]> => {
   const blobs: string[] = [];
   const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+    if (url.includes("/compare/")) {
+      return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+    }
     if (url.includes("/git/ref/heads/")) {
       return Promise.resolve(Response.json({ object: { sha: "h" } }));
     }

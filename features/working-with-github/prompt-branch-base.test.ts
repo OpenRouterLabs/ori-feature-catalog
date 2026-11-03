@@ -36,10 +36,16 @@ const git = (cwd: string, ...args: string[]): string =>
 const identity = ["-c", "user.email=t@example.com", "-c", "user.name=t"];
 
 /** The Git Data API, faked around a real bare remote: the branch head is
- *  `parentSha` and every created blob's content is recorded. */
+ *  `parentSha` and every created blob's content is recorded. A compare
+ *  answers that the branch moved ahead and changed `x.txt` (main's B). */
 const fakeGitHub =
   (parentSha: string, blobs: string[]): FetchLike =>
   (url: string, init?: RequestInit) => {
+    if (url.includes("/compare/")) {
+      return Promise.resolve(
+        Response.json({ status: "ahead", files: [{ filename: "x.txt" }] })
+      );
+    }
     if (url.includes("/git/ref/heads/")) {
       return Promise.resolve(Response.json({ object: { sha: parentSha } }));
     }
@@ -119,11 +125,15 @@ describe("the change flow's remote branch starts at the worktree's base", () => 
         return { blobs, warnings };
       };
 
-      // Pre-fix recipe: the branch sits on B, and the commit puts the A-based
-      // x.txt on top of it — B's `l2-theirs` is gone from the PR.
-      const stale = await run(shaB);
-      expect(stale.blobs).toEqual(["l1-mine\nl2\n"]);
-      expect(stale.warnings.join("")).toContain("left as-is");
+      // Pre-fix recipe: the branch sits on B, and the commit would put the
+      // A-based x.txt on top of it, so B's `l2-theirs` would be gone from the
+      // PR. commit-via-api now refuses that round before any blob (#365).
+      const stale = await run(shaB).then(
+        () => "landed",
+        (error: unknown) => (error instanceof Error ? error.message : String(error))
+      );
+      expect(stale).toContain("x.txt");
+      expect(stale).toContain("git merge FETCH_HEAD");
 
       // The fixed recipe: the branch sits on the worktree's own HEAD (A), so
       // the commit is exactly the edit on the tree it was made on.

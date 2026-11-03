@@ -54,6 +54,9 @@ describe("commitViaApi — branch names in the ref routes", () => {
               if (url.includes("/git/ref/heads/") || url.includes("/git/refs/heads/")) {
                 refUrls.push(`${init?.method ?? "GET"} ${url}`);
               }
+              if (url.includes("/compare/")) {
+                return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+              }
               if (url.includes("/git/ref/heads/")) {
                 return Promise.resolve(Response.json({ object: { sha: "h" } }));
               }
