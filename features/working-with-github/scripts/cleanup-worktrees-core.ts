@@ -369,9 +369,16 @@ const findPrForBranch = Effect.fn("CleanupWorktrees.findPrForBranch")(
   }
 );
 
-/** True when `git status --porcelain` in `worktreePath` reports no changes. */
+/** True when `git status --porcelain` in `worktreePath` reports no changes.
+ *  Untracked files are asked for explicitly: a repo set to
+ *  `status.showUntrackedFiles=no` hides them from a bare status, and
+ *  `git worktree remove` honors the same setting, so the removal deleted
+ *  new files that were never committed. */
 const isTreeClean = (worktreePath: string, runGit: RunGit): boolean => {
-  const result = runGit(["status", "--porcelain"], worktreePath);
+  const result = runGit(
+    ["status", "--porcelain", "--untracked-files=normal"],
+    worktreePath
+  );
   return result.ok && result.stdout.trim() === "";
 };
 
