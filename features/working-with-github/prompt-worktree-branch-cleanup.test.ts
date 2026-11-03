@@ -69,22 +69,55 @@ const bash = (script: string, cwd: string) =>
     stdout: "pipe",
   });
 
+/** How the checkout the worktree is cut from keeps its git dir: a plain clone
+ *  (`<checkout>/.git`), a submodule (the superproject's `.git/modules/<name>`,
+ *  the vendored-upstream layout), or a `--separate-git-dir` clone. */
+type CheckoutLayout = "plain" | "submodule" | "separate-git-dir";
+
+const checkoutScript = (
+  layout: CheckoutLayout,
+  work: string,
+  checkout: string
+): string => {
+  if (layout === "plain") {
+    return [
+      `git init -q -b main "${checkout}"`,
+      `cd "${checkout}"`,
+      "git commit -q --allow-empty -m init",
+    ].join("\n");
+  }
+  const upstream = join(work, "upstream");
+  const seed = [
+    `git init -q -b main "${upstream}"`,
+    `git -C "${upstream}" commit -q --allow-empty -m init`,
+  ];
+  if (layout === "separate-git-dir") {
+    return [
+      ...seed,
+      `mkdir -p "${join(work, "gitdirs")}"`,
+      `git clone -q --separate-git-dir="${join(work, "gitdirs", "upstream.git")}" "${upstream}" "${checkout}"`,
+    ].join("\n");
+  }
+  const superproject = join(work, "super");
+  return [
+    ...seed,
+    `git init -q -b main "${superproject}"`,
+    `cd "${superproject}"`,
+    `git -c protocol.file.allow=always submodule add -q "${upstream}" vendor/upstream`,
+    "git commit -q -m vendor",
+    `ln -s "${join(superproject, "vendor", "upstream")}" "${checkout}"`,
+  ].join("\n");
+};
+
 /** A checkout plus one worktree cut by step 1, with the shell left inside the
  *  worktree the way step 2 (`cd "$WT"`) leaves it. */
-const flowFixture = () => {
+const flowFixture = (layout: CheckoutLayout = "plain") => {
   const work = mkdtempSync(join(tmpdir(), "wwg-step7-"));
   scratch.push(work);
   const checkout = join(work, "checkout");
   const wt = join(work, "worktrees", "acme-widgets", "fix-typo");
-  const init = bash(
-    [
-      `git init -q -b main "${checkout}"`,
-      `cd "${checkout}"`,
-      "git commit -q --allow-empty -m init",
-      "git rev-parse HEAD",
-    ].join("\n"),
-    work
-  );
+  const init = bash(checkoutScript(layout, work, checkout), work);
+  expect(init.stderr.toString()).not.toContain("fatal");
   expect(init.exitCode).toBe(0);
   const add = (cwd: string) =>
     bash(
@@ -124,4 +157,47 @@ describe("step 7 leaves the flow re-runnable under the same branch name", () => 
     expect(again.exitCode).not.toBe(0);
     expect(again.stderr.toString()).toContain("already exists");
   });
+});
+
+// Step 7 used to `cd` to the PARENT of the common git dir. That is the
+// checkout only for a plain clone. A worktree cut from a submodule checkout
+// (a vendored upstream clone) or a `--separate-git-dir` clone sent the shell
+// outside the repository, and `git worktree remove` failed ("is not a working
+// tree" from a superproject's `.git/modules/`, "not a git repository"
+// elsewhere): the worktree and its branch both stayed, and the next run under
+// the same name died at step 1.
+describe("step 7 works wherever the checkout keeps its git dir", () => {
+  for (const layout of ["submodule", "separate-git-dir"] as const) {
+    test(`a worktree cut from a ${layout} checkout is removed with its branch`, () => {
+      const { add, checkout, wt } = flowFixture(layout);
+      expect(add(checkout).exitCode).toBe(0);
+      const cleanup = bash(
+        `WT="${wt}"\n${cleanupLines.replaceAll("branch-name", "fix-typo")}`,
+        wt
+      );
+      expect(cleanup.stderr.toString()).not.toContain("fatal");
+      expect(cleanup.exitCode).toBe(0);
+      expect(bash("git worktree list", checkout).stdout.toString()).not.toContain(
+        wt
+      );
+      const branches = bash("git branch --list fix-typo", checkout);
+      expect(branches.stdout.toString().trim()).toBe("");
+      expect(add(checkout).exitCode).toBe(0);
+    });
+
+    test(`the old parent-dir step 7 fails on a ${layout} checkout`, () => {
+      const { add, checkout, wt } = flowFixture(layout);
+      expect(add(checkout).exitCode).toBe(0);
+      const old = bash(
+        [
+          `WT="${wt}"`,
+          'cd "$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)/.."',
+          'git worktree remove "$WT" && git branch -D fix-typo',
+        ].join("\n"),
+        wt
+      );
+      expect(old.exitCode).not.toBe(0);
+      expect(old.stderr.toString()).toContain("fatal");
+    });
+  }
 });
