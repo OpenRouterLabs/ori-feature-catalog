@@ -58,6 +58,9 @@ describe("commitViaApi — exec-bit staging in a core.fileMode=false repo", () =
         url: string,
         init?: RequestInit
       ): Promise<Response> => {
+        if (url.includes("/compare/")) {
+          return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+        }
         if (url.includes("/git/ref/heads/")) {
           return Promise.resolve(Response.json({ object: { sha: "h" } }));
         }

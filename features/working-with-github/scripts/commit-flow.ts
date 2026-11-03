@@ -70,6 +70,23 @@ const GitCommit = Schema.Struct({
   tree: Schema.Struct({ sha: Schema.NonEmptyString }),
 });
 
+/** `GET /compare/{base}...{head}` — how the remote head relates to the
+ *  worktree's HEAD, and the paths it changed since their merge base. */
+const GitCompare = Schema.Struct({
+  status: Schema.String,
+  files: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        filename: Schema.String,
+        previous_filename: Schema.optional(Schema.String),
+      })
+    )
+  ),
+});
+
+/** GitHub's compare lists at most this many files; a full page may be cut. */
+const COMPARE_FILE_CAP = 300;
+
 /**
  * The ref fast-forward's response body is never read: the 2xx is the whole
  * signal, and holding its body to a shape would turn a landed push into a
@@ -499,6 +516,79 @@ interface BuildTreeInput {
   readonly baseTreeSha: string;
 }
 
+interface MovedBranchInput {
+  readonly args: CommitArgs;
+  readonly token: string;
+  readonly fetchImpl: FetchLike;
+  readonly runGit: RunGit;
+  readonly changed: readonly ChangedFile[];
+  readonly headSha: string;
+}
+
+/**
+ * Refuse a round that would revert the remote branch's own changes. `git
+ * status` lists changes against the worktree's HEAD, and every changed file
+ * is sent WHOLE on top of the remote head's tree. When the branch moved
+ * remotely (a reviewer's push, "Update branch", a bot) and the round edits a
+ * file that push also changed, the commit replaced that file with the
+ * worktree's copy, silently reverting the push (issue #365). The commit
+ * still lands when the remote only moved AHEAD and touched other paths
+ * (`base_tree` keeps those); it is refused when a committed path was also
+ * changed remotely, when the worktree holds commits the branch lacks, or
+ * when GitHub cannot say how the two relate. An unreadable HEAD (an unborn
+ * branch) is left as before.
+ */
+const guardMovedBranch = (
+  input: MovedBranchInput
+): Effect.Effect<void, CommitApiError> =>
+  Effect.gen(function* () {
+    const local = input.runGit(["rev-parse", "HEAD"], input.args.worktree);
+    const localHead = local.ok ? local.stdout.trim() : "";
+    if (localHead === "" || localHead === input.headSha) {
+      return;
+    }
+    const { branch, repo } = input.args;
+    const recover = `bring the worktree up to date first (git fetch <url> refs/heads/${branch} && git merge FETCH_HEAD), then run this again`;
+    const compare = yield* ghJson({
+      fetchImpl: input.fetchImpl,
+      token: input.token,
+      method: "GET",
+      schema: GitCompare,
+      url: `${GITHUB_API}/repos/${repo}/compare/${localHead}...${input.headSha}`,
+    }).pipe(
+      Effect.mapError(
+        (error) =>
+          new CommitApiError({
+            stage: "git",
+            message: `${branch} moved remotely (${input.headSha.slice(0, 7)}, worktree HEAD ${localHead.slice(0, 7)}) and GitHub could not compare the two (${error.message}), so committing could revert its changes — ${recover}`,
+          })
+      )
+    );
+    if (compare.status !== "ahead") {
+      return yield* new CommitApiError({
+        stage: "git",
+        message: `${branch} at ${input.headSha.slice(0, 7)} is ${compare.status} the worktree HEAD ${localHead.slice(0, 7)}, so committing would drop or revert commits — ${recover}`,
+      });
+    }
+    const files = compare.files ?? [];
+    const remotePaths = new Set(
+      files.flatMap((file) =>
+        file.previous_filename === undefined
+          ? [file.filename]
+          : [file.filename, file.previous_filename]
+      )
+    );
+    const overlap = input.changed
+      .map((file) => file.path)
+      .filter((path) => remotePaths.has(path));
+    if (overlap.length > 0 || files.length >= COMPARE_FILE_CAP) {
+      return yield* new CommitApiError({
+        stage: "git",
+        message: `${branch} moved remotely to ${input.headSha.slice(0, 7)} (worktree HEAD ${localHead.slice(0, 7)}) and changed ${overlap.length > 0 ? overlap.join(", ") : "too many files to check"}, which this round also commits — committing would revert those changes; ${recover}`,
+      });
+    }
+  });
+
 /** Build every changed file's tree entry, then create the new tree on top of `baseTreeSha`. */
 const buildNewTree = (
   input: BuildTreeInput
@@ -674,6 +764,16 @@ export const commitViaApi = (
       args,
       token,
       fetchImpl,
+    });
+
+    // 3b. Refuse a round that would revert the moved branch's changes.
+    yield* guardMovedBranch({
+      args,
+      token,
+      fetchImpl,
+      runGit,
+      changed,
+      headSha,
     });
 
     // 4. Build the new tree's entries and create the new tree.

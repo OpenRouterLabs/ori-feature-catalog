@@ -24,6 +24,9 @@ describe("commitViaApi — unmerged (conflicted) worktree refusal", () => {
   test("a UU record refuses the commit with a typed error naming the path", async () => {
     let blobCreated = false;
     const fetchImpl = (url: string): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: { sha: "h" } }));
       }
@@ -75,6 +78,9 @@ describe("commitViaApi — unmerged (conflicted) worktree refusal", () => {
   test("a COPY-only worktree commits the destination and stages nothing for the source", async () => {
     const treeBodies: unknown[] = [];
     const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: { sha: "h" } }));
       }

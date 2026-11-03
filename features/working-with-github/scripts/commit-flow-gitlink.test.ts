@@ -65,6 +65,9 @@ const runCommit = async (worktree: string): Promise<CommitRun> => {
             }
             return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
           }
+          if (url.includes("/compare/")) {
+            return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+          }
           if (url.includes("/git/ref/heads/")) {
             return Promise.resolve(Response.json({ object: { sha: "c" } }));
           }

@@ -103,6 +103,9 @@ const isTreeBody = (
 /** A fetch that 404s the branch-ref lookup and 200s everything else — drives the
  *  "surfaces a GitHub HTTP error" path. Module-scoped so it is not recreated per call. */
 const httpErrorFetch = (url: string): Promise<Response> => {
+  if (url.includes("/compare/")) {
+    return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+  }
   if (url.includes("/git/ref/heads/")) {
     return Promise.resolve(
       Response.json({ message: "Not Found" }, { status: 404 })
@@ -122,6 +125,9 @@ describe("commitViaApi", () => {
         url,
         body,
       });
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: { sha: "headsha" } }));
       }
@@ -189,6 +195,9 @@ describe("commitViaApi", () => {
     let blobCreated = false;
     let treeBody: unknown;
     const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: { sha: "h" } }));
       }
@@ -270,6 +279,9 @@ describe("commitViaApi", () => {
 
   test("a malformed sha on a created object fails stage:parse naming the field", async () => {
     const fetchImpl = (url: string): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: { sha: "headsha" } }));
       }
@@ -309,6 +321,9 @@ describe("commitViaApi", () => {
 
   test("a branch ref missing its nested sha names the whole path", async () => {
     const fetchImpl = (url: string): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(Response.json({ object: {} }));
       }
@@ -348,6 +363,9 @@ describe("commitViaApi", () => {
       url: "https://api.github.com/whatever",
     };
     const fetchImpl = (url: string): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
       if (url.includes("/git/ref/heads/")) {
         return Promise.resolve(
           Response.json({
@@ -459,6 +477,9 @@ describe("commitViaApi", () => {
         url: string,
         init?: RequestInit
       ): Promise<Response> => {
+        if (url.includes("/compare/")) {
+          return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+        }
         if (url.includes("/git/ref/heads/")) {
           return Promise.resolve(Response.json({ object: { sha: "h" } }));
         }
@@ -540,6 +561,9 @@ describe("commitViaApi", () => {
         url: string,
         init?: RequestInit
       ): Promise<Response> => {
+        if (url.includes("/compare/")) {
+          return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+        }
         if (url.includes("/git/ref/heads/")) {
           return Promise.resolve(Response.json({ object: { sha: "h" } }));
         }

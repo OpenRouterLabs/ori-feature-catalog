@@ -75,10 +75,22 @@ const fixture = (): Fixture => {
 };
 
 /** The Git Data API, faked: the branch head is `parentSha`, and the commit it
- *  creates is `newSha`. The PR lookup answers one closed PR. */
+ *  creates is `newSha`. The PR lookup answers one closed PR, and a compare
+ *  answers `compare` (the remote moved ahead, touching `c.txt` only). */
 const fakeGitHub =
-  (parentSha: string, newSha: string): FetchLike =>
+  (
+    parentSha: string,
+    newSha: string,
+    compare: unknown = { status: "ahead", files: [{ filename: "c.txt" }] },
+    calls: string[] = []
+  ): FetchLike =>
   (url: string) => {
+    calls.push(url);
+    if (url.includes("/compare/")) {
+      return compare === null
+        ? Promise.resolve(Response.json({ message: "Not Found" }, { status: 404 }))
+        : Promise.resolve(Response.json(compare));
+    }
     if (url.includes("/pulls?")) {
       return Promise.resolve(Response.json([{ number: 7, state: "closed" }]));
     }
@@ -109,6 +121,8 @@ const commit = (
     readonly parentSha?: string;
     readonly worktree?: string;
     readonly remoteUrl?: string;
+    readonly compare?: unknown;
+    readonly calls?: string[];
   } = {}
 ): Promise<{ readonly sha: string; readonly warnings: readonly string[] }> => {
   const warnings: string[] = [];
@@ -121,7 +135,12 @@ const commit = (
         worktree: options.worktree ?? fx.worktree,
       },
       {
-        fetchImpl: fakeGitHub(options.parentSha ?? fx.baseSha, fx.newSha),
+        fetchImpl: fakeGitHub(
+          options.parentSha ?? fx.baseSha,
+          fx.newSha,
+          options.compare,
+          options.calls
+        ),
         remoteUrl: () => options.remoteUrl ?? fx.remote,
         token: "not-a-real-token",
         warn: (text) => {
@@ -227,6 +246,97 @@ describe("commit-via-api leaves the worktree clean after a signed commit", () =>
       expect(warnings[0]).toContain("git fetch failed");
       expect(warnings[0]).not.toContain("not-a-real-token");
       expect(git(fx.worktree, "rev-parse", "HEAD")).toBe(fx.baseSha);
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+});
+
+/**
+ * Regression (#365): the worktree's `git status` lists changes against its
+ * own HEAD, and each changed file is sent WHOLE on top of the remote head's
+ * tree. When the branch moved remotely and changed a file this round also
+ * commits, the commit replaced that file with the worktree's copy and
+ * silently reverted the push. The flow now asks GitHub how the two heads
+ * relate before any blob is created, and refuses the round when a committed
+ * path was changed remotely, when the worktree holds commits the branch
+ * lacks, or when the comparison cannot be read.
+ */
+describe("commit-via-api never reverts a moved branch's changes (#365)", () => {
+  const refused = async (
+    fx: Fixture,
+    compare: unknown
+  ): Promise<{ readonly message: string; readonly calls: string[] }> => {
+    const calls: string[] = [];
+    const message = await commit(fx, {
+      parentSha: "f".repeat(40),
+      compare,
+      calls,
+    }).then(
+      () => "landed",
+      (error: unknown) => (error instanceof Error ? error.message : String(error))
+    );
+    return { message, calls };
+  };
+
+  test("a remote change to a file this round commits refuses before any blob", async () => {
+    const fx = fixture();
+    try {
+      const { message, calls } = await refused(fx, {
+        status: "ahead",
+        files: [{ filename: "a.txt" }],
+      });
+      expect(message).toContain("a.txt");
+      expect(message).toContain("git merge FETCH_HEAD");
+      expect(calls.some((url) => url.endsWith("/git/blobs"))).toBe(false);
+      expect(calls.some((url) => url.includes("/git/refs/heads/"))).toBe(false);
+      expect(git(fx.worktree, "rev-parse", "HEAD")).toBe(fx.baseSha);
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  test("a remote rename away from a committed path refuses too", async () => {
+    const fx = fixture();
+    try {
+      const { message } = await refused(fx, {
+        status: "ahead",
+        files: [{ filename: "moved.txt", previous_filename: "b.txt" }],
+      });
+      expect(message).toContain("b.txt");
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  test("a worktree holding commits the branch lacks refuses", async () => {
+    const fx = fixture();
+    try {
+      const { message } = await refused(fx, { status: "diverged", files: [] });
+      expect(message).toContain("diverged");
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  test("a comparison GitHub cannot answer refuses instead of guessing", async () => {
+    const fx = fixture();
+    try {
+      const { message, calls } = await refused(fx, null);
+      expect(message).toContain("could not compare");
+      expect(message).not.toContain("not-a-real-token");
+      expect(calls.some((url) => url.endsWith("/git/commits"))).toBe(false);
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  test("a worktree at the remote head never asks for a comparison", async () => {
+    const fx = fixture();
+    try {
+      const calls: string[] = [];
+      await commit(fx, { calls });
+      expect(calls.some((url) => url.includes("/compare/"))).toBe(false);
     } finally {
       rmSync(fx.root, { force: true, recursive: true });
     }

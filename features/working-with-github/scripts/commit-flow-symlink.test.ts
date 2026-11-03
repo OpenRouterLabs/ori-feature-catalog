@@ -91,6 +91,9 @@ const makeCapturingFetch = (
       if (init?.method === "POST") return Promise.resolve(Response.json({ sha: "commit" }));
       return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
     }
+    if (url.includes("/compare/")) {
+      return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+    }
     if (url.includes("/git/ref/heads/")) {
       return Promise.resolve(Response.json({ object: { sha: "commit" } }));
     }
@@ -213,6 +216,9 @@ describe("commitViaApi — the readLink seam", () => {
               }
               if (url.includes("/git/commits/")) {
                 return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+              }
+              if (url.includes("/compare/")) {
+                return Promise.resolve(Response.json({ status: "ahead", files: [] }));
               }
               if (url.includes("/git/ref/heads/")) {
                 return Promise.resolve(Response.json({ object: { sha: "c" } }));
