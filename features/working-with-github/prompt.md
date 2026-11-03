@@ -177,9 +177,12 @@ How you file follows the access mode: in App mode use the `gh` commands below
 with the token from `mint-token.ts`; in ambient mode `gh` is not authenticated (and may not
 even be installed) — use the REST API with plain `curl` instead
 (`GET /repos/{owner}/{repo}/issues?state=all` for the duplicate check, and
-`POST /repos/{owner}/{repo}/issues` to file; anonymous filing works on public
-repos when the host attaches no write credential — verify with one POST and
-report the blockage rather than silently dropping the finding).
+`POST /repos/{owner}/{repo}/issues` to file). Filing always needs a
+credential: GitHub answers an unauthenticated POST with 401 `Requires
+authentication`, even on a public repo, so it works only when the host
+attaches a write credential to that owner's routes. Verify with one POST and,
+on a 401 or 403, report the blockage with the finding itself rather than
+silently dropping it.
 
 Before filing a new issue, do a duplicate check:
 
