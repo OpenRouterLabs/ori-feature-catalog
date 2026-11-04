@@ -50,8 +50,9 @@ cd "$WT"; for f in AGENTS.md CLAUDE.md CONTRIBUTING.md CONTRIBUTING .github/CONT
   [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done
 ls .husky .lefthook .githooks Makefile justfile Taskfile.yml package.json pyproject.toml Cargo.toml go.mod 2>/dev/null
 for f in .husky/* .lefthook/*/* .lefthook/*.sh .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
-# Rules for the directories you touch: an AGENTS.md in any of their parents.
-for d in <dirs the change touches>; do while [ "$d" != "." ] && [ -n "$d" ]; do
+# Rules for the directories you touch: an AGENTS.md in any of their parents. A path under "$WT" is read
+# relative to it, and the walk also stops at "/" (dirname "/" is "/", so an absolute path never ended).
+for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
   [ -f "$d/AGENTS.md" ] && printf '\n===== %s\n' "$d/AGENTS.md" && cat "$d/AGENTS.md"; d=$(dirname "$d"); done; done
 ls .github/workflows/ .circleci/ .gitlab-ci.yml .buildkite/ 2>/dev/null; grep -ln 'draft' .github/workflows/* 2>/dev/null
 ```
