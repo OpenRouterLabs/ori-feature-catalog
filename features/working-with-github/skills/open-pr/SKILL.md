@@ -34,7 +34,7 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 - `--skip-checks` is needed for directory names with `[`, `]`, `*` or `?` in them, which are common in web routing trees (`app/[locale]/…`).
 - Search with `git grep` or `rg`, never a plain recursive `grep`. Find which directories to check out with `git ls-tree` first, rather than checking out everything.
 - When the clone answers HTTP 429 (rate limited), wait about 20 seconds and retry once. When cloning is not allowed at all, download the tarball instead, as the feature prompt describes.
-- In App mode, put the token in the clone URL for that one command, never in git config (see the feature prompt). Commit from `$WT` with `commit-via-api.ts --worktree "$WT"`, or the REST API in ambient mode.
+- In App mode, put the token in the clone URL for that one command, never in git config (see the feature prompt). Commit from `$WT` with `commit-via-api.ts --worktree "$WT"`, adding `--as member` in ambient mode; never hand-write the Git Data API calls.
 - Delete `$WT` when the PR is up and you no longer need it. Nothing is kept between tasks.
 - Run your own helper scripts (a `bun -e` one-liner, a commit script) from outside `$WT` (`cd /tmp`, then pass paths in). A repository's runtime config, such as a `bunfig.toml` preload, `.npmrc` or `.nvmrc`, applies to anything started inside it and can break a script that has nothing to do with the repository.
 
@@ -79,7 +79,7 @@ When the list is long, grep it for words from your diff (package names, director
 
 ## 4. Run what the hooks would have run
 
-Your commits go through the Git Data API (`commit-via-api.ts`, or the REST API in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2, including the scripts it calls, and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them. When the repository has a `commit-msg` rule (a commitlint config, a `commit-msg` hook), check your commit message and PR title against it too.
+Your commits go through the Git Data API (`commit-via-api.ts`, with `--as member` in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2, including the scripts it calls, and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them. When the repository has a `commit-msg` rule (a commitlint config, a `commit-msg` hook), check your commit message and PR title against it too.
 
 When a hook regenerates files (docs indexes, lockfiles, codegen), run the generator and commit what it changed. If you skip that, CI's "generated files are stale" check fails.
 

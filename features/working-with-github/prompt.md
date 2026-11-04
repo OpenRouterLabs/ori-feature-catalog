@@ -45,7 +45,7 @@ running `bun "$WWG"/scripts/commit-via-api.ts` — a relative path then names
 a file under the worktree (missing for a vendored or remote-features layout,
 the worktree's own half-edited copy for a local `features/` one).
 
-In ambient mode the scripts are not needed — the minting path requires an App. The REST recipes below still apply; use them through plain `curl`.
+In ambient mode `mint-token.ts` does not apply — the minting path requires an App. `commit-via-api.ts` still works with `--as member`: it resolves no token and makes the commit as the person asking (`x-github-as: member` on every call), so never hand-write the blob, tree, commit and ref calls. The REST recipes below still apply; use them through plain `curl`.
 
 ## Access mode 1 — ambient credential (no `GH_APP_ID`)
 
