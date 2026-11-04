@@ -13,6 +13,7 @@ const SURFACES = {
   "prompt.md": read("prompt.md"),
   "skills/cleanup-worktrees/SKILL.md": read("skills/cleanup-worktrees/SKILL.md"),
   "skills/register-gh-app/SKILL.md": read("skills/register-gh-app/SKILL.md"),
+  "skills/open-pr/SKILL.md": read("skills/open-pr/SKILL.md"),
 };
 
 const RETIRED = [
