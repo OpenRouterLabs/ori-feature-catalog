@@ -42,6 +42,12 @@ describe("open-pr skill", () => {
       "Post the PR link first",
       "actAsAsker: true",
       "schedules the next one 10 minutes out",
+      "fails the same way twice, stop and change the approach",
+      "Run your own helper scripts",
+      "workspace filter",
+      "Never resolve a monorepo's imports by hand",
+      "never estimate the time",
+      "`commit-msg` rule",
     ]) expect(skill).toContain(needle);
   });
 

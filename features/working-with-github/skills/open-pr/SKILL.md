@@ -12,6 +12,7 @@ Be fast without skipping a check. Most of the time to a PR goes to three things,
 
 - **Downloading and indexing the whole repository.** Work in a temporary partial clone (step 1). It fetches file contents only for the directories you check out, and it is already a git repo, so you never need to `git init` it to get a diff.
 - **One small tool call after another.** Each call waits on a full model round trip. Put independent reads in one call: read every rules file in one command, run every search in one command.
+- **Retrying what already failed.** When a command fails the same way twice, stop and change the approach. A loop that "fixes" an error must check that each pass made progress, and stop when it didn't.
 - **Waiting on CI inside the turn.** Never `sleep` waiting on CI. Post the PR link the moment the PR exists, then follow CI with scheduled check-ins (step 8).
 
 Nothing here assumes a language, a package manager, a CI vendor or a company. Use whatever the repository uses. `$REPO` is the target `owner/repo` and `$WT` is your checkout.
@@ -23,7 +24,7 @@ WT=/tmp/worktrees/${REPO//\//-}/<branch>
 git clone -q --depth 1 --filter=blob:none --sparse "https://github.com/$REPO.git" "$WT"
 cd "$WT"
 git ls-tree -r --name-only HEAD | grep -i '<words from the task>'   # every path, without downloading files
-git sparse-checkout set --skip-checks .github .agents .claude <dirs the change touches>
+git sparse-checkout set --skip-checks .github .agents .claude .lefthook .husky .githooks <dirs the change touches>
 git grep -n '<symbol>' -- <dir>                                    # search only what is checked out
 ```
 
@@ -33,6 +34,7 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 - When the clone answers HTTP 429 (rate limited), wait about 20 seconds and retry once. When cloning is not allowed at all, download the tarball instead, as the feature prompt describes.
 - In App mode, put the token in the clone URL for that one command, never in git config (see the feature prompt). Commit from `$WT` with `commit-via-api.ts --worktree "$WT"`, or the REST API in ambient mode.
 - Delete `$WT` when the PR is up and you no longer need it. Nothing is kept between tasks.
+- Run your own helper scripts (a `bun -e` one-liner, a commit script) from outside `$WT` (`cd /tmp`, then pass paths in). A repository's runtime config, such as a `bunfig.toml` preload, `.npmrc` or `.nvmrc`, applies to anything started inside it and can break a script that has nothing to do with the repository.
 
 ## 2. Read the repository's rules, all of them, in one call
 
@@ -45,6 +47,7 @@ cd "$WT"; for f in AGENTS.md CLAUDE.md CONTRIBUTING.md CONTRIBUTING .github/CONT
   lefthook.yml lefthook.yaml .pre-commit-config.yaml .overcommit.yml commitlint.config.* .commitlintrc*; do
   [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done
 ls .husky .lefthook .githooks Makefile justfile Taskfile.yml package.json pyproject.toml Cargo.toml go.mod 2>/dev/null
+for f in .husky/* .lefthook/*/* .lefthook/*.sh .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
 # Rules for the directories you touch: an AGENTS.md in any of their parents.
 for d in <dirs the change touches>; do while [ "$d" != "." ] && [ -n "$d" ]; do
   [ -f "$d/AGENTS.md" ] && printf '\n===== %s\n' "$d/AGENTS.md" && cat "$d/AGENTS.md"; d=$(dirname "$d"); done; done
@@ -74,7 +77,7 @@ When the list is long, grep it for words from your diff (package names, director
 
 ## 4. Run what the hooks would have run
 
-Your commits go through the Git Data API (`commit-via-api.ts`, or the REST API in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2 and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them.
+Your commits go through the Git Data API (`commit-via-api.ts`, or the REST API in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2, including the scripts it calls, and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them. When the repository has a `commit-msg` rule (a commitlint config, a `commit-msg` hook), check your commit message and PR title against it too.
 
 When a hook regenerates files (docs indexes, lockfiles, codegen), run the generator and commit what it changed. If you skip that, CI's "generated files are stale" check fails.
 
@@ -86,7 +89,7 @@ Before the first push, run the checks scoped to your change. They take seconds, 
 2. the typecheck or build of each package you touched;
 3. the tests related to the change: tests next to the changed files, and tests that import, load or read them. Use the repo's own tool for this where it has one (`jest --findRelatedTests`, `vitest related`, `nx affected`, `turbo run test --filter=...[<base>]`, `pytest <paths>`, `go test ./<pkg>/...`, `cargo test -p <crate>`); otherwise `git grep` the test files for the changed paths and module names. A change only to docs or prompts still runs the tests that read those files.
 
-Install only what those checks need: the touched package's dependencies when the package manager can filter to one workspace. Before a heavy step, look at the machine (`nproc; free -g; df -h .`). When a check cannot run here (no room for the dependencies, a service it needs), leave it to CI and say so.
+Install only what those checks need, with the package manager's own workspace filter: `bun install --filter <pkg>`, `pnpm install --filter <pkg>...`, `npm install -w <pkg>`, `yarn workspaces focus <pkg>`, `uv sync --package <pkg>`; a Cargo or Go build already fetches only what the crate or package needs. Check the touched package's directories out first so the filter can see them. Never resolve a monorepo's imports by hand (linking packages one missing module at a time): it is slow, and installing a dependency at a version other than the lockfile's breaks in ways that look like the change's fault. Before a heavy step, look at the machine (`nproc; free -g; df -h .`). When a check cannot run here (no room for the dependencies, a service it needs, a filter the package manager does not support), leave it to CI and say so.
 
 Never write that a check passed unless you ran it and saw it pass. Note the checks you skipped and why, for the PR body and your reply.
 
@@ -114,7 +117,7 @@ curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} https://api.github.c
 
 **Schedule the check-in** on the same conversation with the `routine` tool:
 
-- `when: { once: <about 10 minutes from now> }` and `continueThisConversation: true`. Scheduling has no minute-level repeat, so each check-in that finds CI still running schedules the next one 10 minutes out, the same way. Stop after about 2 hours of pending and say so.
+- `when: { once: <10 minutes from now> }` and `continueThisConversation: true`. Read the clock for it (`TZ=<the person's zone> date '+%Y-%m-%dT%H:%M' -d '+10 min'`), never estimate the time. Scheduling has no minute-level repeat, so each check-in that finds CI still running schedules the next one 10 minutes out, the same way. Stop after about 2 hours of pending and say so.
 - `actAsAsker: true` when the PR was opened under the person's identity (`x-github-as: member`). A check-in that runs as the intern can read CI but cannot push fixes to that branch. The person has to approve it once under Routines; say that in your reply. Until they do, or when they don't, the check-in reports a failure instead of trying to push.
 - Put everything the check-in needs in its prompt: the repo, PR number, branch, how to read CI (below), what to do on failure, and to schedule the next check-in while CI is pending.
 - Where there is no `routine` tool, use your host's loop skill. Where there is no scheduling at all, say CI is pending and stop; never claim it passed.
