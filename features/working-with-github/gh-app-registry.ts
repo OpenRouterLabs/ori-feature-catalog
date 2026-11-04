@@ -68,17 +68,30 @@ export const redactUserinfo = (spelling: string): string =>
 const MAX_ECHOED_ARGV_CHARS = 64;
 
 /**
+ * GitHub's own credential formats: the `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`
+ * tokens (a 4-character prefix plus 36 characters, 40 in all) and the
+ * fine-grained `github_pat_` token. The 40-character ones fit under
+ * MAX_ECHOED_ARGV_CHARS, so the length rule alone quoted them whole — and an
+ * installation token (`ghs_…`) is exactly what this feature's scripts hand
+ * around.
+ */
+const GITHUB_TOKEN_SHAPE = /(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/u;
+
+/**
  * How a CLI usage error quotes the argv token it refused. A pasted secret
  * reaches these messages first: a PEM private key starts with dashes, so it
  * is refused as a single-dash token, and a `--flag=<secret>` paste is
  * refused as the equals form, both before any guard that withholds values.
  * Pre-fix every CLI echoed the token whole into stderr and any chat the
  * agent relays it to. URL userinfo is masked, and a token that spans lines
- * or is longer than any flag spelling is named by its length only.
+ * or is longer than any flag spelling, or that carries a GitHub token, is
+ * named by its length only.
  */
 export const displayArgvToken = (token: string): string => {
   const shown = redactUserinfo(token);
-  return /[\r\n]/u.test(shown) || shown.length > MAX_ECHOED_ARGV_CHARS
+  return /[\r\n]/u.test(shown) ||
+    shown.length > MAX_ECHOED_ARGV_CHARS ||
+    GITHUB_TOKEN_SHAPE.test(shown)
     ? `<a ${token.length}-character argument, withheld>`
     : shown;
 };
