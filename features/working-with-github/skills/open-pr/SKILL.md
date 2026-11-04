@@ -109,9 +109,12 @@ Write the body to a temp file and pass it with `--raw-field` (see step 6 of the 
 Open it ready for review unless the repository's rules ask for drafts. A draft only helps where CI still runs on drafts, and many repositories run nothing on one (step 2). If you do open a draft, mark it ready as soon as CI is green, or right away when CI skips drafts:
 
 ```bash
-curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} https://api.github.com/graphql \
+AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
+curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" https://api.github.com/graphql \
   -d "{\"query\":\"mutation { markPullRequestReadyForReview(input: {pullRequestId: \\\"$NODE_ID\\\"}) { pullRequest { isDraft } } }\"}"
 ```
+
+In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-github-as: member`. A host's proxy attaches the workspace credential per repository owner, and a GraphQL call that names the PR only by its node id has no owner in its URL, so without the header it goes out unauthenticated and GitHub refuses it (403, rate limited). GitHub has no REST route that marks a draft ready, so this header is the only way to do it in ambient mode. A 401 on it means the person's linked identity could not make the call: say so and leave the draft for them to mark ready.
 
 ## 8. Follow CI without blocking the turn
 
