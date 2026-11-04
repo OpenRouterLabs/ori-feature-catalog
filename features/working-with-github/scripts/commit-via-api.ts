@@ -44,7 +44,8 @@
  *     --worktree /tmp/worktrees/FEATURE \
  *     --branch my-branch \
  *     --message-file /tmp/msg.txt \
- *     [--repo owner/repo]   # default: $GITHUB_REPO
+ *     [--repo owner/repo] \ # default: $GITHUB_REPO
+ *     [--as member]         # ambient mode (no GH_APP_ID): commit as the person asking
  *
  * `--repo` defaults to the `owner/repo` derived from the `GITHUB_REPO` env var
  * (a full https URL or a bare `owner/repo` both work). The branch must already
@@ -282,6 +283,23 @@ export const parseCliArgs = (
     };
   });
 
+/**
+ * The CLI's diagnostic for `error`, naming `--as member` when a token could
+ * not be resolved in ambient mode (`GH_APP_ID` unset). There the token path
+ * cannot work at all, and `--as member` is the one way to commit; pre-fix the
+ * run died on "GH_TOKEN is not set — the default App's token is rotated by
+ * the host…", an App-mode message that sent the caller hunting for a token
+ * the workspace never holds and never named the flag that commits.
+ */
+export const withAmbientHint = (
+  error: CommitApiError,
+  // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
+): string =>
+  error.stage === "mint" && (env.GH_APP_ID ?? "").trim() === ""
+    ? `${error.message} — no GH_APP_ID is set (ambient mode), so no token can be resolved here: pass --as member to commit as the person asking`
+    : error.message;
+
 const runCli = (): Promise<number> =>
   Effect.runPromise(
     Effect.gen(function* () {
@@ -324,7 +342,7 @@ const runCli = (): Promise<number> =>
       Effect.catch((error) =>
         Effect.sync(() => {
           process.stderr.write(
-            `commit-via-api: [${error.stage}] ${error.message}\n`
+            `commit-via-api: [${error.stage}] ${withAmbientHint(error)}\n`
           );
           return 1;
         })
