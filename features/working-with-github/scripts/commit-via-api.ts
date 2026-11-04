@@ -91,7 +91,7 @@ const parseFlagPair = (
     return Effect.fail(
       new CommitApiError({
         stage: "args",
-        message: `malformed argument near "${key ?? ""}"`,
+        message: `malformed argument near "${displayArgvToken(key ?? "")}"`,
       })
     );
   }
@@ -111,7 +111,7 @@ const parseFlagPair = (
     return Effect.fail(
       new CommitApiError({
         stage: "args",
-        message: `flag "${key}" is missing its value (got "${value}", which is a flag)`,
+        message: `flag "${key}" is missing its value (got "${displayArgvToken(value)}", which is a flag)`,
       })
     );
   }
