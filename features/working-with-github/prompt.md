@@ -153,7 +153,7 @@ git fetch "https://x-access-token:${TOKEN}@github.com/${REPO}.git" main
 - **Always inject as `GH_TOKEN`** (or a per-command remote URL). Do not mint your own token for the default App: the host rotates it, and per-run minting gets rate-limited.
 - **NEVER run `gh auth login` / `gh auth switch`, and NEVER write to `~/.config/gh/hosts.yml`.** That store is a process-global mutable singleton; persisting a token there races every concurrent `gh` call and has historically caused identity/attribution bugs across the fleet. Ephemeral injection is the _only_ sanctioned path.
 - **Treat the token as a secret.** Assign it to a shell var — never echo it, never write it to a file, never persist it in a git remote (`git remote set-url`), never paste it into Slack or a PR.
-- **`commit-via-api.ts` resolves its own token** — you do not pass it one. Same for any future feature script that needs auth: use `resolveGitHubToken()` from `gh-app-token-mint.ts`, never `mintInstallationToken()` directly.
+- **`commit-via-api.ts` resolves its own token** — you do not pass it one. In ambient mode, pass `--as member` to commit as the person asking instead (no token, `x-github-as: member` on every call). Same for any future feature script that needs auth: use `resolveGitHubToken()` from `gh-app-token-mint.ts`, never `mintInstallationToken()` directly.
 
 A token is only ever minted against an installation whose owner is allowlisted: the logins in `GH_APP_ALLOWED_ORGS` (comma or space separated), or else only the owner of `GITHUB_REPO`. A public App can be installed by anyone, so a foreign installation is never used. To act in another org, the operator adds it to `GH_APP_ALLOWED_ORGS`.
 

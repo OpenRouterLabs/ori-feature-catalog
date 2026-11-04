@@ -23,6 +23,8 @@
  *
  *   1. Resolve the token: the host-rotated `GH_TOKEN` for the default App, or
  *      a minted token when `--repo` routes to a registered alternate App.
+ *      `--as member` (ambient mode) resolves none and sends every call with
+ *      `x-github-as: member`, so the commit is made as the member asking.
  *   2. Read the branch's current head commit + its tree (the base tree).
  *   3. For every changed file in the worktree (`git status --porcelain`):
  *        - added / modified → create a blob, stage it in the new tree;
@@ -75,6 +77,7 @@ interface ParsedCli {
   readonly branch: string;
   readonly messageFile: string;
   readonly repo: string;
+  readonly asMember: boolean;
 }
 
 /** Parse one `--flag value` pair off `argv` at `index`, or fail with an `args` error. */
@@ -145,7 +148,7 @@ const FLAG_STRIDE = 2;
 /** Every flag the CLI accepts — anything else `--`-prefixed is a usage error
  *  (see {@link findUnknownFlag}), never a silently-dropped token that eats
  *  its value. */
-const KNOWN_FLAGS = ["--worktree", "--branch", "--message-file", "--repo"] as const;
+const KNOWN_FLAGS = ["--worktree", "--branch", "--message-file", "--repo", "--as"] as const;
 
 /** Parse `--flag value` argv into the CLI shape, or fail with an `args` error. */
 export const parseCliArgs = (
@@ -214,6 +217,13 @@ export const parseCliArgs = (
     const worktree = flags.get("worktree");
     const branch = flags.get("branch");
     const messageFile = flags.get("message-file");
+    const actAs = flags.get("as");
+    if (actAs !== undefined && actAs !== "member") {
+      return yield* new CommitApiError({
+        stage: "args",
+        message: `--as "${displayArgvToken(actAs)}" is not supported — the only value is member`,
+      });
+    }
     // `--repo` tolerates the same spellings `GITHUB_REPO` does (a full https
     // URL with optional .git, or a bare owner/repo): the tool is unusable
     // against any URL-shaped repo name otherwise — every Git Data API call
@@ -268,6 +278,7 @@ export const parseCliArgs = (
       branch,
       messageFile,
       repo,
+      asMember: actAs === "member",
     };
   });
 
@@ -298,12 +309,15 @@ const runCli = (): Promise<number> =>
           message: `--message-file ${parsed.messageFile} is empty (its contents trimmed to nothing) — a commit needs a message`,
         });
       }
-      const sha = yield* commitViaApi({
-        worktree: parsed.worktree,
-        branch: parsed.branch,
-        message: message.trim(),
-        repo: parsed.repo,
-      });
+      const sha = yield* commitViaApi(
+        {
+          worktree: parsed.worktree,
+          branch: parsed.branch,
+          message: message.trim(),
+          repo: parsed.repo,
+        },
+        { asMember: parsed.asMember }
+      );
       process.stdout.write(`${sha}\n`);
       return 0;
     }).pipe(

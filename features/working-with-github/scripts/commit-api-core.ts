@@ -89,11 +89,18 @@ export interface CommitDeps {
   /** Pre-resolved token; when set, minting is skipped. */
   readonly token?: string;
   /**
+   * Act as the member asking, in ambient mode: no token is resolved, no
+   * Authorization header is sent, and every GitHub call carries
+   * `x-github-as: member`, which the host's proxy answers with that member's
+   * own linked identity. The post-commit fetch uses the plain github.com URL.
+   */
+  readonly asMember?: boolean;
+  /**
    * The fetch URL the post-commit local sync reads the new commit from.
    * Defaults to the authenticated github.com URL; tests point it at a local
    * bare repo.
    */
-  readonly remoteUrl?: (repo: string, token: string) => string;
+  readonly remoteUrl?: (repo: string, token: string | undefined) => string;
   /** Where a non-fatal note goes (the post-commit sync); defaults to stderr. */
   readonly warn?: (text: string) => void;
 }

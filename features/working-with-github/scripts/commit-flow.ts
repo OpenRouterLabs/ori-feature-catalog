@@ -268,7 +268,7 @@ const isExecutable = (
 interface BuildTreeEntryInput {
   readonly file: ChangedFile;
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly fetchImpl: FetchLike;
   readonly runGit: RunGit;
   readonly readFile: ReadFile;
@@ -468,7 +468,7 @@ const discoverChangedFiles = (
 
 interface BaseTreeInput {
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly fetchImpl: FetchLike;
 }
 
@@ -507,7 +507,7 @@ const readBaseTree = (
 
 interface BuildTreeInput {
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly fetchImpl: FetchLike;
   readonly runGit: RunGit;
   readonly readFile: ReadFile;
@@ -518,7 +518,7 @@ interface BuildTreeInput {
 
 interface MovedBranchInput {
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly fetchImpl: FetchLike;
   readonly runGit: RunGit;
   readonly changed: readonly ChangedFile[];
@@ -628,7 +628,7 @@ const buildNewTree = (
 
 interface CreateAndPushCommitInput {
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly fetchImpl: FetchLike;
   readonly headSha: string;
   readonly newTreeSha: string;
@@ -675,16 +675,31 @@ const createAndPushCommit = (
 
 interface SyncLocalBranchInput {
   readonly args: CommitArgs;
-  readonly token: string;
+  readonly token: string | undefined;
   readonly runGit: RunGit;
   readonly headSha: string;
   readonly newCommitSha: string;
-  readonly remoteUrl: (repo: string, token: string) => string;
+  readonly remoteUrl: (repo: string, token: string | undefined) => string;
 }
 
-/** The authenticated fetch URL for `repo` — the prompt's own per-command shape. */
-export const githubFetchUrl = (repo: string, token: string): string =>
-  `https://x-access-token:${token}@github.com/${repo}.git`;
+/**
+ * The fetch URL for `repo`: authenticated with the token (the prompt's own
+ * per-command shape), or plain when there is none, so the host's proxy
+ * attaches the credential (`asMember`).
+ */
+export const githubFetchUrl = (repo: string, token: string | undefined): string =>
+  token === undefined
+    ? `https://github.com/${repo}.git`
+    : `https://x-access-token:${token}@github.com/${repo}.git`;
+
+/** Wrap `fetchImpl` so every call carries `x-github-as: member`. */
+export const withMemberHeader =
+  (fetchImpl: FetchLike): FetchLike =>
+  (url, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("x-github-as", "member");
+    return fetchImpl(url, { ...init, headers });
+  };
 
 const defaultWarn = (text: string): void => {
   process.stderr.write(text);
@@ -818,14 +833,19 @@ export const commitViaApi = (
   args: CommitArgs,
   deps: CommitDeps = {}
 ): Effect.Effect<string, CommitApiError> => {
-  const fetchImpl = deps.fetchImpl ?? fetch;
+  const baseFetch = deps.fetchImpl ?? fetch;
+  const fetchImpl = deps.asMember === true ? withMemberHeader(baseFetch) : baseFetch;
   const runGit = deps.runGit ?? defaultRunGit;
   const readFile = deps.readFile ?? readAsStaged(args.worktree);
   const readLink = deps.readLink ?? defaultReadLink;
 
   return Effect.gen(function* () {
     // 1. Resolve a token (injected wins; else mint for the target repo).
-    const token = deps.token ?? (yield* mintToken(args.repo));
+    // Acting as the member sends none: the proxy attaches their identity.
+    const token =
+      deps.asMember === true
+        ? undefined
+        : (deps.token ?? (yield* mintToken(args.repo)));
 
     // 2. Discover the worktree's changes.
     const changed = yield* discoverChangedFiles(args, runGit);
