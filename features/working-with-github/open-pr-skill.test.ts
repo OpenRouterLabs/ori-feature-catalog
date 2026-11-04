@@ -31,10 +31,14 @@ describe("open-pr skill", () => {
       "Never write that a check passed unless you ran it",
       "Fill every section",
       "until every required check passes",
-      "open the PR as a draft",
       "the tests related to the change",
-      "mark it ready only when both are green",
       "never runs lefthook, husky, pre-commit or any other git hook",
+      "--filter=blob:none --sparse",
+      "--skip-checks",
+      "Open it ready for review unless the repository's rules ask for drafts",
+      "whether **CI skips draft PRs**",
+      "Never `sleep` waiting on CI",
+      "continueThisConversation",
     ]) expect(skill).toContain(needle);
   });
 
