@@ -12,7 +12,7 @@ Be fast without skipping a check. Most of the time to a PR goes to three things,
 
 - **Downloading and indexing the whole repository.** Work in a temporary partial clone (step 1). It fetches file contents only for the directories you check out, and it is already a git repo, so you never need to `git init` it to get a diff.
 - **One small tool call after another.** Each call waits on a full model round trip. Put independent reads in one call: read every rules file in one command, run every search in one command.
-- **Waiting on CI inside the turn.** Never `sleep` for minutes. Open the PR, reply, and follow CI with scheduled check-ins (step 8).
+- **Waiting on CI inside the turn.** Never `sleep` waiting on CI. Post the PR link the moment the PR exists, then follow CI with scheduled check-ins (step 8).
 
 Nothing here assumes a language, a package manager, a CI vendor or a company. Use whatever the repository uses. `$REPO` is the target `owner/repo` and `$WT` is your checkout.
 
@@ -110,9 +110,16 @@ curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} https://api.github.c
 
 ## 8. Follow CI without blocking the turn
 
-Check once, within a minute of opening, that the check runs have started (an empty list right after opening means CI has not started yet, not that it passed). Then reply (step 9) and end the turn. Never `sleep` waiting on CI.
+**Post the PR link first.** The moment the create call returns, write the link into your reply (reply text streams to the person as you write it), before cleanup, scheduling or anything else. Then schedule the check-in, delete `$WT`, and finish the report (step 9). Never `sleep` waiting on CI, not even to see that it started: the first check-in does that.
 
-Follow up with a scheduled check-in on the same conversation: the `routine` tool with `continueThisConversation: true` every 10 minutes, or your host's loop skill. Each check-in reads the runs:
+**Schedule the check-in** on the same conversation with the `routine` tool:
+
+- `when: { once: <about 10 minutes from now> }` and `continueThisConversation: true`. Scheduling has no minute-level repeat, so each check-in that finds CI still running schedules the next one 10 minutes out, the same way. Stop after about 2 hours of pending and say so.
+- `actAsAsker: true` when the PR was opened under the person's identity (`x-github-as: member`). A check-in that runs as the intern can read CI but cannot push fixes to that branch. The person has to approve it once under Routines; say that in your reply. Until they do, or when they don't, the check-in reports a failure instead of trying to push.
+- Put everything the check-in needs in its prompt: the repo, PR number, branch, how to read CI (below), what to do on failure, and to schedule the next check-in while CI is pending.
+- Where there is no `routine` tool, use your host's loop skill. Where there is no scheduling at all, say CI is pending and stop; never claim it passed.
+
+Each check-in reads the runs. If the first one finds no runs at all, find out why (a workflow that skips drafts, path filters that skip every changed file) instead of calling it green:
 
 ```bash
 SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
@@ -131,8 +138,8 @@ curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
 
 For a check outside GitHub Actions, open its `details_url` or `target_url` for the log.
 
-For each failure, find the cause in the log, fix it, run that check locally, and commit to the **same branch**. Keep checking in until every required check passes, then post the result and cancel the check-in. Fix only what the log shows: an unrelated "while I'm here" change makes the PR harder to review. If a failure is not yours (main is red on the same check, or the job is known to be flaky), confirm it on main's latest commit and say so in the PR, instead of retrying blind. With no way to schedule a check-in, say CI is pending and stop; never claim it passed.
+For each failure, find the cause in the log, fix it, run that check locally, and commit to the **same branch**. Keep checking in until every required check passes, then post the result and schedule nothing more. Fix only what the log shows: an unrelated "while I'm here" change makes the PR harder to review. If a failure is not yours (main is red on the same check, or the job is known to be flaky), confirm it on main's latest commit and say so in the PR, instead of retrying blind.
 
 ## 9. Report
 
-Reply with the PR link, what you ran locally, what you skipped and why, the CI state, and when the next check-in runs. Don't call the PR done until CI is green.
+The link is already in your reply (step 8). Add what you ran locally, what you skipped and why, when the next check-in runs, and whether it needs the person's approval to push fixes. Don't call the PR done until CI is green.

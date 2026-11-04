@@ -39,6 +39,9 @@ describe("open-pr skill", () => {
       "whether **CI skips draft PRs**",
       "Never `sleep` waiting on CI",
       "continueThisConversation",
+      "Post the PR link first",
+      "actAsAsker: true",
+      "schedules the next one 10 minutes out",
     ]) expect(skill).toContain(needle);
   });
 
