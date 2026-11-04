@@ -31,6 +31,14 @@ describe("open-pr skill", () => {
       "Never write that a check passed unless you ran it",
       "Fill every section",
       "until every required check passes",
+      "open the PR as a draft",
+      "the tests related to the change",
+      "mark it ready only when both are green",
+      "never runs lefthook, husky, pre-commit or any other git hook",
     ]) expect(skill).toContain(needle);
+  });
+
+  test("the skill stays generic: no company, repo or ticket prefix of its own", () => {
+    expect(skill).not.toMatch(/openrouter|ORI-<n>|HIPAA/iu);
   });
 });
