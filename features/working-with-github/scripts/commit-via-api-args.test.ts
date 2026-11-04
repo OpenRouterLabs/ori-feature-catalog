@@ -195,6 +195,7 @@ describe("parseCliArgs", () => {
         branch: "feat",
         messageFile: "/tmp/m",
         repo: "owner/repo",
+        asMember: false,
       },
     });
   });
@@ -404,6 +405,7 @@ describe("parseCliArgs", () => {
         messageFile: "/tmp/m",
         repo: "owner/repo",
         worktree: "/tmp/wt",
+        asMember: false,
       });
     }
   });

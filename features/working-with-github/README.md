@@ -9,7 +9,7 @@ GitHub for an intern workspace, in whichever access mode it runs. The feature de
 
 - `prompt`: the two access models and how to detect them; in App mode, how GitHub auth works (use the host-rotated `GH_TOKEN`, never mint per command, never `gh auth login`), filing issues, the worktree-first change flow, merging its own pull requests, and handling untrusted content from GitHub
 - skills: `open-pr` (bring a pull request up to the target repository's own bar: its rules, hooks, checks, template and CI), `register-gh-app` (act through a different GitHub App for another org or role) and `cleanup-worktrees` (remove worktrees whose pull request closed)
-- scripts under `scripts/`: `mint-token.ts`, `commit-via-api.ts` (signed commits through the Git Data API), `register-gh-app.ts`, `cleanup-worktrees.ts`
+- scripts under `scripts/`: `mint-token.ts`, `commit-via-api.ts` (signed commits through the Git Data API; `--as member` commits as the member asking, in ambient mode), `register-gh-app.ts`, `cleanup-worktrees.ts`
 - schedules: `gh-auth-health` (every 30 minutes; App mode proves the rotated `GH_TOKEN` reads `GITHUB_REPO`, ambient mode probes that the API is reachable) and `worktree-cleanup` (daily; sweeps in ambient mode too — the PR lookup goes bare through the host's proxy-attached credential)
 - api: none, chat: none, mcp: none
 
@@ -20,7 +20,7 @@ GitHub for an intern workspace, in whichever access mode it runs. The feature de
 - `GITHUB_REPO`: the intern's own repository. Bare `owner/repo` is canonical, and every resolver in this feature tolerates the other spellings too (a full `https://github.com/…` URL, an optional `.git` suffix, a trailing slash) — `orgOf`, `resolveRepoFromEnv`, `resolveAllowedOrgs`, and `resolveConfigDirName` all normalize before use. `gh --repo`, the `repos/{owner}/{repo}` API routes, and the `github.com/…` fetch URL take bare `owner/repo` only, so the prompt's recipes normalize once per shell (`REPO=$(printf '%s' "$GITHUB_REPO" | sed -E …)`) and interpolate `$REPO`, never the raw env var.
 - `GH_APP_ALLOWED_ORGS` (optional): the installation owners a token may be minted against, comma or space separated. Defaults to the owner of `GITHUB_REPO`. Discovery fails closed, so an App installed on a foreign account is never used.
 - `GH_AUTH_HEALTH_ALERT_CHANNEL_ID`, `SLACK_BOT_TOKEN` (optional): post `gh-auth-health` failures to a Slack channel. Without them the failure is only logged.
-- Ambient mode (`GH_APP_ID` unset): the cleanup paths sweep without a token — the PR lookup goes bare through the host's proxy-attached credential — instead of refusing to run. `commit-via-api.ts` still requires an App (signed commits need one).
+- Ambient mode (`GH_APP_ID` unset): the cleanup paths sweep without a token — the PR lookup goes bare through the host's proxy-attached credential — instead of refusing to run. `commit-via-api.ts` needs an App for a commit made as the intern; with `--as member` it resolves no token and sends every call with `x-github-as: member`, so the host's proxy makes the commit as the member asking (GitHub signs the squash merge, not that head).
 
 Registered alternate Apps live in a SQLite registry under `~/.config/<intern>/gh-app-registry.db`, which stores environment variable names, never key material.
 
