@@ -249,10 +249,12 @@ const runRegister = (ctx: RegisterCliContext): number => {
   // CATCH-ALL ("default") row: the caller asked for a ROLE App and would
   // silently re-route every future mint without --purpose to the App the
   // other flags named — the same silent-identity-swap class #98/#107 closed
-  // in mint-token.ts. A PRESENT-but-blank value (`--purpose "$UNSET"`)
-  // keeps its documented coercion to "default"; only the two shapes where
-  // no value token exists at all are refused. `--org` needs no marker: an
-  // unusable --org already fails the !org validation below.
+  // in mint-token.ts. A PRESENT-but-blank value (`--purpose "$UNSET"`) is
+  // refused too: it is the same caller asking for a role App, and coercing
+  // it to "default" REPLACED the org's catch-all row (INSERT OR REPLACE) with
+  // the role App, which then served every purpose through the fallback.
+  // mint-token.ts already refuses the same blank value. `--org` needs no
+  // marker: an unusable --org already fails the !org validation below.
   const purposeSlotRaw = argv[argv.indexOf("--purpose") + 1];
   // Trim before the flag-shape test, exactly like readFlag below: a purpose
   // slot that is a flag modulo surrounding whitespace (`--purpose
@@ -260,18 +262,19 @@ const runRegister = (ctx: RegisterCliContext): number => {
   // to a flag and returned undefined — so the purpose silently coerced to the
   // org-level CATCH-ALL row with exit 0, re-routing every future mint without
   // --purpose (#117 reopened through padding). A PRESENT-but-blank value
-  // (`--purpose "$UNSET"`) still coerces to "default" by design; only the
-  // flag-shaped shapes are refused.
+  // (`--purpose "$UNSET"`) is refused with them.
   const purposeSlot =
     purposeSlotRaw === undefined ? undefined : purposeSlotRaw.trim();
   const org = readFlag(argv, "--org");
-  // readFlag trims and maps empty/whitespace → undefined, so a missing OR
-  // blank --purpose (e.g. `--purpose "$UNSET"`) coerces to the default rather
-  // than persisting a purpose="" row that minting (DEFAULT_PURPOSE) never hits.
+  // readFlag trims and maps empty/whitespace → undefined, so an omitted
+  // --purpose defaults to the catch-all; a passed-but-unusable one was
+  // refused above, so a purpose="" row is never persisted.
   const purpose = readFlag(argv, "--purpose") ?? DEFAULT_PURPOSE;
   if (
     argv.includes("--purpose") &&
-    (purposeSlot === undefined || purposeSlot.startsWith("--"))
+    (purposeSlot === undefined ||
+      purposeSlot === "" ||
+      purposeSlot.startsWith("--"))
   ) {
     writers.err(
       "register-gh-app: register --purpose needs a value (e.g. --purpose reviewer)\n"

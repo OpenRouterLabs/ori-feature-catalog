@@ -136,26 +136,59 @@ describe("register-gh-app CLI", () => {
     ]);
   });
 
-  test("an empty (or whitespace) --purpose is coerced to 'default', not persisted as ''", () => {
-    const { writers } = makeWriters();
-    const code = runRegisterCli({
-      argv: [
-        "register",
-        "--org",
-        "acme-corp",
-        "--purpose",
-        "  ",
-        "--app-id-key",
-        "TEAM_GH_APP_ID",
-        "--private-key-key",
-        "TEAM_GH_APP_PRIVATE_KEY",
-      ],
-      db,
-      env: ENV,
-      writers,
-    });
-    expect(code).toBe(0);
-    expect(listApps(db)[0]?.purpose).toBe("default");
+  test("an empty (or whitespace) --purpose is refused, never persisted as '' or as the catch-all", () => {
+    // Pre-fix `--purpose "$ROLE"` with ROLE unset registered the role App as
+    // the org's catch-all row: exit 0, and every purpose for the org then
+    // resolved to it through the (org, default) fallback. mint-token.ts
+    // refuses the same blank value as a missing one.
+    for (const blank of ["", "  "]) {
+      const { err, writers } = makeWriters();
+      const code = runRegisterCli({
+        argv: [
+          "register",
+          "--org",
+          "acme-corp",
+          "--purpose",
+          blank,
+          "--app-id-key",
+          "TEAM_GH_APP_ID",
+          "--private-key-key",
+          "TEAM_GH_APP_PRIVATE_KEY",
+        ],
+        db,
+        env: ENV,
+        writers,
+      });
+      expect(code).toBe(1);
+      expect(err.join("")).toContain("--purpose needs a value");
+      expect(listApps(db)).toEqual([]);
+    }
+  });
+
+  test("a blank --purpose never replaces the org's existing catch-all row", () => {
+    const env = { ...ENV, REVIEWER_ID: "333", REVIEWER_KEY: "cGVt" };
+    const register = (purpose: string, appIdKey: string, privateKeyKey: string) =>
+      runRegisterCli({
+        argv: [
+          "register",
+          "--org",
+          "acme-corp",
+          "--purpose",
+          purpose,
+          "--app-id-key",
+          appIdKey,
+          "--private-key-key",
+          privateKeyKey,
+        ],
+        db,
+        env,
+        writers: makeWriters().writers,
+      });
+    expect(register("default", "TEAM_GH_APP_ID", "TEAM_GH_APP_PRIVATE_KEY")).toBe(0);
+    expect(register("", "REVIEWER_ID", "REVIEWER_KEY")).toBe(1);
+    expect(listApps(db).map((row) => [row.purpose, row.appIdKey])).toEqual([
+      ["default", "TEAM_GH_APP_ID"],
+    ]);
   });
 
   test("refuses to persist when a named env var is absent — and never prints the values", () => {
