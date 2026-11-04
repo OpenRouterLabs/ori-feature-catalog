@@ -34,7 +34,16 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 - `--skip-checks` is needed for directory names with `[`, `]`, `*` or `?` in them, which are common in web routing trees (`app/[locale]/…`).
 - Search with `git grep` or `rg`, never a plain recursive `grep`. Find which directories to check out with `git ls-tree` first, rather than checking out everything.
 - When the clone answers HTTP 429 (rate limited), wait about 20 seconds and retry once. When cloning is not allowed at all, download the tarball instead, as the feature prompt describes.
-- In App mode, put the token in the clone URL for that one command, never in git config (see the feature prompt). Commit from `$WT` with `commit-via-api.ts --worktree "$WT"`, adding `--as member` in ambient mode; never hand-write the Git Data API calls.
+- In App mode, never put the token in the clone URL. `git clone` saves that URL, token and all, as the clone's `origin` in `.git/config`, where `git remote -v` prints it and every later fetch of the partial clone sends that same token again, even after it expires (an installation token lasts an hour). Let git read the rotated `GH_TOKEN` through a credential helper instead. The helper holds the variable's name, never its value, and stays in the clone's config for the fetches `sparse-checkout` and `switch` make later:
+
+  ```bash
+  AUTH='!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+  git -c credential.https://github.com.helper="$AUTH" clone -q --depth 1 --filter=blob:none --sparse "https://github.com/$REPO.git" "$WT"
+  git -C "$WT" config credential.https://github.com.helper "$AUTH"
+  ```
+
+  For an alternate App's token (`mint-token.ts --repo`), export it as `GH_TOKEN` in that shell first.
+- Commit from `$WT` with `commit-via-api.ts --worktree "$WT"`, adding `--as member` in ambient mode; never hand-write the Git Data API calls.
 - Delete `$WT` when the PR is up and you no longer need it. Nothing is kept between tasks.
 - Run your own helper scripts (a `bun -e` one-liner, a commit script) from outside `$WT` (`cd /tmp`, then pass paths in). A repository's runtime config, such as a `bunfig.toml` preload, `.npmrc` or `.nvmrc`, applies to anything started inside it and can break a script that has nothing to do with the repository.
 
