@@ -38,17 +38,23 @@ describe("open-pr skill", () => {
       "Open it ready for review unless the repository's rules ask for drafts",
       "whether **CI skips draft PRs**",
       "Never `sleep` waiting on CI",
-      "continueThisConversation",
       "Post the PR link first",
-      "actAsAsker: true",
-      "schedules the next one 10 minutes out",
+      "Never create a routine to follow CI",
+      "only when the person explicitly asks for one",
+      "again whenever the person comes back",
       "fails the same way twice, stop and change the approach",
       "Run your own helper scripts",
       "workspace filter",
       "Never resolve a monorepo's imports by hand",
-      "never estimate the time",
       "`commit-msg` rule",
     ]) expect(skill).toContain(needle);
+  });
+
+  // Interns scheduled a `routine` check-in for every PR's CI, which filled the
+  // person's Routines tab with one-off entries nobody asked for.
+  test("the skill never schedules a routine to follow CI", () => {
+    expect(skill).not.toMatch(/continueThisConversation|actAsAsker|Schedule the check-in/u);
+    expect(prompt).not.toContain("scheduled check-ins");
   });
 
   test("the skill stays generic: no company, repo or ticket prefix of its own", () => {
