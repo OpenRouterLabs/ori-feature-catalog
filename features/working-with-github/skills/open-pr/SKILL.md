@@ -71,9 +71,12 @@ Repositories may ship their own agent skills. List every name and description in
 
 ```bash
 for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
-  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(grep -m1 '^description:' "$f" | cut -c1-200)"
+  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(awk '/^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^[>|][-+0-9]*$/) { print; exit } block = 1; next }
+    block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' "$f" | cut -c1-200)"
 done
 ```
+
+The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below) as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`.
 
 When the list is long, grep it for words from your diff (package names, directories, `security`, `pr`, `commit`, `test`) instead of skimming. Do what a matching skill says.
 
