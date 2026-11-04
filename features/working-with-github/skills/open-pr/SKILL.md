@@ -72,12 +72,12 @@ Repositories may ship their own agent skills. List every name and description in
 
 ```bash
 for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
-  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(awk '/^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^[>|][-+0-9]*$/) { print; exit } block = 1; next }
+  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
     block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' "$f" | cut -c1-200)"
 done
 ```
 
-The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below) as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`.
+The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again.
 
 When the list is long, grep it for words from your diff (package names, directories, `security`, `pr`, `commit`, `test`) instead of skimming. Do what a matching skill says.
 
