@@ -284,6 +284,7 @@ describe("a repeated value-taking flag is a usage error in every CLI", () => {
       )
     );
     expect(parsed).toEqual({
+      asMember: false,
       branch: "br",
       messageFile: "/m",
       repo: "x/y",
