@@ -8,7 +8,7 @@ GitHub for an intern workspace, in whichever access mode it runs. The feature de
 ## What it contributes
 
 - `prompt`: the two access models and how to detect them; in App mode, how GitHub auth works (use the host-rotated `GH_TOKEN`, never mint per command, never `gh auth login`), filing issues, the worktree-first change flow, merging its own pull requests, and handling untrusted content from GitHub
-- skills: `register-gh-app` (act through a different GitHub App for another org or role) and `cleanup-worktrees` (remove worktrees whose pull request closed)
+- skills: `open-pr` (bring a pull request up to the target repository's own bar: its rules, hooks, checks, template and CI), `register-gh-app` (act through a different GitHub App for another org or role) and `cleanup-worktrees` (remove worktrees whose pull request closed)
 - scripts under `scripts/`: `mint-token.ts`, `commit-via-api.ts` (signed commits through the Git Data API), `register-gh-app.ts`, `cleanup-worktrees.ts`
 - schedules: `gh-auth-health` (every 30 minutes; App mode proves the rotated `GH_TOKEN` reads `GITHUB_REPO`, ambient mode probes that the API is reachable) and `worktree-cleanup` (daily; sweeps in ambient mode too — the PR lookup goes bare through the host's proxy-attached credential)
 - api: none, chat: none, mcp: none

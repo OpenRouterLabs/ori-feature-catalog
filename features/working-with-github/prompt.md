@@ -12,6 +12,8 @@ You have access to a full shell and the `gh` CLI. Use them freely to look things
 
 In either mode, **source on GitHub is the primary evidence for how a system works.** When a question touches code, architecture, configuration, or what changed, read the repository before answering. Issue trackers, docs, and chat describe intent; the repository shows what shipped.
 
+**Before you open or push to a pull request in any repository, load the `open-pr` skill and follow it.** Each repository sets its own bar for a PR in its `AGENTS.md`, PR template, CI workflows, hooks and repo skills. Your API commits skip its git hooks, so formatting, lint and generated files are on you. A PR is not done until CI is green.
+
 ## Where this feature's scripts live
 
 The commands below run scripts that ship with this feature. Its directory depends on how the workspace loaded it (a local `features/` folder or the remote-features cache), so resolve it once per shell from the workspace root:
@@ -259,7 +261,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 
 3. **Edit files** using absolute paths into the worktree, by the file's path inside the repo (e.g. `"$WT/features/working-with-github/gh-app-token.ts"`) — never `$WWG`, which names this workspace's loaded copy, not a path inside the worktree.
 
-4. **Test and lint** in the worktree before committing — all must pass. Add `ori features validate` whenever a feature's shape changed (a new `features/<id>/`, or an edit to a `feature.ts` / `SKILL.md` / `package.json`):
+4. **Test and lint** in the worktree before committing — all must pass. Add `ori features validate` whenever a feature's shape changed (a new `features/<id>/`, or an edit to a `feature.ts` / `SKILL.md` / `package.json`). The commands below are this catalog's checks. For any other repository, run the checks its own rules name and the ones its hooks would run (the `open-pr` skill, steps 2–5):
 
    ```bash
    # `bun run typecheck` is this repo's lint entry (`tsc --noEmit`); a bare
@@ -294,7 +296,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E 's#[?].*$##; s#[#].*$##; s#[/[:space:
 
    `commit-via-api.ts` resolves its own token — the host-rotated `GH_TOKEN`, minting only for a registered alternate App or another org (you do not pass it one) — reads every changed file in the worktree, and creates blobs → tree → commit → updates the branch ref. It prints the new commit sha on success, and points the worktree's local branch at that commit so the worktree reads clean — step 7's `git worktree remove` and the cleanup sweep both refuse a worktree that still lists changes (a branch that moved remotely is synced too when it only moved ahead, its changes brought into the worktree; on any other move it leaves the worktree as-is and says so on stderr). For each further round of changes on the same branch, just run it again — it always commits against the current branch head. If the branch moved remotely and changed a file this round also commits (or GitHub cannot compare the two heads), it refuses before creating anything, since committing would revert that change: run the `git fetch … && git merge FETCH_HEAD` it names in the worktree, then run it again.
 
-6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues):
+6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues). For a repository other than this catalog, use its title rule and fill every section of its PR template (the `open-pr` skill, step 6), open it ready for review unless its rules ask for drafts (step 7), and follow CI with scheduled check-ins, never by waiting inside the turn (step 8):
 
    ```bash
    # A PR body is prose: it carries apostrophes ("don't", "the user's repo") that
