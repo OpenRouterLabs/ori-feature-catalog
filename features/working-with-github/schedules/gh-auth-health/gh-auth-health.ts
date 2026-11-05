@@ -42,6 +42,9 @@ export interface AmbientProbeOk {
  *  so the schedule must surface them, not log ok. */
 export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
   readonly detail: string;
+  /** True when GitHub ANSWERED but refused for an exhausted rate limit: the
+   *  network path works, so the alert must not send the operator to it. */
+  readonly rateLimited?: boolean;
 }> {}
 
 /**
@@ -167,6 +170,7 @@ export const ambientGitHubReachable = (input: {
       return yield* new AmbientProbeError({
         detail:
           `GET ${route} answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets`,
+        rateLimited: true,
       });
     }
     // A 429 (secondary/abuse rate limit) blocks every REST call the same way
@@ -175,6 +179,7 @@ export const ambientGitHubReachable = (input: {
     if (response.status === 429) {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace`,
+        rateLimited: true,
       });
     }
     // GitHub answers a secondary rate limit with a 403 as often as a 429,
@@ -185,6 +190,7 @@ export const ambientGitHubReachable = (input: {
     if (response.status === 403 && (yield* isSecondaryRateLimit(response))) {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 403 (secondary rate limit) — GitHub is refusing requests from this workspace`,
+        rateLimited: true,
       });
     }
     const scopes =
@@ -403,6 +409,23 @@ export const renderHealthAlert = (
     "GitHub auth is not working — `git`/`gh` operations will fail until this is fixed. Check that the host is injecting and rotating `GH_TOKEN`, `GITHUB_REPO` in the service env, and the App's installation/repo access.",
   ].join("\n");
 };
+
+/**
+ * The Slack alert for a failed ambient probe. A rate-limit refusal is an
+ * ANSWER from GitHub, so its remedy is the request budget, not the network:
+ * pre-fix every ambient failure, a rate limit included, read "GitHub is
+ * unreachable … check the host's egress proxy / network path", sending the
+ * operator to debug a path that was working.
+ */
+export const renderAmbientAlert = (failure: AmbientProbeError): string =>
+  [
+    ":rotating_light: *GitHub ambient access check failed*",
+    `Detail: ${failure.detail}`,
+    "",
+    failure.rateLimited === true
+      ? "GitHub answered but is refusing this workspace's requests (rate limited) — `git`/`gh` calls fail until the limit resets. The network path to api.github.com works: find what is spending the request budget (a retry loop, a busy schedule) or wait for the reset."
+      : "GitHub is unreachable from this workspace with no GitHub App configured — ambient (proxy-attached) access is broken. Check the host's egress proxy / network path to api.github.com.",
+  ].join("\n");
 
 /** One-line, log-friendly success summary (no token material). */
 export const formatHealthOkLog = (repo: string, ok: HealthCheckOk): string =>
