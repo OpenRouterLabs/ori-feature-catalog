@@ -45,6 +45,10 @@ export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
   /** True when GitHub ANSWERED but refused for an exhausted rate limit: the
    *  network path works, so the alert must not send the operator to it. */
   readonly rateLimited?: boolean;
+  /** True when the probe asked the unscoped root `GET /` (no GITHUB_REPO).
+   *  A proxy that attaches its credential per owner sends none there, so a
+   *  rate limit on the root does not show that owner-scoped calls fail. */
+  readonly unscoped?: boolean;
 }> {}
 
 /**
@@ -127,6 +131,7 @@ export const ambientGitHubReachable = (input: {
   const fetchImpl = input.fetchImpl ?? fetch;
   const repo = (input.repo ?? "").trim();
   const route = repo === "" ? "/" : `/repos/${repo}`;
+  const scope = repo === "" ? { unscoped: true } : {};
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () =>
@@ -169,8 +174,11 @@ export const ambientGitHubReachable = (input: {
     ) {
       return yield* new AmbientProbeError({
         detail:
-          `GET ${route} answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets`,
+          repo === ""
+            ? `GET ${route} answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — the unscoped root shows only that requests without a credential fail until the limit resets`
+            : `GET ${route} answered HTTP 403 with the rate limit exhausted (x-ratelimit-remaining: 0) — every GitHub REST call fails until the limit resets`,
         rateLimited: true,
+        ...scope,
       });
     }
     // A 429 (secondary/abuse rate limit) blocks every REST call the same way
@@ -180,6 +188,7 @@ export const ambientGitHubReachable = (input: {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 429 (secondary rate limit) — GitHub is refusing requests from this workspace`,
         rateLimited: true,
+        ...scope,
       });
     }
     // GitHub answers a secondary rate limit with a 403 as often as a 429,
@@ -191,6 +200,7 @@ export const ambientGitHubReachable = (input: {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 403 (secondary rate limit) — GitHub is refusing requests from this workspace`,
         rateLimited: true,
+        ...scope,
       });
     }
     const scopes =
@@ -422,7 +432,9 @@ export const renderAmbientAlert = (failure: AmbientProbeError): string =>
     ":rotating_light: *GitHub ambient access check failed*",
     `Detail: ${failure.detail}`,
     "",
-    failure.rateLimited === true
+    failure.rateLimited === true && failure.unscoped === true
+      ? "GitHub answered the probe's `GET /` with a rate limit. `GITHUB_REPO` is not set, so the probe could only ask the unscoped root, and a proxy that attaches its credential per owner sends none there: this does not show that the intern's own repo calls fail. Set `GITHUB_REPO` so the probe asks the intern's own repo, the route real work uses."
+      : failure.rateLimited === true
       ? "GitHub answered but is refusing this workspace's requests (rate limited) — `git`/`gh` calls fail until the limit resets. The network path to api.github.com works: find what is spending the request budget (a retry loop, a busy schedule) or wait for the reset."
       : "GitHub is unreachable from this workspace with no GitHub App configured — ambient (proxy-attached) access is broken. Check the host's egress proxy / network path to api.github.com.",
   ].join("\n");
