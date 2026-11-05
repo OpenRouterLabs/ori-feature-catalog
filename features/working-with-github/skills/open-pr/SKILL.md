@@ -57,10 +57,10 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 
 Read each file that exists in full, never from memory or a summary. Long `AGENTS.md` files get cut off when they are loaded automatically, and the part that gets cut is usually the PR checklist.
 
-The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers.
+The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers. Lefthook reads its config as `lefthook` or `.lefthook`, with a `.yml`, `.yaml`, `.json` or `.toml` extension, so the list takes all eight.
 
 ```bash
-cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|lefthook\.ya?ml|\.pre-commit-config\.yaml|\.overcommit\.yml|commitlint\.config\.[^/]+|\.commitlintrc[^/]*)$|^((\.github|docs)/)?(contributing(\.md)?|pull_request_template\.md|pull_request_template/[^/]+)$' |
+cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|\.?lefthook\.(ya?ml|json|toml)|\.pre-commit-config\.yaml|\.overcommit\.yml|commitlint\.config\.[^/]+|\.commitlintrc[^/]*)$|^((\.github|docs)/)?(contributing(\.md)?|pull_request_template\.md|pull_request_template/[^/]+)$' |
   while IFS= read -r f; do printf '\n===== %s\n' "$f"; git show "HEAD:$f"; done   # from the index: docs/ is not checked out
 ls .husky .lefthook .githooks Makefile justfile Taskfile.yml package.json pyproject.toml Cargo.toml go.mod 2>/dev/null
 for f in .husky/* .lefthook/*/* .lefthook/*.sh .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
