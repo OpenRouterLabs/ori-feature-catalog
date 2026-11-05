@@ -26,7 +26,7 @@ git clone -q --depth 1 --filter=blob:none --sparse "https://github.com/$REPO.git
 cd "$WT"
 git switch -q -c <branch>   # a new PR; for an open one, clone with --branch <branch> instead
 git ls-tree -r --name-only HEAD | grep -i '<words from the task>'   # every path, without downloading files
-git sparse-checkout set --skip-checks .github .agents .claude .cursor .circleci .buildkite .lefthook .husky .githooks <dirs the change touches>
+git sparse-checkout set --skip-checks .github .agents .claude .cursor .circleci .buildkite .lefthook .config/lefthook .config/lefthook-local .husky .githooks <dirs the change touches>
 git grep -n '<symbol>' -- <dir>                                    # search only what is checked out
 ```
 
@@ -57,13 +57,13 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 
 Read each file that exists in full, never from memory or a summary. Long `AGENTS.md` files get cut off when they are loaded automatically, and the part that gets cut is usually the PR checklist.
 
-The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers, and with any extension or none: a `pull_request_template.txt` fills the PR body just like the `.md`, and a `CONTRIBUTING.rst` is linked like a `CONTRIBUTING.md`. Lefthook reads its config as `lefthook` or `.lefthook`, with a `.yml`, `.yaml`, `.json` or `.toml` extension, so the list takes all eight.
+The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers, and with any extension or none: a `pull_request_template.txt` fills the PR body just like the `.md`, and a `CONTRIBUTING.rst` is linked like a `CONTRIBUTING.md`. Lefthook reads its main config as `lefthook`, `.lefthook` or `.config/lefthook`, with a `.yml`, `.yaml`, `.json`, `.jsonc` or `.toml` extension, and merges a `lefthook-local` config of the same forms on top (`lefthook-local.yml`, `.lefthook-local.json`, `.config/lefthook-local.toml`), so the list takes all thirty.
 
 ```bash
-cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|\.?lefthook\.(ya?ml|json|toml)|\.pre-commit-config\.yaml|\.overcommit\.yml|commitlint\.config\.[^/]+|\.commitlintrc[^/]*)$|^((\.github|docs)/)?(contributing(\.[^/]+)?|pull_request_template(\.[^/]+)?|pull_request_template/[^/]+)$' |
+cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|(\.config/|\.)?lefthook(-local)?\.(ya?ml|jsonc?|toml)|\.pre-commit-config\.yaml|\.overcommit\.yml|commitlint\.config\.[^/]+|\.commitlintrc[^/]*)$|^((\.github|docs)/)?(contributing(\.[^/]+)?|pull_request_template(\.[^/]+)?|pull_request_template/[^/]+)$' |
   while IFS= read -r f; do printf '\n===== %s\n' "$f"; git show "HEAD:$f"; done   # from the index: docs/ is not checked out
 ls .husky .lefthook .githooks Makefile justfile Taskfile.yml package.json pyproject.toml Cargo.toml go.mod 2>/dev/null
-for f in .husky/* .lefthook/*/* .lefthook/*.sh .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
+for f in .husky/* .lefthook/*/* .lefthook/*.sh .config/lefthook/*/* .config/lefthook-local/*/* .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
 # Rules for the directories you touch: an AGENTS.md in any of their parents. A path under "$WT" is read
 # relative to it, and the walk also stops at "/" (dirname "/" is "/", so an absolute path never ended).
 for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
