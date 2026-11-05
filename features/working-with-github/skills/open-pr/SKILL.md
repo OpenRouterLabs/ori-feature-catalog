@@ -1,23 +1,24 @@
 ---
 name: open-pr
 description: >
-  Get a pull request ready the way the target repository expects, open it fast, and follow it until CI is green without blocking the conversation. TRIGGER before opening any pull request in any repository, whatever the language, host org or company, before pushing more commits to an open one, and when asked why a PR you opened failed CI or has a thin description. It covers getting the code with a temporary partial clone, reading the repo's own rules in full (AGENTS.md, CONTRIBUTING, the PR template, CI workflows, hooks and repo skills), running the checks its git hooks would have run (your API commits skip them), running the tests scoped to the change while CI runs the rest, filling every section of the template, and checking CI when the person comes back instead of waiting inside the turn or scheduling a routine for it. DO NOT TRIGGER for reviewing someone else's PR (code-review) or for merging (the feature prompt's "Merging your own PRs").
+  Get a pull request ready the way the target repository expects, open it fast, and follow it until CI is green without blocking the conversation. TRIGGER before opening any pull request in any repository, whatever the language, host org or company, before pushing more commits to an open one, and when asked why a PR you opened failed CI or has a thin description. It covers getting the code with a temporary shallow clone (partial when no install is needed, full when one is), reading the repo's own rules in full (AGENTS.md, CONTRIBUTING, the PR template, CI workflows, hooks and repo skills), running the checks its git hooks would have run (your API commits skip them), running each check once and scoped to the change while CI runs the rest, filling every section of the template, and checking CI when the person comes back instead of waiting inside the turn or scheduling a routine for it. DO NOT TRIGGER for reviewing someone else's PR (code-review) or for merging (the feature prompt's "Merging your own PRs").
 ---
 
 # Opening a pull request
 
 A PR is done when it passes the repository's own bar, not yours. Every repository writes that bar down in a different place, and your commits skip the hooks that enforce part of it. So read the rules, run the checks yourself, fill in the template, and follow CI until it is green.
 
-Be fast without skipping a check. Most of the time to a PR goes to three things, so avoid them:
+Be fast without skipping a check. Most of the time to a PR goes to these things, so avoid them:
 
-- **Downloading and indexing the whole repository.** Work in a temporary partial clone (step 1). It fetches file contents only for the directories you check out, and it is already a git repo, so you never need to `git init` it to get a diff.
+- **Downloading and indexing the whole repository, or too little of it.** Work in a temporary shallow clone (step 1): partial when the change needs no install, full when it does. A partial clone fetches file contents only for the directories you check out, and it is already a git repo, so you never need to `git init` it to get a diff. But a partial clone that an install or typecheck then needs more of costs more than it saved.
 - **One small tool call after another.** Each call waits on a full model round trip. Put independent reads in one call: read every rules file in one command, run every search in one command.
 - **Retrying what already failed.** When a command fails the same way twice, stop and change the approach. A loop that "fixes" an error must check that each pass made progress, and stop when it didn't.
+- **Running the same check again and again.** Run each check once on the finished change, scoped to what changed, and after a fix rerun only the check that failed (step 5).
 - **Waiting on CI inside the turn.** Never `sleep` waiting on CI. Post the PR link the moment the PR exists, read CI once, and check it again when the person comes back (step 8).
 
 Nothing here assumes a language, a package manager, a CI vendor or a company. Use whatever the repository uses. `$REPO` is the target `owner/repo` and `$WT` is your checkout.
 
-## 1. Get the code: a temporary partial clone
+## 1. Get the code: a temporary shallow clone
 
 ```bash
 WT=/tmp/worktrees/${REPO//\//-}/<branch>
@@ -29,6 +30,11 @@ git sparse-checkout set --skip-checks .github .agents .claude .cursor .circleci 
 git grep -n '<symbol>' -- <dir>                                    # search only what is checked out
 ```
 
+- **Pick the clone by what the checks will need, before you clone.** Decide from the task and the root manifests (`git ls-tree` or the API list the tree without a clone):
+  - **No install needed**: the change is to prompts, docs, config or skill text, or the checks it needs (step 5) run without installed dependencies. Use the partial clone above.
+  - **An install is needed**: you will build, typecheck, lint or test the change with the repository's dependencies installed. Use a full shallow clone: the same command without `--filter=blob:none --sparse` (and without the `git sparse-checkout set` line), in the credential-helper form below too in App mode. A package manager reads workspace manifests, patch files, lockfiles and config from all over the tree. A sparse checkout without them fails to install, or the typecheck reports hundreds of errors in modules that are not checked out, and those look like the change's fault.
+  - **Started partial and an install or typecheck now needs more**: run `git sparse-checkout disable` once, which fetches the rest in one go. Never add directories one failure at a time.
+- **A partial fetch that fails is not retried.** A partial clone fetches file contents lazily on every later `sparse-checkout`, `switch` or `grep`, so a flaky connection (`fetch-pack`, `invalid index-pack output`, a dropped TLS read) fails each of those again. Switch once to a full shallow clone of the same commit (for an open PR, of its branch) and copy your edits across. Prefer it over the tarball: a tarball has no `.git`, so the branch, commit and push steps below cannot run in it until you `git init`, fetch the branch's commit and `git reset --soft` onto it, which is another round of network work.
 - Put the checkout on the PR's branch before the first commit: `git switch -c <branch>` for a new PR, then create the branch on GitHub at the clone's own `HEAD` (`git rev-parse HEAD`, the feature prompt's change flow, step 5). For an open PR, clone its head instead (add `--branch <branch>` to the clone). `commit-via-api.ts` points the local branch at each commit it makes only when the checkout has that branch checked out. A clone left on the default branch keeps listing the committed files as changed, and the next round on the same branch (a CI fix) is refused for them, with a `git merge` remedy that fails on those same local changes.
 - Root files (`AGENTS.md`, `package.json`, hook configs) are always checked out; `set` adds the directories. Add more with `git sparse-checkout add --skip-checks <dir>` as you learn what the change needs.
 - `--skip-checks` is needed for directory names with `[`, `]`, `*` or `?` in them, which are common in web routing trees (`app/[locale]/…`).
@@ -95,13 +101,21 @@ Your commits go through the Git Data API (`commit-via-api.ts`, with `--as member
 
 When a hook regenerates files (docs indexes, lockfiles, codegen), run the generator and commit what it changed. If you skip that, CI's "generated files are stale" check fails.
 
-## 5. Run the checks scoped to the change
+## 5. Run each check once, scoped to the change
 
-Before the first push, run the checks scoped to your change. They take seconds, and CI runs the full suite:
+Before the first push, run the checks scoped to your change. CI runs the full suite, so locally you only need enough to push a change that is likely green:
 
 1. the formatter and linter on the changed files;
 2. the typecheck or build of each package you touched;
 3. the tests related to the change: tests next to the changed files, and tests that import, load or read them. Use the repo's own tool for this where it has one (`jest --findRelatedTests`, `vitest related`, `nx affected`, `turbo run test --filter=...[<base>]`, `pytest <paths>`, `go test ./<pkg>/...`, `cargo test -p <crate>`); otherwise `git grep` the test files for the changed paths and module names. A change only to docs or prompts still runs the tests that read those files.
+
+Run each check once, when the change is finished, not after every edit:
+
+- **After a fix, rerun only the check that failed**, on the files it failed on. Never rerun a whole suite to confirm a one-line fix, and never run the same command twice to compare its output.
+- **Never widen a test run past the related tests.** Running a whole app's or package's test directory, when the related tests are known, takes minutes and tells you nothing CI won't.
+- **No extra passes nobody asked for**: reverting the fix to watch a test fail, stashing the change to run a baseline, or a second typecheck to compare error counts. Two exceptions: when the repository's rules ask for one, and when a check fails only in files you did not touch. Then run that one check once on the base commit to confirm the failure is not yours, and say so in the PR. A `--depth 1` clone of a PR branch usually lacks the base commit, so fetch it first (`git fetch --depth 1 origin <base-sha>`) and run the check in a second worktree on it (`git worktree add <dir> <base-sha>`).
+- **Errors in files you did not touch** have two causes; tell them apart before acting. Missing-module or missing-file errors (`Cannot find module`, a path that is not checked out) mean the checkout or the install is incomplete (step 1): fix the checkout once and run the check again, never triage those errors one by one. Type or test errors in callers of something you changed (an exported signature, a shared type) are the change's own regressions. When the check passes on the base commit and fails on yours, the change caused it: investigate and fix it, never report it as unrelated.
+- **A change only to prompts, docs, skill text, or config the build does not read needs no build.** Compiler, bundler, package-manager and CI config is build input: for those, run the build or typecheck of the affected package as for code. Run the tests that read those files, and the repository's validate command for that kind of file if it names one, once. Try them before installing anything, and install only when they fail on a missing module.
 
 Install only what those checks need, with the package manager's own workspace filter: `bun install --filter <pkg>`, `pnpm install --filter <pkg>...`, `npm install -w <pkg>`, `yarn workspaces focus <pkg>`, `uv sync --package <pkg>`; a Cargo or Go build already fetches only what the crate or package needs. Check the touched package's directories out first so the filter can see them. Never resolve a monorepo's imports by hand (linking packages one missing module at a time): it is slow, and installing a dependency at a version other than the lockfile's breaks in ways that look like the change's fault. Before a heavy step, look at the machine (`nproc; free -g; df -h .`). When a check cannot run here (no room for the dependencies, a service it needs, a filter the package manager does not support), leave it to CI and say so.
 
