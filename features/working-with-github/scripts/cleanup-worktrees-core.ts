@@ -24,7 +24,7 @@
  * scope: it never appears in the result at all, since it was never a candidate.
  */
 
-import { readdir, realpath } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
 import { Effect, Schema } from "effect";
@@ -80,6 +80,9 @@ export interface CleanupDeps {
   /** True when `path` holds no entries at all. Defaults to a real `readdir`;
    *  an unreadable path answers false (still reported). */
   readonly isEmptyDir?: (path: string) => Promise<boolean>;
+  /** True when `path` is a standalone clone (it holds a `.git` DIRECTORY,
+   *  where a worktree holds a `.git` file). Defaults to a real `stat`. */
+  readonly isStandaloneClone?: (path: string) => Promise<boolean>;
   /**
    * Bearer token for the PR lookup. Optional for ambient mode (`GH_APP_ID`
    * unset): the lookup then goes bare, and the host's egress proxy attaches
@@ -109,6 +112,20 @@ const defaultIsEmptyDir = (path: string): Promise<boolean> =>
     (entries) => entries.length === 0,
     () => false
   );
+
+const defaultIsStandaloneClone = (path: string): Promise<boolean> =>
+  stat(join(path, ".git")).then(
+    (entry) => entry.isDirectory(),
+    () => false
+  );
+
+/** The stray remedy for a standalone clone. The open-pr skill's partial
+ *  clone lives at `/tmp/worktrees/<slug>/<branch>`, inside this sweep's
+ *  scope, but it is its own repository, never a worktree of the checkout:
+ *  `git worktree prune` never clears it, so the generic remedy left it
+ *  reported on every sweep with advice that could not work. */
+export const STRAY_CLONE_DETAIL =
+  "a standalone git clone (the open-pr skill's partial clone), not a worktree — `git worktree prune` never clears it; delete it with `rm -rf` once its PR is merged or closed and `git status --porcelain` in it prints nothing";
 
 /** One `git worktree list --porcelain` entry: a worktree path plus its
  *  checked-out branch and the optional attributes git reports for it. */
@@ -719,6 +736,7 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     readonly tracked: readonly TrackedWorktree[];
     readonly readDir: (path: string) => Promise<readonly string[]>;
     readonly isEmptyDir: (path: string) => Promise<boolean>;
+    readonly isStandaloneClone: (path: string) => Promise<boolean>;
     /** Only strays under this directory are reported. Omitted → every stray
      *  under `resolvedRoot` (the historical behavior). */
     readonly scopeDir?: string;
@@ -767,15 +785,20 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     const empty = yield* Effect.promise(() =>
       Promise.all(candidates.map((path) => input.isEmptyDir(path)))
     );
+    const clone = yield* Effect.promise(() =>
+      Promise.all(candidates.map((path) => input.isStandaloneClone(path)))
+    );
     return candidates
-      .filter((_path, index) => empty[index] !== true)
+      .map((path, index) => ({ clone: clone[index] === true, empty: empty[index] === true, path }))
+      .filter((candidate) => !candidate.empty)
       .map(
-        (path): WorktreeOutcome => ({
+        (candidate): WorktreeOutcome => ({
           branch: "",
           decision: "skipped-stray",
-          detail:
-            "on disk but unknown to `git worktree list` — run `git worktree prune` or inspect manually",
-          path,
+          detail: candidate.clone
+            ? STRAY_CLONE_DETAIL
+            : "on disk but unknown to `git worktree list` — run `git worktree prune` or inspect manually",
+          path: candidate.path,
         })
       );
   }
@@ -840,6 +863,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const fetchImpl = deps.fetchImpl ?? fetch;
     const readDir = deps.readDir ?? defaultReadDir;
     const isEmptyDir = deps.isEmptyDir ?? defaultIsEmptyDir;
+    const isStandaloneClone = deps.isStandaloneClone ?? defaultIsStandaloneClone;
 
     const resolvedRoot = yield* toRealPath(options.worktreesRoot);
     // The repo checkout git runs from — resolved the same way as every other
@@ -910,6 +934,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
 
     const strays = yield* findStrayDirs({
       isEmptyDir,
+      isStandaloneClone,
       readDir,
       resolvedRoot,
       scopeDir: resolvedSlugDir,
