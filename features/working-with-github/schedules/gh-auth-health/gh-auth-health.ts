@@ -232,6 +232,11 @@ export interface HealthCheckOk {
 export class HealthCheckError extends Data.TaggedError("HealthCheckError")<{
   readonly stage: "mint" | "round-trip";
   readonly detail: string;
+  /** Why a round-trip failed when it was not the token: GitHub refused for a
+   *  rate limit (the token works), or it never answered with a verdict (a
+   *  network error, a timeout, a 5xx), so the token was never tested. Absent
+   *  means the answer was about access, and the auth remedy applies. */
+  readonly kind?: "rate-limited" | "unreachable";
 }> {}
 
 /**
@@ -261,6 +266,32 @@ const githubErrorDetail = (payload: unknown, status: number): string => {
 };
 
 /**
+ * Classify a non-2xx round-trip answer for the alert remedy. A rate limit
+ * (429, or a 403 with the primary limit exhausted, a `retry-after`, or a
+ * "rate limit" message) means GitHub accepted the token and refused the
+ * request budget; a 5xx means GitHub or the path to it is down and never
+ * judged the token. Every other status is about access.
+ */
+const roundTripFailureKind = (
+  response: Response,
+  detail: string
+): HealthCheckError["kind"] => {
+  if (response.status >= 500) {
+    return "unreachable";
+  }
+  if (
+    response.status === 429 ||
+    (response.status === 403 &&
+      (response.headers.get("x-ratelimit-remaining") === "0" ||
+        response.headers.get("retry-after") !== null ||
+        /rate limit/iu.test(detail)))
+  ) {
+    return "rate-limited";
+  }
+  return undefined;
+};
+
+/**
  * `GET /repos/{repo}` with the minted token; succeeds with the repo full_name,
  * or fails with a `round-trip` `HealthCheckError` (network error, non-JSON body,
  * or non-ok HTTP).
@@ -284,6 +315,7 @@ const verifyRepoAccess = (input: {
         new HealthCheckError({
           stage: "round-trip",
           detail: error instanceof Error ? error.message : String(error),
+          kind: "unreachable",
         }),
     }).pipe(
       // Bound the wait like the ambient probe: a fetch that never settles is
@@ -294,6 +326,7 @@ const verifyRepoAccess = (input: {
           new HealthCheckError({
             stage: "round-trip",
             detail: `GET /repos/${input.repo} did not answer within ${ROUND_TRIP_TIMEOUT_MS / 1000}s`,
+            kind: "unreachable",
           }),
       })
     );
@@ -315,13 +348,17 @@ const verifyRepoAccess = (input: {
               new HealthCheckError({
                 stage: "round-trip",
                 detail: `GET /repos/${input.repo} response body did not arrive within ${ROUND_TRIP_BODY_TIMEOUT_MS / 1000}s`,
+                kind: "unreachable",
               })
             ),
         })
       );
+      const detail = githubErrorDetail(payload, response.status);
+      const kind = roundTripFailureKind(response, detail);
       return yield* new HealthCheckError({
         stage: "round-trip",
-        detail: githubErrorDetail(payload, response.status),
+        detail,
+        ...(kind === undefined ? {} : { kind }),
       });
     }
 
@@ -406,7 +443,11 @@ export const renderHealthAlert = (
     `Stage: *${stageLabel}*`,
     `Detail: ${failure.detail}`,
     "",
-    "GitHub auth is not working — `git`/`gh` operations will fail until this is fixed. Check that the host is injecting and rotating `GH_TOKEN`, `GITHUB_REPO` in the service env, and the App's installation/repo access.",
+    failure.kind === "rate-limited"
+      ? "GitHub accepted the token but is refusing this App's requests (rate limited) — `git`/`gh` calls fail until the limit resets. The token and the App are fine: find what is spending the request budget (a retry loop, a busy schedule) or wait for the reset."
+      : failure.kind === "unreachable"
+        ? "GitHub did not answer the round-trip (a timeout, a refused connection or a server error), so the token was never tested. Check the network path to api.github.com and GitHub's status before touching `GH_TOKEN` or the App."
+        : "GitHub auth is not working — `git`/`gh` operations will fail until this is fixed. Check that the host is injecting and rotating `GH_TOKEN`, `GITHUB_REPO` in the service env, and the App's installation/repo access.",
   ].join("\n");
 };
 
