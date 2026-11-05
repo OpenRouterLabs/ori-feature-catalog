@@ -1314,8 +1314,8 @@ export const createGhAppRegistrySchema = (db: Database): void => {
 export const openGhAppRegistryDb = (path?: string): Database => {
   if (path !== undefined) {
     const memDb = new Database(path);
-    memDb.run("PRAGMA journal_mode = WAL;");
     memDb.run(`PRAGMA busy_timeout = ${DB_BUSY_TIMEOUT_MS};`);
+    memDb.run("PRAGMA journal_mode = WAL;");
     createGhAppRegistrySchema(memDb);
     return memDb;
   }
@@ -1339,8 +1339,10 @@ export const openGhAppRegistryDb = (path?: string): Database => {
   } catch {
     // ignore
   }
-  db.run("PRAGMA journal_mode = WAL;");
+  // busy_timeout first: switching a fresh file to WAL takes the lock, and
+  // with the default timeout of 0 a concurrent first open fails at once.
   db.run(`PRAGMA busy_timeout = ${DB_BUSY_TIMEOUT_MS};`);
+  db.run("PRAGMA journal_mode = WAL;");
   createGhAppRegistrySchema(db);
   return db;
 };
