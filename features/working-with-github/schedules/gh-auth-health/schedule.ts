@@ -15,7 +15,8 @@
  *   egress proxy attaches the workspace credential to; the unscoped root goes
  *   out anonymously. A reachable API is healthy (including the
  *   401/403/404 of a host that attaches no credential — that is the honest
- *   answer there, not a breakage); only unreachability or a 5xx alerts.
+ *   answer there, not a breakage); unreachability, a 5xx or an exhausted
+ *   rate limit alerts, each with its own remedy.
  *
  * On success it logs and stays silent; on failure it posts a :rotating_light:
  * alert (when an alert channel is configured) so a broken access path is caught
@@ -41,6 +42,7 @@ import {
   formatHealthErrorLog,
   formatHealthOkLog,
   ghAuthHealthCheck,
+  renderAmbientAlert,
   renderHealthAlert,
 } from "./gh-auth-health.ts";
 
@@ -69,15 +71,6 @@ const formatAmbientOkLog = (ok: { readonly scopes: string | undefined }) =>
 /** Failure log for the ambient probe. */
 const formatAmbientErrorLog = (detail: string) =>
   `gh-auth-health: FAILED ambient probe — ${detail}`;
-
-/** Slack alert for the ambient probe. */
-const renderAmbientAlert = (detail: string) =>
-  [
-    ":rotating_light: *GitHub ambient access check failed*",
-    `Detail: ${detail}`,
-    "",
-    "GitHub is unreachable from this workspace with no GitHub App configured — ambient (proxy-attached) access is broken. Check the host's egress proxy / network path to api.github.com.",
-  ].join("\n");
 
 export const schedule = defineSchedule({
   // Every 30 minutes. Access either works or it doesn't — there is no token to
@@ -132,7 +125,7 @@ export const schedule = defineSchedule({
                     try: () =>
                       postAlert({
                         channel: alertChannelId,
-                        text: renderAmbientAlert(failure.detail),
+                        text: renderAmbientAlert(failure),
                       }),
                     catch: (cause) => new AlertPostError({ cause }),
                   }).pipe(
