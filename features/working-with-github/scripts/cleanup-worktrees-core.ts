@@ -785,15 +785,13 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
           // reported; only the container itself is excluded.
           path !== input.scopeDir
       )
-      .filter((path) => !trackedPaths.has(path))
-      .filter(
-        (path) =>
-          // Keep the exclusion tight: a container holds tracked worktrees
-          // UNDER it, as a proper path prefix (not a string prefix —
-          // `/a/b` is not an ancestor of `/a/bc`).
-          !Array.from(trackedPaths).some((tracked) =>
-            tracked.startsWith(`${path}${sep}`)
-          )
+      .filter((path) => !trackedPaths.has(path));
+    // Keep the ancestor test tight: a container holds tracked worktrees
+    // UNDER it, as a proper path prefix (not a string prefix — `/a/b` is not
+    // an ancestor of `/a/bc`).
+    const holdsTracked = (path: string): boolean =>
+      Array.from(trackedPaths).some((tracked) =>
+        tracked.startsWith(`${path}${sep}`)
       );
     // A slash-bearing branch nests its checkout (`<slug>/fix/topic`): the
     // listed `fix` is only the namespace container, so a stray clone inside
@@ -825,15 +823,34 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
         other: results.some((result) => result.other),
       };
     };
+    // A container that holds a tracked worktree (`fix/` of a tracked
+    // `fix/a`) is never a stray itself, but its other children still are: a
+    // stray `fix/b` clone beside the tracked `fix/a` was dropped with the
+    // container and never reported. Descend it and judge each child, but
+    // only through a namespace container (directories only, no `.git`): a
+    // repository or a directory with files of its own is never walked.
+    const strayUnder = async (
+      path: string,
+      depth: number
+    ): Promise<readonly string[]> => {
+      if (!holdsTracked(path)) {
+        const found = await expand(path, depth);
+        return found.clones.length === 0
+          ? [path]
+          : [...found.clones, ...(found.other ? [path] : [])];
+      }
+      if (depth >= MAX_NAMESPACE_DEPTH || !(await input.isNamespaceDir(path))) {
+        return [];
+      }
+      const children = (await input.readDir(path))
+        .map((name) => join(path, name))
+        .filter((child) => !trackedPaths.has(child));
+      return (
+        await Promise.all(children.map((child) => strayUnder(child, depth + 1)))
+      ).flat();
+    };
     const candidates = (yield* Effect.promise(() =>
-      Promise.all(
-        topLevel.map(async (path) => {
-          const found = await expand(path, 1);
-          return found.clones.length === 0
-            ? [path]
-            : [...found.clones, ...(found.other ? [path] : [])];
-        })
-      )
+      Promise.all(topLevel.map((path) => strayUnder(path, 1)))
     )).flat();
     // A worktree checkout is never empty (it always holds its `.git` link):
     // an empty directory is the namespace container `git worktree remove`
