@@ -83,6 +83,10 @@ export interface CleanupDeps {
   /** True when `path` is a standalone clone (it holds a `.git` DIRECTORY,
    *  where a worktree holds a `.git` file). Defaults to a real `stat`. */
   readonly isStandaloneClone?: (path: string) => Promise<boolean>;
+  /** True when `path` is a branch-namespace container: it holds only
+   *  directories, at least one, and no `.git` entry of its own (the `fix/`
+   *  of a `fix/topic` clone). Defaults to a real `readdir`. */
+  readonly isNamespaceDir?: (path: string) => Promise<boolean>;
   /**
    * Bearer token for the PR lookup. Optional for ambient mode (`GH_APP_ID`
    * unset): the lookup then goes bare, and the host's egress proxy attaches
@@ -118,6 +122,18 @@ const defaultIsStandaloneClone = (path: string): Promise<boolean> =>
     (entry) => entry.isDirectory(),
     () => false
   );
+
+const defaultIsNamespaceDir = (path: string): Promise<boolean> =>
+  readdir(path, { withFileTypes: true }).then(
+    (entries) =>
+      entries.length > 0 &&
+      entries.every((entry) => entry.isDirectory() && entry.name !== ".git"),
+    () => false
+  );
+
+/** How many branch-name segments a namespace container is descended through
+ *  (`a/b/c/…`), so a deep tree of bare directories is never walked whole. */
+const MAX_NAMESPACE_DEPTH = 8;
 
 /** The stray remedy for a standalone clone. The open-pr skill's partial
  *  clone lives at `/tmp/worktrees/<slug>/<branch>`, inside this sweep's
@@ -737,6 +753,7 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     readonly readDir: (path: string) => Promise<readonly string[]>;
     readonly isEmptyDir: (path: string) => Promise<boolean>;
     readonly isStandaloneClone: (path: string) => Promise<boolean>;
+    readonly isNamespaceDir: (path: string) => Promise<boolean>;
     /** Only strays under this directory are reported. Omitted → every stray
      *  under `resolvedRoot` (the historical behavior). */
     readonly scopeDir?: string;
@@ -747,7 +764,7 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
     // listing the root (the historical behavior the unscoped tests pin).
     const listDir = input.scopeDir ?? input.resolvedRoot;
     const onDisk = yield* Effect.promise(() => input.readDir(listDir));
-    const candidates = onDisk
+    const topLevel = onDisk
       .map((name) => join(listDir, name))
       .filter(
         (path) =>
@@ -778,6 +795,46 @@ const findStrayDirs = Effect.fn("CleanupWorktrees.findStrayDirs")(
             tracked.startsWith(`${path}${sep}`)
           )
       );
+    // A slash-bearing branch nests its checkout (`<slug>/fix/topic`): the
+    // listed `fix` is only the namespace container, so a stray clone inside
+    // it was reported as `fix` with the prune remedy that never clears a
+    // clone. Descend through such containers to name each nested clone at its
+    // own path; anything else under one keeps the container reported itself.
+    const expand = async (
+      path: string,
+      depth: number
+    ): Promise<{ readonly clones: readonly string[]; readonly other: boolean }> => {
+      if (await input.isStandaloneClone(path)) {
+        return { clones: [path], other: false };
+      }
+      if (depth >= MAX_NAMESPACE_DEPTH || !(await input.isNamespaceDir(path))) {
+        return { clones: [], other: true };
+      }
+      const children = (await input.readDir(path))
+        .map((name) => join(path, name))
+        .filter((child) => !trackedPaths.has(child));
+      const results = await Promise.all(
+        children.map(async (child) =>
+          (await input.isEmptyDir(child))
+            ? { clones: [], other: false }
+            : expand(child, depth + 1)
+        )
+      );
+      return {
+        clones: results.flatMap((result) => result.clones),
+        other: results.some((result) => result.other),
+      };
+    };
+    const candidates = (yield* Effect.promise(() =>
+      Promise.all(
+        topLevel.map(async (path) => {
+          const found = await expand(path, 1);
+          return found.clones.length === 0
+            ? [path]
+            : [...found.clones, ...(found.other ? [path] : [])];
+        })
+      )
+    )).flat();
     // A worktree checkout is never empty (it always holds its `.git` link):
     // an empty directory is the namespace container `git worktree remove`
     // leaves behind for a slash-bearing branch (`fix/` after `fix/topic`),
@@ -864,6 +921,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
     const readDir = deps.readDir ?? defaultReadDir;
     const isEmptyDir = deps.isEmptyDir ?? defaultIsEmptyDir;
     const isStandaloneClone = deps.isStandaloneClone ?? defaultIsStandaloneClone;
+    const isNamespaceDir = deps.isNamespaceDir ?? defaultIsNamespaceDir;
 
     const resolvedRoot = yield* toRealPath(options.worktreesRoot);
     // The repo checkout git runs from — resolved the same way as every other
@@ -934,6 +992,7 @@ export const cleanupWorktrees = Effect.fn("CleanupWorktrees.cleanupWorktrees")(
 
     const strays = yield* findStrayDirs({
       isEmptyDir,
+      isNamespaceDir,
       isStandaloneClone,
       readDir,
       resolvedRoot,
