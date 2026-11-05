@@ -71,7 +71,9 @@ export interface MintWriters {
  */
 export const runMint = (
   mint: Effect.Effect<GitHubToken, GhAppError>,
-  writers: MintWriters
+  writers: MintWriters,
+  // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
 ): Effect.Effect<number> =>
   mint.pipe(
     Effect.map((token) => {
@@ -82,11 +84,30 @@ export const runMint = (
     }),
     Effect.catch((error) =>
       Effect.sync(() => {
-        writers.err(`mint-token: ${error.message}\n`);
+        writers.err(`mint-token: ${withAmbientMintHint(error, env)}\n`);
         return 1;
       })
     )
   );
+
+/**
+ * The CLI's diagnostic for `error`, saying that minting does not apply when
+ * no `GH_APP_ID` is set (ambient mode) and naming what does. There the
+ * prompt's own change flow still runs `TOKEN=$(mint-token.ts)` first, and
+ * pre-fix it died on "GH_TOKEN is not set — the default App's token is rotated
+ * by the host…", an App-mode message that the prompt reads as broken host
+ * rotation ("fixing that is the remedy"), so the caller reported an outage
+ * that does not exist instead of using plain curl and `commit-via-api.ts --as
+ * member`. The `commit-via-api.ts` CLI got the same hint in #382.
+ */
+export const withAmbientMintHint = (
+  error: GhAppError,
+  // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
+): string =>
+  error.op === "config" && (env.GH_APP_ID ?? "").trim() === ""
+    ? `${error.message} — no GH_APP_ID is set (ambient mode), so there is no App to mint from and nothing is broken: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member`
+    : error.message;
 
 /** The token-routing args parsed from argv. Empty = the bare default app. */
 export interface MintArgs {
