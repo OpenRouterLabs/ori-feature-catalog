@@ -8,6 +8,9 @@ import { join } from "node:path";
 // `.lefthook`, each with a .yml, .yaml, .json or .toml extension, so a repo
 // whose hooks live in `.lefthook.yml` or `lefthook.toml` had its hook config
 // skipped without a word, and step 4 never ran the checks those hooks run.
+// Lefthook also reads `.config/lefthook.*`, a `.jsonc` extension, and merges
+// a `lefthook-local` config of every one of those forms; its scripts may live
+// under `.config/lefthook/<hook>/` too. All of those were skipped as well.
 
 const skill = readFileSync(join(import.meta.dir, "skills/open-pr/SKILL.md"), "utf8");
 
@@ -34,6 +37,7 @@ const stepTwoOutput = (config: string): string => {
   try {
     const src = join(root, "src");
     mkdirSync(join(src, "src"), { recursive: true });
+    mkdirSync(join(src, config, ".."), { recursive: true });
     writeFileSync(join(src, config), `pre-commit from ${config}\n`);
     writeFileSync(join(src, "src/a.ts"), "export {};\n");
     git(["init", "-q", "-b", "main"], src);
@@ -67,6 +71,16 @@ describe("open-pr step 2 reads every lefthook config name lefthook loads", () =>
     ".lefthook.toml",
     "lefthook.json",
     ".lefthook.json",
+    "lefthook.jsonc",
+    ".lefthook.jsonc",
+    ".config/lefthook.yml",
+    ".config/lefthook.yaml",
+    ".config/lefthook.toml",
+    ".config/lefthook.json",
+    ".config/lefthook.jsonc",
+    "lefthook-local.yml",
+    ".lefthook-local.json",
+    ".config/lefthook-local.toml",
   ]) {
     test(`${config} is printed in full`, () => {
       expect(stepTwoOutput(config)).toContain(`===== ${config}\npre-commit from ${config}`);
@@ -75,5 +89,12 @@ describe("open-pr step 2 reads every lefthook config name lefthook loads", () =>
 
   test("a lookalike that lefthook does not load stays out", () => {
     expect(stepTwoOutput("lefthook.yml.bak")).not.toContain("===== lefthook.yml.bak");
+    expect(stepTwoOutput(".config/.lefthook.yml")).not.toContain("===== .config/.lefthook.yml");
+  });
+
+  test("a hook script under .config/lefthook/<hook>/ is checked out and printed", () => {
+    for (const script of [".config/lefthook/pre-commit/lint.sh", ".config/lefthook-local/pre-push/check.sh"]) {
+      expect(stepTwoOutput(script)).toContain(`===== ${script}\npre-commit from ${script}`);
+    }
   });
 });
