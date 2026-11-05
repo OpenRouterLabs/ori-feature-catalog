@@ -27,7 +27,8 @@ describe("open-pr picks the clone by what the checks need", () => {
 
   test("a failed partial fetch is replaced, not retried", () => {
     expect(stepOne).toContain("A partial fetch that fails is not retried");
-    expect(stepOne).toMatch(/Switch once to a full shallow clone of the same commit, or to the tarball/u);
+    expect(stepOne).toContain("Switch once to a full shallow clone of the same commit");
+    expect(stepOne).toContain("a tarball has no `.git`");
   });
 });
 
@@ -43,9 +44,12 @@ describe("open-pr runs each check once, scoped to the change", () => {
     expect(stepFive).toContain("run that one check once on the base commit");
   });
 
-  test("errors outside the diff send it back to the checkout, and prompt-only changes skip the build", () => {
+  test("missing-module errors outside the diff send it back to the checkout, caller regressions do not, and only build-inert changes skip the build", () => {
     expect(stepFive).toContain("Errors in files you did not touch");
-    expect(stepFive).toContain("A change only to prompts, docs, config or skill text needs no build");
+    expect(stepFive).toContain("are the change's own regressions");
+    expect(stepFive).toContain("fetch it first (`git fetch --depth 1 origin <base-sha>`)");
+    expect(stepFive).toContain("config the build does not read needs no build");
+    expect(stepFive).toContain("Compiler, bundler, package-manager and CI config is build input");
     expect(stepFive).toContain("install only when they fail on a missing module");
   });
 
