@@ -35,8 +35,12 @@ export const POST_ALERT_TIMEOUT_MS = 15_000;
 /**
  * Network failures, timeouts, 5xx and 429 are retried up to 3 times with
  * exponential backoff (200ms base, factor 2), honouring Slack's `Retry-After`
- * on a 429. A non-ok platform result (`ok: false`, e.g. `invalid_auth`) is
- * Slack's final answer and is never retried.
+ * on a 429. A `Retry-After` longer than MAX_RETRY_AFTER_MS ends the post at
+ * once rather than retrying inside the window Slack asked us to wait out; the
+ * schedule's next fire tries again. A non-ok platform result (`ok: false`,
+ * e.g. `invalid_auth`) is Slack's final answer and is never retried, and
+ * neither is a 2xx whose body cannot be read: Slack has accepted the request,
+ * so a retry could post the alert twice.
  */
 const RETRIES = 3;
 
@@ -57,9 +61,7 @@ class RetryableSlackFailure extends Error {
 
 const retryAfterMs = (response: Response): number | undefined => {
   const seconds = Number(response.headers.get("retry-after"));
-  return Number.isFinite(seconds) && seconds > 0
-    ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS)
-    : undefined;
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 };
 
 const slackError = (body: unknown): string | undefined => {
@@ -109,7 +111,14 @@ const attempt = async (
       retryAfterMs(response)
     );
   }
-  const body: unknown = await response.json().catch(() => undefined);
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (error: unknown) {
+    throw new Error(
+      `Slack accepted chat.postMessage (HTTP ${response.status}) but its reply could not be read, so the alert may have been posted: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
   const error = slackError(body);
   if (error !== undefined) {
     throw new Error(`Slack chat.postMessage failed: ${error}`);
@@ -142,6 +151,11 @@ export const postAlert = async (
     } catch (error: unknown) {
       if (!(error instanceof RetryableSlackFailure) || retry >= RETRIES) {
         throw error;
+      }
+      if (error.retryAfterMs !== undefined && error.retryAfterMs > MAX_RETRY_AFTER_MS) {
+        throw new Error(
+          `${error.message}: Slack asked to wait ${Math.round(error.retryAfterMs / 1000)}s, longer than this post waits, so it was not retried`
+        );
       }
       await Bun.sleep(error.retryAfterMs ?? BACKOFF_BASE_MS * 2 ** retry);
     }

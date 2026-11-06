@@ -102,6 +102,30 @@ describe("postAlert", () => {
     }
   });
 
+  test("a rate limit longer than the post waits ends it at once instead of retrying inside the window", async () => {
+    const slack = fakeSlack([() => new Response("slow down", { status: 429, headers: { "retry-after": "120" } }), ok]);
+    try {
+      await expect(postAlert({ channel: "C123", text: "x" }, { slackApiUrl: slack.url })).rejects.toThrow(
+        "Slack asked to wait 120s"
+      );
+      expect(slack.received).toHaveLength(1);
+    } finally {
+      slack.stop();
+    }
+  });
+
+  test("an accepted post whose reply cannot be read is not retried, since the alert may have been posted", async () => {
+    const slack = fakeSlack([() => new Response("not json", { status: 200 }), ok]);
+    try {
+      await expect(postAlert({ channel: "C123", text: "x" }, { slackApiUrl: slack.url })).rejects.toThrow(
+        "the alert may have been posted"
+      );
+      expect(slack.received).toHaveLength(1);
+    } finally {
+      slack.stop();
+    }
+  });
+
   test("gives up after three retries", async () => {
     const slack = fakeSlack([() => new Response("unavailable", { status: 503 })]);
     try {
