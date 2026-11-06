@@ -32,10 +32,10 @@
 import { Data, Effect } from "effect";
 import { defineSchedule } from "ori";
 
-import { isRepoUnset, resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
-import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
-import { postAlert } from "@ori-monorepo/working-with-github/post-alert.ts";
+import { isRepoUnset, resolveRepoFromEnv } from "../../scripts/commit-api-core.ts";
+import { resolveGitHubToken } from "../../gh-app-token-mint.ts";
+import { redactUserinfo } from "../../gh-app-registry.ts";
+import { postAlert } from "../../post-alert.ts";
 
 import { readGhAuthHealthConfig } from "./config.ts";
 import {

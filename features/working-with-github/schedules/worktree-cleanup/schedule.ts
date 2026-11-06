@@ -21,14 +21,14 @@ import { defineSchedule } from "ori";
 
 import { resolveRepoDir } from "./repo-dir.ts";
 
-import { cleanupWorktrees } from "@ori-monorepo/working-with-github/cleanup-worktrees-core.ts";
-import { formatOutcome } from "@ori-monorepo/working-with-github/cleanup-worktrees.ts";
+import { cleanupWorktrees } from "../../scripts/cleanup-worktrees-core.ts";
+import { formatOutcome } from "../../scripts/cleanup-worktrees.ts";
 import {
   isRepoUnset,
   resolveRepoFromEnv,
-} from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
-import { redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+} from "../../scripts/commit-api-core.ts";
+import { resolveGitHubToken } from "../../gh-app-token-mint.ts";
+import { redactUserinfo } from "../../gh-app-registry.ts";
 
 const WORKTREES_ROOT = "/tmp/worktrees";
 

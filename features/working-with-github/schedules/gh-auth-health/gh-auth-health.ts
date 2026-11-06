@@ -14,8 +14,8 @@
 
 import { Data, Effect, Option, Schema } from "effect";
 
-import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
-import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import type { GhAppError } from "../../gh-app-token.ts";
+import type { GitHubToken } from "../../gh-app-token-mint.ts";
 
 /** The outcome of a completed health check — which access mode was proven and,
  *  in ambient mode, whether the host's GitHub access is reachable at all. */

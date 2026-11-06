@@ -43,7 +43,7 @@ const SPELLINGS: readonly {
 describe("gh-auth-health schedule repo resolution", () => {
   test("imports the shared resolver, defines no local copy", () => {
     expect(source).toContain(
-      'resolveRepoFromEnv } from "@ori-monorepo/working-with-github/commit-api-core.ts"'
+      'resolveRepoFromEnv } from "../../scripts/commit-api-core.ts"'
     );
     expect(source).not.toMatch(
       /const resolveRepo\b|function resolveRepo\b/

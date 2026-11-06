@@ -64,7 +64,7 @@ import {
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-flow.ts";
-import { displayArgvToken, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { displayArgvToken, redactUserinfo } from "../gh-app-registry.ts";
 
 export { CommitApiError, resolveRepoFromEnv } from "./commit-api-core.ts";
 export type { ChangedFile, CommitArgs, CommitDeps } from "./commit-api-core.ts";
