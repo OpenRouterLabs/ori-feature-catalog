@@ -14,9 +14,10 @@
  *   with no Authorization header — an owner-scoped request is the one a host's
  *   egress proxy attaches the workspace credential to; the unscoped root goes
  *   out anonymously. A reachable API is healthy (including the
- *   401/403/404 of a host that attaches no credential — that is the honest
- *   answer there, not a breakage); unreachability, a 5xx or an exhausted
- *   rate limit alerts, each with its own remedy.
+ *   403/404 of a host that attaches no credential — that is the honest
+ *   answer there, not a breakage); a 401 (a credential attached and refused),
+ *   unreachability, a 5xx or an exhausted rate limit alerts, each with its
+ *   own remedy.
  *
  * On success it logs and stays silent; on failure it posts a :rotating_light:
  * alert (when an alert channel is configured) so a broken access path is caught

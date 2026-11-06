@@ -518,16 +518,13 @@ describe("ambientGitHubReachable", () => {
     expect(calledUrl).toBe("https://api.github.com/");
   });
 
-  test("succeeds with no scopes on a 401 (host attaches no credential)", async () => {
+  test("fails on a 401: an uncredentialed GET / never answers 401", async () => {
     const outcome = await runToOutcome(
       ambientGitHubReachable({
         fetchImpl: () => Promise.resolve(githubRootResponse(401)),
       })
     );
-    expect(outcome.ok).toBe(true);
-    if (outcome.ok) {
-      expect(outcome.value.scopes).toBeUndefined();
-    }
+    expect(outcome.ok).toBe(false);
   });
 
   test("a 404 is healthy, not a breakage (rate-limit style answers)", async () => {

@@ -34,9 +34,10 @@ export interface AmbientProbeOk {
 }
 
 /** Ambient-mode failure: GitHub is unreachable, answers with a server error,
- *  or refuses the request because the effective rate limit is exhausted. A
- *  401/403/404 on `GET /` is healthy-but-unauthenticated (on a host with no
- *  proxy credential those are the honest answer) — EXCEPT the 403s that mean
+ *  refuses the credential attached to the request (a 401), or refuses the
+ *  request because the effective rate limit is exhausted. A 403/404 is
+ *  healthy-but-unauthenticated (on a host with no proxy credential those are
+ *  the honest answer) — EXCEPT the 403s that mean
  *  the workspace cannot work at all: `x-ratelimit-remaining: 0`, or a
  *  secondary rate limit. Those fail every real GitHub call the feature makes,
  *  so the schedule must surface them, not log ok. */
@@ -49,6 +50,10 @@ export class AmbientProbeError extends Data.TaggedError("AmbientProbeError")<{
    *  A proxy that attaches its credential per owner sends none there, so a
    *  rate limit on the root does not show that owner-scoped calls fail. */
   readonly unscoped?: boolean;
+  /** True when GitHub (or the host in front of it) answered 401: a credential
+   *  was attached and refused. A request with no credential never gets a 401
+   *  on the probe's routes, so this is broken ambient access, not health. */
+  readonly refused?: boolean;
 }> {}
 
 /**
@@ -108,6 +113,26 @@ const isSecondaryRateLimit = (response: Response): Effect.Effect<boolean> =>
         )
       );
 
+/** GitHub's error `message` from a bounded body read, or "" when the body is
+ *  unreadable, stalled, or not the envelope. Capped so a long refusal cannot
+ *  flood the alert. */
+const errorBodyMessage = (response: Response): Effect.Effect<string> =>
+  Effect.promise(() => response.text().catch(() => "")).pipe(
+    Effect.timeoutOption(AMBIENT_PROBE_TIMEOUT_MS),
+    Effect.map((body) => {
+      try {
+        const parsed: unknown = JSON.parse(Option.getOrElse(body, () => ""));
+        const message =
+          typeof parsed === "object" && parsed !== null && "message" in parsed
+            ? parsed.message
+            : undefined;
+        return typeof message === "string" ? message.trim().slice(0, 200) : "";
+      } catch {
+        return "";
+      }
+    })
+  );
+
 /**
  * The ambient-mode probe: `GET /repos/{repo}` for the intern's own repo, or
  * bare `GET https://api.github.com/` when there is no repo to ask about. Sends
@@ -159,6 +184,17 @@ export const ambientGitHubReachable = (input: {
     if (response.status >= 500) {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP ${String(response.status)}`,
+      });
+    }
+    // A 401 is a credential that was attached and refused: GitHub answers an
+    // uncredentialed `GET /` with 200 and an uncredentialed repo route with
+    // 200 or 404, never 401. Pre-fix it logged "ok" in exactly the state this
+    // check exists to catch: the host's credential revoked or expired.
+    if (response.status === 401) {
+      const message = yield* errorBodyMessage(response);
+      return yield* new AmbientProbeError({
+        detail: `GET ${route} answered HTTP 401${message === "" ? "" : ` (${message})`} — the credential attached to the request was refused`,
+        refused: true,
       });
     }
     // A 403 whose rate limit is exhausted (the anonymous 60/h shared bucket
@@ -476,7 +512,9 @@ export const renderAmbientAlert = (failure: AmbientProbeError): string =>
     ":rotating_light: *GitHub ambient access check failed*",
     `Detail: ${failure.detail}`,
     "",
-    failure.rateLimited === true && failure.unscoped === true
+    failure.refused === true
+      ? "GitHub refused the credential the host attached to the probe (HTTP 401): ambient access is broken, and the intern's `git`/`gh`/REST calls through it fail. Reconnect or renew the workspace's GitHub connection on the host."
+      : failure.rateLimited === true && failure.unscoped === true
       ? "GitHub answered the probe's `GET /` with a rate limit. `GITHUB_REPO` is not set, so the probe could only ask the unscoped root, and a proxy that attaches its credential per owner sends none there: this does not show that the intern's own repo calls fail. Set `GITHUB_REPO` so the probe asks the intern's own repo, the route real work uses."
       : failure.rateLimited === true
       ? "GitHub answered but is refusing this workspace's requests (rate limited) — `git`/`gh` calls fail until the limit resets. The network path to api.github.com works: find what is spending the request budget (a retry loop, a busy schedule) or wait for the reset."
