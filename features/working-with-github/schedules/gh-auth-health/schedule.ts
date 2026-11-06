@@ -32,7 +32,7 @@
 import { Data, Effect } from "effect";
 import { defineSchedule } from "ori";
 
-import { isRepoUnset, resolveRepoFromEnv } from "../../scripts/commit-api-core.ts";
+import { isAmbientMode, isRepoUnset, resolveRepoFromEnv } from "../../scripts/commit-api-core.ts";
 import { resolveGitHubToken } from "../../gh-app-token-mint.ts";
 import { redactUserinfo } from "../../gh-app-registry.ts";
 import { postAlert } from "../../post-alert.ts";
@@ -86,15 +86,13 @@ export const schedule = defineSchedule({
     Effect.runPromise(
       Effect.gen(function* () {
         const config = readGhAuthHealthConfig();
-        // oxlint-disable-next-line node/no-process-env -- GH_APP_ID is service config.
-        const appId = process.env.GH_APP_ID ?? "";
-
         // Ambient mode: probe the API the way the feature prompt teaches —
         // bare, no Authorization header; the host's proxy attaches the
         // credential when there is one. Probe the intern's own repo when
         // GITHUB_REPO resolves: the proxy credentials owner-scoped routes, and
         // the unscoped root alone reads the anonymous bucket.
-        if (appId === "") {
+        // oxlint-disable-next-line node/no-process-env -- GH_APP_ID is service config.
+        if (isAmbientMode(process.env)) {
           // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
           yield* ambientGitHubReachable({ repo: resolveRepoFromEnv(process.env) }).pipe(
             Effect.matchEffect({

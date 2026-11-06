@@ -68,6 +68,7 @@ import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
 import {
   findUnknownFlag,
   findJunkArgv,
+  isAmbientMode,
   isRepoUnset,
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
@@ -369,7 +370,7 @@ export const runCleanup = Effect.fn("CleanupWorktreesCli.runCleanup")(
 if (import.meta.main) {
   const args = parseCleanupArgs(process.argv.slice(2));
   // oxlint-disable-next-line node/no-process-env -- GH_APP_ID is service config.
-  const ambient = (process.env.GH_APP_ID ?? "") === "";
+  const ambient = isAmbientMode(process.env);
   const code = await Effect.runPromise(
     runCleanup(
       // In ambient mode the mint cannot succeed (no App credentials exist);

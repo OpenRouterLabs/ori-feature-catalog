@@ -88,3 +88,39 @@ describe("worktree-cleanup with no GITHUB_REPO", () => {
     expect(rejection).toContain("GITHUB_REPO is not set");
   });
 });
+
+// Regression: a blank GH_APP_ID ("  ", a compose interpolation of an unset
+// variable) names no App, and mint-token.ts already reads it as ambient. This
+// schedule compared the raw value with "", took the App path, and died on
+// "GITHUB_REPO is not set" (or, with a repo, on a mint that cannot succeed).
+describe("worktree-cleanup with a blank GH_APP_ID", () => {
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+  });
+
+  test("a whitespace-only GH_APP_ID is ambient mode, so the fire finishes quietly", async () => {
+    for (const blank of ["", "  ", "\t"]) {
+      process.env.GH_APP_ID = blank;
+      const { logged, rejection } = await fire();
+      expect(rejection).toBeUndefined();
+      expect(logged.map((entry) => entry.text)).toEqual([
+        "worktree-cleanup: GITHUB_REPO is not set in ambient mode — no repo slug to sweep.",
+      ]);
+    }
+  });
+});

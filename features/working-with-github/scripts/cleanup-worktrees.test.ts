@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { Effect } from "effect";
 
@@ -470,6 +473,34 @@ describe("runCleanup", () => {
       expect(out).toEqual(["cleanup-worktrees: nothing under the worktrees root.\n"]);
     } finally {
       rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
+
+// Regression: the CLI compared the raw GH_APP_ID with "", so a blank one
+// ("  ") took the App path. It printed "could not mint a token: GH_TOKEN is
+// not set" and exited 1 without sweeping, while mint-token.ts in the same env
+// said ambient mode and nothing broken.
+describe("cleanup-worktrees CLI with a blank GH_APP_ID", () => {
+  test("sweeps as ambient mode instead of failing on a mint", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-blank-app-id-"));
+    const repoDir = mkdtempSync(join(tmpdir(), "wwg-blank-app-id-repo-"));
+    try {
+      expect(Bun.spawnSync(["git", "init", "-q", repoDir]).exitCode).toBe(0);
+      const proc = Bun.spawnSync(
+        ["bun", join(import.meta.dir, "cleanup-worktrees.ts"), "--dry-run", "--worktrees-root", root, "--repo-dir", repoDir],
+        {
+          env: { ...process.env, GH_APP_ID: "  ", GH_APP_REGISTRY_DIR: root, GH_TOKEN: "", GITHUB_REPO: "acme/widgets" },
+          stderr: "pipe",
+          stdout: "pipe",
+        }
+      );
+      expect(proc.stderr.toString()).not.toContain("could not mint a token");
+      expect(proc.stdout.toString()).toBe("cleanup-worktrees: nothing under the worktrees root.\n");
+      expect(proc.exitCode).toBe(0);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+      rmSync(repoDir, { force: true, recursive: true });
     }
   });
 });
