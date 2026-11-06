@@ -387,6 +387,9 @@ const verifyRepoAccess = (input: {
             new HealthCheckError({
               stage: "round-trip",
               detail: `GET /repos/${input.repo} response body did not arrive within ${ROUND_TRIP_BODY_TIMEOUT_MS / 1000}s`,
+              // GitHub answered 2xx, so it accepted the token; the answer
+              // never finished arriving, which is an outage, not broken auth.
+              kind: "unreachable",
             })
           ),
       })
