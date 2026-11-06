@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 // The ambient probe answers one question: can this workspace reach GitHub
-// REST at all? A 401/403/404 without credentials is healthy-but-
+// REST at all? A 403/404 without credentials is healthy-but-
 // unauthenticated — the honest answer on a host whose proxy attaches
 // nothing, and the schedule has nothing to alert about. But ONE 403 means
 // the workspace cannot do any GitHub work: the rate limit is exhausted
@@ -12,8 +12,8 @@ import { describe, expect, test } from "bun:test";
 //
 // The distinction is the header GitHub sends on every rate-limited response:
 // `x-ratelimit-remaining: 0`. The scope-bearing 403 (a credential that lacks
-// a scope) and the plain 401/404 stay healthy — those are auth answers, not
-// "cannot work" ones.
+// a scope) and the plain 404 stay healthy — those are auth answers, not
+// "cannot work" ones. A 401 is a refused credential (ambient-401-refused.test.ts).
 import { Effect } from "effect";
 
 import { ambientGitHubReachable } from "./gh-auth-health.ts";
@@ -68,7 +68,7 @@ describe("the ambient probe distinguishes an exhausted rate limit from a healthy
     expect(outcome.ok).toBe(true);
   });
 
-  test("a plain 401 (no rate-limit header at all) stays healthy", async () => {
+  test("a plain 401 (no rate-limit header at all) fails as a refused credential", async () => {
     const outcome = await Effect.runPromise(
       ambientGitHubReachable({
         fetchImpl: () =>
@@ -80,7 +80,7 @@ describe("the ambient probe distinguishes an exhausted rate limit from a healthy
         })
       )
     );
-    expect(outcome.ok).toBe(true);
+    expect(outcome.ok).toBe(false);
   });
 
   test("a 429 (secondary rate limit) is a failure too — it also blocks every call", async () => {
