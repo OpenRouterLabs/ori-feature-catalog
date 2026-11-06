@@ -30,6 +30,12 @@ export class GhAppError extends Data.TaggedError("GhAppError")<{
   readonly status?: number;
   /** Underlying thrown value, when there is one. */
   readonly cause?: unknown;
+  /**
+   * True when the failing mint was for a registered alternate App (the
+   * registry routed the target to it). That App exists whatever `GH_APP_ID`
+   * says, so an ambient-mode "there is no App" hint never applies to it.
+   */
+  readonly registered?: boolean;
 }> {}
 
 // #endregion

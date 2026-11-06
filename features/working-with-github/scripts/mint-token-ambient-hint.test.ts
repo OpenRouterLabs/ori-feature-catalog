@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { Effect } from "effect";
 
+import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
 import { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
 
 import { runMint, withAmbientMintHint } from "./mint-token.ts";
@@ -49,5 +54,73 @@ describe("mint-token names the ambient path when no GH_APP_ID is set", () => {
   test("an HTTP failure is never relabelled ambient", () => {
     const http = new GhAppError({ op: "http", status: 401, message: "Bad credentials" });
     expect(withAmbientMintHint(http, {})).toBe("Bad credentials");
+  });
+});
+
+// Regression: a registered alternate App mints with no GH_APP_ID at all, so
+// its failure is about THAT App. Pre-fix an ambient workspace with a
+// registered row whose key var was empty printed
+//   mint-token: Missing GitHub App env var(s): A_KEY — no GH_APP_ID is set
+//   (ambient mode), so there is no App to mint from and nothing is broken
+// sending the caller away from the one env var that needed fixing.
+describe("a registered App's failure never gets the ambient hint", () => {
+  test("a registered config failure keeps its message as-is", () => {
+    const registered = new GhAppError({
+      op: "config",
+      message: "Missing GitHub App env var(s): A_KEY",
+      registered: true,
+    });
+    expect(withAmbientMintHint(registered, {})).toBe(registered.message);
+  });
+
+  test("resolveGitHubToken marks a registered App's failure, not the default path's", async () => {
+    const env = { A_ID: "123", A_KEY: "", GITHUB_REPO: "acme/widgets" };
+    const keys = { appIdKey: "A_ID", privateKeyKey: "A_KEY" };
+    const registeredError = await Effect.runPromise(
+      Effect.flip(
+        resolveGitHubToken({ cache: null, env, registry: () => keys, targetRepo: "acme/widgets" })
+      )
+    );
+    expect(registeredError.registered).toBe(true);
+    expect(registeredError.message).toContain("A_KEY");
+    const defaultError = await Effect.runPromise(
+      Effect.flip(
+        resolveGitHubToken({ cache: null, env, registry: () => null, targetRepo: "acme/widgets" })
+      )
+    );
+    expect(defaultError.registered).toBeUndefined();
+    expect(withAmbientMintHint(defaultError, env)).toContain("ambient mode");
+  });
+
+  test("the CLI names the registered App's missing var with no ambient claim", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wwg-registered-hint-"));
+    try {
+      const env = {
+        ...process.env,
+        A_ID: "123",
+        A_KEY: "x",
+        GH_APP_ID: "",
+        GH_APP_REGISTRY_DIR: dir,
+        GH_TOKEN: "",
+        GITHUB_REPO: "acme/widgets",
+      };
+      const register = Bun.spawnSync(
+        ["bun", join(import.meta.dir, "register-gh-app.ts"), "register", "--org", "acme", "--app-id-key", "A_ID", "--private-key-key", "A_KEY"],
+        { env, stderr: "pipe", stdout: "pipe" }
+      );
+      expect(register.exitCode).toBe(0);
+      const mint = Bun.spawnSync(
+        ["bun", join(import.meta.dir, "mint-token.ts"), "--org", "acme"],
+        { env: { ...env, A_KEY: "" }, stderr: "pipe", stdout: "pipe" }
+      );
+      const stderr = mint.stderr.toString();
+      expect(mint.exitCode).toBe(1);
+      expect(mint.stdout.toString()).toBe("");
+      expect(stderr).toContain("mint-token: Missing GitHub App env var(s): A_KEY");
+      expect(stderr).not.toContain("ambient mode");
+      expect(stderr).not.toContain("nothing is broken");
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 });

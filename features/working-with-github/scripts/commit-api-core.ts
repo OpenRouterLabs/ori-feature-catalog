@@ -21,6 +21,8 @@ export class CommitApiError extends Data.TaggedError("CommitApiError")<{
   readonly message: string;
   /** HTTP status for "http" failures; absent otherwise. */
   readonly status?: number;
+  /** True when a "mint" failure came from a registered alternate App. */
+  readonly registered?: boolean;
 }> {}
 
 // #endregion

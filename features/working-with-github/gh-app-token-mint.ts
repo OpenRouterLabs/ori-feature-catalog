@@ -215,5 +215,18 @@ export const resolveGitHubToken = (
       );
       return readRotatedToken(env);
     }
-    return mintInstallationToken({ ...deps, registry: () => keys });
+    // Mark the failure as the registered App's: its credentials are broken,
+    // which says nothing about whether a default App (`GH_APP_ID`) exists.
+    return mintInstallationToken({ ...deps, registry: () => keys }).pipe(
+      Effect.mapError(
+        (error) =>
+          new GhAppError({
+            message: error.message,
+            op: error.op,
+            registered: true,
+            ...(error.status === undefined ? {} : { status: error.status }),
+            ...(error.cause === undefined ? {} : { cause: error.cause }),
+          })
+      )
+    );
   });

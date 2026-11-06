@@ -99,13 +99,19 @@ export const runMint = (
  * rotation ("fixing that is the remedy"), so the caller reported an outage
  * that does not exist instead of using plain curl and `commit-via-api.ts --as
  * member`. The `commit-via-api.ts` CLI got the same hint in #382.
+ *
+ * A registered alternate App's failure never gets the hint: that App exists
+ * and its config is what broke, so "there is no App to mint from and nothing
+ * is broken" sent the caller away from the env var the message names.
  */
 export const withAmbientMintHint = (
   error: GhAppError,
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
 ): string =>
-  error.op === "config" && (env.GH_APP_ID ?? "").trim() === ""
+  error.op === "config" &&
+  error.registered !== true &&
+  (env.GH_APP_ID ?? "").trim() === ""
     ? `${error.message} — no GH_APP_ID is set (ambient mode), so there is no App to mint from and nothing is broken: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member`
     : error.message;
 
