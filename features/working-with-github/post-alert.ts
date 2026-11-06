@@ -76,6 +76,20 @@ const slackError = (body: unknown): string | undefined => {
     : "unknown error";
 };
 
+/**
+ * A non-2xx answer that is not retried (a 4xx: a proxy refusing slack.com, a
+ * wrong URL, a bad request) is a refusal, never an accepted post, so it reports
+ * its HTTP status, plus Slack's `error` when the body carries one.
+ */
+const refusal = async (response: Response): Promise<Error> => {
+  const body: unknown = await response.json().catch(() => undefined);
+  const error =
+    typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
+      ? `: ${body.error}`
+      : "";
+  return new Error(`Slack chat.postMessage answered HTTP ${response.status}${error}`);
+};
+
 const attempt = async (
   url: string,
   token: string,
@@ -110,6 +124,9 @@ const attempt = async (
       `Slack chat.postMessage answered HTTP ${response.status}`,
       retryAfterMs(response)
     );
+  }
+  if (!response.ok) {
+    throw await refusal(response);
   }
   let body: unknown;
   try {
