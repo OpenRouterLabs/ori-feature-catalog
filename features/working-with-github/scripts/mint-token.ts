@@ -45,16 +45,16 @@
 
 import { Effect } from "effect";
 
-import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
-import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import type { GhAppError } from "../gh-app-token.ts";
+import type { GitHubToken } from "../gh-app-token-mint.ts";
 
-import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "../gh-app-token-mint.ts";
 
 import {
   findJunkArgv,
   isRepoUnset,
-} from "@ori-monorepo/working-with-github/commit-api-core.ts";
-import { displayArgvToken, orgOf, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+} from "./commit-api-core.ts";
+import { displayArgvToken, orgOf, redactUserinfo } from "../gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface MintWriters {

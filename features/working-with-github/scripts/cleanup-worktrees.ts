@@ -56,11 +56,11 @@
 
 import { Effect } from "effect";
 
-import type { GhAppError } from "@ori-monorepo/working-with-github/gh-app-token.ts";
-import type { GitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import type { GhAppError } from "../gh-app-token.ts";
+import type { GitHubToken } from "../gh-app-token-mint.ts";
 
-import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
-import { displayArgvToken, redactUserinfo } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+import { resolveGitHubToken } from "../gh-app-token-mint.ts";
+import { displayArgvToken, redactUserinfo } from "../gh-app-registry.ts";
 
 import type { WorktreeOutcome } from "./cleanup-worktrees-core.ts";
 

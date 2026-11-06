@@ -12,7 +12,7 @@ import { accessSync, constants, lstatSync } from "node:fs";
 import { readlink } from "node:fs/promises";
 import { relative } from "node:path";
 
-import { resolveGitHubToken } from "@ori-monorepo/working-with-github/gh-app-token-mint.ts";
+import { resolveGitHubToken } from "../gh-app-token-mint.ts";
 
 import type {
   ChangedFile,

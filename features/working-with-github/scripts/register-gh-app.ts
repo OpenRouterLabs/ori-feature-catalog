@@ -32,7 +32,7 @@ import type { Database } from "bun:sqlite";
 import {
   findJunkArgv,
   findUnknownFlag,
-} from "@ori-monorepo/working-with-github/commit-api-core.ts";
+} from "./commit-api-core.ts";
 
 import {
   DEFAULT_PURPOSE,
@@ -42,7 +42,7 @@ import {
   orgOf,
   redactUserinfo,
   registerApp,
-} from "@ori-monorepo/working-with-github/gh-app-registry.ts";
+} from "../gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
 export interface RegisterWriters {
