@@ -126,7 +126,11 @@ export const schedule = defineSchedule({
                     try: () =>
                       postAlert({
                         channel: alertChannelId,
-                        text: renderAmbientAlert(failure),
+                        text: renderAmbientAlert(
+                          failure,
+                          // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
+                          redactUserinfo((process.env.GITHUB_REPO ?? "").trim())
+                        ),
                       }),
                     catch: (cause) => new AlertPostError({ cause }),
                   }).pipe(

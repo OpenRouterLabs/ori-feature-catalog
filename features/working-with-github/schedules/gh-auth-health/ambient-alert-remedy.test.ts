@@ -60,7 +60,7 @@ describe("the ambient alert names the remedy that fits the failure", () => {
       join(dirname(fileURLToPath(import.meta.url)), "schedule.ts"),
       "utf-8"
     );
-    expect(source).toContain("text: renderAmbientAlert(failure),");
+    expect(source).toMatch(/text: renderAmbientAlert\(\s*failure,/u);
     expect(source).not.toContain("const renderAmbientAlert");
   });
 });
