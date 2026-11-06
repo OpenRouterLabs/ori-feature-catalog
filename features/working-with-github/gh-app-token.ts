@@ -75,6 +75,14 @@ export type RegistryResolver = (
 /** Names of the env vars the default App flow reads, surfaced for precise error text. */
 const GH_APP_ENV_KEYS = ["GH_APP_ID", "GH_APP_PRIVATE_KEY"] as const;
 
+/**
+ * True when a credential env value is absent. Whitespace-only counts: no App
+ * id or key is blank, and pre-fix a blank key passed this check and failed at
+ * signing as "No key provided to sign", never naming the var.
+ */
+const isBlankCredential = (value: string | undefined): boolean =>
+  value === undefined || value.trim() === "";
+
 /** `Date.now()` gives milliseconds; GitHub's JWT `iat`/`exp` want seconds. */
 const MS_PER_SECOND = 1000;
 
@@ -133,7 +141,7 @@ const readDefaultCredentials = (
   const privateKeyBase64 = env.GH_APP_PRIVATE_KEY;
   const missing = GH_APP_ENV_KEYS.filter((key) => {
     const value = env[key];
-    return value === undefined || value === "";
+    return isBlankCredential(value);
   });
   if (
     missing.length > 0 ||
@@ -172,10 +180,8 @@ const readRegisteredCredentials = (
   const appId = env[keys.appIdKey];
   const privateKeyBase64 = env[keys.privateKeyKey];
   const missing = [
-    ...(appId === undefined || appId === "" ? [keys.appIdKey] : []),
-    ...(privateKeyBase64 === undefined || privateKeyBase64 === ""
-      ? [keys.privateKeyKey]
-      : []),
+    ...(isBlankCredential(appId) ? [keys.appIdKey] : []),
+    ...(isBlankCredential(privateKeyBase64) ? [keys.privateKeyKey] : []),
   ];
   if (
     missing.length > 0 ||
