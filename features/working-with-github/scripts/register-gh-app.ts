@@ -292,6 +292,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
   }
   // Validate the named env vars are actually present (never print their values),
   // so a typo in a key name fails loudly at registration rather than at mint time.
+  // A whitespace-only value is as unset as "": no App id or key is blank.
   const absent = (
     [
       ["--app-id-key", appIdKey],
@@ -299,7 +300,7 @@ const runRegister = (ctx: RegisterCliContext): number => {
     ] as const
   ).filter(([, key]) => {
     const value = env[key];
-    return value === undefined || value === "";
+    return value === undefined || value.trim() === "";
   });
   if (absent.length > 0) {
     writers.err(

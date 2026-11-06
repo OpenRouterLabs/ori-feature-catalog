@@ -215,6 +215,34 @@ describe("register-gh-app CLI", () => {
     expect((out.join("") + err.join("")).includes("cGVt")).toBe(false);
   });
 
+  test("refuses a named env var whose value is whitespace-only, like an empty one", () => {
+    // Pre-fix a blank value ("  ", a compose interpolation of an unset
+    // variable) registered with exit 0, and the first mint then died far from
+    // the cause: "Failed to sign GitHub App JWT: No key provided to sign" for
+    // a blank key, never naming the var.
+    for (const key of ["TEAM_GH_APP_ID", "TEAM_GH_APP_PRIVATE_KEY"] as const) {
+      const { err, writers } = makeWriters();
+      const code = runRegisterCli({
+        argv: [
+          "register",
+          "--org",
+          "acme-corp",
+          "--app-id-key",
+          "TEAM_GH_APP_ID",
+          "--private-key-key",
+          "TEAM_GH_APP_PRIVATE_KEY",
+        ],
+        db,
+        env: { ...ENV, [key]: " \t " },
+        writers,
+      });
+      expect(code).toBe(1);
+      expect(err.join("")).toContain("not set");
+      expect(err.join("")).toContain(key);
+      expect(listApps(db)).toEqual([]);
+    }
+  });
+
   test("register requires --org, --app-id-key, and --private-key-key", () => {
     const { err, writers } = makeWriters();
     const code = runRegisterCli({

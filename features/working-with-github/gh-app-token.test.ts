@@ -112,6 +112,37 @@ const makeFakeCache = (
 // ─── readGhAppCredentials — registry resolution ─────────────────────────────
 
 describe("readGhAppCredentials with a registry", () => {
+  test("a whitespace-only credential value is missing, and the error names its var", async () => {
+    // Pre-fix a blank value passed the reader and failed later: a blank key
+    // at signing ("No key provided to sign"), a blank id as "must be a
+    // positive integer". Neither named the var as unset.
+    const registry = fakeRegistry({
+      "acme-corp\ndefault": {
+        appIdKey: "TEAM_GH_APP_ID",
+        privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+      },
+    });
+    const registered = await runToOutcome(
+      readGhAppCredentials({
+        env: { ...TEAM_ENV, TEAM_GH_APP_PRIVATE_KEY: "  " },
+        org: "acme-corp",
+        registry,
+      })
+    );
+    expect(registered.ok).toBe(false);
+    if (!registered.ok) {
+      expect(registered.error.op).toBe("config");
+      expect(registered.error.message).toBe("Missing GitHub App env var(s): TEAM_GH_APP_PRIVATE_KEY");
+    }
+    const bareDefault = await runToOutcome(
+      readGhAppCredentials({ env: { ...TEAM_ENV, GH_APP_ID: " \t" } })
+    );
+    expect(bareDefault.ok).toBe(false);
+    if (!bareDefault.ok) {
+      expect(bareDefault.error.message).toBe("Missing GitHub App env var(s): GH_APP_ID");
+    }
+  });
+
   test("no org resolves the bare default app, org derived from GITHUB_REPO", async () => {
     const outcome = await runToOutcome(
       readGhAppCredentials({
