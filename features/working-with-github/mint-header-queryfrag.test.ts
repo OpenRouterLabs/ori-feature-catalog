@@ -34,14 +34,14 @@ const recipeOf = (src: string): string => {
   const match =
     line === undefined
       ? null
-      : /^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| sed -E '([^']+)'\)$/u.exec(
+      : /^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| (sed -E -e '.+')\)$/u.exec(
           line.replace(/^\s*\*\s?/u, "").trim()
         );
   return match?.[1] ?? "";
 };
 
 const runRecipe = (recipe: string, raw: string): string =>
-  execFileSync("bash", ["-c", `REPO=$(printf '%s' "$GITHUB_REPO" | sed -E '${recipe}')\nprintf '%s' "$REPO"`], {
+  execFileSync("bash", ["-c", `REPO=$(printf '%s' "$GITHUB_REPO" | ${recipe})\nprintf '%s' "$REPO"`], {
     encoding: "utf-8",
     env: { ...process.env, GITHUB_REPO: raw },
   });

@@ -60,7 +60,7 @@ const recipeRepoOf = (spelling: string): string => {
   const lines = fences.flatMap((fence) => fence.split("\n")).filter(isNormalizerLine);
   expect(lines.length).toBeGreaterThan(0);
   const recipe = (lines[0] ?? "").replace(/^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| /u, "").replace(/\)$/u, "");
-  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter(Boolean);
+  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter((token) => token !== "" && token !== "-e");
   const argv = ["-E", ...sed.flatMap((expr) => ["-e", expr.replace(/^'|'$/gu, "")])];
   return execFileSync("sed", argv, {
     input: spelling,
