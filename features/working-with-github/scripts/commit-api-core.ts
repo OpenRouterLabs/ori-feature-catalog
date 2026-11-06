@@ -895,6 +895,19 @@ export const isRepoUnset = (
   env: Readonly<Record<string, string | undefined>> = process.env
 ): boolean => (env.GITHUB_REPO ?? "").trim() === "";
 
+/**
+ * True in ambient mode: `GH_APP_ID` unset, empty or whitespace-only. A blank
+ * value names no App, and `mint-token.ts`, `commit-via-api.ts` and
+ * `register-gh-app.ts` already read it as ambient. The schedules and the
+ * cleanup CLI compared the raw value with "", so a padded blank sent them
+ * down the App path: a mint that cannot succeed, while mint-token said
+ * nothing was broken.
+ */
+export const isAmbientMode = (
+  // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
+): boolean => (env.GH_APP_ID ?? "").trim() === "";
+
 // #endregion
 
 // #region git seam

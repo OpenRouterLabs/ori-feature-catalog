@@ -24,6 +24,7 @@ import { resolveRepoDir } from "./repo-dir.ts";
 import { cleanupWorktrees } from "../../scripts/cleanup-worktrees-core.ts";
 import { formatOutcome } from "../../scripts/cleanup-worktrees.ts";
 import {
+  isAmbientMode,
   isRepoUnset,
   resolveRepoFromEnv,
 } from "../../scripts/commit-api-core.ts";
@@ -45,7 +46,7 @@ const sweepWorktrees = Effect.fn("WorktreeCleanupSchedule.sweep")(function* (
   // sweep runs without a token (an unauthorized lookup surfaces as an error
   // outcome, never a silent skip) instead of falsely claiming there is
   // nothing to sweep.
-  const ambient = (process.env.GH_APP_ID ?? "") === "";
+  const ambient = isAmbientMode(process.env);
   const repo = resolveRepoFromEnv();
   // oxlint-disable-next-line node/no-process-env -- GITHUB_REPO is systemd-injected service config.
   if (repo === "" && ambient && isRepoUnset(process.env)) {
