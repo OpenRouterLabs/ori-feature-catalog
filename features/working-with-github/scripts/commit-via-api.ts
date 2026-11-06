@@ -290,13 +290,19 @@ export const parseCliArgs = (
  * run died on "GH_TOKEN is not set — the default App's token is rotated by
  * the host…", an App-mode message that sent the caller hunting for a token
  * the workspace never holds and never named the flag that commits.
+ *
+ * A registered alternate App's mint failure keeps its message as-is: that
+ * token can be resolved once its config is fixed, and `--as member` would
+ * commit as the person instead of the App the operator registered.
  */
 export const withAmbientHint = (
   error: CommitApiError,
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
 ): string =>
-  error.stage === "mint" && (env.GH_APP_ID ?? "").trim() === ""
+  error.stage === "mint" &&
+  error.registered !== true &&
+  (env.GH_APP_ID ?? "").trim() === ""
     ? `${error.message} — no GH_APP_ID is set (ambient mode), so no token can be resolved here: pass --as member to commit as the person asking`
     : error.message;
 

@@ -112,6 +112,7 @@ const mintToken = (targetRepo: string): Effect.Effect<string, CommitApiError> =>
         new CommitApiError({
           stage: "mint",
           message: error.message,
+          ...(error.registered === true ? { registered: true } : {}),
         })
     )
   );

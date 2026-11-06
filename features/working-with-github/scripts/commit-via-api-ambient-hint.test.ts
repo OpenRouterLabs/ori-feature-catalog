@@ -71,3 +71,50 @@ describe("commit-via-api CLI in ambient mode without --as member", () => {
     }
   });
 });
+
+// Regression: a registered alternate App's mint failure in ambient mode
+// printed "no token can be resolved here: pass --as member", but that token
+// resolves once its env var is fixed, and --as member would commit as the
+// person instead of the App the operator registered for the repo's org.
+describe("a registered App's mint failure keeps its own message", () => {
+  test("withAmbientHint leaves a registered mint failure as-is", () => {
+    const registered = new CommitApiError({
+      stage: "mint",
+      message: "Missing GitHub App env var(s): A_KEY",
+      registered: true,
+    });
+    expect(withAmbientHint(registered, {})).toBe(registered.message);
+  });
+
+  test("the CLI names the registered App's missing var, not --as member", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wwg-registered-commit-hint-"));
+    try {
+      const msg = join(dir, "msg.txt");
+      writeFileSync(msg, "fix: x\n");
+      const env = {
+        ...process.env,
+        A_ID: "123",
+        A_KEY: "x",
+        GH_APP_ID: "",
+        GH_APP_REGISTRY_DIR: dir,
+        GH_TOKEN: "",
+        GITHUB_REPO: "acme/widgets",
+      };
+      const register = Bun.spawnSync(
+        ["bun", join(import.meta.dir, "register-gh-app.ts"), "register", "--org", "acme", "--app-id-key", "A_ID", "--private-key-key", "A_KEY"],
+        { env, stderr: "pipe", stdout: "pipe" }
+      );
+      expect(register.exitCode).toBe(0);
+      const proc = Bun.spawnSync(
+        ["bun", join(import.meta.dir, "commit-via-api.ts"), "--worktree", dir, "--branch", "fix-x", "--message-file", msg, "--repo", "acme/widgets"],
+        { env: { ...env, A_KEY: "" }, stderr: "pipe", stdout: "pipe" }
+      );
+      const stderr = proc.stderr.toString();
+      expect(proc.exitCode).toBe(1);
+      expect(stderr).toContain("commit-via-api: [mint] Missing GitHub App env var(s): A_KEY");
+      expect(stderr).not.toContain(HINT);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+});
