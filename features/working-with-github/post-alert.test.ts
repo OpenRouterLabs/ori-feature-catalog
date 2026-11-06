@@ -126,6 +126,27 @@ describe("postAlert", () => {
     }
   });
 
+  test("a refused post (a 4xx) names its HTTP status and never claims Slack accepted it", async () => {
+    for (const [answer, expected] of [
+      [() => new Response("<html>Forbidden</html>", { status: 403, headers: { "content-type": "text/html" } }), "answered HTTP 403"],
+      [() => new Response("Not Found", { status: 404 }), "answered HTTP 404"],
+      [() => Response.json({ message: "proxy authentication required" }, { status: 407 }), "answered HTTP 407"],
+      [() => Response.json({ ok: false, error: "invalid_arguments" }, { status: 400 }), "answered HTTP 400: invalid_arguments"],
+    ] as const) {
+      const slack = fakeSlack([answer, ok]);
+      try {
+        const failure = await postAlert({ channel: "C123", text: "x" }, { slackApiUrl: slack.url }).then(
+          () => undefined,
+          (error: unknown) => (error instanceof Error ? error.message : String(error))
+        );
+        expect(failure).toBe(`Slack chat.postMessage ${expected}`);
+        expect(slack.received).toHaveLength(1);
+      } finally {
+        slack.stop();
+      }
+    }
+  });
+
   test("gives up after three retries", async () => {
     const slack = fakeSlack([() => new Response("unavailable", { status: 503 })]);
     try {
