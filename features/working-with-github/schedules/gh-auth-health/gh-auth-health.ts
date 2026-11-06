@@ -506,14 +506,23 @@ export const renderHealthAlert = (
  * pre-fix every ambient failure, a rate limit included, read "GitHub is
  * unreachable … check the host's egress proxy / network path", sending the
  * operator to debug a path that was working.
+ *
+ * `githubRepo` is the raw (redacted) GITHUB_REPO: when it is set but resolves
+ * to no owner/repo, the root fallback is a spelling problem, not a missing
+ * variable, and the alert must not tell the operator to set what is set.
  */
-export const renderAmbientAlert = (failure: AmbientProbeError): string =>
+export const renderAmbientAlert = (
+  failure: AmbientProbeError,
+  githubRepo = ""
+): string =>
   [
     ":rotating_light: *GitHub ambient access check failed*",
     `Detail: ${failure.detail}`,
     "",
     failure.refused === true
       ? "GitHub refused the credential the host attached to the probe (HTTP 401): ambient access is broken, and the intern's `git`/`gh`/REST calls through it fail. Reconnect or renew the workspace's GitHub connection on the host."
+      : failure.rateLimited === true && failure.unscoped === true && githubRepo !== ""
+      ? `GitHub answered the probe's \`GET /\` with a rate limit. \`GITHUB_REPO\` is set to "${githubRepo}" but resolves to no owner/repo, so the probe could only ask the unscoped root, and a proxy that attaches its credential per owner sends none there: this does not show that the intern's own repo calls fail. Fix its spelling (bare \`owner/repo\` or the repo's URL) so the probe asks the intern's own repo, the route real work uses.`
       : failure.rateLimited === true && failure.unscoped === true
       ? "GitHub answered the probe's `GET /` with a rate limit. `GITHUB_REPO` is not set, so the probe could only ask the unscoped root, and a proxy that attaches its credential per owner sends none there: this does not show that the intern's own repo calls fail. Set `GITHUB_REPO` so the probe asks the intern's own repo, the route real work uses."
       : failure.rateLimited === true
