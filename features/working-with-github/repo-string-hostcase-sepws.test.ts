@@ -57,7 +57,7 @@ const recipeRepoOf = (spelling: string): string => {
   const recipe = (lines[0] ?? "")
     .replace(/^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| /u, "")
     .replace(/\)$/u, "");
-  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter(Boolean);
+  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter((token) => token !== "" && token !== "-e");
   const argv = [
     "-E",
     ...sed.flatMap((expr) => ["-e", expr.replace(/^'|'$/gu, "")]),

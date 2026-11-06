@@ -579,3 +579,41 @@ describe("prompt.md's WWG resolution recipe prefers the workspace's real source 
     }
   });
 });
+
+describe("the REPO= recipe runs on BSD/macOS sed, not only GNU sed", () => {
+  // BSD sed (macOS) reads each script line into a 2048-byte buffer and ends a
+  // `:label` or `t`/`b` target only at a newline, never at `;`. One long
+  // `sed -E '…; tX; :X; …'` line is cut mid-expression there ("unbalanced
+  // brackets") and its labels never resolve ("undefined label"), so REPO
+  // came out empty for every spelling. Each `-e` is its own script line.
+  const mintPath = join(dirname(fileURLToPath(import.meta.url)), "scripts", "mint-token.ts");
+  const copies = [prompt, readFileSync(mintPath, "utf-8")].flatMap((source) =>
+    source
+      .split("\n")
+      .map((line) => line.replace(/^\s*\*\s?/u, "").trim())
+      .filter(isNormalizerLine)
+  );
+
+  test("every copy passes its script as -e units, each under BSD sed's 2048-byte line", () => {
+    expect(copies).toHaveLength(3);
+    for (const line of copies) {
+      expect(line).toMatch(/^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| sed -E( -e '[^']+')+\)$/u);
+      const units = [...line.matchAll(/ -e '([^']+)'/gu)].map((match) => match[1] ?? "");
+      expect(units.length).toBeGreaterThan(1);
+      for (const unit of units) {
+        expect(Buffer.byteLength(unit)).toBeLessThan(2048);
+      }
+    }
+  });
+
+  test("a label or branch command is always the last command of its -e unit", () => {
+    for (const line of copies) {
+      for (const [, unit = ""] of line.matchAll(/ -e '([^']+)'/gu)) {
+        const commands = unit.split("; ");
+        commands.slice(0, -1).forEach((command) => {
+          expect(command).not.toMatch(/^[:bt]/u);
+        });
+      }
+    }
+  });
+});

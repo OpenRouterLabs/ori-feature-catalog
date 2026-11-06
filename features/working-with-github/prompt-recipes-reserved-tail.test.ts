@@ -14,7 +14,7 @@ const mintSource = readFileSync(join(dir, "scripts", "mint-token.ts"), "utf-8");
 
 const recipeOf = (source: string): string => {
   const match =
-    /REPO=\$\(printf '%s' "\$GITHUB_REPO" \| sed -E '([^']*)'\)/.exec(source);
+    /REPO=\$\(printf '%s' "\$GITHUB_REPO" \| (sed -E -e '.*')\)/.exec(source);
   if (match === null) {
     throw new Error("the REPO= recipe was not found in the source");
   }
@@ -22,7 +22,7 @@ const recipeOf = (source: string): string => {
 };
 
 const runRecipe = (recipe: string, spelling: string): string =>
-  execFileSync("sed", ["-E", recipe], {
+  execFileSync("bash", ["-c", recipe], {
     encoding: "utf-8",
     input: spelling,
   })

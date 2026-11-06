@@ -36,7 +36,7 @@ const recipeCopies: readonly {
   const read = (file: string): readonly string[] =>
     [
       ...readFileSync(join(here, file), "utf-8").matchAll(
-        /REPO=\$\(printf '%s' "\$GITHUB_REPO" \| sed -E '[^\n]*/gu
+        /REPO=\$\(printf '%s' "\$GITHUB_REPO" \| sed -E -e '[^\n]*/gu
       ),
     ].map((match) => match[0] ?? "");
   const promptCopies = read("prompt.md");
@@ -53,7 +53,7 @@ const runRecipe = (line: string, spelling: string): string => {
   const recipe = line
     .replace(/^REPO=\$\(printf '%s' "\$GITHUB_REPO" \| /u, "")
     .replace(/\)$/u, "");
-  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter(Boolean);
+  const sed = recipe.replace(/^sed -E /u, "").split(/\s+/u).filter((token) => token !== "" && token !== "-e");
   const argv = [
     "-E",
     ...sed.flatMap((expr) => ["-e", expr.replace(/^'|'$/gu, "")]),
