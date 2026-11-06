@@ -31,7 +31,7 @@ bun "$WWG"/scripts/register-gh-app.ts register \
 bun "$WWG"/scripts/register-gh-app.ts list
 ```
 
-Prints one line per row — **org + purpose + key names only, never secrets**. With nothing registered it says so (the default App then serves every org: the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org, a default-App mint against any other org's installation).
+Prints one line per row — **org + purpose + key names only, never secrets**. With nothing registered it says so: in App mode the default App then serves every org (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org, a default-App mint against any other org's installation); in ambient mode (no `GH_APP_ID`) there is no default App, and it points you at plain `curl` and `commit-via-api.ts --as member`.
 
 ## After registering — mint against it
 

@@ -358,7 +358,8 @@ const runRegister = (ctx: RegisterCliContext): number => {
 const runList = (
   db: Database,
   writers: RegisterWriters,
-  argv: readonly string[]
+  argv: readonly string[],
+  env: Readonly<Record<string, string | undefined>>
 ): number => {
   // A single-dash or equals-form token is a usage error on the `list` path
   // too — the #155/#165 uniformity contract every sibling CLI (and this
@@ -404,8 +405,13 @@ const runList = (
     return 1;
   }
   if (rows.length === 0) {
+    // With GH_APP_ID unset (ambient mode) there is no default App at all, so
+    // naming its rotated GH_TOKEN and GH_APP_* mints describes a route that
+    // does not exist; mint-token.ts and commit-via-api.ts already say so.
     writers.out(
-      "(no registered apps — the default App serves every org: the host-rotated GH_TOKEN for the GITHUB_REPO org, a default GH_APP_* mint against any other org's installation)\n"
+      (env.GH_APP_ID ?? "").trim() === ""
+        ? "(no registered apps — and no GH_APP_ID is set (ambient mode), so there is no default App either: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member)\n"
+        : "(no registered apps — the default App serves every org: the host-rotated GH_TOKEN for the GITHUB_REPO org, a default GH_APP_* mint against any other org's installation)\n"
     );
     return 0;
   }
@@ -427,7 +433,7 @@ export const runRegisterCli = (ctx: RegisterCliContext): number => {
     });
   }
   if (command === "list") {
-    return runList(ctx.db, ctx.writers, ctx.argv);
+    return runList(ctx.db, ctx.writers, ctx.argv, ctx.env);
   }
   ctx.writers.err("register-gh-app: expected a subcommand: register | list\n");
   return 1;

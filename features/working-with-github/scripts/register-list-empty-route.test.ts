@@ -13,14 +13,16 @@ import { join } from "node:path";
 import { openGhAppRegistryDb } from "../gh-app-registry.ts";
 import { runRegisterCli } from "./register-gh-app.ts";
 
-const listEmpty = (): string => {
+const listEmpty = (
+  env: Readonly<Record<string, string | undefined>> = { GH_APP_ID: "123" }
+): string => {
   const db = openGhAppRegistryDb(":memory:");
   const out: string[] = [];
   try {
     runRegisterCli({
       argv: ["list"],
       db,
-      env: {},
+      env,
       writers: {
         err: () => {},
         out: (text) => {
@@ -42,6 +44,20 @@ describe("the empty-registry list note names the route nothing-registered really
     expect(note).toContain("no registered apps");
     expect(note).not.toMatch(RETIRED);
     expect(note).toContain("GH_TOKEN");
+  });
+
+  test("with no GH_APP_ID (ambient mode) the note names no default App", () => {
+    // Pre-fix the note said "the default App serves every org" with no App
+    // configured at all, while mint-token.ts and commit-via-api.ts already
+    // answered that ambient mode has no App to mint from.
+    for (const env of [{}, { GH_APP_ID: "" }, { GH_APP_ID: "  " }]) {
+      const note = listEmpty(env);
+      expect(note).toContain("no registered apps");
+      expect(note).toContain("ambient mode");
+      expect(note).not.toContain("the default App serves every org");
+      expect(note).not.toContain("host-rotated GH_TOKEN");
+      expect(note).toContain("--as member");
+    }
   });
 
   test("the register-gh-app skill describes the same note", () => {
