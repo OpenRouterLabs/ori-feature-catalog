@@ -611,7 +611,7 @@ const rejectForeignInstallation = (
   allowed: Set<string>
 ): GhAppError =>
   new GhAppError({
-    message: `Refusing to mint a token for GitHub App installation owned by "${login}": not in the allowed-orgs allowlist (${Array.from(allowed).join(", ")}). Set ${ALLOWED_ORGS_ENV} to override.`,
+    message: `Refusing to mint a token for GitHub App installation owned by "${redactUserinfo(login)}": not in the allowed-orgs allowlist (${redactUserinfo(Array.from(allowed).join(", "))}). Set ${ALLOWED_ORGS_ENV} to override.`,
     op: "discover",
   });
 
@@ -975,7 +975,7 @@ export const discoverInstallationId = (
       });
     }
     return yield* new GhAppError({
-      message: `No GitHub App installation found for org "${org}". Known: ${all.map((i) => i.login).join(", ") || "(none)"}`,
+      message: `No GitHub App installation found for org "${redactUserinfo(org)}". Known: ${all.map((i) => i.login).join(", ") || "(none)"}`,
       op: "discover",
     });
   });

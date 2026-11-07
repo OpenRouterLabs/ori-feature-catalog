@@ -20,6 +20,7 @@ import {
   DEFAULT_PURPOSE,
   openGhAppRegistryDb,
   orgOf,
+  redactUserinfo,
   resolveApp,
   sqliteInstallationCache,
 } from "./gh-app-registry.ts";
@@ -41,8 +42,8 @@ const notedRegistryResolver = (
     const keys = resolver(org, purpose);
     process.stderr.write(
       keys === null
-        ? `gh-app-token: no registered app for ${org} (${purpose}); falling back to the default GH_APP_*\n`
-        : `gh-app-token: routing ${org} (${purpose}) to the app registered under ${keys.appIdKey} / ${keys.privateKeyKey}\n`
+        ? `gh-app-token: no registered app for ${redactUserinfo(org)} (${purpose}); falling back to the default GH_APP_*\n`
+        : `gh-app-token: routing ${redactUserinfo(org)} (${purpose}) to the app registered under ${keys.appIdKey} / ${keys.privateKeyKey}\n`
     );
     return keys;
   };
@@ -101,7 +102,7 @@ const defaultRegistryResolver: RegistryResolver = (org, purpose) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     process.stderr.write(
-      `gh-app-token: registry lookup for ${org} (${purpose}) failed (${detail}); treating it as unregistered\n`
+      `gh-app-token: registry lookup for ${redactUserinfo(org)} (${purpose}) failed (${detail}); treating it as unregistered\n`
     );
     return null;
   }
@@ -206,12 +207,12 @@ export const resolveGitHubToken = (
       const ownOrg = orgOf(env.GITHUB_REPO ?? "").toLowerCase();
       if (ownOrg !== "" && org.toLowerCase() !== ownOrg) {
         process.stderr.write(
-          `gh-app-token: ${org} is outside the GITHUB_REPO org (${ownOrg}) the host-rotated GH_TOKEN covers; minting the default App for ${org}'s installation\n`
+          `gh-app-token: ${redactUserinfo(org)} is outside the GITHUB_REPO org (${redactUserinfo(ownOrg)}) the host-rotated GH_TOKEN covers; minting the default App for ${redactUserinfo(org)}'s installation\n`
         );
         return mintInstallationToken({ ...deps, registry: () => null });
       }
       process.stderr.write(
-        `gh-app-token: no registered app for ${org} (${purpose}); using the host-rotated GH_TOKEN\n`
+        `gh-app-token: no registered app for ${redactUserinfo(org)} (${purpose}); using the host-rotated GH_TOKEN\n`
       );
       return readRotatedToken(env);
     }

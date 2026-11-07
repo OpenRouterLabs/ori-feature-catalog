@@ -136,3 +136,76 @@ describe("no unresolvable-spelling diagnostic echoes a URL credential", () => {
     }
   });
 });
+
+// A token rides outside the userinfo too: in a query string (GitHub's old
+// `?access_token=` auth, still in copied URLs) or pasted alone into the wrong
+// variable. The query spellings resolve to no owner/repo, so the same
+// diagnostics quoted them whole; a bare token resolves to itself as the owner,
+// so the registry routing notes printed it.
+const QUERY_UNRESOLVABLE = [
+  `https://github.com/?access_token=${SECRET}`,
+  `https://github.com/orgs?access_token=${SECRET}`,
+  `github.com#${SECRET}`,
+];
+
+describe("no diagnostic echoes a GitHub token outside the userinfo", () => {
+  test("redactUserinfo masks a token in a query, a fragment or alone", () => {
+    expect(redactUserinfo(`https://github.com/?access_token=${SECRET}`)).toBe(
+      "https://github.com/?access_token=***"
+    );
+    expect(redactUserinfo(SECRET)).toBe("***");
+    expect(redactUserinfo(`github_pat_${"A".repeat(30)}`)).toBe("***");
+    expect(redactUserinfo("acme/widgets")).toBe("acme/widgets");
+  });
+
+  test.each(QUERY_UNRESOLVABLE)("%p", (spelling) => {
+    const runs = [
+      run("scripts/mint-token.ts", ["--repo", spelling], { GH_APP_ID: "1" }),
+      run("scripts/mint-token.ts", ["--purpose", "reviewer"], {
+        GH_APP_ID: "1",
+        GITHUB_REPO: spelling,
+      }),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run", "--repo", spelling], {}),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run"], {
+        GITHUB_REPO: spelling,
+      }),
+      run("scripts/commit-via-api.ts", ["--repo", spelling], {}),
+      run("scripts/commit-via-api.ts", [], { GITHUB_REPO: spelling }),
+    ];
+    for (const result of runs) {
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("resolves to no");
+      expect(result.out).not.toContain(SECRET);
+    }
+  }, 60_000);
+
+  test("a token pasted as the repo never reaches the routing notes", () => {
+    const runs = [
+      run("scripts/mint-token.ts", ["--repo", SECRET], {}),
+      run("scripts/mint-token.ts", ["--purpose", "reviewer"], { GITHUB_REPO: SECRET }),
+      run("scripts/mint-token.ts", ["--repo", SECRET], { GITHUB_REPO: "acme/widgets" }),
+      run("scripts/mint-token.ts", ["--repo", "other/thing"], { GITHUB_REPO: SECRET }),
+      run("scripts/mint-token.ts", ["--repo", SECRET], { GH_APP_ID: "1", GH_APP_PRIVATE_KEY: "k" }),
+    ];
+    for (const result of runs) {
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("gh-app-token:");
+      expect(result.out).not.toContain(SECRET);
+    }
+  }, 60_000);
+
+  test("installation discovery names a token-shaped org and allowlist masked", async () => {
+    const notFound = await Effect.runPromise(
+      Effect.flip(
+        discoverInstallationId(
+          () => Promise.resolve(Response.json([{ account: { login: "acme" }, id: 1 }])),
+          "jwt",
+          SECRET,
+          new Set([SECRET.toLowerCase()])
+        )
+      )
+    );
+    expect(notFound.message).not.toContain(SECRET);
+    expect(notFound.message).not.toContain(SECRET.toLowerCase());
+  });
+});
