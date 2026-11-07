@@ -143,6 +143,23 @@ const attempt = async (
 };
 
 /**
+ * The bot token, or undefined when `SLACK_BOT_TOKEN` is unset or blank. A
+ * whitespace-only value is the same unset shape as "" (an env-file line that
+ * kept its padding, a compose interpolation of an unset variable), the way
+ * config.ts reads the alert channel: it would send a bare `Bearer` and come
+ * back `not_authed`, so the operator chased a Slack auth failure instead of
+ * the missing token. The schedule's guards and `postAlert` read it here, so
+ * both agree on what "unset" means.
+ */
+export const readSlackBotToken = (
+  // oxlint-disable-next-line node/no-process-env -- SLACK_BOT_TOKEN is systemd-injected service config; callers pass a fake env in tests.
+  env: Readonly<Record<string, string | undefined>> = process.env
+): string | undefined => {
+  const token = env.SLACK_BOT_TOKEN?.trim();
+  return token === undefined || token === "" ? undefined : token;
+};
+
+/**
  * Post a single top-level (non-threaded) message to a channel. Rejects when
  * `SLACK_BOT_TOKEN` is unset or the Slack API responds with a non-ok result,
  * so callers can decide whether to retry.
@@ -155,9 +172,8 @@ export const postAlert = async (
     readonly requestTimeoutMs?: number | undefined;
   } = {}
 ): Promise<void> => {
-  // oxlint-disable-next-line node/no-process-env -- SLACK_BOT_TOKEN is systemd-injected service config, read once at the call site.
-  const token = process.env.SLACK_BOT_TOKEN;
-  if (!token) {
+  const token = readSlackBotToken();
+  if (token === undefined) {
     throw new Error("SLACK_BOT_TOKEN is not set");
   }
   const url = `${options.slackApiUrl ?? SLACK_API_URL}chat.postMessage`;

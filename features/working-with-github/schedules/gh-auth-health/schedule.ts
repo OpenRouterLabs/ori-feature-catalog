@@ -35,7 +35,7 @@ import { defineSchedule } from "ori";
 import { isAmbientMode, isRepoUnset, resolveRepoFromEnv } from "../../scripts/commit-api-core.ts";
 import { resolveGitHubToken } from "../../gh-app-token-mint.ts";
 import { redactUserinfo } from "../../gh-app-registry.ts";
-import { postAlert } from "../../post-alert.ts";
+import { postAlert, readSlackBotToken } from "../../post-alert.ts";
 
 import { readGhAuthHealthConfig } from "./config.ts";
 import {
@@ -112,8 +112,7 @@ export const schedule = defineSchedule({
                   if (alertChannelId === undefined) {
                     return;
                   }
-                  // oxlint-disable-next-line node/no-process-env -- SLACK_BOT_TOKEN is systemd-injected service config.
-                  if (!process.env.SLACK_BOT_TOKEN) {
+                  if (readSlackBotToken() === undefined) {
                     return yield* Effect.die(
                       new Error(
                         `gh-auth-health: ambient probe failed (${failure.detail}) and SLACK_BOT_TOKEN is unset — cannot post the alert.`
@@ -196,8 +195,7 @@ export const schedule = defineSchedule({
                 if (alertChannelId === undefined) {
                   return;
                 }
-                // oxlint-disable-next-line node/no-process-env -- SLACK_BOT_TOKEN is systemd-injected service config.
-                if (!process.env.SLACK_BOT_TOKEN) {
+                if (readSlackBotToken() === undefined) {
                   return yield* Effect.die(
                     new Error(
                       `gh-auth-health: check failed at ${failure.stage} (${failure.detail}) and SLACK_BOT_TOKEN is unset — cannot post the alert.`

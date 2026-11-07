@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { POST_ALERT_TIMEOUT_MS, postAlert } from "./post-alert.ts";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { POST_ALERT_TIMEOUT_MS, postAlert, readSlackBotToken } from "./post-alert.ts";
 
 interface Received {
   readonly path: string;
@@ -74,6 +78,38 @@ describe("postAlert", () => {
     } finally {
       slack.stop();
     }
+  });
+
+  test("a whitespace-only SLACK_BOT_TOKEN is unset too: it rejects before any request", async () => {
+    for (const blank of ["   ", "\n", " \t "]) {
+      // oxlint-disable-next-line node/no-process-env -- the case under test is a blank token.
+      process.env.SLACK_BOT_TOKEN = blank;
+      const slack = fakeSlack([() => Response.json({ ok: false, error: "not_authed" })]);
+      try {
+        await expect(postAlert({ channel: "C123", text: "x" }, { slackApiUrl: slack.url })).rejects.toThrow(
+          "SLACK_BOT_TOKEN is not set"
+        );
+        expect(slack.received).toHaveLength(0);
+      } finally {
+        slack.stop();
+      }
+    }
+  });
+
+  test("readSlackBotToken trims a padded token and reads a blank one as unset", () => {
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: " xoxb-test\n" })).toBe("xoxb-test");
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: " \t " })).toBeUndefined();
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: "" })).toBeUndefined();
+    expect(readSlackBotToken({})).toBeUndefined();
+  });
+
+  test("the gh-auth-health schedule guards both alert paths with readSlackBotToken, never a raw env read", () => {
+    const schedule = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "schedules", "gh-auth-health", "schedule.ts"),
+      "utf-8"
+    );
+    expect(schedule).not.toContain("process.env.SLACK_BOT_TOKEN");
+    expect([...schedule.matchAll(/if \(readSlackBotToken\(\) === undefined\)/gu)]).toHaveLength(2);
   });
 
   test("a non-ok platform result is Slack's final answer and is not retried", async () => {
