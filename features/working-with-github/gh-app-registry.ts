@@ -50,24 +50,6 @@ const MS_PER_SECOND = 1000;
 export const DEFAULT_PURPOSE = "default";
 
 /**
- * Mask URL userinfo before a repo or org spelling is echoed in a diagnostic.
- * Every resolver here tolerates a userinfo prefix because `git remote -v`
- * pastes carry one, and a remote that persisted its credential reads
- * `https://x-access-token:<token>@github.com/…`; the "resolves to no
- * owner/repo" messages that quote the raw value printed that token into
- * stderr, the schedule logs, and any chat the agent relays them to. The
- * conventional ssh user `git` names no secret and is kept, so a
- * `git@github.com:…` spelling still reads as typed.
- */
-export const redactUserinfo = (spelling: string): string =>
-  spelling.replaceAll(/[^\s@/]+@/gu, (userinfo) =>
-    userinfo.toLowerCase() === "git@" ? userinfo : "***@"
-  );
-
-/** The longest argv token a usage error quotes back whole. */
-const MAX_ECHOED_ARGV_CHARS = 64;
-
-/**
  * GitHub's own credential formats: the `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`
  * tokens (a 4-character prefix plus 36 characters, 40 in all) and the
  * fine-grained `github_pat_` token. The 40-character ones fit under
@@ -76,6 +58,31 @@ const MAX_ECHOED_ARGV_CHARS = 64;
  * around.
  */
 const GITHUB_TOKEN_SHAPE = /(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/u;
+
+/**
+ * Mask URL userinfo, and any GitHub token, before a repo or org spelling is
+ * echoed in a diagnostic. Every resolver here tolerates a userinfo prefix
+ * because `git remote -v` pastes carry one, and a remote that persisted its
+ * credential reads `https://x-access-token:<token>@github.com/…`; the
+ * "resolves to no owner/repo" messages that quote the raw value printed that
+ * token into stderr, the schedule logs, and any chat the agent relays them to.
+ * A token also rides outside the userinfo: in a query string
+ * (`https://github.com/?access_token=<token>`, the old query-parameter auth),
+ * or pasted alone into the wrong variable (`GITHUB_REPO=<token>`, which
+ * `orgOf` reads as the owner, so the routing notes printed it too). A GitHub
+ * login never holds an `_`, so masking that shape hides no real owner. The
+ * conventional ssh user `git` names no secret and is kept, so a
+ * `git@github.com:…` spelling still reads as typed.
+ */
+export const redactUserinfo = (spelling: string): string =>
+  spelling
+    .replaceAll(/[^\s@/]+@/gu, (userinfo) =>
+      userinfo.toLowerCase() === "git@" ? userinfo : "***@"
+    )
+    .replaceAll(new RegExp(GITHUB_TOKEN_SHAPE.source, "gu"), "***");
+
+/** The longest argv token a usage error quotes back whole. */
+const MAX_ECHOED_ARGV_CHARS = 64;
 
 /**
  * How a CLI usage error quotes the argv token it refused. A pasted secret
@@ -91,7 +98,7 @@ export const displayArgvToken = (token: string): string => {
   const shown = redactUserinfo(token);
   return /[\r\n]/u.test(shown) ||
     shown.length > MAX_ECHOED_ARGV_CHARS ||
-    GITHUB_TOKEN_SHAPE.test(shown)
+    GITHUB_TOKEN_SHAPE.test(token)
     ? `<a ${token.length}-character argument, withheld>`
     : shown;
 };
