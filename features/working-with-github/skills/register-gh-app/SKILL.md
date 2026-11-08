@@ -40,8 +40,8 @@ Prints one line per row — **org + purpose + key names only, never secrets**. W
 Registration only records the mapping. To actually use the App, mint with the target repo (or `--org`) and the purpose, exactly as the feature prompt describes:
 
 ```bash
-GH_TOKEN=$(bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/mint-token.ts \
-  --repo acme-corp/widgets --purpose reviewer) \
+TOKEN=$(bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/mint-token.ts \
+  --repo acme-corp/widgets --purpose reviewer) && GH_TOKEN="$TOKEN" \
   gh pr view 123 --repo acme-corp/widgets
 ```
 
