@@ -19,10 +19,12 @@ Every other case (open PR, no PR found, dirty tree) is reported with a reason an
 
 ## Run it
 
+Every command below needs `$WWG` set in the same shell: each shell call starts fresh, so begin it with the resolver from the feature prompt ("Where this feature's scripts live"). Unset, a command stops and says so instead of running `bun /scripts/…`.
+
 `git worktree list`/`prune`/`remove` need a real git working directory, not just the worktrees-root container. The default is the current working directory, or `ORI_INTERN_WORKSPACE_ROOT` when that env var names the workspace checkout (the daemon-invocation shape, where the process starts one level above the git checkout — the same default the daily `worktree-cleanup` schedule resolves):
 
 ```bash
-bun "$WWG"/scripts/cleanup-worktrees.ts
+bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/cleanup-worktrees.ts
 ```
 
 Prints one line per worktree it looked at, e.g.:
