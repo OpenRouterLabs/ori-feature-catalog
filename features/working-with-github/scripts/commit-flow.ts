@@ -491,7 +491,20 @@ const readBaseTree = (
       // and the feature prompt's own branch convention (`fix/<topic>`)
       // always carries one.
       url: `${GITHUB_API}/repos/${input.args.repo}/git/ref/heads/${encodeRefPathSegment(input.args.branch)}`,
-    });
+    }).pipe(
+      // A 404 here is nearly always a branch never created on GitHub (the
+      // flow's own step 5 creates it first), and pre-fix the CLI said only
+      // "Not Found", which reads as a repo it cannot reach. Name the step.
+      Effect.mapError((error) =>
+        error.stage === "http" && error.status === 404
+          ? new CommitApiError({
+              message: `${error.message} — branch "${input.args.branch}" does not exist on ${input.args.repo} (or the repo is not reachable with this credential). The branch must exist before a commit: create it at the worktree's base with POST /repos/${input.args.repo}/git/refs (ref "refs/heads/${input.args.branch}", sha from \`git -C ${input.args.worktree} rev-parse HEAD\`), then run this again`,
+              stage: error.stage,
+              status: error.status,
+            })
+          : error
+      )
+    );
     const headSha = ref.object.sha;
     const headCommit = yield* ghJson({
       fetchImpl: input.fetchImpl,
