@@ -136,9 +136,14 @@ Open it ready for review unless the repository's rules ask for drafts. A draft o
 
 ```bash
 AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
+NODE_ID=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+  "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).node_id)')
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" https://api.github.com/graphql \
-  -d "{\"query\":\"mutation { markPullRequestReadyForReview(input: {pullRequestId: \\\"$NODE_ID\\\"}) { pullRequest { isDraft } } }\"}"
+  -d "{\"query\":\"mutation { markPullRequestReadyForReview(input: {pullRequestId: \\\"$NODE_ID\\\"}) { pullRequest { isDraft } } }\"}" \
+  | bun -e 'const r = await Bun.stdin.json(); if (r.errors?.length) { console.error(r.errors.map((e) => e.message).join("; ")); process.exit(1); } console.log("isDraft:", r.data.markPullRequestReadyForReview.pullRequest.isDraft)'
 ```
+
+`$PR` is the PR's number. The mutation takes the PR's GraphQL node id, which the first call reads from the PR itself. GraphQL reports a refused mutation as `errors` in an HTTP 200 answer, which `curl -f` lets through, so the last line prints those errors and exits 1 instead of letting a draft that stayed a draft read as done.
 
 In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-github-as: member`. A host's proxy attaches the workspace credential per repository owner, and a GraphQL call that names the PR only by its node id has no owner in its URL, so without the header it goes out unauthenticated and GitHub refuses it (403, rate limited). GitHub has no REST route that marks a draft ready, so this header is the only way to do it in ambient mode. A 401 on it means the person's linked identity could not make the call: say so and leave the draft for them to mark ready.
 
