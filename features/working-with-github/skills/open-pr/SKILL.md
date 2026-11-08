@@ -156,10 +156,11 @@ SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
   "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest" \
   | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)'
-# Commit statuses are a separate list (external CI posts there):
+# Commit statuses are a separate list (external CI posts there). GitHub answers
+# "pending" when nothing posted one at all, so that case prints as none posted:
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
   "https://api.github.com/repos/$REPO/commits/$SHA/status" \
-  | bun -e 'const s = await Bun.stdin.json(); console.log(s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
+  | bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
 # Log of a failed GitHub Actions job (the check-run id is the job id):
 curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
   "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" | tail -200

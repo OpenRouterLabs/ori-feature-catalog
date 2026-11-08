@@ -61,3 +61,34 @@ describe("open-pr skill", () => {
     expect(skill).not.toMatch(/openrouter|ORI-<n>|HIPAA/iu);
   });
 });
+
+// Step 8 printed the combined status's `state`, and GitHub answers "pending"
+// for a commit nobody posted a status to (total_count 0). On a repo whose CI is
+// GitHub Actions only, that line read "pending" on every read, even on a merged
+// green PR, and the step tells the agent to report it as still running.
+describe("open-pr step 8 reads commit statuses honestly", () => {
+  const stepEight = skill.slice(skill.indexOf("## 8."), skill.indexOf("## 9."));
+  const statusLine =
+    stepEight.split("\n").find((line) => line.includes("for (const x of s.statuses)")) ?? "";
+  const script = /bun -e '([^']+)'/u.exec(statusLine)?.[1] ?? "";
+  const run = (body: unknown): string =>
+    Bun.spawnSync(["bun", "-e", script], { stdin: Buffer.from(JSON.stringify(body)) })
+      .stdout.toString()
+      .trim();
+
+  test("no status posted is never reported as pending", () => {
+    expect(script).not.toBe("");
+    const out = run({ state: "pending", statuses: [], total_count: 0 });
+    expect(out).not.toBe("pending");
+    expect(out).toContain("no commit status");
+  });
+
+  test("a posted status keeps its state and lines", () => {
+    const out = run({
+      state: "pending",
+      statuses: [{ context: "deploy", state: "pending", target_url: "u" }],
+      total_count: 1,
+    });
+    expect(out.split("\n")).toEqual(["pending", "pending deploy u"]);
+  });
+});
