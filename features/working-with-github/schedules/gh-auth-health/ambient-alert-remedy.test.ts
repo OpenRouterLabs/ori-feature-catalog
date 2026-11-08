@@ -55,6 +55,28 @@ describe("the ambient alert names the remedy that fits the failure", () => {
     expect(alert).toContain("egress proxy");
   });
 
+  // Regression: a 5xx or a failed fetch never tested the credential, yet the
+  // alert said "ambient (proxy-attached) access is broken" (the live 504 on
+  // `GET /` read that way), and a failed fetch's detail was a bare "fetch
+  // failed" naming no route.
+  for (const status of [500, 503, 504]) {
+    test(`a ${status} never claims ambient access is broken and names GitHub's status`, async () => {
+      const alert = renderAmbientAlert(
+        await probeFailure(async () => new Response("", { status }))
+      );
+      expect(alert).toContain(`GET /repos/o/r answered HTTP ${status}`);
+      expect(alert).not.toContain("ambient (proxy-attached) access is broken");
+      expect(alert).toContain("was never tested");
+      expect(alert).toContain("GitHub's status");
+    });
+  }
+
+  test("a failed fetch names the route it asked", async () => {
+    const failure = await probeFailure(() => Promise.reject(new TypeError("fetch failed")));
+    expect(failure.detail).toBe("GET /repos/o/r failed: fetch failed");
+    expect(renderAmbientAlert(failure)).not.toContain("ambient (proxy-attached) access is broken");
+  });
+
   test("the schedule renders the alert from the whole failure", () => {
     const source = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "schedule.ts"),
