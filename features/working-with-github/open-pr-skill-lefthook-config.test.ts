@@ -98,3 +98,31 @@ describe("open-pr step 2 reads every lefthook config name lefthook loads", () =>
     }
   });
 });
+
+// Regression: husky before v5 loads its hooks through cosmiconfig("husky")
+// (`.huskyrc`, `.huskyrc.{json,yaml,yml,js,cjs}`, `husky.config.{js,cjs}`),
+// and overcommit merges `.local-overcommit.yml` over `.overcommit.yml`
+// (its configuration_loader.rb). Step 2 printed none of them, so a repo whose
+// hooks live there had them skipped without a word.
+describe("open-pr step 2 reads husky v4 and overcommit-local hook configs", () => {
+  for (const config of [
+    ".huskyrc",
+    ".huskyrc.json",
+    ".huskyrc.yaml",
+    ".huskyrc.yml",
+    ".huskyrc.js",
+    ".huskyrc.cjs",
+    "husky.config.js",
+    "husky.config.cjs",
+    ".local-overcommit.yml",
+  ]) {
+    test(`${config} is printed in full`, () => {
+      expect(stepTwoOutput(config)).toContain(`===== ${config}\npre-commit from ${config}`);
+    });
+  }
+
+  test("a lookalike husky does not load stays out", () => {
+    expect(stepTwoOutput(".huskyrc.bak")).not.toContain("===== .huskyrc.bak");
+    expect(stepTwoOutput("husky.config.ts")).not.toContain("===== husky.config.ts");
+  });
+});
