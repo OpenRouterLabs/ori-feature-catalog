@@ -168,7 +168,9 @@ export const ambientGitHubReachable = (input: {
         }),
       catch: (error) =>
         new AmbientProbeError({
-          detail: error instanceof Error ? error.message : String(error),
+          // Name the route like the timeout and 5xx details do: a bare
+          // "fetch failed" told the alert reader nothing about what was asked.
+          detail: `GET ${route} failed: ${error instanceof Error ? error.message : String(error)}`,
         }),
     }).pipe(
       // Bound the wait: a fetch that never settles is unreachability, not
@@ -527,7 +529,11 @@ export const renderAmbientAlert = (
       ? "GitHub answered the probe's `GET /` with a rate limit. `GITHUB_REPO` is not set, so the probe could only ask the unscoped root, and a proxy that attaches its credential per owner sends none there: this does not show that the intern's own repo calls fail. Set `GITHUB_REPO` so the probe asks the intern's own repo, the route real work uses."
       : failure.rateLimited === true
       ? "GitHub answered but is refusing this workspace's requests (rate limited) — `git`/`gh` calls fail until the limit resets. The network path to api.github.com works: find what is spending the request budget (a retry loop, a busy schedule) or wait for the reset."
-      : "GitHub is unreachable from this workspace with no GitHub App configured — ambient (proxy-attached) access is broken. Check the host's egress proxy / network path to api.github.com.",
+      : // A timeout, a refused connection or a 5xx is no answer about the
+        // credential, so the alert must not claim access is broken: pre-fix it
+        // did, sending the operator to reconnect GitHub during a GitHub
+        // outage. Same remedy shape as the App-mode "unreachable" text.
+        "GitHub is unreachable from this workspace or failed with a server error (a timeout, a refused connection or a 5xx), so the credential the host attaches was never tested — this does not show that ambient access is broken. Check the host's egress proxy / network path to api.github.com and GitHub's status before touching the workspace's GitHub connection.",
   ].join("\n");
 
 /** One-line, log-friendly success summary (no token material). */
