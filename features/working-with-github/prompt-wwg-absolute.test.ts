@@ -28,6 +28,12 @@ import { fileURLToPath } from "node:url";
  * `-name node_modules -prune` pruned the top-level `node_modules` before
  * descending, and a workspace whose only copy is the installed package got an
  * EMPTY WWG — every `bun "$WWG"/scripts/…` became `bun /scripts/…`.
+ *
+ * And the search picked a copy the runtime never loaded: a workspace that
+ * moved from a `features:` source to a vendored `file:` dependency kept its
+ * old `.ori/remote-features/` cache, which outranks `vendor/`, so every
+ * script ran without the fixes merged since. The composed feature root the
+ * runtime serves from now comes first.
  */
 const prompt = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "prompt.md"),
@@ -127,6 +133,43 @@ describe("the WWG recipe resolves a path the change flow can use from a worktree
           join(root, "node_modules/@ori-monorepo/working-with-github")
         );
         expect(reachable).toBe(true);
+      }
+    );
+  });
+
+  test("the composed feature root the runtime loaded wins over a stale remote-features cache", () => {
+    withLayout(
+      (root) => {
+        featureAt(root, ".ori/remote-features/github.com/o/catalog/main/features/working-with-github");
+        featureAt(root, "vendor/ori-feature-catalog/features/working-with-github");
+        mkdirSync(join(root, ".ori/composed/features"), { recursive: true });
+        symlinkSync(
+          join(root, "vendor/ori-feature-catalog/features/working-with-github"),
+          join(root, ".ori/composed/features/working-with-github")
+        );
+      },
+      (root, worktree) => {
+        const { reachable, wwg } = resolveThenCd(root, worktree);
+        expect(wwg).toBe(join(root, ".ori/composed/features/working-with-github"));
+        expect(reachable).toBe(true);
+      }
+    );
+  });
+
+  test("a dangling composed link falls back to the search", () => {
+    withLayout(
+      (root) => {
+        featureAt(root, "vendor/ori-feature-catalog/features/working-with-github");
+        mkdirSync(join(root, ".ori/composed/features"), { recursive: true });
+        symlinkSync(
+          join(root, "gone/working-with-github"),
+          join(root, ".ori/composed/features/working-with-github")
+        );
+      },
+      (root, worktree) => {
+        expect(resolveThenCd(root, worktree).wwg).toBe(
+          join(root, "vendor/ori-feature-catalog/features/working-with-github")
+        );
       }
     );
   });

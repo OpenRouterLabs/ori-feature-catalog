@@ -19,13 +19,26 @@ In either mode, **source on GitHub is the primary evidence for how a system work
 The commands below run scripts that ship with this feature. Its directory depends on how the workspace loaded it (a local `features/` folder or the remote-features cache), so resolve it once per shell from the workspace root:
 
 ```bash
-WWG=$(find -L features .ori/remote-features vendor node_modules \
+WWG=.ori/composed/features/working-with-github
+[ -d "$WWG/scripts" ] || WWG=$(find -L features .ori/remote-features vendor node_modules \
   \( -name node_modules ! -path node_modules \) -prune -o -name .bun -prune -o \
   -type d -name working-with-github -print -quit 2>/dev/null)
 WWG=${WWG:+$PWD/$WWG}
 ```
 
-The search order is deliberate: a local `features/` folder, then the
+The first line names the copy the runtime actually loaded: `.ori/composed/features/`
+is the feature root the daemon serves from, one link per loaded feature, so
+it is right whichever way the workspace gets this feature. Run scripts from
+it, never edit it (see "Modifying your own code"). A disk can hold copies
+the runtime does not load: a workspace that moved from a `features:` source
+to a vendored `file:` dependency keeps its old `.ori/remote-features/` cache,
+and the search below picks that cache over `vendor/`, so it ran scripts
+missing every fix merged since (a token-echo fix included). Only when there
+is no composed root (a runtime that does not build one) does the search run.
+In a vendored workspace the composed link names the `.bun` store copy, so
+after editing the vendored source run the root `bun install` (README,
+"Vendored installs") before its scripts, exactly as the daemon needs.
+Its order is deliberate: a local `features/` folder, then the
 remote-features cache, then the vendored source tree, and only LAST the
 installed package — a workspace that vendors this catalog as a `file:`
 dependency materializes `node_modules/@ori-monorepo/working-with-github` as a
@@ -33,13 +46,13 @@ symlink INTO `node_modules/.bun/…`, and edits to the vendored source do not
 reach that store copy until a root `bun install` re-syncs it (see the README's
 "Vendored installs" section). `-prune` on every `node_modules` (and `.bun`)
 keeps the descent out of the store copies and the vendored tree's own
-`node_modules`, so a bare `find` resolves the tree the daemon actually
-SERVES: the workspace's real source, never a stale store copy. `-L` follows
+`node_modules`, so the search resolves the workspace's real source, never a
+stale store copy. `-L` follows
 the symlinked `vendor` layout where it exists. The top-level `node_modules`
 starting point itself is exempt from that prune (`! -path node_modules`) —
 `find` tests its starting points too, so a bare `-name node_modules -prune`
 pruned it before descending and the installed package was never searched at
-all. The second line makes the path ABSOLUTE: `find` prints it relative to
+all. The last line makes the path ABSOLUTE: `find` prints it relative to
 the workspace root, and the change flow below `cd`s into a worktree before
 running `bun "$WWG"/scripts/commit-via-api.ts` — a relative path then names
 a file under the worktree (missing for a vendored or remote-features layout,
