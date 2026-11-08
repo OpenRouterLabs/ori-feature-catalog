@@ -460,6 +460,11 @@ describe("commitViaApi", () => {
     if (!result.ok) {
       expect(result.error.stage).toBe("http");
       expect(result.error.status).toBe(404);
+      // Pre-fix the message ended at "Not Found": a branch never created on
+      // GitHub read as an unreachable repo. It names the missing step now.
+      expect(result.error.message).toContain('branch "missing" does not exist on owner/repo');
+      expect(result.error.message).toContain("POST /repos/owner/repo/git/refs");
+      expect(result.error.message).toContain("git -C /tmp/wt rev-parse HEAD");
     }
   });
 
