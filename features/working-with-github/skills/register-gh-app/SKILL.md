@@ -14,9 +14,11 @@ The registry lives in a small SQLite DB in the intern's config dir (beside the o
 
 ## Register an App
 
+Every command below needs `$WWG` set in the same shell: each shell call starts fresh, so begin it with the resolver from the feature prompt ("Where this feature's scripts live"). Unset, a command stops and says so instead of running `bun /scripts/…`.
+
 ```bash
 # Record which env vars hold the App for (org, purpose). --purpose defaults to "default".
-bun "$WWG"/scripts/register-gh-app.ts register \
+bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/register-gh-app.ts register \
   --org acme-corp --purpose reviewer \
   --app-id-key TEAM_GH_APP_ID --private-key-key TEAM_GH_APP_PRIVATE_KEY
 ```
@@ -28,7 +30,7 @@ bun "$WWG"/scripts/register-gh-app.ts register \
 ## Inspect what's registered
 
 ```bash
-bun "$WWG"/scripts/register-gh-app.ts list
+bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/register-gh-app.ts list
 ```
 
 Prints one line per row — **org + purpose + key names only, never secrets**. With nothing registered it says so: in App mode the default App then serves every org (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org, a default-App mint against any other org's installation); in ambient mode (no `GH_APP_ID`) there is no default App, and it points you at plain `curl` and `commit-via-api.ts --as member`.
@@ -38,7 +40,7 @@ Prints one line per row — **org + purpose + key names only, never secrets**. W
 Registration only records the mapping. To actually use the App, mint with the target repo (or `--org`) and the purpose, exactly as the feature prompt describes:
 
 ```bash
-GH_TOKEN=$(bun "$WWG"/scripts/mint-token.ts \
+GH_TOKEN=$(bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/mint-token.ts \
   --repo acme-corp/widgets --purpose reviewer) \
   gh pr view 123 --repo acme-corp/widgets
 ```
