@@ -94,12 +94,12 @@ From them, write down before you start:
 
 ## 3. Find the repo's own skills that apply
 
-Repositories may ship their own agent skills. List every name and description in one call, then open the ones that fit the change: the area or paths you touched, and anything about commits, PR text, security, privacy, tests or screenshots.
+Repositories may ship their own agent skills, in `.agents/skills/`, `.claude/skills/` or `.github/skills/` (GitHub's agents read project skills from all three; BabylonJS/Babylon.js keeps its `create-pr` and `monitor-pr` skills in `.github/skills/`). List every name and description in one call, then open the ones that fit the change: the area or paths you touched, and anything about commits, PR text, security, privacy, tests or screenshots.
 
 ```bash
 desc() { awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
     block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' | cut -c1-200; }
-for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
+for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
   [ -f "$f" ] && printf '%s: %s\n' "$f" "$(desc < "$f")"
 done
 # Skills a package keeps beside its own code, in each touched directory and its parents. Read from the
