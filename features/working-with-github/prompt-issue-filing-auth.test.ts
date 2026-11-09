@@ -42,3 +42,69 @@ describe("the issue-filing guidance matches what GitHub accepts", () => {
     expect(section).toContain("report the blockage");
   });
 });
+
+// Regression: the filing step said to check the repository's own
+// `.github/ISSUE_TEMPLATE/` only. A repository without that folder uses the
+// templates in its owner's public `.github` repository (expressjs/cors has none
+// and GitHub offers it expressjs/.github's), so an agent read no template and
+// filed a free-form issue the owner's forms would have shaped. A folder of the
+// repository's own replaces the owner's defaults, so those are read only then.
+describe("the issue-template read falls back to the owner's .github repository", () => {
+  const block = (): string => {
+    const start = prompt.indexOf("Before creating an issue");
+    const match = /```bash\n([\s\S]*?)\n```/u.exec(prompt.slice(start));
+    if (match?.[1] === undefined) throw new Error("the issue-template step has no bash block");
+    return match[1];
+  };
+
+  const run = async (tree: Record<string, Record<string, string> | number>): Promise<string> => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req) => {
+        const m = /^\/repos\/([^/]+\/[^/]+)\/contents\/(.+)$/u.exec(new URL(req.url).pathname);
+        const files = m === null ? undefined : tree[m[1] ?? ""];
+        if (typeof files === "number") return new Response("{}", { status: files });
+        if (files === undefined || m === null) return new Response("{}", { status: 404 });
+        const path = decodeURIComponent(m[2] ?? "");
+        if (path === ".github/ISSUE_TEMPLATE") {
+          return Response.json(Object.keys(files).map((name) => ({ path: `${path}/${name}`, type: "file" })));
+        }
+        const content = files[path.slice(".github/ISSUE_TEMPLATE/".length)];
+        return content === undefined ? new Response("{}", { status: 404 }) : new Response(content);
+      },
+    });
+    try {
+      const script = block()
+        .replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)
+        .replaceAll("{owner}/{repo}", "acme/widgets")
+        .replaceAll("{owner}/.github", "acme/.github");
+      const proc = Bun.spawn(["bash", "-c", script], { env: { ...process.env, GH_TOKEN: "" }, stderr: "pipe", stdout: "pipe" });
+      await proc.exited;
+      return await new Response(proc.stdout).text();
+    } finally {
+      await server.stop(true);
+    }
+  };
+
+  test("a repository with no template folder reads its owner's", async () => {
+    const out = await run({ "acme/.github": { "bug.md": "---\nname: Bug\ntitle: '[bug] '\n---\n" } });
+    expect(out).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md\n---\nname: Bug");
+  });
+
+  test("a repository's own folder replaces the owner's defaults", async () => {
+    const out = await run({
+      "acme/.github": { "bug.md": "owner bug form\n" },
+      "acme/widgets": { "feature.yml": "name: Feature\n" },
+    });
+    expect(out).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/feature.yml\nname: Feature");
+    expect(out).not.toContain("owner bug form");
+  });
+
+  test("no folder anywhere says so, and an unreadable one never passes for none", async () => {
+    expect(await run({})).toContain("no issue templates");
+    const refused = await run({ "acme/widgets": 403, "acme/.github": { "bug.md": "owner bug form\n" } });
+    expect(refused).toContain("acme/widgets: issue templates could not be read (HTTP 403)");
+    expect(refused).not.toContain("owner bug form");
+    expect(refused).not.toContain("no issue templates");
+  });
+});
