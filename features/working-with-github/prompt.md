@@ -226,17 +226,21 @@ Before filing a new issue, do a duplicate check:
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
 
-Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no `.github/ISSUE_TEMPLATE/` folder of its own uses the one in its owner's public `.github` repository (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github), and a folder of its own replaces those defaults entirely. So read the repository's folder, and the owner's only when the repository has none:
+Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's public `.github` repository (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github), and a template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. So read the repository's own, and the owner's only when the repository has none:
 
 ```bash
 T=$(mktemp); found=; for r in "{owner}/{repo}" "{owner}/.github"; do
-  code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r/contents/.github/ISSUE_TEMPLATE")
-  [ "$code" = 404 ] && continue
-  [ "$code" = 200 ] || { echo "$r: issue templates could not be read (HTTP $code), so the defaults below it are unknown"; found=1; break; }
-  found=1; bun -e 'for (const f of await Bun.stdin.json()) if (f.type === "file") console.log(f.path)' < "$T" | while IFS= read -r f; do
-    printf '\n===== %s: %s\n' "$r" "$f"
-    curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$f"
-  done; break
+  for d in .github/ISSUE_TEMPLATE .github "" docs; do
+    code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r/contents/$d")
+    [ "$code" = 404 ] && continue
+    [ "$code" = 200 ] || { echo "$r: issue templates could not be read (HTTP $code), so the defaults below it are unknown"; found=1; break 2; }
+    files=$(D="$d" bun -e 'for (const f of await Bun.stdin.json()) if (f.type === "file" && (process.env.D === ".github/ISSUE_TEMPLATE" || /^issue_template(\.[^/]+)?$/i.test(f.name))) console.log(f.path)' < "$T")
+    [ -n "$files" ] || continue
+    found=1; printf '%s\n' "$files" | while IFS= read -r f; do
+      printf '\n===== %s: %s\n' "$r" "$f"
+      curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$f"
+    done; break 2
+  done
 done; rm -f "$T"; [ -n "$found" ] || echo "no issue templates: neither the repository nor its owner's .github has any"
 ```
 

@@ -61,16 +61,22 @@ describe("the issue-template read falls back to the owner's .github repository",
     const server = Bun.serve({
       port: 0,
       fetch: (req) => {
-        const m = /^\/repos\/([^/]+\/[^/]+)\/contents\/(.+)$/u.exec(new URL(req.url).pathname);
+        const m = /^\/repos\/([^/]+\/[^/]+)\/contents\/?(.*)$/u.exec(new URL(req.url).pathname);
         const files = m === null ? undefined : tree[m[1] ?? ""];
         if (typeof files === "number") return new Response("{}", { status: files });
         if (files === undefined || m === null) return new Response("{}", { status: 404 });
         const path = decodeURIComponent(m[2] ?? "");
-        if (path === ".github/ISSUE_TEMPLATE") {
-          return Response.json(Object.keys(files).map((name) => ({ path: `${path}/${name}`, type: "file" })));
+        const content = files[path];
+        if (content !== undefined) return new Response(content);
+        const prefix = path === "" ? "" : `${path}/`;
+        const entries = new Map<string, string>();
+        for (const key of Object.keys(files)) {
+          if (!key.startsWith(prefix)) continue;
+          const [name, ...rest] = key.slice(prefix.length).split("/");
+          if (name !== undefined) entries.set(name, rest.length === 0 ? "file" : "dir");
         }
-        const content = files[path.slice(".github/ISSUE_TEMPLATE/".length)];
-        return content === undefined ? new Response("{}", { status: 404 }) : new Response(content);
+        if (entries.size === 0) return new Response("{}", { status: 404 });
+        return Response.json([...entries].map(([name, type]) => ({ name, path: prefix + name, type })));
       },
     });
     try {
@@ -87,14 +93,14 @@ describe("the issue-template read falls back to the owner's .github repository",
   };
 
   test("a repository with no template folder reads its owner's", async () => {
-    const out = await run({ "acme/.github": { "bug.md": "---\nname: Bug\ntitle: '[bug] '\n---\n" } });
+    const out = await run({ "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Bug\ntitle: '[bug] '\n---\n" } });
     expect(out).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md\n---\nname: Bug");
   });
 
   test("a repository's own folder replaces the owner's defaults", async () => {
     const out = await run({
-      "acme/.github": { "bug.md": "owner bug form\n" },
-      "acme/widgets": { "feature.yml": "name: Feature\n" },
+      "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "owner bug form\n" },
+      "acme/widgets": { ".github/ISSUE_TEMPLATE/feature.yml": "name: Feature\n" },
     });
     expect(out).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/feature.yml\nname: Feature");
     expect(out).not.toContain("owner bug form");
@@ -102,9 +108,36 @@ describe("the issue-template read falls back to the owner's .github repository",
 
   test("no folder anywhere says so, and an unreadable one never passes for none", async () => {
     expect(await run({})).toContain("no issue templates");
-    const refused = await run({ "acme/widgets": 403, "acme/.github": { "bug.md": "owner bug form\n" } });
+    const refused = await run({ "acme/widgets": 403, "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "owner bug form\n" } });
     expect(refused).toContain("acme/widgets: issue templates could not be read (HTTP 403)");
     expect(refused).not.toContain("owner bug form");
     expect(refused).not.toContain("no issue templates");
+  });
+
+  // gomodule/redigo keeps a single .github/ISSUE_TEMPLATE.md and no folder, and
+  // GitHub's community profile names it as the repository's issue template.
+  // The read checked the folder only, so it printed "no issue templates".
+  test("a single legacy ISSUE_TEMPLATE.md is a template of the repository's own", async () => {
+    const out = await run({
+      "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "owner bug form\n" },
+      "acme/widgets": { ".github/ISSUE_TEMPLATE.md": "Ask questions elsewhere\n", ".github/CONTRIBUTING.md": "rules\n" },
+    });
+    expect(out).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE.md\nAsk questions elsewhere");
+    expect(out).not.toContain("owner bug form");
+    expect(out).not.toContain("no issue templates");
+  });
+
+  test("the legacy file is found at the root or in docs/, in any case", async () => {
+    expect(await run({ "acme/widgets": { "issue_template.md": "root form\n", "README.md": "x\n" } })).toContain(
+      "===== acme/widgets: issue_template.md\nroot form",
+    );
+    expect(await run({ "acme/widgets": { "docs/Issue_Template.md": "docs form\n" } })).toContain(
+      "===== acme/widgets: docs/Issue_Template.md\ndocs form",
+    );
+  });
+
+  test("an owner's legacy default file is read when the repository has none", async () => {
+    const out = await run({ "acme/.github": { "ISSUE_TEMPLATE.md": "owner legacy\n" }, "acme/widgets": { "README.md": "x\n" } });
+    expect(out).toContain("===== acme/.github: ISSUE_TEMPLATE.md\nowner legacy");
   });
 });
