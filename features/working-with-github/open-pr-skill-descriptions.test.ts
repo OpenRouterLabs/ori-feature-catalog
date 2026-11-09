@@ -138,3 +138,27 @@ describe("open-pr step 3 lists the skills a touched package keeps beside its cod
     }
   });
 });
+
+describe("open-pr step 3 lists the skills in GitHub's own skills folder", () => {
+  // BabylonJS/Babylon.js keeps its create-pr and monitor-pr skills in
+  // .github/skills/<name>/SKILL.md, one of the three places GitHub's agents
+  // read project skills from, and the root loop never looked there.
+  test("a skill under .github/skills is listed like one under .agents/skills", () => {
+    const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-desc-"));
+    try {
+      mkdirSync(join(wt, ".github/skills/create-pr"), { recursive: true });
+      writeFileSync(
+        join(wt, ".github/skills/create-pr/SKILL.md"),
+        "---\nname: create-pr\ndescription: |\n    Orchestrates the full PR lifecycle.\n---\n\n# create-pr\n",
+      );
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScript().replaceAll("<dirs the change touches>", "src")], {
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      expect(proc.stdout.toString()).toContain(".github/skills/create-pr/SKILL.md: Orchestrates the full PR lifecycle.\n");
+    } finally {
+      rmSync(wt, { force: true, recursive: true });
+    }
+  });
+});
