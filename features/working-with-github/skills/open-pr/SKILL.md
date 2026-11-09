@@ -158,13 +158,19 @@ In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-git
 ```bash
 SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
   "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).head.sha)')
-curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
-  "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest" \
-  | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)'
+# Every page: a head can carry hundreds of check runs, and a failure past the first 100 never shows on page one.
+for page in $(seq 1 50); do
+  runs=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+    "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest&page=$page" \
+    | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)') \
+    || { echo "check-runs page $page could not be read: the list above is incomplete"; break; }
+  [ -n "$runs" ] && printf '%s\n' "$runs"
+  [ "$(printf '%s\n' "$runs" | grep -c .)" -lt 100 ] && break
+done
 # Commit statuses are a separate list (external CI posts there). GitHub answers
 # "pending" when nothing posted one at all, so that case prints as none posted:
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
-  "https://api.github.com/repos/$REPO/commits/$SHA/status" \
+  "https://api.github.com/repos/$REPO/commits/$SHA/status?per_page=100" \
   | bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
 # Log of a failed GitHub Actions job (the check-run id is the job id):
 curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
@@ -172,6 +178,8 @@ curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
 ```
 
 For a check outside GitHub Actions, open its `details_url` or `target_url` for the log.
+
+The check runs come at most 100 to a page, and a large repository's head can carry hundreds of them, so the loop reads every page until one comes back short. Reading only the first page shows a head whose failures sit on a later page as having none. A page that cannot be read says so, so a cut-off list never passes for a complete one.
 
 For each failure, find the cause in the log, fix it, run that check locally, and commit to the **same branch**. Keep fixing on each read until every required check passes. Fix only what the log shows: an unrelated "while I'm here" change makes the PR harder to review. If a failure is not yours (main is red on the same check, or the job is known to be flaky), confirm it on main's latest commit and say so in the PR, instead of retrying blind.
 
