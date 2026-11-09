@@ -391,7 +391,7 @@ You may merge your own PRs into `$GITHUB_REPO` once **all** of these are clearly
 - **No changes requested** — no reviewer's latest approve-or-request-changes review is `CHANGES_REQUESTED`. A comment-only review posted after a changes request does not withdraw it. Do not rely on `reviewDecision`: on a repo that requires no reviews it stays `null` even while a reviewer has requested changes.
 - **No merge conflicts** — the PR is mergeable.
 
-When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment. The squash-merge does NOT delete the head branch on its own — the delete is a separate call, and the recipe below carries both steps plus the comment:
+When every condition holds, merge it (squash + delete branch) via the REST API and post a brief summary comment. A squash-merge deletes the head branch on its own only in a repository that turns on automatic deletion of head branches (`delete_branch_on_merge`: OpenRouterIncubator/ori does, and its PR #4661 branch was gone the moment it merged); anywhere else the branch stays. So the recipe below carries the delete as a separate call plus the comment, and an already-deleted branch answers that DELETE with 422 `Reference does not exist`, which means done, not a failure:
 
 ```bash
 # Read the head sha ONCE and check every condition against THAT commit — a
@@ -439,9 +439,13 @@ query($owner: String!, $name: String!, $number: Int!) {
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
   --method PUT --field merge_method='squash' --raw-field sha="$HEAD_SHA"
 
-# Delete the merged branch (a squash-merge leaves it behind):
-GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" \
-  --method DELETE
+# Delete the merged branch. A repository that deletes head branches on merge
+# has already removed it, and the DELETE then fails with 422: read the ref,
+# and only a branch that is still there is a failed delete:
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" --method DELETE ||
+  { GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/BRANCH_NAME" --silent 2>/dev/null &&
+    echo "BRANCH_NAME is still there: the delete failed, so say why"; } ||
+  echo "BRANCH_NAME was already deleted on merge: done"
 
 # Post the brief summary comment (a temp file again: a summary is prose and
 # may carry apostrophes; --raw-field, like the PR body, so gh never reads a
