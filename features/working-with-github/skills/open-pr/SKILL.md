@@ -70,7 +70,15 @@ for f in .husky/* .lefthook/*/* .lefthook/*.sh .config/lefthook/*/* .config/left
 for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
   [ -f "$d/AGENTS.md" ] && printf '\n===== %s\n' "$d/AGENTS.md" && cat "$d/AGENTS.md"; d=$(dirname "$d"); done; done
 ls .github/workflows/ .circleci/ .gitlab-ci.yml .buildkite/ 2>/dev/null; grep -ln 'draft' .github/workflows/* 2>/dev/null
+# No PR template or CONTRIBUTING of its own: GitHub uses the one in the owner's public .github repository.
+O=/tmp/owner-dot-github-$$; [ -n "${REPO%%/*}" ] && for k in 'pull_request_template(\.[^/]+)?(/[^/]+)?' 'contributing(\.[^/]+)?'; do p='^((\.github|docs)/)?'"$k"'$'
+  git ls-tree -r --name-only HEAD | grep -qiE "$p" && continue
+  [ -d "$O" ] || GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/${REPO%%/*}/.github.git" "$O" 2>/dev/null || break
+  git -C "$O" ls-tree -r --name-only HEAD | grep -iE "$p" | while IFS= read -r f; do printf '\n===== %s/.github: %s\n' "${REPO%%/*}" "$f"; git -C "$O" show "HEAD:$f"; echo; done
+done; rm -rf "$O"
 ```
+
+A repository with no PR template of its own, or no CONTRIBUTING file, gets the one in its owner's `.github` repository: GitHub fills the PR form from that default template and links that default CONTRIBUTING, and neither ever appears in the repository's own tree, so the first command cannot list them. The last command reads them from that repository when it is public (GitHub uses no other), with no credential, and prints nothing when the owner has none or `$REPO` is unset.
 
 From them, write down before you start:
 
