@@ -94,13 +94,21 @@ From them, write down before you start:
 Repositories may ship their own agent skills. List every name and description in one call, then open the ones that fit the change: the area or paths you touched, and anything about commits, PR text, security, privacy, tests or screenshots.
 
 ```bash
+desc() { awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
+    block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' | cut -c1-200; }
 for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
-  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
-    block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' "$f" | cut -c1-200)"
+  [ -f "$f" ] && printf '%s: %s\n' "$f" "$(desc < "$f")"
 done
+# Skills a package keeps beside its own code, in each touched directory and its parents. Read from the
+# index: the sparse checkout leaves a package's .agents/ out when the change touches only its src/.
+cd "$WT"; for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
+  git ls-tree -r --name-only HEAD -- "$d/.agents/skills" "$d/.claude/skills" 2>/dev/null; d=$(dirname "$d"); done; done |
+  grep -E '/\.(agents|claude)/skills/[^/]+/SKILL\.md$' | sort -u | while IFS= read -r f; do printf '%s: %s\n' "$f" "$(git show "HEAD:$f" | desc)"; done
 ```
 
 The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again.
+
+A monorepo package can keep its own skills beside its code (`<package>/.agents/skills/<name>/SKILL.md`), which apply to changes in that package; a root AGENTS.md often points at one for every change to that package (a TUI skill under `features/chat-tui/.agents/skills/`, a desktop one under `apps/desktop/.agents/skills/`), and the root loop above never lists them. The second loop lists those for every directory the change touches and each of its parents.
 
 When the list is long, grep it for words from your diff (package names, directories, `security`, `pr`, `commit`, `test`) instead of skimming. Do what a matching skill says.
 

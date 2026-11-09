@@ -76,3 +76,65 @@ describe("open-pr step 3 lists every skill's description", () => {
     }
   });
 });
+
+// Regression: step 3 listed only the root `.agents/skills`, `.claude/skills`
+// and `.cursor/rules`. A monorepo package can keep skills beside its own code
+// (`apps/desktop/.agents/skills/<name>/SKILL.md`) that its root AGENTS.md
+// requires for every change there, and the sparse checkout of step 1 leaves
+// that `.agents/` out when the change touches only the package's `src/`. So the
+// listing never named them. The second loop reads them from the index for each
+// touched directory and its parents.
+
+const stepThreeScriptFor = (dirs: string): string => {
+  const section = skill.slice(skill.indexOf("## 3."), skill.indexOf("## 4."));
+  const match = /```bash\n([\s\S]*?)\n```/u.exec(section);
+  if (match?.[1] === undefined) throw new Error("step 3 has no bash block");
+  return match[1].replaceAll("<dirs the change touches>", dirs);
+};
+
+const git = (args: string[], cwd: string) => {
+  const proc = Bun.spawnSync(["git", ...args], { cwd, stderr: "pipe", stdout: "pipe" });
+  if (proc.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${proc.stderr.toString()}`);
+};
+
+const write = (root: string, path: string, content: string) => {
+  mkdirSync(join(root, path, ".."), { recursive: true });
+  writeFileSync(join(root, path), content);
+};
+
+describe("open-pr step 3 lists the skills a touched package keeps beside its code", () => {
+  test("a package skill outside the sparse checkout is listed for a change under that package", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-nested-"));
+    try {
+      const src = join(root, "src");
+      write(src, ".agents/skills/root-skill/SKILL.md", "---\nname: root-skill\ndescription: Root work.\n---\n");
+      write(src, "apps/desktop/.agents/skills/prove-flow/SKILL.md", "---\nname: prove-flow\ndescription: >\n  Prove a desktop\n  flow end to end.\n---\n");
+      write(src, "apps/desktop/src/main.ts", "export {};\n");
+      write(src, "apps/web/.claude/skills/web-only/SKILL.md", "---\nname: web-only\ndescription: Web work.\n---\n");
+      write(src, "apps/web/src/main.ts", "export {};\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      git(["sparse-checkout", "set", "--skip-checks", ".agents", "apps/desktop/src"], wt);
+      for (const dirs of ["apps/desktop/src", `"$WT/apps/desktop/src"`]) {
+        const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor(dirs)], {
+          cwd: root,
+          env: { ...process.env, WT: wt },
+          stderr: "pipe",
+          stdout: "pipe",
+          timeout: 10_000,
+        });
+        expect(proc.signalCode).toBeFalsy();
+        const out = proc.stdout.toString();
+        expect(out).toContain("root-skill/SKILL.md: Root work.\n");
+        expect(out).toContain("apps/desktop/.agents/skills/prove-flow/SKILL.md: Prove a desktop flow end to end.\n");
+        expect(out).not.toContain("web-only");
+      }
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
