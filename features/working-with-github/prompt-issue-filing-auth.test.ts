@@ -140,4 +140,41 @@ describe("the issue-template read falls back to the owner's .github repository",
     const out = await run({ "acme/.github": { "ISSUE_TEMPLATE.md": "owner legacy\n" }, "acme/widgets": { "README.md": "x\n" } });
     expect(out).toContain("===== acme/.github: ISSUE_TEMPLATE.md\nowner legacy");
   });
+
+  // expressjs/discussions keeps only a front-matter-less meeting.md in its
+  // .github/ISSUE_TEMPLATE/, and GitHub offers it the expressjs/.github
+  // templates (GraphQL issueTemplates lists those four). The read took any
+  // file in the folder as the repository's own, printed meeting.md and never
+  // read the templates GitHub really shows.
+  test("a folder holding no template does not replace the owner's defaults", async () => {
+    const out = await run({
+      "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Bug\nabout: x\n---\n" },
+      "acme/widgets": { ".github/ISSUE_TEMPLATE/meeting.md": "## Agenda\n" },
+    });
+    expect(out).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md\n---\nname: Bug");
+    expect(out).not.toContain("meeting.md");
+  });
+
+  test("a folder template with front matter or an issue form is still the repository's own", async () => {
+    const owner = { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Owner\nabout: x\n---\n" };
+    const md = await run({
+      "acme/.github": owner,
+      "acme/widgets": { ".github/ISSUE_TEMPLATE/notes.md": "## no front matter\n", ".github/ISSUE_TEMPLATE/Bug.MD": "---\r\nname: Own\r\n---\r\n" },
+    });
+    expect(md).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/Bug.MD");
+    expect(md).not.toContain("notes.md");
+    expect(md).not.toContain("name: Owner");
+    const form = await run({ "acme/.github": owner, "acme/widgets": { ".github/ISSUE_TEMPLATE/bug.yaml": "name: Form\n" } });
+    expect(form).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/bug.yaml\nname: Form");
+    expect(form).not.toContain("name: Owner");
+  });
+
+  test("a folder with no template still lets a legacy file of the repository's own win", async () => {
+    const out = await run({
+      "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Owner\n---\n" },
+      "acme/widgets": { ".github/ISSUE_TEMPLATE/meeting.md": "## Agenda\n", "docs/ISSUE_TEMPLATE.md": "legacy own\n" },
+    });
+    expect(out).toContain("===== acme/widgets: docs/ISSUE_TEMPLATE.md\nlegacy own");
+    expect(out).not.toContain("name: Owner");
+  });
 });
