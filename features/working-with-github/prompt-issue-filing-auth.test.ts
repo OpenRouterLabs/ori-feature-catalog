@@ -57,11 +57,22 @@ describe("the issue-template read falls back to the owner's .github repository",
     return match[1];
   };
 
-  const run = async (tree: Record<string, Record<string, string> | number>): Promise<string> => {
+  const run = async (
+    tree: Record<string, Record<string, string> | number>,
+    visibility: Record<string, string> = {},
+  ): Promise<string> => {
     const server = Bun.serve({
       port: 0,
       fetch: (req) => {
-        const m = /^\/repos\/([^/]+\/[^/]+)\/contents\/?(.*)$/u.exec(new URL(req.url).pathname);
+        const pathname = new URL(req.url).pathname;
+        const repo = /^\/repos\/([^/]+\/[^/]+)$/u.exec(pathname)?.[1];
+        if (repo !== undefined) {
+          const files = tree[repo];
+          if (typeof files === "number") return new Response("{}", { status: files });
+          if (files === undefined) return new Response("{}", { status: 404 });
+          return Response.json({ visibility: visibility[repo] ?? "public" });
+        }
+        const m = /^\/repos\/([^/]+\/[^/]+)\/contents\/?(.*)$/u.exec(pathname);
         const files = m === null ? undefined : tree[m[1] ?? ""];
         if (typeof files === "number") return new Response("{}", { status: files });
         if (files === undefined || m === null) return new Response("{}", { status: 404 });
@@ -176,5 +187,26 @@ describe("the issue-template read falls back to the owner's .github repository",
     });
     expect(out).toContain("===== acme/widgets: docs/ISSUE_TEMPLATE.md\nlegacy own");
     expect(out).not.toContain("name: Owner");
+  });
+
+  // GitHub offers an owner's .github defaults only while that repository is
+  // public. A credential that reaches a private or internal one (an App
+  // installation on the org, or the ambient proxy's per-owner credential)
+  // reads its files just the same, so the read printed templates GitHub
+  // shows on no issue form.
+  test("a private or internal owner .github repository offers no defaults", async () => {
+    const owner = { "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Secret\n---\n" }, "acme/widgets": { "README.md": "x\n" } };
+    for (const vis of ["private", "internal"]) {
+      const out = await run(owner, { "acme/.github": vis });
+      expect(out).not.toContain("name: Secret");
+      expect(out).toContain(`acme/.github is ${vis}, and GitHub uses only a public one: no issue templates`);
+    }
+    expect(await run(owner)).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md");
+  });
+
+  test("an owner .github repository that cannot be read says its defaults are unknown", async () => {
+    const out = await run({ "acme/.github": 403, "acme/widgets": { "README.md": "x\n" } });
+    expect(out).toContain("acme/.github: could not be read (HTTP 403), so the owner's defaults are unknown");
+    expect(out).not.toContain("no issue templates");
   });
 });

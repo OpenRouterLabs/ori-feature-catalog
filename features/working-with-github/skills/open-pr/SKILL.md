@@ -76,12 +76,18 @@ ls .github/workflows/ .circleci/ .gitlab-ci.yml .buildkite/ 2>/dev/null; grep -l
 # No PR template or CONTRIBUTING of its own: GitHub uses the one in the owner's public .github repository.
 O=/tmp/owner-dot-github-$$; [ -n "${REPO%%/*}" ] && for k in 'pull_request_template(\.[^/]+)?(/[^/]+)?' 'contributing(\.[^/]+)?'; do p='^((\.github|docs)/)?'"$k"'$'
   git ls-tree -r --name-only HEAD | grep -qiE "$p" && continue
-  [ -d "$O" ] || GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/${REPO%%/*}/.github.git" "$O" 2>/dev/null || break
+  if [ ! -d "$O" ]; then   # GitHub uses the owner's defaults only while that repository is public
+    code=$(curl -sS -o "$O.json" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/${REPO%%/*}/.github")
+    [ "$code" = 200 ] || { [ "$code" = 404 ] || echo "${REPO%%/*}/.github could not be read (HTTP $code): its default PR template and CONTRIBUTING are unknown"; break; }
+    vis=$(bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$O.json")
+    [ "$vis" = public ] || { echo "${REPO%%/*}/.github is $vis, and GitHub uses only a public one: no default PR template or CONTRIBUTING"; break; }
+    GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/${REPO%%/*}/.github.git" "$O" 2>/dev/null || break
+  fi
   git -C "$O" ls-tree -r --name-only HEAD | grep -iE "$p" | while IFS= read -r f; do printf '\n===== %s/.github: %s\n' "${REPO%%/*}" "$f"; git -C "$O" show "HEAD:$f"; echo; done
-done; rm -rf "$O"
+done; rm -rf "$O" "$O.json"
 ```
 
-A repository with no PR template of its own, or no CONTRIBUTING file, gets the one in its owner's `.github` repository: GitHub fills the PR form from that default template and links that default CONTRIBUTING, and neither ever appears in the repository's own tree, so the first command cannot list them. The last command reads them from that repository when it is public (GitHub uses no other), with no credential, and prints nothing when the owner has none or `$REPO` is unset.
+A repository with no PR template of its own, or no CONTRIBUTING file, gets the one in its owner's `.github` repository: GitHub fills the PR form from that default template and links that default CONTRIBUTING, and neither ever appears in the repository's own tree, so the first command cannot list them. The last command reads them from that repository only after the API says it is public: GitHub uses no private or internal one, though a clone through a credential that reaches it (an App installation on the org, or a proxy that signs git for that owner) reads its files just the same. It prints nothing when the owner has none or `$REPO` is unset, and says so when the visibility cannot be read or is not public.
 
 From them, write down before you start:
 

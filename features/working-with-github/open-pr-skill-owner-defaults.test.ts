@@ -33,9 +33,22 @@ const repo = (dir: string, files: Record<string, string>) => {
 
 // The owner's `.github` repository is served from a local bare path: git's
 // url.<base>.insteadOf rewrites the https://github.com/<owner>/.github.git
-// URL the block clones, so the test never touches the network.
-const run = (own: Record<string, string>, owner: Record<string, string> | undefined) => {
+// URL the block clones, and a local server answers the visibility read, so
+// the test never touches the network.
+const run = async (
+  own: Record<string, string>,
+  owner: Record<string, string> | undefined,
+  visibility: string | number = "public",
+) => {
   const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-owner-"));
+  const server = Bun.serve({
+    port: 0,
+    fetch: (req) => {
+      if (new URL(req.url).pathname !== "/repos/acme/.github" || owner === undefined) return new Response("{}", { status: 404 });
+      if (typeof visibility === "number") return new Response("{}", { status: visibility });
+      return Response.json({ visibility });
+    },
+  });
   try {
     const wt = join(root, "wt");
     repo(wt, { "src/a.ts": "export {};\n", ...own });
@@ -46,22 +59,24 @@ const run = (own: Record<string, string>, owner: Record<string, string> | undefi
     } else {
       writeFileSync(gitConfig, `[url "file://${join(root, "missing")}"]\n\tinsteadOf = https://github.com/acme/.github.git\n`);
     }
-    const proc = Bun.spawnSync(["bash", "-c", fallback], {
+    const proc = Bun.spawn(["bash", "-c", fallback.replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)], {
       cwd: wt,
-      env: { ...process.env, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", REPO: "acme/widgets", WT: wt },
+      env: { ...process.env, GH_TOKEN: "", GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", REPO: "acme/widgets", WT: wt },
       stderr: "pipe",
       stdout: "pipe",
       timeout: 20_000,
     });
-    return { code: proc.exitCode, out: proc.stdout.toString() };
+    const out = await new Response(proc.stdout).text();
+    return { code: await proc.exited, out };
   } finally {
+    await server.stop(true);
     rmSync(root, { force: true, recursive: true });
   }
 };
 
 describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING", () => {
-  test("a repo with neither prints both from the owner's .github repository", () => {
-    const { out } = run({}, {
+  test("a repo with neither prints both from the owner's .github repository", async () => {
+    const { out } = await run({}, {
       ".github/PULL_REQUEST_TEMPLATE.md": "## Certificate of Origin",
       "CONTRIBUTING.md": "sign off every commit",
       "profile/README.md": "not a rules file\n",
@@ -71,8 +86,8 @@ describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING"
     expect(out).not.toContain("not a rules file");
   });
 
-  test("a repo's own template wins and the default one is never printed", () => {
-    const { out } = run({ "docs/pull_request_template.md": "## Own\n" }, {
+  test("a repo's own template wins and the default one is never printed", async () => {
+    const { out } = await run({ "docs/pull_request_template.md": "## Own\n" }, {
       ".github/pull_request_template.md": "## Default\n",
       "CONTRIBUTING.md": "default contributing\n",
     });
@@ -80,15 +95,15 @@ describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING"
     expect(out).toContain("===== acme/.github: CONTRIBUTING.md\ndefault contributing");
   });
 
-  test("a repo with both of its own never clones the owner's repository", () => {
-    const { out } = run({ ".github/pull_request_template.md": "## Own\n", "CONTRIBUTING.md": "own\n" }, {
+  test("a repo with both of its own never clones the owner's repository", async () => {
+    const { out } = await run({ ".github/pull_request_template.md": "## Own\n", "CONTRIBUTING.md": "own\n" }, {
       ".github/pull_request_template.md": "## Default\n",
     });
     expect(out).toBe("");
   });
 
-  test("a template directory in the owner's repository is printed file by file", () => {
-    const { out } = run({}, {
+  test("a template directory in the owner's repository is printed file by file", async () => {
+    const { out } = await run({}, {
       ".github/PULL_REQUEST_TEMPLATE/bug.md": "## Bug\n",
       ".github/PULL_REQUEST_TEMPLATE/feature.md": "## Feature\n",
     });
@@ -96,9 +111,30 @@ describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING"
     expect(out).toContain("===== acme/.github: .github/PULL_REQUEST_TEMPLATE/feature.md\n## Feature");
   });
 
-  test("an owner with no .github repository prints nothing and the block still succeeds", () => {
-    const { code, out } = run({}, undefined);
+  test("an owner with no .github repository prints nothing and the block still succeeds", async () => {
+    const { code, out } = await run({}, undefined);
     expect(out).toBe("");
     expect(code).toBe(0);
+  });
+
+  // GitHub fills the PR form from an owner's .github defaults only while that
+  // repository is public. The block cloned it with no visibility check, and a
+  // clone through a credential that reaches a private or internal one (an App
+  // installation, or a proxy that signs git for the owner) printed a template
+  // GitHub shows on no PR form.
+  test("a private or internal owner repository offers no defaults", async () => {
+    const owner = { ".github/pull_request_template.md": "## Secret\n" };
+    for (const vis of ["private", "internal"]) {
+      const { code, out } = await run({}, owner, vis);
+      expect(out).not.toContain("## Secret");
+      expect(out).toContain(`acme/.github is ${vis}, and GitHub uses only a public one`);
+      expect(code).toBe(0);
+    }
+  });
+
+  test("a visibility read that fails says the defaults are unknown", async () => {
+    const { out } = await run({}, { "CONTRIBUTING.md": "default\n" }, 403);
+    expect(out).toContain("acme/.github could not be read (HTTP 403): its default PR template and CONTRIBUTING are unknown");
+    expect(out).not.toContain("default\n");
   });
 });

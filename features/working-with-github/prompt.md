@@ -226,10 +226,17 @@ Before filing a new issue, do a duplicate check:
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
 
-Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's public `.github` repository (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github), and a template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. So read the repository's own, and the owner's only when the repository has none:
+Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's `.github` repository while that repository is public (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github); GitHub never uses a private or internal one, though a credential that reaches it reads its files just the same, so the read checks its visibility first. A template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. So read the repository's own, and the owner's only when the repository has none:
 
 ```bash
-T=$(mktemp); found=; for r in "{owner}/{repo}" "{owner}/.github"; do
+T=$(mktemp); found=; owner=; for r in "{owner}/{repo}" "{owner}/.github"; do
+  if [ -n "$owner" ]; then   # the owner's defaults count only while that repository is public
+    code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r")
+    [ "$code" = 404 ] && break
+    [ "$code" = 200 ] || { echo "$r: could not be read (HTTP $code), so the owner's defaults are unknown"; found=1; break; }
+    vis=$(bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$T")
+    [ "$vis" = public ] || { echo "$r is $vis, and GitHub uses only a public one: no issue templates"; found=1; break; }
+  fi; owner=1
   for d in .github/ISSUE_TEMPLATE .github "" docs; do
     code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r/contents/$d")
     [ "$code" = 404 ] && continue
