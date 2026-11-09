@@ -57,11 +57,12 @@ git grep -n '<symbol>' -- <dir>                                    # search only
 
 Read each file that exists in full, never from memory or a summary. Long `AGENTS.md` files get cut off when they are loaded automatically, and the part that gets cut is usually the PR checklist.
 
-The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers, and with any extension or none: a `pull_request_template.txt` fills the PR body just like the `.md`, and a `CONTRIBUTING.rst` is linked like a `CONTRIBUTING.md`. Lefthook reads its main config as `lefthook`, `.lefthook` or `.config/lefthook`, with a `.yml`, `.yaml`, `.json`, `.jsonc` or `.toml` extension, and merges a `lefthook-local` config of the same forms on top (`lefthook-local.yml`, `.lefthook-local.json`, `.config/lefthook-local.toml`), so the list takes all thirty. Husky before v5 keeps its hooks in `.huskyrc` (bare, `.json`, `.yaml`, `.yml`, `.js` or `.cjs`), `husky.config.js` or `.cjs`, or the `husky` key of `package.json`, never in `.husky/`, so read that key too when `package.json` has one. Overcommit merges `.local-overcommit.yml` over `.overcommit.yml`.
+The first command lists the rules files from the clone's index and prints them with `git show`, never from the disk. The sparse checkout leaves `docs/` out, where GitHub also reads a PR template and a CONTRIBUTING file, so a `[ -f ]` test on the disk skips both without a word. GitHub also matches these names in any case (`PULL_REQUEST_TEMPLATE.md` or `pull_request_template.md`, at the root, in `docs/` or in `.github/`), which `grep -i` covers, and with any extension or none: a `pull_request_template.txt` fills the PR body just like the `.md`, and a `CONTRIBUTING.rst` is linked like a `CONTRIBUTING.md`. Lefthook reads its main config as `lefthook`, `.lefthook` or `.config/lefthook`, with a `.yml`, `.yaml`, `.json`, `.jsonc` or `.toml` extension, and merges a `lefthook-local` config of the same forms on top (`lefthook-local.yml`, `.lefthook-local.json`, `.config/lefthook-local.toml`), so the list takes all thirty. Husky before v5 keeps its hooks in `.huskyrc` (bare, `.json`, `.yaml`, `.yml`, `.js` or `.cjs`), `husky.config.js` or `.cjs`, or the `husky` key of `package.json`, never in `.husky/`. Most husky and simple-git-hooks `pre-commit` hooks only call `lint-staged`, and the commands it runs (a formatter's `--write`, `eslint --fix`) live in its config: `.lintstagedrc` (bare, `.json`, `.yaml`, `.yml`, or a `.js`, `.ts`, `.mjs`, `.mts`, `.cjs` or `.cts` script), `lint-staged.config.*` in those script forms, or the `lint-staged` key of `package.json`. It can sit in any directory, since lint-staged uses the config closest to each staged file. simple-git-hooks reads `.simple-git-hooks.*` or `simple-git-hooks.*` (`.js`, `.cjs`, `.mjs` or `.json`) or its own `package.json` key, and commitlint reads a `commitlint` key there too. The block prints each of those `package.json` keys that is set, from outside the clone like any helper script (step 1). Overcommit merges `.local-overcommit.yml` over `.overcommit.yml`.
 
 ```bash
-cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|(\.config/|\.)?lefthook(-local)?\.(ya?ml|jsonc?|toml)|\.pre-commit-config\.yaml|\.(local-)?overcommit\.yml|\.huskyrc(\.(json|ya?ml|c?js))?|husky\.config\.c?js|commitlint\.config\.[^/]+|\.commitlintrc[^/]*)$|^((\.github|docs)/)?(contributing(\.[^/]+)?|pull_request_template(\.[^/]+)?|pull_request_template/[^/]+)$' |
+cd "$WT"; git ls-tree -r --name-only HEAD | grep -iE '^(AGENTS\.md|CLAUDE\.md|(\.config/|\.)?lefthook(-local)?\.(ya?ml|jsonc?|toml)|\.pre-commit-config\.yaml|\.(local-)?overcommit\.yml|\.huskyrc(\.(json|ya?ml|c?js))?|husky\.config\.c?js|commitlint\.config\.[^/]+|\.commitlintrc[^/]*|\.?simple-git-hooks\.([cm]?js|json))$|(^|/)(\.lintstagedrc(\.(json|ya?ml|[cm]?[jt]s))?|lint-staged\.config\.[cm]?[jt]s)$|^((\.github|docs)/)?(contributing(\.[^/]+)?|pull_request_template(\.[^/]+)?|pull_request_template/[^/]+)$' |
   while IFS= read -r f; do printf '\n===== %s\n' "$f"; git show "HEAD:$f"; done   # from the index: docs/ is not checked out
+git show HEAD:package.json 2>/dev/null | (cd /tmp && bun -e 'const p = await Bun.stdin.json().catch(() => ({})); for (const k of ["husky", "simple-git-hooks", "lint-staged", "commitlint"]) if (p?.[k] !== undefined) console.log(`\n===== package.json "${k}"\n${JSON.stringify(p[k], null, 2)}`)')   # hook configs kept in package.json
 ls .husky .lefthook .githooks Makefile justfile Taskfile.yml package.json pyproject.toml Cargo.toml go.mod 2>/dev/null
 for f in .husky/* .lefthook/*/* .lefthook/*.sh .config/lefthook/*/* .config/lefthook-local/*/* .githooks/*; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done   # the commands the hook config runs often live here
 # Rules for the directories you touch: an AGENTS.md in any of their parents. A path under "$WT" is read
@@ -166,13 +167,19 @@ In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-git
 ```bash
 SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
   "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).head.sha)')
-curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
-  "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest" \
-  | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)'
+# Every page: a head can carry hundreds of check runs, and a failure past the first 100 never shows on page one.
+for page in $(seq 1 50); do
+  runs=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+    "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest&page=$page" \
+    | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)') \
+    || { echo "check-runs page $page could not be read: the list above is incomplete"; break; }
+  [ -n "$runs" ] && printf '%s\n' "$runs"
+  [ "$(printf '%s\n' "$runs" | grep -c .)" -lt 100 ] && break
+done
 # Commit statuses are a separate list (external CI posts there). GitHub answers
 # "pending" when nothing posted one at all, so that case prints as none posted:
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
-  "https://api.github.com/repos/$REPO/commits/$SHA/status" \
+  "https://api.github.com/repos/$REPO/commits/$SHA/status?per_page=100" \
   | bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
 # Log of a failed GitHub Actions job (the check-run id is the job id):
 curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
@@ -180,6 +187,8 @@ curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
 ```
 
 For a check outside GitHub Actions, open its `details_url` or `target_url` for the log.
+
+The check runs come at most 100 to a page, and a large repository's head can carry hundreds of them, so the loop reads every page until one comes back short. Reading only the first page shows a head whose failures sit on a later page as having none. A page that cannot be read says so, so a cut-off list never passes for a complete one.
 
 For each failure, find the cause in the log, fix it, run that check locally, and commit to the **same branch**. Keep fixing on each read until every required check passes. Fix only what the log shows: an unrelated "while I'm here" change makes the PR harder to review. If a failure is not yours (main is red on the same check, or the job is known to be flaky), confirm it on main's latest commit and say so in the PR, instead of retrying blind.
 
