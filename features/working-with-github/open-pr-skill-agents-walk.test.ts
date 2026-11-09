@@ -46,6 +46,28 @@ describe("open-pr step 2 reads the AGENTS.md of every touched directory's parent
     }
   });
 
+  test("a CLAUDE.md in a touched directory or its parents is read like an AGENTS.md", () => {
+    // formkit/formkit keeps each package's rules in packages/<pkg>/CLAUDE.md with
+    // no AGENTS.md beside it, so a walk that looked only for AGENTS.md read none.
+    const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-walk-"));
+    try {
+      mkdirSync(join(wt, "packages/core/src"), { recursive: true });
+      writeFileSync(join(wt, "packages/core/CLAUDE.md"), "core rules\n");
+      writeFileSync(join(wt, "packages/AGENTS.md"), "packages rules\n");
+      writeFileSync(join(wt, "packages/CLAUDE.md"), "packages claude rules\n");
+      for (const dirs of ["packages/core/src", `"$WT/packages/core/src"`]) {
+        const proc = run(wt, dirs);
+        expect(proc.signalCode).toBeFalsy();
+        const out = proc.stdout.toString();
+        expect(out).toContain("===== packages/core/CLAUDE.md\ncore rules");
+        expect(out).toContain("===== packages/AGENTS.md\npackages rules");
+        expect(out).toContain("===== packages/CLAUDE.md\npackages claude rules");
+      }
+    } finally {
+      rmSync(wt, { force: true, recursive: true });
+    }
+  });
+
   test("an absolute path outside $WT still ends", () => {
     const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-walk-"));
     try {
