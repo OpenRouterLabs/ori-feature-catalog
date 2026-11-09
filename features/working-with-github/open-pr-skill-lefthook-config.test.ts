@@ -32,13 +32,13 @@ const git = (args: string[], cwd: string) => {
   if (proc.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${proc.stderr.toString()}`);
 };
 
-const stepTwoOutput = (config: string): string => {
+const stepTwoOutput = (config: string, content = `pre-commit from ${config}\n`): string => {
   const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-lefthook-"));
   try {
     const src = join(root, "src");
     mkdirSync(join(src, "src"), { recursive: true });
     mkdirSync(join(src, config, ".."), { recursive: true });
-    writeFileSync(join(src, config), `pre-commit from ${config}\n`);
+    writeFileSync(join(src, config), content);
     writeFileSync(join(src, "src/a.ts"), "export {};\n");
     git(["init", "-q", "-b", "main"], src);
     git(["add", "-A"], src);
@@ -124,5 +124,77 @@ describe("open-pr step 2 reads husky v4 and overcommit-local hook configs", () =
   test("a lookalike husky does not load stays out", () => {
     expect(stepTwoOutput(".huskyrc.bak")).not.toContain("===== .huskyrc.bak");
     expect(stepTwoOutput("husky.config.ts")).not.toContain("===== husky.config.ts");
+  });
+});
+
+// Regression: most husky and simple-git-hooks `pre-commit` hooks only call
+// `lint-staged`, and the commands it runs live in its own config, which
+// step 2 never listed (lint-staged's lib/configFiles.js: `.lintstagedrc*`,
+// `lint-staged.config.*`, in any directory, or the `lint-staged` key of
+// package.json). simple-git-hooks (`.simple-git-hooks.*`, `simple-git-hooks.*`
+// or its package.json key) was not listed at all, and the package.json keys
+// of husky v4 and commitlint were left to the reader. On vercel/next.js step 2
+// printed the PR template and AGENTS.md but not lint-staged.config.js, where
+// its `pnpm lint-staged` hook keeps prettier --write and eslint --fix.
+describe("open-pr step 2 reads lint-staged and simple-git-hooks configs", () => {
+  for (const config of [
+    ".lintstagedrc",
+    ".lintstagedrc.json",
+    ".lintstagedrc.yaml",
+    ".lintstagedrc.yml",
+    ".lintstagedrc.mjs",
+    ".lintstagedrc.mts",
+    ".lintstagedrc.js",
+    ".lintstagedrc.ts",
+    ".lintstagedrc.cjs",
+    ".lintstagedrc.cts",
+    "lint-staged.config.mjs",
+    "lint-staged.config.mts",
+    "lint-staged.config.js",
+    "lint-staged.config.ts",
+    "lint-staged.config.cjs",
+    "lint-staged.config.cts",
+    "packages/app/.lintstagedrc.json",
+    ".simple-git-hooks.cjs",
+    ".simple-git-hooks.js",
+    ".simple-git-hooks.mjs",
+    ".simple-git-hooks.json",
+    "simple-git-hooks.cjs",
+    "simple-git-hooks.js",
+    "simple-git-hooks.mjs",
+    "simple-git-hooks.json",
+  ]) {
+    test(`${config} is printed in full`, () => {
+      expect(stepTwoOutput(config)).toContain(`===== ${config}\npre-commit from ${config}`);
+    });
+  }
+
+  test("a lookalike neither tool loads stays out", () => {
+    expect(stepTwoOutput(".lintstagedrc.bak")).not.toContain("===== .lintstagedrc.bak");
+    expect(stepTwoOutput("simple-git-hooks.ts")).not.toContain("===== simple-git-hooks.ts");
+  });
+
+  test("the hook keys of package.json are printed, and nothing else of it", () => {
+    const pkg = JSON.stringify({
+      commitlint: { extends: ["@commitlint/config-conventional"] },
+      husky: { hooks: { "pre-push": "npm test" } },
+      "lint-staged": { "*.ts": "eslint --fix" },
+      name: "fixture",
+      scripts: { build: "tsc" },
+      "simple-git-hooks": { "pre-commit": "npx lint-staged" },
+    });
+    const out = stepTwoOutput("package.json", pkg);
+    for (const key of ["husky", "simple-git-hooks", "lint-staged", "commitlint"]) {
+      expect(out).toContain(`===== package.json "${key}"`);
+    }
+    expect(out).toContain('"*.ts": "eslint --fix"');
+    expect(out).toContain('"pre-commit": "npx lint-staged"');
+    expect(out).not.toContain("fixture");
+    expect(out).not.toContain('"build"');
+  });
+
+  test("a package.json with no hook keys, or none at all, prints nothing of it", () => {
+    expect(stepTwoOutput("package.json", '{"name":"fixture"}')).not.toContain("===== package.json");
+    expect(stepTwoOutput("src/b.ts")).not.toContain("===== package.json");
   });
 });
