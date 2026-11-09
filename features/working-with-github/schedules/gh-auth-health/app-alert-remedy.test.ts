@@ -97,4 +97,17 @@ describe("the App-mode alert names the remedy that fits the round-trip failure",
     expect(alert).toContain("token mint");
     expect(alert).toContain(AUTH_REMEDY);
   });
+
+  // Regression: a failed round-trip fetch's detail was the bare error text
+  // ("fetch failed"), naming no route, while the timeout and body-stall
+  // details name `GET /repos/{repo}`. The ambient probe names its route since
+  // #423; the App-mode alert and log line now do too.
+  test("a failed fetch names the route it asked", async () => {
+    const failure = await roundTripFailure(() => Promise.reject(new TypeError("fetch failed")));
+    expect(failure.detail).toBe("GET /repos/acme/widgets failed: fetch failed");
+    expect(failure.kind).toBe("unreachable");
+    expect(renderHealthAlert("acme/widgets", failure)).toContain(
+      "Detail: GET /repos/acme/widgets failed: fetch failed"
+    );
+  });
 });
