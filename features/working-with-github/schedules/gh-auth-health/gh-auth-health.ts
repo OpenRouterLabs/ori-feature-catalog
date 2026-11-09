@@ -362,7 +362,9 @@ const verifyRepoAccess = (input: {
       catch: (error) =>
         new HealthCheckError({
           stage: "round-trip",
-          detail: error instanceof Error ? error.message : String(error),
+          // Name the route like the timeout details do: a bare "fetch failed"
+          // told the alert reader nothing about what was asked.
+          detail: `GET /repos/${input.repo} failed: ${error instanceof Error ? error.message : String(error)}`,
           kind: "unreachable",
         }),
     }).pipe(
