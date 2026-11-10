@@ -163,7 +163,7 @@ const gitlinkSha = (
   if (head.ok && head.stdout.trim() !== "") {
     return head.stdout.trim();
   }
-  const staged = runGit(["ls-files", "--stage", "--", path], worktree);
+  const staged = runGit(["ls-files", "--stage", "--", `:(literal)${path}`], worktree);
   if (staged.ok && staged.stdout.startsWith(`${GITLINK_MODE} `)) {
     const sha = staged.stdout.split(/\s+/u)[1] ?? "";
     if (sha !== "") {
@@ -258,9 +258,11 @@ const isExecutable = (
   runGit: RunGit
 ): boolean => {
   if (!tracksFileMode(worktree, runGit)) {
-    const result = runGit(["ls-files", "--stage", "--", path], worktree);
+    const result = runGit(["ls-files", "--stage", "--", `:(literal)${path}`], worktree);
     const hasIndexRow = result.ok && result.stdout !== "";
     // Format: `<mode> <sha> <stage>\t<path>` — git preserves this as-is.
+    // `:(literal)`: a path holding `?`, `*` or `[…]` is otherwise a glob that
+    // also matches a sibling, and that sibling's row (sorted first) won.
     return hasIndexRow && result.stdout.startsWith(EXEC_MODE);
   }
   return diskExecutable(worktree, path);

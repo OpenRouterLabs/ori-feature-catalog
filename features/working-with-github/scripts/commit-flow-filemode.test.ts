@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -108,4 +108,74 @@ describe("commitViaApi — exec-bit staging in a core.fileMode=false repo", () =
       await rm(dir, { force: true, recursive: true });
     }
   });
+});
+
+// A path holding `?`, `*` or `[…]` is a glob pathspec to `git ls-files`.
+// Pre-fix the core.fileMode=false read matched a tracked 100755 sibling too
+// (`x?.sh` → `x1.sh`, `docs/[B]eta.md` → `docs/Beta.md`), whose row sorts
+// first, so a new file `git add` stages as 100644 was committed 100755.
+describe("commitViaApi — a glob-shaped path in a core.fileMode=false repo", () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
+  const fakeApi = (trees: Array<{ tree: Array<{ path: string; mode: string }> }>) =>
+    (url: string, init?: RequestInit): Promise<Response> => {
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
+      if (url.includes("/git/ref/heads/")) {
+        return Promise.resolve(Response.json({ object: { sha: "h" } }));
+      }
+      if (url.includes("/git/commits/h")) {
+        return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+      }
+      if (url.endsWith("/git/blobs")) {
+        return Promise.resolve(Response.json({ sha: "b" }));
+      }
+      if (url.endsWith("/git/trees")) {
+        trees.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(Response.json({ sha: "nt" }));
+      }
+      if (url.endsWith("/git/commits")) {
+        return Promise.resolve(Response.json({ sha: "nc" }));
+      }
+      return Promise.resolve(Response.json({ object: { sha: "nc" } }));
+    };
+
+  for (const [name, sibling] of [
+    ["x?.sh", "x1.sh"],
+    ["docs/[B]eta.md", "docs/Beta.md"],
+  ] as const) {
+    test(`a new ${name} beside a tracked 100755 ${sibling} commits the mode \`git add\` stages`, async () => {
+      const dir = await mkdtemp(join(tmpdir(), "wwg-filemode-glob-"));
+      try {
+        git(dir, "init", "-q", ".");
+        git(dir, "config", "user.email", "t@t");
+        git(dir, "config", "user.name", "t");
+        git(dir, "config", "core.fileMode", "false");
+        await mkdir(join(dir, "docs"), { recursive: true });
+        await writeFile(join(dir, sibling), "sibling\n");
+        git(dir, "add", "--", sibling);
+        git(dir, "update-index", "--chmod=+x", "--", sibling);
+        git(dir, "commit", "-qm", "base");
+        await writeFile(join(dir, name), "new\n");
+        // The oracle: what `git add` stages for the new file, then unstaged.
+        git(dir, "add", "--", `:(literal)${name}`);
+        const gitAddMode = git(dir, "ls-files", "--stage", "--", `:(literal)${name}`).split(" ")[0];
+        git(dir, "rm", "-q", "--cached", "--", `:(literal)${name}`);
+        expect(gitAddMode).toBe("100644");
+
+        const trees: Array<{ tree: Array<{ path: string; mode: string }> }> = [];
+        await Effect.runPromise(
+          commitViaApi(
+            { branch: "b", message: "m", repo: "owner/repo", worktree: dir },
+            { fetchImpl: fakeApi(trees), token: "t", warn: () => {} }
+          )
+        );
+        const entry = trees[0]?.tree.find((e) => e.path === name);
+        expect(entry?.mode).toBe(gitAddMode);
+      } finally {
+        await rm(dir, { force: true, recursive: true });
+      }
+    });
+  }
 });
