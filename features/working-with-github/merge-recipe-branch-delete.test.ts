@@ -55,13 +55,13 @@ describe("the branch delete treats a branch the merge already deleted as done", 
   const end = mergeFence?.indexOf("\n\n", start) ?? -1;
   const snippet = start === -1 || end === -1 ? "" : (mergeFence ?? "").slice(start, end);
 
-  const run = (deleteExit: number, refExists: boolean) => {
+  const run = (deleteExit: number, refExists: boolean | "rate-limited") => {
     const dir = mkdtempSync(join(tmpdir(), "wwg-branch-delete-"));
     try {
       const stub = join(dir, "gh");
       writeFileSync(
         stub,
-        `#!/bin/sh\ncase "$*" in\n  *"--method DELETE"*) [ ${deleteExit} = 0 ] || echo 'Reference does not exist (HTTP 422)' >&2; exit ${deleteExit} ;;\n  *git/ref/heads/*) ${refExists ? "exit 0" : "echo 'Not Found (HTTP 404)' >&2; exit 1"} ;;\nesac\nexit 2\n`,
+        `#!/bin/sh\ncase "$*" in\n  *"--method DELETE"*) [ ${deleteExit} = 0 ] || echo 'Reference does not exist (HTTP 422)' >&2; exit ${deleteExit} ;;\n  *git/ref/heads/*) ${refExists === "rate-limited" ? "echo 'API rate limit exceeded (HTTP 403)' >&2; exit 1" : refExists ? "exit 0" : "echo 'Not Found (HTTP 404)' >&2; exit 1"} ;;\nesac\nexit 2\n`,
       );
       chmodSync(stub, 0o755);
       const proc = Bun.spawnSync(["bash", "-c", snippet.replaceAll("BRANCH_NAME", "fix-x")], {
@@ -91,6 +91,16 @@ describe("the branch delete treats a branch the merge already deleted as done", 
 
   test("a failed delete of a branch that is still there is named as a failure", () => {
     expect(run(1, true).out).toContain("fix-x is still there: the delete failed");
+  });
+
+  // Pre-fix ANY failed ref read printed "already deleted on merge: done": a
+  // rate-limited DELETE and read (HTTP 403) claimed a branch gone that was
+  // still there. Only a 404 proves it is gone.
+  test("a ref read that fails for another reason never reads as deleted", () => {
+    const result = run(1, "rate-limited");
+    expect(result.out).not.toContain("already deleted on merge: done");
+    expect(result.out).toContain("fix-x could not be read");
+    expect(result.out).toContain("HTTP 403");
   });
 
   test("the prompt no longer claims a squash-merge never deletes the branch", () => {
