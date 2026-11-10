@@ -204,6 +204,25 @@ describe("the issue-template read falls back to the owner's .github repository",
     expect(await run(owner)).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md");
   });
 
+  // SwanHubX/SwanLab-Dashboard names all four of its templates with a space
+  // (`bug report.md`), and GitHub offers all four. curl refuses a URL with a
+  // raw space (exit 3, "Malformed input to a URL function"), so the read
+  // dropped every one and printed "no issue templates"; a raw # cut the path
+  // at a fragment and printed the 404 body as the template.
+  test("a template whose file name holds a space or a # is read", async () => {
+    const out = await run({
+      "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Owner\n---\n" },
+      "acme/widgets": {
+        ".github/ISSUE_TEMPLATE/bug report.md": "---\nname: Spaced\n---\n",
+        ".github/ISSUE_TEMPLATE/C# issue.yml": "name: Sharp\n",
+      },
+    });
+    expect(out).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/bug report.md\n---\nname: Spaced");
+    expect(out).toContain("===== acme/widgets: .github/ISSUE_TEMPLATE/C# issue.yml\nname: Sharp");
+    expect(out).not.toContain("name: Owner");
+    expect(out).not.toContain("no issue templates");
+  });
+
   test("an owner .github repository that cannot be read says its defaults are unknown", async () => {
     const out = await run({ "acme/.github": 403, "acme/widgets": { "README.md": "x\n" } });
     expect(out).toContain("acme/.github: could not be read (HTTP 403), so the owner's defaults are unknown");
