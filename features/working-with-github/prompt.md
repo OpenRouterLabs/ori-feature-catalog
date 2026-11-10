@@ -448,12 +448,16 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
   --method PUT --field merge_method='squash' --raw-field sha="$HEAD_SHA"
 
 # Delete the merged branch. A repository that deletes head branches on merge
-# has already removed it, and the DELETE then fails with 422: read the ref,
-# and only a branch that is still there is a failed delete:
-GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" --method DELETE ||
-  { GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/BRANCH_NAME" --silent 2>/dev/null &&
-    echo "BRANCH_NAME is still there: the delete failed, so say why"; } ||
-  echo "BRANCH_NAME was already deleted on merge: done"
+# has already removed it, and the DELETE then fails with 422: read the ref.
+# Only a 404 there means it is gone; any other failure (a rate limit, a
+# dropped connection) leaves its state unknown, never "done":
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" --method DELETE || {
+  REF=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/BRANCH_NAME" --silent 2>&1) &&
+    echo "BRANCH_NAME is still there: the delete failed, so say why" ||
+  case "$REF" in
+    *"HTTP 404"*) echo "BRANCH_NAME was already deleted on merge: done" ;;
+    *) echo "BRANCH_NAME could not be read ($REF): whether it was deleted is unknown, so read it again before calling it done" ;;
+  esac; }
 
 # Post the brief summary comment (a temp file again: a summary is prose and
 # may carry apostrophes; --raw-field, like the PR body, so gh never reads a
