@@ -45,7 +45,7 @@ TOKEN=$(bun "${WWG:?run the WWG resolver from the working-with-github prompt in 
   gh pr view 123 --repo acme-corp/widgets
 ```
 
-Resolution falls back `(org, purpose)` → `(org, "default")` → the default App (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org; a default-App mint against the target org's installation, allowlist-gated, for any other org). This is a **routing** fallback (which App's credentials are used), not a guarantee the mint succeeds: if the chosen App isn't installed on the target org, installation discovery still fails with a 404 — that's the signal to register an App that _is_ installed there. A registered App carries no pinned installation id; the mint path discovers the installation for the org automatically.
+Resolution falls back `(org, purpose)` → `(org, "default")` → the default App (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org; a default-App mint against the target org's installation, allowlist-gated, for any other org). This is a **routing** fallback (which App's credentials are used), not a guarantee the mint succeeds: if the chosen App isn't installed on the target org, installation discovery fails with `No GitHub App installation found for org "<org>"`, listing the accounts it is installed on — that's the signal to register an App that _is_ installed there. A 404 `Integration not found` means the App id names no GitHub App, and a 401 `A JSON web token could not be decoded` usually means the private key is not that App's: both are a wrong env var value, which registering another App does not fix. A registered App carries no pinned installation id; the mint path discovers the installation for the org automatically.
 
 ## Rules
 
