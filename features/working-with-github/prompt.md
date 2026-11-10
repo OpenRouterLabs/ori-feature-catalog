@@ -226,9 +226,10 @@ Before filing a new issue, do a duplicate check:
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
 
-Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's `.github` repository while that repository is public (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github); GitHub never uses a private or internal one, though a credential that reaches it reads its files just the same, so the read checks its visibility first. A template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. So read the repository's own, and the owner's only when the repository has none:
+Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's `.github` repository while that repository is public (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github); GitHub never uses a private or internal one, though a credential that reaches it reads its files just the same, so the read checks its visibility first. A template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. Template file names often carry spaces (`bug report.md`: SwanHubX/SwanLab-Dashboard names all four of its templates that way), and curl refuses a URL with a raw space (`URL rejected: Malformed input`), so the read percent-encodes each path before it fetches the file. So read the repository's own, and the owner's only when the repository has none:
 
 ```bash
+enc() { bun -e 'console.log(process.argv[1].split("/").map(encodeURIComponent).join("/"))' "$1"; }   # a file name with a space or # in it
 T=$(mktemp); found=; owner=; for r in "{owner}/{repo}" "{owner}/.github"; do
   if [ -n "$owner" ]; then   # the owner's defaults count only while that repository is public
     code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r")
@@ -244,12 +245,12 @@ T=$(mktemp); found=; owner=; for r in "{owner}/{repo}" "{owner}/.github"; do
     files=$(D="$d" bun -e 'for (const f of await Bun.stdin.json()) if (f.type === "file" && (process.env.D === ".github/ISSUE_TEMPLATE" || /^issue_template(\.[^/]+)?$/i.test(f.name))) console.log(f.path)' < "$T")
     [ "$d" = .github/ISSUE_TEMPLATE ] && files=$(printf '%s\n' "$files" | while IFS= read -r f; do case "$f" in
       *.[yY][mM][lL] | *.[yY][aA][mM][lL]) echo "$f" ;;
-      *.[mM][dD]) curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$f" | sed -n 1p | grep -qE '^---[[:space:]]*$' && echo "$f" ;;
+      *.[mM][dD]) curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")" | sed -n 1p | grep -qE '^---[[:space:]]*$' && echo "$f" ;;
     esac; done)
     [ -n "$files" ] || continue
     found=1; printf '%s\n' "$files" | while IFS= read -r f; do
       printf '\n===== %s: %s\n' "$r" "$f"
-      curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$f"
+      curl -sS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")"
     done; break 2
   done
 done; rm -f "$T"; [ -n "$found" ] || echo "no issue templates: neither the repository nor its owner's .github has any"
