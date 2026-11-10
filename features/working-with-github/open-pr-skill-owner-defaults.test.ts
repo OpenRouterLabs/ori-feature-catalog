@@ -39,6 +39,7 @@ const run = async (
   own: Record<string, string>,
   owner: Record<string, string> | undefined,
   visibility: string | number = "public",
+  cloneFails = false,
 ) => {
   const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-owner-"));
   const server = Bun.serve({
@@ -53,7 +54,7 @@ const run = async (
     const wt = join(root, "wt");
     repo(wt, { "src/a.ts": "export {};\n", ...own });
     const gitConfig = join(root, "gitconfig");
-    if (owner !== undefined) {
+    if (owner !== undefined && !cloneFails) {
       repo(join(root, "owner"), owner);
       writeFileSync(gitConfig, `[url "file://${join(root, "owner")}"]\n\tinsteadOf = https://github.com/acme/.github.git\n`);
     } else {
@@ -136,5 +137,15 @@ describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING"
     const { out } = await run({}, { "CONTRIBUTING.md": "default\n" }, 403);
     expect(out).toContain("acme/.github could not be read (HTTP 403): its default PR template and CONTRIBUTING are unknown");
     expect(out).not.toContain("default\n");
+  });
+
+  // The API said public, then the clone failed (an HTTP 429 or a dropped
+  // connection, common on a git clone from this host). Pre-fix the block broke
+  // out silently, printing nothing, the same output as an owner with no
+  // defaults, so step 6 fell back to its own headings over the owner's form.
+  test("a clone that fails after the visibility read says the defaults are unknown", async () => {
+    const { code, out } = await run({}, { ".github/pull_request_template.md": "## Default\n" }, "public", true);
+    expect(out).toContain("acme/.github could not be cloned: its default PR template and CONTRIBUTING are unknown");
+    expect(code).toBe(0);
   });
 });
