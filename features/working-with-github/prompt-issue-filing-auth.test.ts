@@ -60,6 +60,7 @@ describe("the issue-template read falls back to the owner's .github repository",
   const run = async (
     tree: Record<string, Record<string, string> | number>,
     visibility: Record<string, string> = {},
+    unreadable: ReadonlyArray<string> = [],
   ): Promise<string> => {
     const server = Bun.serve({
       port: 0,
@@ -78,6 +79,9 @@ describe("the issue-template read falls back to the owner's .github repository",
         if (files === undefined || m === null) return new Response("{}", { status: 404 });
         const path = decodeURIComponent(m[2] ?? "");
         const content = files[path];
+        if (content !== undefined && unreadable.includes(`${m?.[1] ?? ""}:${path}`)) {
+          return Response.json({ message: "API rate limit exceeded" }, { status: 403 });
+        }
         if (content !== undefined) return new Response(content);
         const prefix = path === "" ? "" : `${path}/`;
         const entries = new Map<string, string>();
@@ -227,5 +231,23 @@ describe("the issue-template read falls back to the owner's .github repository",
     const out = await run({ "acme/.github": 403, "acme/widgets": { "README.md": "x\n" } });
     expect(out).toContain("acme/.github: could not be read (HTTP 403), so the owner's defaults are unknown");
     expect(out).not.toContain("no issue templates");
+  });
+
+  // A file read that fails (a rate limit, a dropped connection) is not a file
+  // without front matter. The read had no -f, so the 403 body's first line
+  // "{" failed the front-matter test, the repository's own template was
+  // dropped, and the owner's defaults were printed as the ones GitHub offers.
+  test("a template that cannot be read is never dropped for the owner's defaults", async () => {
+    const out = await run(
+      {
+        "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Owner\n---\n" },
+        "acme/widgets": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Own\n---\n" },
+      },
+      {},
+      ["acme/widgets:.github/ISSUE_TEMPLATE/bug.md"],
+    );
+    expect(out).not.toContain("name: Owner");
+    expect(out).not.toContain("API rate limit exceeded");
+    expect(out).toContain("acme/widgets: .github/ISSUE_TEMPLATE/bug.md could not be read, so its content is unknown");
   });
 });
