@@ -179,3 +179,78 @@ describe("commitViaApi — a glob-shaped path in a core.fileMode=false repo", ()
     });
   }
 });
+
+// git stages 100755 only when the OWNER execute bit is set (ce_mode_from_stat
+// reads `mode & S_IXUSR`). Pre-fix the flow asked access(X_OK) instead, which
+// answers whether this process may run the file: as root any execute bit
+// passes, so a 0645 or 0654 file was committed 100755 where `git add` stages
+// 100644, and on a noexec mount (a hardened /tmp, where the worktrees live)
+// every script failed it and lost its bit. The divergence shows as root, the
+// user an intern's VM runs as; as the file's non-root owner both agree.
+describe("commitViaApi — the exec bit git reads is the owner's", () => {
+  test("group- or other-only execute bits commit 100644, the owner bit 100755, as `git add` stages them", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wwg-owner-exec-"));
+    try {
+      const git = (...args: string[]): string =>
+        execFileSync("git", args, { cwd: dir, encoding: "utf-8" }).trim();
+      git("init", "-q", ".");
+      git("config", "user.email", "t@t");
+      git("config", "user.name", "t");
+      git("commit", "-q", "--allow-empty", "-m", "root");
+      const modes = { "group.sh": "654", "other.sh": "645", "owner.sh": "744", "plain.sh": "644" };
+      for (const [name, mode] of Object.entries(modes)) {
+        await writeFile(join(dir, name), "echo hi\n");
+        execFileSync("chmod", [mode, join(dir, name)]);
+      }
+      git("add", "-A");
+      const oracle = Object.fromEntries(
+        git("ls-files", "--stage")
+          .split("\n")
+          .map((row) => [row.split("\t")[1], row.split(" ")[0]])
+      );
+      git("rm", "-q", "-r", "--cached", ".");
+      expect(oracle).toEqual({
+        "group.sh": "100644",
+        "other.sh": "100644",
+        "owner.sh": "100755",
+        "plain.sh": "100644",
+      });
+
+      const trees: Array<{ tree: Array<{ path: string; mode: string }> }> = [];
+      const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+        if (url.includes("/compare/")) {
+          return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+        }
+        if (url.includes("/git/ref/heads/")) {
+          return Promise.resolve(Response.json({ object: { sha: "h" } }));
+        }
+        if (url.includes("/git/commits/h")) {
+          return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+        }
+        if (url.endsWith("/git/blobs")) {
+          return Promise.resolve(Response.json({ sha: "b" }));
+        }
+        if (url.endsWith("/git/trees")) {
+          trees.push(JSON.parse(String(init?.body)));
+          return Promise.resolve(Response.json({ sha: "nt" }));
+        }
+        if (url.endsWith("/git/commits")) {
+          return Promise.resolve(Response.json({ sha: "nc" }));
+        }
+        return Promise.resolve(Response.json({ object: { sha: "nc" } }));
+      };
+      await Effect.runPromise(
+        commitViaApi(
+          { branch: "b", message: "m", repo: "owner/repo", worktree: dir },
+          { fetchImpl, token: "t" }
+        )
+      );
+      const committed = Object.fromEntries(
+        (trees[0]?.tree ?? []).map((entry) => [entry.path, entry.mode])
+      );
+      expect(committed).toEqual(oracle);
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+});
