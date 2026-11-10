@@ -865,8 +865,25 @@ const fetchInstallationsPage = (
       })
     );
     if (!response.ok) {
+      // Name GitHub's own reason, as the token POST does: a wrong App id
+      // answers 404 "Integration not found", a key that is not the App's 401
+      // "A JSON web token could not be decoded", and the bare status told the
+      // two apart from nothing. A body that stalls or is not the envelope
+      // degrades to the status alone.
+      const errorBody = yield* Effect.promise(
+        (): Promise<unknown> => readBodyJson(response)
+      ).pipe(
+        Effect.timeoutOrElse({
+          duration: MINT_HTTP_TIMEOUT_MS,
+          orElse: () => Effect.succeed(null),
+        })
+      );
+      const reason = Schema.decodeUnknownOption(GitHubErrorBody)(errorBody).pipe(
+        Option.flatMap((body) => Option.fromNullishOr(body.message)),
+        Option.match({ onNone: () => "", onSome: (message) => `: ${message}` })
+      );
       return yield* new GhAppError({
-        message: `GitHub installations list failed: HTTP ${response.status}`,
+        message: `GitHub installations list failed: HTTP ${response.status}${reason}`,
         op: "discover",
         status: response.status,
       });

@@ -303,3 +303,49 @@ describe("resolveAllowedOrgs", () => {
     expect(Array.from(allowed)).toEqual(["acme-corp", "other-org"]);
   });
 });
+
+// A non-2xx installations list used to fail with only "HTTP <status>",
+// dropping GitHub's own reason, while the token POST beside it reports that
+// reason. Discovery is the first call a mint signs with the App's JWT, so it
+// is where a wrong App id ("Integration not found", 404) or a key that is not
+// that App's ("A JSON web token could not be decoded", 401) first fails. Both
+// bodies below are GitHub's live answers to such a JWT.
+describe("discoverInstallationId non-2xx answers name GitHub's reason", () => {
+  const allowed = new Set(["acme"]);
+
+  test.each([
+    [404, "Integration not found"],
+    [401, "A JSON web token could not be decoded"],
+  ])("HTTP %d keeps its status and GitHub's message", async (status, message) => {
+    const outcome = await runToOutcome(
+      discoverInstallationId(
+        constantFetch({ documentation_url: "https://docs.github.com/rest", message, status: String(status) }, status),
+        "jwt",
+        "acme",
+        allowed
+      )
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.op).toBe("discover");
+      expect(outcome.error.status).toBe(status);
+      expect(outcome.error.message).toBe(`GitHub installations list failed: HTTP ${status}: ${message}`);
+    }
+  });
+
+  test("a non-JSON error body still fails with the bare status", async () => {
+    const outcome = await runToOutcome(
+      discoverInstallationId(
+        () => Promise.resolve(new Response("<html>Bad Gateway</html>", { status: 502 })),
+        "jwt",
+        "acme",
+        allowed
+      )
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.status).toBe(502);
+      expect(outcome.error.message).toBe("GitHub installations list failed: HTTP 502");
+    }
+  });
+});
