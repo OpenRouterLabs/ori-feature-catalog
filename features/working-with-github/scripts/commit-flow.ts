@@ -722,6 +722,26 @@ const defaultWarn = (text: string): void => {
 };
 
 /**
+ * Why git failed, for a warning: its first `fatal:`/`error:` line (else its
+ * last line), with the token and any URL userinfo masked. Pre-fix the sync
+ * warning said only "git fetch failed", so a rate-limited fetch (HTTP 429,
+ * seen live) read the same as a missing branch and the worktree stayed dirty
+ * with no way to finish the sync.
+ */
+const gitFailureReason = (stderr: string, token: string | undefined): string => {
+  const lines = stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  const line = lines.find((l) => /^(fatal|error):/u.test(l)) ?? lines.at(-1);
+  if (line === undefined) {
+    return "";
+  }
+  const masked = token === undefined || token === "" ? line : line.replaceAll(token, "***");
+  return `: ${masked.replace(/\/\/[^/@\s]*@/gu, "//").replace(/^(fatal|error):\s*/u, "")}`;
+};
+
+/**
  * Point the worktree's branch at the commit just pushed, so the worktree
  * reads clean — exactly what `git commit && git push` leaves behind. Pre-fix
  * the flow committed through the API only, so every committed edit stayed an
@@ -769,7 +789,15 @@ const syncLocalBranch = (input: SyncLocalBranchInput): string | undefined => {
     worktree
   );
   if (!fetched.ok) {
-    return `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git fetch failed), so the worktree still lists the committed files as modified`;
+    const url =
+      input.token === undefined
+        ? `https://github.com/${repo}.git`
+        : `"https://x-access-token:\${TOKEN}@github.com/${repo}.git"`;
+    const retry =
+      head === input.headSha
+        ? `; once git can fetch again, finish it in the worktree: git fetch ${url} refs/heads/${branch} && git reset --mixed ${input.newCommitSha}`
+        : "";
+    return `could not point the local ${branch} at ${input.newCommitSha.slice(0, 7)} (git fetch failed${gitFailureReason(fetched.stderr, input.token)}), so the worktree still lists the committed files as modified${retry}`;
   }
   if (head !== input.headSha) {
     const moved = movedAheadPaths(input.runGit, worktree, head, input.headSha);

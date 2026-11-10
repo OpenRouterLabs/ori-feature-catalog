@@ -244,9 +244,51 @@ describe("commit-via-api leaves the worktree clean after a signed commit", () =>
       expect(sha).toBe(fx.newSha);
       expect(warnings.length).toBe(1);
       expect(warnings[0]).toContain("git fetch failed");
+      expect(warnings[0]).toContain("does not appear to be a git repository");
       expect(warnings[0]).not.toContain("not-a-real-token");
       expect(git(fx.worktree, "rev-parse", "HEAD")).toBe(fx.baseSha);
     } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  // Live: GitHub answers a git fetch with HTTP 429 under load. Pre-fix the
+  // warning said only "git fetch failed", hiding the rate limit, and named no
+  // way to finish the sync, so the worktree stayed dirty.
+  test("a rate-limited fetch names the 429 and the command that finishes the sync", async () => {
+    const fx = fixture();
+    // Its own process: the flow's git calls are synchronous and would block
+    // a server running on this test's event loop.
+    const server = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        'const s = Bun.serve({ port: 0, fetch: () => new Response("rate limited", { status: 429 }) }); console.log(s.port);',
+      ],
+      { stdout: "pipe" }
+    );
+    try {
+      const reader = server.stdout.getReader();
+      const { value } = await reader.read();
+      reader.releaseLock();
+      const port = new TextDecoder().decode(value).trim();
+      const { sha, warnings } = await commit(fx, {
+        remoteUrl: `http://x-access-token:not-a-real-token@127.0.0.1:${port}/owner/repo.git`,
+      });
+      expect(sha).toBe(fx.newSha);
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain("git fetch failed");
+      expect(warnings[0]).toContain("429");
+      expect(warnings[0]).not.toContain("not-a-real-token");
+      expect(warnings[0]).toContain(
+        `git fetch "https://x-access-token:\${TOKEN}@github.com/owner/repo.git" refs/heads/fix-x && git reset --mixed ${fx.newSha}`
+      );
+      // The named command, run once the fetch works, leaves the worktree clean.
+      git(fx.worktree, "fetch", "-q", fx.remote, "refs/heads/fix-x");
+      git(fx.worktree, "reset", "-q", "--mixed", fx.newSha);
+      expect(git(fx.worktree, "status", "--porcelain")).toBe("");
+    } finally {
+      server.kill();
       rmSync(fx.root, { force: true, recursive: true });
     }
   });
