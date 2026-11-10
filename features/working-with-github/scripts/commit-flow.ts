@@ -8,7 +8,7 @@
 
 import { Effect, Schema } from "effect";
 
-import { accessSync, constants, lstatSync } from "node:fs";
+import { lstatSync, statSync } from "node:fs";
 import { readlink } from "node:fs/promises";
 import { relative } from "node:path";
 
@@ -256,11 +256,19 @@ const isIndexedSymlink = (
   return row.ok && row.stdout.startsWith(`${SYMLINK_MODE} `);
 };
 
-/** True if the worktree file carries the executable bit on disk. */
+/** Owner execute bit (S_IXUSR), the one bit git reads from a file mode. */
+const OWNER_EXEC_BIT = 0o100;
+
+/** True if the worktree file carries the owner executable bit on disk, the
+ *  bit git stages as 100755 (ce_mode_from_stat). Pre-fix this asked the
+ *  kernel whether the process may run the file (access X_OK), a different
+ *  question: as root any execute bit passes (a 0645 file committed 100755
+ *  where git add stages 100644), and on a noexec mount such as a hardened
+ *  /tmp, where the worktrees live, every script fails it (a 0755 file
+ *  committed 100644, dropping the bit git keeps). */
 const diskExecutable = (worktree: string, path: string): boolean => {
   try {
-    accessSync(`${worktree}/${path}`, constants.X_OK);
-    return true;
+    return (statSync(`${worktree}/${path}`).mode & OWNER_EXEC_BIT) !== 0;
   } catch {
     return false;
   }
