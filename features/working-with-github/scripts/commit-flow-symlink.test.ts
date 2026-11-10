@@ -251,3 +251,94 @@ function mkdtempSync(prefix: string): string {
   mkdirSync(dir, { recursive: true });
   return dir;
 }
+
+// With `core.symlinks=false` (Windows, some network filesystems) git checks a
+// link out as a plain file holding its target, and `git add` keeps the index
+// row's `120000` mode: editing that file retargets the link. Pre-fix the flow
+// saw a regular file and committed it as `100644`, turning the link into a
+// file that holds a path. Git reads the boolean the typed way, so `no`, `off`
+// and `0` are false too: pre-fix a `core.fileMode = no` repo was read as
+// tracking modes, and a new file was committed with the disk's exec bit.
+describe("commitViaApi — config booleans git reads as false", () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
+  const repo = async (prefix: string): Promise<string> => {
+    const dir = await mkdtemp(join(tmpdir(), prefix));
+    git(dir, "init", "-q", ".");
+    git(dir, "config", "user.email", "t@t");
+    git(dir, "config", "user.name", "t");
+    return dir;
+  };
+
+  for (const off of ["false", "no"]) {
+    test(`core.symlinks=${off}: a retargeted link stays a 120000 link, matching \`git add\``, async () => {
+      const dir = await repo("wwg-symlinks-off-");
+      try {
+        git(dir, "config", "core.symlinks", off);
+        writeFileSync(join(dir, "a.txt"), "a\n");
+        git(dir, "add", "a.txt");
+        const target = execFileSync("git", ["hash-object", "-w", "--stdin"], {
+          cwd: dir,
+          encoding: "utf-8",
+          input: "a.txt",
+        }).trim();
+        git(dir, "update-index", "--add", "--cacheinfo", `120000,${target},link`);
+        git(dir, "commit", "-qm", "base");
+        git(dir, "checkout", "--", "link");
+        // Checked out as a plain file holding the target; retarget it.
+        writeFileSync(join(dir, "link"), "b.txt");
+        git(dir, "add", "link");
+        const oracle = git(dir, "ls-files", "--stage", "link").split(" ")[0];
+        const oracleContent = git(dir, "cat-file", "blob", ":link");
+        git(dir, "reset", "-q");
+        expect(oracle).toBe("120000");
+
+        const blobs: SentBlob[] = [];
+        let tree: { path: string; mode: string; type: string }[] = [];
+        const result = await runCommit(
+          dir,
+          makeCapturingFetch(blobs, (t) => {
+            tree = t;
+          })
+        );
+        expect(result.ok).toBe(true);
+        expect(tree.find((e) => e.path === "link")?.mode).toBe(oracle);
+        const blob = blobs[0];
+        const content =
+          blob?.encoding === "base64"
+            ? Buffer.from(blob.content, "base64").toString("utf-8")
+            : blob?.content;
+        expect(content).toBe(oracleContent);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test("core.fileMode=no: a new file with the exec bit commits 100644, matching `git add`", async () => {
+    const dir = await repo("wwg-filemode-no-");
+    try {
+      git(dir, "config", "core.fileMode", "no");
+      git(dir, "commit", "-q", "--allow-empty", "-m", "root");
+      writeFileSync(join(dir, "run.sh"), "hi\n");
+      execFileSync("chmod", ["+x", join(dir, "run.sh")]);
+      git(dir, "add", "run.sh");
+      const oracle = git(dir, "ls-files", "--stage", "run.sh").split(" ")[0];
+      git(dir, "rm", "-q", "--cached", "run.sh");
+      expect(oracle).toBe("100644");
+
+      const blobs: SentBlob[] = [];
+      let tree: { path: string; mode: string; type: string }[] = [];
+      const result = await runCommit(
+        dir,
+        makeCapturingFetch(blobs, (t) => {
+          tree = t;
+        })
+      );
+      expect(result.ok).toBe(true);
+      expect(tree.find((e) => e.path === "run.sh")?.mode).toBe(oracle);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
