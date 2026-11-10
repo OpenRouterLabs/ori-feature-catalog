@@ -24,6 +24,7 @@ Nothing here assumes a language, a package manager, a CI vendor or a company. Us
 WT=/tmp/worktrees/${REPO//\//-}/<branch>
 git clone -q --depth 1 --filter=blob:none --sparse "https://github.com/$REPO.git" "$WT"
 cd "$WT"
+git config core.quotePath false   # list non-ASCII paths as they are, not as quoted octal escapes
 git switch -q -c <branch>   # a new PR; for an open one, clone with --branch <branch> instead
 git ls-tree -r --name-only HEAD | grep -i '<words from the task>'   # every path, without downloading files
 git sparse-checkout set --skip-checks .github .agents .claude .cursor .circleci .buildkite .lefthook .config/lefthook .config/lefthook-local .husky .githooks <dirs the change touches>
@@ -36,6 +37,7 @@ git grep -n '<symbol>' -- <dir>                                    # search only
   - **Started partial and an install or typecheck now needs more**: run `git sparse-checkout disable` once, which fetches the rest in one go. Never add directories one failure at a time.
 - **A partial fetch that fails is not retried.** A partial clone fetches file contents lazily on every later `sparse-checkout`, `switch` or `grep`, so a flaky connection (`fetch-pack`, `invalid index-pack output`, a dropped TLS read) fails each of those again. Switch once to a full shallow clone of the same commit (for an open PR, of its branch) and copy your edits across. Prefer it over the tarball: a tarball has no `.git`, so the branch, commit and push steps below cannot run in it until you `git init`, fetch the branch's commit and `git reset --soft` onto it, which is another round of network work.
 - Put the checkout on the PR's branch before the first commit: `git switch -c <branch>` for a new PR, then create the branch on GitHub at the clone's own `HEAD` (`git rev-parse HEAD`, the feature prompt's change flow, step 5). For an open PR, clone its head instead (add `--branch <branch>` to the clone). `commit-via-api.ts` points the local branch at each commit it makes only when the checkout has that branch checked out. A clone left on the default branch keeps listing the committed files as changed, and the next round on the same branch (a CI fix) is refused for them, with a `git merge` remedy that fails on those same local changes.
+- `core.quotePath false` makes `git ls-tree`, `git grep` and `git status` print a non-ASCII path as it is. By default git prints it quoted, with each byte as an octal escape (`".github/ISSUE_TEMPLATE/\352\260\234…md"` for javascript-tutorial/ko.javascript.info's `개선제안.md`), so a grep for a word of the file name finds nothing, a pattern anchored on `^` or `$` never matches, and `git show "HEAD:$f"` cannot open it. The setting is saved in the clone, so it holds for the later steps too.
 - Root files (`AGENTS.md`, `package.json`, hook configs) are always checked out; `set` adds the directories. Add more with `git sparse-checkout add --skip-checks <dir>` as you learn what the change needs.
 - `--skip-checks` is needed for directory names with `[`, `]`, `*` or `?` in them, which are common in web routing trees (`app/[locale]/…`).
 - Search with `git grep` or `rg`, never a plain recursive `grep`. Find which directories to check out with `git ls-tree` first, rather than checking out everything.
@@ -83,7 +85,7 @@ O=/tmp/owner-dot-github-$$; [ -n "${REPO%%/*}" ] && for k in 'pull_request_templ
     [ "$vis" = public ] || { echo "${REPO%%/*}/.github is $vis, and GitHub uses only a public one: no default PR template or CONTRIBUTING"; break; }
     GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/${REPO%%/*}/.github.git" "$O" 2>/dev/null || break
   fi
-  git -C "$O" ls-tree -r --name-only HEAD | grep -iE "$p" | while IFS= read -r f; do printf '\n===== %s/.github: %s\n' "${REPO%%/*}" "$f"; git -C "$O" show "HEAD:$f"; echo; done
+  git -C "$O" -c core.quotePath=false ls-tree -r --name-only HEAD | grep -iE "$p" | while IFS= read -r f; do printf '\n===== %s/.github: %s\n' "${REPO%%/*}" "$f"; git -C "$O" show "HEAD:$f"; echo; done
 done; rm -rf "$O" "$O.json"
 ```
 
