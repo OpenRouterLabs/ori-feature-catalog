@@ -222,10 +222,38 @@ const readAsStaged =
  *  filesystem without real permission bits (Windows/CIFS/FAT), where every
  *  file reads as executable — git ignores chmods entirely and the index
  *  row's mode is what a commit preserves. */
-const tracksFileMode = (worktree: string, runGit: RunGit): boolean => {
-  const result = runGit(["config", "--get", "core.fileMode"], worktree);
-  // Unset (exit 1) or a failed call → git's default: the mode is tracked.
-  return !(result.ok && result.stdout.trim() === "false");
+const tracksFileMode = (worktree: string, runGit: RunGit): boolean =>
+  !configIsFalse(worktree, "core.fileMode", runGit);
+
+/** True when the boolean `key` is set false in the worktree's config, read
+ *  the way git reads it (`--type=bool`): `no`, `off`, `0` and `FALSE` are
+ *  false too, which a raw `--get` compared to "false" missed. Unset (exit 1)
+ *  or a failed call is git's default for both keys read here: true. */
+const configIsFalse = (
+  worktree: string,
+  key: string,
+  runGit: RunGit
+): boolean => {
+  const result = runGit(["config", "--type=bool", "--get", key], worktree);
+  return result.ok && result.stdout.trim() === "false";
+};
+
+/** True when `path` is a regular file on disk that git still stages as a
+ *  symlink: `core.symlinks` is false (Windows, some network filesystems) and
+ *  the index row is `120000`. Git checks such a link out as a plain file
+ *  holding the target, and `git add` keeps the `120000` mode, the file's
+ *  text being the new target. Pre-fix the flow committed it as a regular
+ *  `100644` file, turning the link into a file holding a path. */
+const isIndexedSymlink = (
+  worktree: string,
+  path: string,
+  runGit: RunGit
+): boolean => {
+  if (!configIsFalse(worktree, "core.symlinks", runGit)) {
+    return false;
+  }
+  const row = runGit(["ls-files", "--stage", "--", `:(literal)${path}`], worktree);
+  return row.ok && row.stdout.startsWith(`${SYMLINK_MODE} `);
 };
 
 /** True if the worktree file carries the executable bit on disk. */
@@ -419,6 +447,14 @@ const buildTreeEntry = (
       };
     }
     const blobSha = yield* createBlobForFile(input);
+    if (isIndexedSymlink(input.args.worktree, input.file.path, input.runGit)) {
+      return {
+        path: input.file.path,
+        mode: SYMLINK_MODE,
+        type: "blob" as const,
+        sha: blobSha,
+      };
+    }
     const mode = isExecutable(
       input.args.worktree,
       input.file.path,
