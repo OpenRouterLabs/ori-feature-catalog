@@ -115,3 +115,53 @@ describe("the prompt's whole-tree tarball recipe", () => {
     { timeout: 60_000 }
   );
 });
+
+// The ambient "Read a file" recipe was `curl -sL …/contents/{path}?ref={ref}`.
+// curl reads `[` and `]` in a URL as a glob range, so a web routing path
+// (vercel/next.js `examples/i18n-routing/app/[lang]/page.tsx`) stopped with
+// exit 3 `bad range in URL`, and `-s` hid even that: the file read as empty.
+// A missing file printed GitHub's `Not Found` JSON with exit 0, as if it
+// were the file's content.
+describe("the read-a-file recipe reads bracketed paths and fails on a missing file", () => {
+  const recipe = /- Read a file: `([^`]+)`/u.exec(prompt)?.[1] ?? "";
+
+  const read = async (path: string) => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req) => {
+        const url = new URL(req.url);
+        return decodeURIComponent(url.pathname) === "/repos/acme/widgets/contents/app/[lang]/page.tsx" &&
+          url.searchParams.get("ref") === "main"
+          ? new Response("export default function Page() {}\n")
+          : Response.json({ message: "Not Found" }, { status: 404 });
+      },
+    });
+    try {
+      const command = recipe
+        .replace("https://api.github.com", `http://127.0.0.1:${server.port}`)
+        .replace("{owner}/{repo}", "acme/widgets")
+        .replace("{path}", path)
+        .replace("{ref}", "main");
+      const proc = Bun.spawn(["bash", "-c", command], { stderr: "pipe", stdout: "pipe" });
+      const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+      return { code: await proc.exited, err, out };
+    } finally {
+      await server.stop(true);
+    }
+  };
+
+  test("the recipe is in the prompt", () => {
+    expect(recipe).toContain("/contents/{path}?ref={ref}");
+  });
+
+  test("a path with [ and ] in it is read", async () => {
+    expect(await read("app/[lang]/page.tsx")).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
+  });
+
+  test("a missing file fails and says so instead of printing the 404 body", async () => {
+    const result = await read("app/missing.tsx");
+    expect(result.code).not.toBe(0);
+    expect(result.out).not.toContain("Not Found");
+    expect(result.err).toContain("404");
+  });
+});
