@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 // A throwaway RSA key is generated at test time (never a real one) so the JWT
 // signing path is exercised for real without embedding any secret.
-import { generateKeyPairSync } from "node:crypto";
+import { createPublicKey, createVerify, generateKeyPairSync } from "node:crypto";
 
 import { Effect } from "effect";
 
@@ -666,5 +666,63 @@ describe("mintInstallationToken installation discovery", () => {
       expect(outcome.error.message).toContain("not-a-number");
     }
     expect(fetched).toBe(false);
+  });
+});
+
+// ─── the private-key forms a mint reads ─────────────────────────────────────
+
+// GitHub hands out the App key as a raw `.pem` file, and an `.env` file keeps
+// it on one line with `\n` escapes. Pre-fix every value was base64-decoded,
+// so both raw forms became bytes no signer loads: the mint failed with only
+// OpenSSL's "NO_START_LINE", naming neither the env var nor the form it needs.
+describe("mintInstallationToken private-key forms", () => {
+  const rawPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
+  const mintWithKey = (key: string) => {
+    const jwts: string[] = [];
+    const run = runToOutcome(
+      mintInstallationToken({
+        cache: null,
+        clock: () => 1_700_000_000_000,
+        env: { ...DEFAULT_ENV, GH_APP_PRIVATE_KEY: key },
+        fetchImpl: (url, init) => {
+          jwts.push(new Headers(init?.headers).get("authorization") ?? "");
+          return Promise.resolve(
+            url.includes("/app/installations?")
+              ? jsonResponse([{ account: { login: "acme-interns" }, id: 7 }])
+              : jsonResponse({ expires_at: "2026-01-01T00:00:00Z", token: "ghs_x" }, 201)
+          );
+        },
+      })
+    );
+    return { jwts, run };
+  };
+
+  for (const [label, key] of [
+    ["base64-encoded", TEST_PEM_B64],
+    ["raw PEM", rawPem],
+    ["raw PEM with \\n escapes", rawPem.trim().replaceAll("\n", "\\n")],
+  ] as const) {
+    test(`a ${label} key signs a JWT the App's public key verifies`, async () => {
+      const { jwts, run } = mintWithKey(key);
+      const outcome = await run;
+      expect(outcome.ok).toBe(true);
+      const jwt = (jwts[0] ?? "").replace(/^Bearer /u, "");
+      const [header, payload, signature] = jwt.split(".");
+      const verifier = createVerify("RSA-SHA256");
+      verifier.update(`${header}.${payload}`);
+      expect(verifier.verify(createPublicKey(privateKey), signature ?? "", "base64url")).toBe(true);
+    });
+  }
+
+  test("a key in neither form fails naming the env var and the forms, never the value", async () => {
+    const { run } = mintWithKey("not-a-key-at-all");
+    const outcome = await run;
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.op).toBe("sign");
+      expect(outcome.error.message).toContain("GH_APP_PRIVATE_KEY");
+      expect(outcome.error.message).toContain("raw or base64-encoded");
+      expect(outcome.error.message).not.toContain("not-a-key-at-all");
+    }
   });
 });

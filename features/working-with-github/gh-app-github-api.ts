@@ -44,7 +44,7 @@ export class GhAppError extends Data.TaggedError("GhAppError")<{
 
 export interface GhAppCredentials {
   readonly appId: string;
-  /** Base64-encoded PEM private key, as stored in the service env. */
+  /** The PEM private key as stored in the service env: base64-encoded, or the raw PEM (see privateKeyPem). */
   readonly privateKeyBase64: string;
   /**
    * Target org for installation discovery (`GET /app/installations` matching
@@ -634,6 +634,23 @@ const JWT_LIFETIME_SECONDS = JWT_LIFETIME_MINUTES * SECONDS_PER_MINUTE;
 /** Backdate `iat` to tolerate minor clock skew against GitHub, per their docs. */
 const JWT_BACKDATE_SECONDS = SECONDS_PER_MINUTE;
 
+/**
+ * The PEM the signer loads from a private-key env value. The value may hold
+ * the key base64-encoded (the form the host injects) or as the raw PEM that
+ * GitHub downloads, with real newlines or the `\n`-escaped ones an `.env`
+ * file keeps. Pre-fix every value was base64-decoded, so a raw PEM became
+ * bytes no signer reads and the mint failed with only OpenSSL's
+ * "NO_START_LINE", naming neither the env var nor the form it needs.
+ */
+const PEM_HEADER = "-----BEGIN ";
+export const privateKeyPem = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed.startsWith(PEM_HEADER)) {
+    return trimmed.includes("\n") ? trimmed : trimmed.replaceAll("\\n", "\n");
+  }
+  return Buffer.from(trimmed, "base64").toString("utf-8");
+};
+
 const base64Url = (input: Buffer | string): string =>
   Buffer.from(input).toString("base64url");
 
@@ -672,9 +689,7 @@ export const signAppJwt = (
         })
       );
     }
-    const pem = Buffer.from(credentials.privateKeyBase64, "base64").toString(
-      "utf-8"
-    );
+    const pem = privateKeyPem(credentials.privateKeyBase64);
     const header = base64Url(
       JSON.stringify({
         alg: "RS256",
@@ -695,7 +710,7 @@ export const signAppJwt = (
       catch: (cause) =>
         new GhAppError({
           cause,
-          message: `Failed to sign GitHub App JWT: ${cause instanceof Error ? cause.message : String(cause)}`,
+          message: `Failed to sign GitHub App JWT: ${cause instanceof Error ? cause.message : String(cause)} — check GH_APP_PRIVATE_KEY (or the registered private-key env var): it must hold the App's PEM private key, raw or base64-encoded`,
           op: "sign",
         }),
       try: () => `${signingInput}.${signer.sign(pem, "base64url")}`,
