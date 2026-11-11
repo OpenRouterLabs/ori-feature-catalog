@@ -125,12 +125,14 @@ describe("the prompt's whole-tree tarball recipe", () => {
 describe("the read-a-file recipe reads bracketed paths and fails on a missing file", () => {
   const recipe = /- Read a file: `([^`]+)`/u.exec(prompt)?.[1] ?? "";
 
+  const served = ["app/[lang]/page.tsx", "app/routes/notes.$noteId.tsx"];
+
   const read = async (path: string, ref = "main") => {
     const server = Bun.serve({
       port: 0,
       fetch: (req) => {
         const url = new URL(req.url);
-        return decodeURIComponent(url.pathname) === "/repos/acme/widgets/contents/app/[lang]/page.tsx" &&
+        return served.includes(decodeURIComponent(url.pathname).replace("/repos/acme/widgets/contents/", "")) &&
           url.searchParams.get("ref") === ref
           ? new Response("export default function Page() {}\n")
           : Response.json({ message: "Not Found" }, { status: 404 });
@@ -140,8 +142,8 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
       const command = recipe
         .replace("https://api.github.com", `http://127.0.0.1:${server.port}`)
         .replace("{owner}/{repo}", "acme/widgets")
-        .replace("{path}", path)
-        .replace("{ref}", ref);
+        .replace("{path}", () => path)
+        .replace("{ref}", () => ref);
       const proc = Bun.spawn(["bash", "-c", command], { stderr: "pipe", stdout: "pipe" });
       const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
       return { code: await proc.exited, err, out };
@@ -167,6 +169,13 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
       expect(await read("app/[lang]/page.tsx", ref)).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
     });
   }
+
+  // Remix and TanStack Router name route files with a `$` (remix-run/indie-stack
+  // `app/routes/notes.$noteId.tsx`). The URL was double-quoted, so bash
+  // expanded `$noteId` to nothing and curl asked for `notes..tsx`: a 404.
+  test("a path with a $ in it is read, never expanded by the shell", async () => {
+    expect(await read("app/routes/notes.$noteId.tsx")).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
+  });
 
   test("a missing file fails and says so instead of printing the 404 body", async () => {
     const result = await read("app/missing.tsx");
