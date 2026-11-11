@@ -52,6 +52,7 @@ import { resolveGitHubToken } from "../gh-app-token-mint.ts";
 
 import {
   findJunkArgv,
+  isAmbientMode,
   isRepoUnset,
 } from "./commit-api-core.ts";
 import { displayArgvToken, orgOf, redactUserinfo } from "../gh-app-registry.ts";
@@ -111,7 +112,7 @@ export const withAmbientMintHint = (
 ): string =>
   error.op === "config" &&
   error.registered !== true &&
-  (env.GH_APP_ID ?? "").trim() === ""
+  isAmbientMode(env)
     ? `${error.message} — no GH_APP_ID is set (ambient mode), so there is no App to mint from and nothing is broken: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member`
     : error.message;
 

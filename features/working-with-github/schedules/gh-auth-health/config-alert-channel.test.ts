@@ -32,6 +32,15 @@ describe("readGhAuthHealthConfig (whitespace-only alert channel)", () => {
     ).toBeUndefined();
   });
 
+  test("a quoted channel env (an env file docker run --env-file read) is unquoted", () => {
+    expect(
+      readGhAuthHealthConfig({ GH_AUTH_HEALTH_ALERT_CHANNEL_ID: '"C0123ABC"' }).alertChannelId
+    ).toBe("C0123ABC");
+    expect(
+      readGhAuthHealthConfig({ GH_AUTH_HEALTH_ALERT_CHANNEL_ID: '""' }).alertChannelId
+    ).toBeUndefined();
+  });
+
   test("an empty-string channel env keeps its documented unset fallback", () => {
     expect(
       readGhAuthHealthConfig({ GH_AUTH_HEALTH_ALERT_CHANNEL_ID: "" })

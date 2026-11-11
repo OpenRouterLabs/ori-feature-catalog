@@ -49,6 +49,7 @@ import {
   requestInstallationToken,
   resolveAllowedOrgs,
   signAppJwt,
+  unquoteEnvValue,
 } from "./gh-app-github-api.ts";
 import { DEFAULT_PURPOSE, orgOf, redactUserinfo } from "./gh-app-registry.ts";
 
@@ -78,10 +79,11 @@ const GH_APP_ENV_KEYS = ["GH_APP_ID", "GH_APP_PRIVATE_KEY"] as const;
 /**
  * True when a credential env value is absent. Whitespace-only counts: no App
  * id or key is blank, and pre-fix a blank key passed this check and failed at
- * signing as "No key provided to sign", never naming the var.
+ * signing as "No key provided to sign", never naming the var. A quoted empty
+ * value (`""`, an env-file line the loader kept quoted) is blank too.
  */
 const isBlankCredential = (value: string | undefined): boolean =>
-  value === undefined || value.trim() === "";
+  value === undefined || unquoteEnvValue(value) === "";
 
 /** `Date.now()` gives milliseconds; GitHub's JWT `iat`/`exp` want seconds. */
 const MS_PER_SECOND = 1000;

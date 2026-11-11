@@ -6,6 +6,8 @@
  * cadence lives in the cron expression on the schedule itself.
  */
 
+import { unquoteEnvValue } from "../../gh-app-github-api.ts";
+
 export interface GhAuthHealthConfig {
   /** Channel id a failed health check alerts into, or undefined when unset. */
   readonly alertChannelId: string | undefined;
@@ -29,8 +31,11 @@ const firstNonEmpty = (
     // to surface was never delivered anywhere — while the same env var
     // spelled "" already took the documented log-only fallback. A padded
     // value with real content trims to that content, the same
-    // normalization repo-dir.ts applies to its env seam.
-    const trimmed = value?.trim();
+    // normalization repo-dir.ts applies to its env seam. A quoted value
+    // (an env file `docker run --env-file` read keeps the quotes) is
+    // unquoted like the GH_APP_* values the same file sets: `"C0123"` is a
+    // channel Slack never answers, and `""` is unset.
+    const trimmed = value === undefined ? undefined : unquoteEnvValue(value);
     if (trimmed !== undefined && trimmed !== "") {
       return trimmed;
     }
