@@ -71,6 +71,20 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 // #region Installation-owner allowlist
 
+/**
+ * An env value with one pair of matching surrounding quotes dropped, trimmed.
+ * `docker run --env-file` and `kubectl create secret --from-env-file` keep a
+ * dotenv line's quotes in the value, so `GH_APP_ID="12345"` arrives as
+ * `"12345"`. One env file quotes every line alike, and #451 read only the
+ * private key through this: the quoted App id failed "must be a positive
+ * integer" and a quoted allowlist kept `"acme` as a login no owner matches.
+ */
+const QUOTED = /^(["'])([\s\S]*)\1$/u;
+export const unquoteEnvValue = (value: string): string => {
+  const outer = value.trim();
+  return (QUOTED.exec(outer)?.[2] ?? outer).trim();
+};
+
 /** Env var naming the installation-owner logins a token may be minted against (comma/space-separated). */
 const ALLOWED_ORGS_ENV = "GH_APP_ALLOWED_ORGS";
 
@@ -130,8 +144,8 @@ export const resolveAllowedOrgs = (
     return real.length === 0 ? undefined : real;
   };
   const fromEnv = firstNonEmpty(
-    rawAllow !== undefined && rawAllow.trim() !== ""
-      ? rawAllow.split(/[\s,]+/u)
+    rawAllow !== undefined && unquoteEnvValue(rawAllow) !== ""
+      ? unquoteEnvValue(rawAllow).split(/[\s,]+/u)
       : undefined
   );
   /**
@@ -642,16 +656,13 @@ const JWT_BACKDATE_SECONDS = SECONDS_PER_MINUTE;
  * bytes no signer reads and the mint failed with only OpenSSL's
  * "NO_START_LINE", naming neither the env var nor the form it needs.
  *
- * One pair of matching surrounding quotes is dropped first: `docker run
- * --env-file` and `kubectl create secret --from-env-file` keep a dotenv
- * line's quotes in the value, and the leading quote hid the PEM header, so
- * a quoted raw PEM was base64-decoded into the same unreadable bytes.
+ * One pair of matching surrounding quotes is dropped first (see
+ * `unquoteEnvValue`): the leading quote hid the PEM header, so a quoted raw
+ * PEM was base64-decoded into the same unreadable bytes.
  */
 const PEM_HEADER = "-----BEGIN ";
-const QUOTED = /^(["'])([\s\S]*)\1$/u;
 export const privateKeyPem = (value: string): string => {
-  const outer = value.trim();
-  const trimmed = (QUOTED.exec(outer)?.[2] ?? outer).trim();
+  const trimmed = unquoteEnvValue(value);
   if (trimmed.startsWith(PEM_HEADER)) {
     return trimmed.includes("\n") ? trimmed : trimmed.replaceAll("\\n", "\n");
   }
@@ -683,7 +694,7 @@ export const signAppJwt = (
     // --private-key-key reversed); echoing it printed the whole private key
     // into stderr, the schedule logs, and any chat the agent relays the
     // error to. Withhold it and name its length instead.
-    const appIdNumber = Number(credentials.appId);
+    const appIdNumber = Number(unquoteEnvValue(credentials.appId));
     if (!Number.isInteger(appIdNumber) || appIdNumber <= 0) {
       const got =
         credentials.appId.length <= MAX_ECHOED_APP_ID_CHARS
