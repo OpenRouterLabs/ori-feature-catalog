@@ -50,7 +50,7 @@ import {
   resolveAllowedOrgs,
   signAppJwt,
 } from "./gh-app-github-api.ts";
-import { DEFAULT_PURPOSE, orgOf } from "./gh-app-registry.ts";
+import { DEFAULT_PURPOSE, orgOf, redactUserinfo } from "./gh-app-registry.ts";
 
 export type {
   GhAppCredentials,
@@ -190,7 +190,7 @@ const readRegisteredCredentials = (
   ) {
     return Effect.fail(
       new GhAppError({
-        message: `Missing GitHub App env var(s): ${missing.join(", ")}`,
+        message: `Missing GitHub App env var(s): ${missing.join(", ")} — the App registered for ${redactUserinfo(org)} names them. Set them in the service env, or, if that App is retired, remove its registration (register-gh-app.ts list, then register-gh-app.ts remove --org ${redactUserinfo(org)} --purpose <its purpose>) so ${redactUserinfo(org)} falls back to the default App`,
         op: "config",
       })
     );

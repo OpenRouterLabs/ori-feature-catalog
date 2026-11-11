@@ -132,7 +132,8 @@ describe("readGhAppCredentials with a registry", () => {
     expect(registered.ok).toBe(false);
     if (!registered.ok) {
       expect(registered.error.op).toBe("config");
-      expect(registered.error.message).toBe("Missing GitHub App env var(s): TEAM_GH_APP_PRIVATE_KEY");
+      expect(registered.error.message).toStartWith("Missing GitHub App env var(s): TEAM_GH_APP_PRIVATE_KEY — ");
+      expect(registered.error.message).toContain("register-gh-app.ts remove --org acme-corp");
     }
     const bareDefault = await runToOutcome(
       readGhAppCredentials({ env: { ...TEAM_ENV, GH_APP_ID: " \t" } })

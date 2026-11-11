@@ -1387,6 +1387,23 @@ export const registerApp = (db: Database, input: RegisterAppInput): void => {
   );
 };
 
+/**
+ * Delete the exact (org, purpose) row; true when one was removed. Without it
+ * a registration outlived its App: once the App's env vars left the service
+ * env, every mint routed to the row failed "Missing GitHub App env var(s)",
+ * and an (org, "default") row kept the default App from that org, with no
+ * command to take the row back out.
+ */
+export const removeApp = (
+  db: Database,
+  org: string,
+  purpose: string
+): boolean =>
+  db.run("DELETE FROM gh_app_registry WHERE org = ? AND purpose = ?", [
+    orgOf(org),
+    purpose,
+  ]).changes > 0;
+
 /** Look up the exact (org, purpose) row, or null when absent. */
 export const lookupApp = (
   db: Database,

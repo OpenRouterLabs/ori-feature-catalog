@@ -1,7 +1,7 @@
 ---
 name: register-gh-app
 description: >
-  Register which env-var NAMES hold a GitHub App's credentials for an (org, purpose) pair, so mint-token.ts (with --repo or --org, and an optional --purpose) can mint from a NON-default App. TRIGGER when you need to act as a GitHub App other than the default one and it is not registered yet — e.g. a repo in another org the default GH_APP_* App is not installed on ("I get a 404 / Not Found hitting acme-corp/…", "mint a token for a repo in another org"), or a distinct role in your own org (a reviewer App that only comments vs. a maintainer App that approves/merges). Also TRIGGER to inspect what is registered ("which GitHub Apps are registered", "list the app registry"). The one-time setup — register the App (records env-var key names, never secret values), then mint against it with mint-token.ts --repo <owner/repo> (or --org <org>) [--purpose <role>] (routing covered in the feature prompt). DO NOT TRIGGER for ordinary GitHub work under the default App — plain mint-token.ts with no flags already covers that; only reach here when a DIFFERENT App is needed and missing from the registry.
+  Register which env-var NAMES hold a GitHub App's credentials for an (org, purpose) pair, so mint-token.ts (with --repo or --org, and an optional --purpose) can mint from a NON-default App. TRIGGER when you need to act as a GitHub App other than the default one and it is not registered yet — e.g. a repo in another org the default GH_APP_* App is not installed on ("I get a 404 / Not Found hitting acme-corp/…", "mint a token for a repo in another org"), or a distinct role in your own org (a reviewer App that only comments vs. a maintainer App that approves/merges). Also TRIGGER to inspect what is registered ("which GitHub Apps are registered", "list the app registry"), or to remove a registration whose App is retired ("unregister the reviewer App", a mint failing "Missing GitHub App env var(s)" for a registered App). The one-time setup — register the App (records env-var key names, never secret values), then mint against it with mint-token.ts --repo <owner/repo> (or --org <org>) [--purpose <role>] (routing covered in the feature prompt). DO NOT TRIGGER for ordinary GitHub work under the default App — plain mint-token.ts with no flags already covers that; only reach here when a DIFFERENT App is needed and missing from the registry.
 ---
 
 # Registering an additional GitHub App
@@ -34,6 +34,16 @@ bun "${WWG:?run the WWG resolver from the working-with-github prompt in this sam
 ```
 
 Prints one line per row — **org + purpose + key names only, never secrets**. With nothing registered it says so: in App mode the default App then serves every org (the host-rotated `GH_TOKEN` for the `GITHUB_REPO` org, a default-App mint against any other org's installation); in ambient mode (no `GH_APP_ID`) there is no default App, and it points you at plain `curl` and `commit-via-api.ts --as member`.
+
+## Remove a registration
+
+```bash
+# Drop the (org, purpose) row. --purpose defaults to "default", the org-level catch-all.
+bun "${WWG:?run the WWG resolver from the working-with-github prompt in this same shell first}"/scripts/register-gh-app.ts remove \
+  --org acme-corp --purpose reviewer
+```
+
+Remove a row when its App is retired or its env vars leave the service env: until then every mint routed to it fails with `Missing GitHub App env var(s)`, and an `(org, default)` row keeps that org from ever falling back to the default App. Mints for the pair then route as if it had never been registered. A pair with no row is an error naming `list`, so a mistyped org never reads as removed.
 
 ## After registering — mint against it
 
