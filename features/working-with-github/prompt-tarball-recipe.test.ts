@@ -211,3 +211,52 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
     expect(result.err).toContain("404");
   });
 });
+
+// The tarball recipe's URL was unquoted with a raw `{ref}`. A `#` is legal in a
+// branch name, and curl reads it as a fragment: with branches `wwg-probe` and
+// `wwg-probe#fix` on OpenRouterLabs/ori-feature-catalog, the recipe downloaded
+// `wwg-probe` without a word (live). Unquoted, the shell also expanded a `$` and
+// backgrounded the command at a `&`. The URL is now single-quoted, and the ref
+// is encoded by the prompt's own rule before it is substituted.
+describe("the tarball recipe sends the whole ref", () => {
+  const bullet = /- Get a whole tree to grep\..*/u.exec(prompt)?.[0] ?? "";
+  const encodeRef = (ref: string): string =>
+    ref.replaceAll("%", "%25").replaceAll("#", "%23").replaceAll("'", "%27");
+
+  test("the prose names the ref encoding the substitution below applies", () => {
+    expect(bullet).toContain("write a `%` in it as `%25` first, then a `#` as `%23` and a `'` as `%27`");
+  });
+
+  test.each(["wwg-probe#fix", "a$HOME&b", "100%done", "it's"])(
+    "asks for %p, not a cut or expanded ref",
+    async (ref) => {
+      const asked: string[] = [];
+      const bytes = archive();
+      const server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch: (request) => {
+          asked.push(decodeURIComponent(new URL(request.url).pathname));
+          return new Response(bytes);
+        },
+      });
+      const work = mkdtempSync(join(tmpdir(), "wwg-tarball-ref-"));
+      scratch.push(work);
+      const dir = join(work, "tree");
+      const command = (tarballRecipe ?? "")
+        .replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)
+        .replaceAll("{owner}", "acme")
+        .replaceAll("{repo}", "widgets")
+        .replaceAll("{ref}", () => encodeRef(ref))
+        .replaceAll("{dir}", dir);
+      try {
+        const child = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
+        expect(await child.exited).toBe(0);
+        expect(asked).toEqual([`/repos/acme/widgets/tarball/${ref}`]);
+      } finally {
+        server.stop(true);
+      }
+    },
+    { timeout: 60_000 }
+  );
+});
