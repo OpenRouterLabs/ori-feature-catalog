@@ -45,6 +45,16 @@ describe("resolveAllowedOrgs — one source present never masks another", () => 
     expect(Array.from(allowed)).toEqual(["acme"]);
   });
 
+  // `docker run --env-file` keeps a dotenv line's quotes in the value.
+  test("a quoted GH_APP_ALLOWED_ORGS reads its logins without the quotes", () => {
+    expect(Array.from(resolveAllowedOrgs(undefined, { GH_APP_ALLOWED_ORGS: `"acme-corp, beta"` }))).toEqual(["acme-corp", "beta"]);
+    expect(Array.from(resolveAllowedOrgs(undefined, { GH_APP_ALLOWED_ORGS: "'acme-corp'" }))).toEqual(["acme-corp"]);
+  });
+
+  test("a quoted empty GH_APP_ALLOWED_ORGS falls back to the repo owner like a blank one", () => {
+    expect(Array.from(resolveAllowedOrgs(undefined, { GH_APP_ALLOWED_ORGS: `""`, GITHUB_REPO: "acme/widgets" }))).toEqual(["acme"]);
+  });
+
   test("a blank override entry falls back to the env var", () => {
     const allowed = resolveAllowedOrgs(["   "], {
       GH_APP_ALLOWED_ORGS: "acme-corp",

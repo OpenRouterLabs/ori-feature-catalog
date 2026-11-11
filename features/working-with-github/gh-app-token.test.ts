@@ -735,3 +735,50 @@ describe("mintInstallationToken private-key forms", () => {
     }
   });
 });
+
+// One env file quotes every line alike, and `docker run --env-file` and
+// `kubectl create secret --from-env-file` keep those quotes in each value.
+// #451 read only the private key unquoted: `GH_APP_ID="111"` then failed
+// "must be a positive integer, got ""111""", and `GH_APP_ALLOWED_ORGS=
+// "acme-interns"` kept `"acme-interns"` as a login no installation owner
+// matches, so discovery failed closed on the App's own installation.
+describe("mintInstallationToken reads an env file's quotes on every App value", () => {
+  const mintWith = (env: Record<string, string>) => {
+    const jwts: string[] = [];
+    const run = runToOutcome(
+      mintInstallationToken({
+        cache: null,
+        clock: () => 1_700_000_000_000,
+        env,
+        fetchImpl: (url, init) => {
+          jwts.push(new Headers(init?.headers).get("authorization") ?? "");
+          return Promise.resolve(
+            url.includes("/app/installations?")
+              ? jsonResponse([{ account: { login: "acme-interns" }, id: 7 }])
+              : jsonResponse({ expires_at: "2026-01-01T00:00:00Z", token: "ghs_x" }, 201)
+          );
+        },
+      })
+    );
+    return { jwts, run };
+  };
+
+  for (const quote of [`"`, `'`]) {
+    test(`a ${quote}-quoted App id mints with the id unquoted in the JWT`, async () => {
+      const { jwts, run } = mintWith({
+        ...DEFAULT_ENV,
+        GH_APP_ID: `${quote}111${quote}`,
+        GH_APP_PRIVATE_KEY: `${quote}${TEST_PEM_B64}${quote}`,
+      });
+      const outcome = await run;
+      expect(outcome).toMatchObject({ ok: true });
+      const payload = (jwts[0] ?? "").replace(/^Bearer /u, "").split(".")[1] ?? "";
+      expect(JSON.parse(Buffer.from(payload, "base64url").toString("utf-8")).iss).toBe(111);
+    });
+  }
+
+  test("a quoted allowlist still allows the installation it names", async () => {
+    const { run } = mintWith({ ...DEFAULT_ENV, GH_APP_ALLOWED_ORGS: `"acme-interns"` });
+    expect(await run).toMatchObject({ ok: true });
+  });
+});
