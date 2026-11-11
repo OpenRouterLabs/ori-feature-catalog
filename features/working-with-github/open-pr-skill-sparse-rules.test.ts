@@ -109,10 +109,12 @@ describe("open-pr step 2 reads the repository's Copilot instructions", () => {
       ".github/copilot-instructions.md": "## Quality commands\n\nnpm run lint:check\n",
       ".github/instructions/tests.instructions.md": '---\napplyTo: "packages/dev/**/*.ts"\n---\n\n# Unit Tests\n',
       ".github/instructions/react.instructions.md": '---\r\napplyTo: "**/*.tsx"\r\n---\r\n# React\r\n',
+      ".github/instructions/components.instructions.md": '---\napplyTo:\n  - "packages/ui/**/*.tsx"\n  - "apps/web/**/*.tsx"\n---\n# Components\n',
       "src/a.ts": "export {};\n",
     });
     expect(out).toContain("===== .github/copilot-instructions.md\n## Quality commands\n\nnpm run lint:check");
     expect(out).toContain('.github/instructions/tests.instructions.md: applyTo "packages/dev/**/*.ts"');
     expect(out).toContain('.github/instructions/react.instructions.md: applyTo "**/*.tsx"\n');
+    expect(out).toContain('.github/instructions/components.instructions.md: applyTo "packages/ui/**/*.tsx", "apps/web/**/*.tsx"\n');
   });
 });
