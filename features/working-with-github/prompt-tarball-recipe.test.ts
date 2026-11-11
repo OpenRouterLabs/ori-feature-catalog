@@ -125,13 +125,13 @@ describe("the prompt's whole-tree tarball recipe", () => {
 describe("the read-a-file recipe reads bracketed paths and fails on a missing file", () => {
   const recipe = /- Read a file: `([^`]+)`/u.exec(prompt)?.[1] ?? "";
 
-  const read = async (path: string) => {
+  const read = async (path: string, ref = "main") => {
     const server = Bun.serve({
       port: 0,
       fetch: (req) => {
         const url = new URL(req.url);
         return decodeURIComponent(url.pathname) === "/repos/acme/widgets/contents/app/[lang]/page.tsx" &&
-          url.searchParams.get("ref") === "main"
+          url.searchParams.get("ref") === ref
           ? new Response("export default function Page() {}\n")
           : Response.json({ message: "Not Found" }, { status: 404 });
       },
@@ -141,7 +141,7 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
         .replace("https://api.github.com", `http://127.0.0.1:${server.port}`)
         .replace("{owner}/{repo}", "acme/widgets")
         .replace("{path}", path)
-        .replace("{ref}", "main");
+        .replace("{ref}", ref);
       const proc = Bun.spawn(["bash", "-c", command], { stderr: "pipe", stdout: "pipe" });
       const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
       return { code: await proc.exited, err, out };
@@ -151,12 +151,22 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
   };
 
   test("the recipe is in the prompt", () => {
-    expect(recipe).toContain("/contents/{path}?ref={ref}");
+    expect(recipe).toContain("/contents/{path}");
   });
 
   test("a path with [ and ] in it is read", async () => {
     expect(await read("app/[lang]/page.tsx")).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
   });
+
+  // GitHub reads a raw `+` in the query string as a space, as any form
+  // decoder does: `?ref=400.0.2+4.0.3` (a real alexcrichton/openssl-src-rs
+  // tag) answered 404 "No commit found for the ref 400.0.2 4.0.3". A `#`
+  // cut the URL there and an `&` started a new parameter.
+  for (const ref of ["400.0.2+4.0.3", "fix#12", "a&b"]) {
+    test(`a ref with ${ref.replace(/[^+#&]/gu, "")} in it is read`, async () => {
+      expect(await read("app/[lang]/page.tsx", ref)).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
+    });
+  }
 
   test("a missing file fails and says so instead of printing the 404 body", async () => {
     const result = await read("app/missing.tsx");
