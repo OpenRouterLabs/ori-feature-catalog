@@ -81,6 +81,20 @@ describe("parseWorktreeList", () => {
     ]);
   });
 
+  test("parses CRLF output without dropping earlier entries or retaining carriage returns", () => {
+    const crlfOutput = WORKTREE_LIST.replaceAll("\n", "\r\n");
+    expect(parseWorktreeList(crlfOutput)).toEqual([
+      {
+        branch: "branch-a",
+        path: "/tmp/worktrees/owner-repo/branch-a",
+      },
+      {
+        branch: "branch-b",
+        path: "/tmp/worktrees/owner-repo/branch-b",
+      },
+    ]);
+  });
+
   test("empty output → empty list", () => {
     expect(parseWorktreeList("")).toEqual([]);
   });
