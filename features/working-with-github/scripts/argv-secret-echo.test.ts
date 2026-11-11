@@ -149,5 +149,7 @@ describe("the argv display rules, in process", () => {
     expect(registerErr(registerArgv([`--app-id-key=${GHP}`]))).not.toContain(GHP);
     expect(registerErr(["list", PEM])).not.toContain("secretSECRETsecret");
     expect(registerErr(["list", `--private-key-key=${GHP}`])).not.toContain(GHP);
+    expect(registerErr(registerArgv([`-private-key-key=${GHP}`]))).not.toContain(GHP);
+    expect(registerErr(registerArgv([`-app-id-key=${GHP}`]))).not.toContain(GHP);
   });
 });
