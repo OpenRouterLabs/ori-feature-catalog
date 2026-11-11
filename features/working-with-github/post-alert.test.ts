@@ -103,6 +103,24 @@ describe("postAlert", () => {
     expect(readSlackBotToken({})).toBeUndefined();
   });
 
+  test("readSlackBotToken unquotes an env-file value, so the quotes never reach Bearer", () => {
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: '"xoxb-test"' })).toBe("xoxb-test");
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: "'xoxb-test'" })).toBe("xoxb-test");
+    expect(readSlackBotToken({ SLACK_BOT_TOKEN: '""' })).toBeUndefined();
+  });
+
+  test("a quoted SLACK_BOT_TOKEN posts with the bare token", async () => {
+    // oxlint-disable-next-line node/no-process-env -- postAlert reads SLACK_BOT_TOKEN from the process environment.
+    process.env.SLACK_BOT_TOKEN = '"xoxb-test"';
+    const slack = fakeSlack([ok]);
+    try {
+      await postAlert({ channel: "C123", text: "x" }, { slackApiUrl: slack.url });
+      expect(slack.received[0]?.authorization).toBe("Bearer xoxb-test");
+    } finally {
+      slack.stop();
+    }
+  });
+
   test("the gh-auth-health schedule guards both alert paths with readSlackBotToken, never a raw env read", () => {
     const schedule = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "schedules", "gh-auth-health", "schedule.ts"),

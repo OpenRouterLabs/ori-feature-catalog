@@ -15,6 +15,8 @@ mock.module("ori", () => ({
 }));
 
 import { isAmbientMode } from "../../scripts/commit-api-core.ts";
+import { withAmbientMintHint } from "../../scripts/mint-token.ts";
+import { GhAppError } from "../../gh-app-token.ts";
 
 const KEYS = ["GH_APP_ID", "GH_TOKEN", "GITHUB_REPO", "GH_AUTH_HEALTH_ALERT_CHANNEL_ID"] as const;
 const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
@@ -39,11 +41,28 @@ describe("gh-auth-health with a blank GH_APP_ID", () => {
     expect(isAmbientMode({ GH_APP_ID: "123" })).toBe(false);
   });
 
-  test("the fire runs the ambient probe, not a mint", async () => {
+  // `docker run --env-file` and `kubectl --from-env-file` keep a dotenv
+  // line's quotes, so `GH_APP_ID=""` arrives as the two characters `""`.
+  // The credential readers unquote it to "" (#451/#455), but the mode
+  // predicates only trimmed, so the same value read as App mode: the fire
+  // took the mint branch and mint-token dropped its "nothing is broken" hint.
+  test("isAmbientMode reads a quoted empty value as ambient, a quoted id as App mode", () => {
+    expect(isAmbientMode({ GH_APP_ID: '""' })).toBe(true);
+    expect(isAmbientMode({ GH_APP_ID: " '' " })).toBe(true);
+    expect(isAmbientMode({ GH_APP_ID: '"123"' })).toBe(false);
+  });
+
+  test("mint-token's ambient hint fires for a quoted empty GH_APP_ID", () => {
+    const error = new GhAppError({ message: "GH_TOKEN is not set", op: "config" });
+    expect(withAmbientMintHint(error, { GH_APP_ID: '""' })).toContain("ambient mode");
+    expect(withAmbientMintHint(error, { GH_APP_ID: '"123"' })).toBe("GH_TOKEN is not set");
+  });
+
+  test.each(["  ", '""'])("the fire runs the ambient probe, not a mint (GH_APP_ID=%p)", async (appId) => {
     for (const key of KEYS) {
       delete process.env[key];
     }
-    process.env.GH_APP_ID = "  ";
+    process.env.GH_APP_ID = appId;
     process.env.GITHUB_REPO = "acme/widgets";
     const calls: string[] = [];
     globalThis.fetch = ((url: string) => {

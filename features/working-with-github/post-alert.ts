@@ -11,6 +11,8 @@
  * at all (ORI-4790).
  */
 
+import { unquoteEnvValue } from "./gh-app-github-api.ts";
+
 export interface PostAlertInput {
   /** Channel id to post into. */
   readonly channel: string;
@@ -149,13 +151,16 @@ const attempt = async (
  * config.ts reads the alert channel: it would send a bare `Bearer` and come
  * back `not_authed`, so the operator chased a Slack auth failure instead of
  * the missing token. The schedule's guards and `postAlert` read it here, so
- * both agree on what "unset" means.
+ * both agree on what "unset" means. A quoted value (`docker run --env-file`
+ * keeps a dotenv line's quotes) is unquoted like every GH_APP_* value: the
+ * quotes went out inside `Bearer "xoxb-…"` and Slack answered invalid_auth.
  */
 export const readSlackBotToken = (
   // oxlint-disable-next-line node/no-process-env -- SLACK_BOT_TOKEN is systemd-injected service config; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
 ): string | undefined => {
-  const token = env.SLACK_BOT_TOKEN?.trim();
+  const token =
+    env.SLACK_BOT_TOKEN === undefined ? undefined : unquoteEnvValue(env.SLACK_BOT_TOKEN);
   return token === undefined || token === "" ? undefined : token;
 };
 

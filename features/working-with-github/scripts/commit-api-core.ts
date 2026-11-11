@@ -11,6 +11,8 @@ import { spawnSync } from "node:child_process";
 
 import { Data, Effect, Option, Schema } from "effect";
 
+import { unquoteEnvValue } from "../gh-app-github-api.ts";
+
 // #region Error
 
 /** Single typed failure for every commit-via-API operation. */
@@ -901,12 +903,15 @@ export const isRepoUnset = (
  * `register-gh-app.ts` already read it as ambient. The schedules and the
  * cleanup CLI compared the raw value with "", so a padded blank sent them
  * down the App path: a mint that cannot succeed, while mint-token said
- * nothing was broken.
+ * nothing was broken. A quoted empty value (`GH_APP_ID=""` from an env file
+ * that `docker run --env-file` or `kubectl --from-env-file` read, which keep
+ * the quotes) is the same unset shape: the credential readers already unquote
+ * it to "", so the predicates read it as App mode while the App had no id.
  */
 export const isAmbientMode = (
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
-): boolean => (env.GH_APP_ID ?? "").trim() === "";
+): boolean => unquoteEnvValue(env.GH_APP_ID ?? "") === "";
 
 // #endregion
 

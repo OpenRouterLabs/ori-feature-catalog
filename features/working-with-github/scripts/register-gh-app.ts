@@ -32,6 +32,7 @@ import type { Database } from "bun:sqlite";
 import {
   findJunkArgv,
   findUnknownFlag,
+  isAmbientMode,
 } from "./commit-api-core.ts";
 
 import {
@@ -413,7 +414,7 @@ const runList = (
     // naming its rotated GH_TOKEN and GH_APP_* mints describes a route that
     // does not exist; mint-token.ts and commit-via-api.ts already say so.
     writers.out(
-      (env.GH_APP_ID ?? "").trim() === ""
+      isAmbientMode(env)
         ? "(no registered apps — and no GH_APP_ID is set (ambient mode), so there is no default App either: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member)\n"
         : "(no registered apps — the default App serves every org: the host-rotated GH_TOKEN for the GITHUB_REPO org, a default GH_APP_* mint against any other org's installation)\n"
     );

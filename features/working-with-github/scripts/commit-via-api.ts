@@ -60,6 +60,7 @@ import {
   CommitApiError,
   findUnknownFlag,
   findJunkArgv,
+  isAmbientMode,
   isRepoUnset,
   resolveRepoFromEnv,
 } from "./commit-api-core.ts";
@@ -302,7 +303,7 @@ export const withAmbientHint = (
 ): string =>
   error.stage === "mint" &&
   error.registered !== true &&
-  (env.GH_APP_ID ?? "").trim() === ""
+  isAmbientMode(env)
     ? `${error.message} — no GH_APP_ID is set (ambient mode), so no token can be resolved here: pass --as member to commit as the person asking`
     : error.message;
 
