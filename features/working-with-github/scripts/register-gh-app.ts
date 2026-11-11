@@ -133,7 +133,7 @@ const displayKeyArg = (flag: string, arg: string): string =>
  * other token goes through the shared {@link displayArgvToken} rule.
  */
 const displayRegisterArgv = (token: string): string => {
-  const keyFlag = /^(--app-id-key|--private-key-key)=(.*)$/su.exec(token);
+  const keyFlag = /^(-{1,2}(?:app-id-key|private-key-key))=(.*)$/su.exec(token);
   if (keyFlag !== null) {
     const [, flag = "", value = ""] = keyFlag;
     return ENV_VAR_NAME.test(value)
