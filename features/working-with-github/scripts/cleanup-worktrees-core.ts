@@ -201,7 +201,8 @@ export const parseWorktreeList = (
     bare = false;
     prunable = false;
   };
-  for (const line of output.split("\n")) {
+  for (const rawLine of output.split("\n")) {
+    const line = rawLine.replace(/\r$/u, "");
     if (line === "") {
       flush();
       continue;
