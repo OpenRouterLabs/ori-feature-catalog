@@ -641,10 +641,17 @@ const JWT_BACKDATE_SECONDS = SECONDS_PER_MINUTE;
  * file keeps. Pre-fix every value was base64-decoded, so a raw PEM became
  * bytes no signer reads and the mint failed with only OpenSSL's
  * "NO_START_LINE", naming neither the env var nor the form it needs.
+ *
+ * One pair of matching surrounding quotes is dropped first: `docker run
+ * --env-file` and `kubectl create secret --from-env-file` keep a dotenv
+ * line's quotes in the value, and the leading quote hid the PEM header, so
+ * a quoted raw PEM was base64-decoded into the same unreadable bytes.
  */
 const PEM_HEADER = "-----BEGIN ";
+const QUOTED = /^(["'])([\s\S]*)\1$/u;
 export const privateKeyPem = (value: string): string => {
-  const trimmed = value.trim();
+  const outer = value.trim();
+  const trimmed = (QUOTED.exec(outer)?.[2] ?? outer).trim();
   if (trimmed.startsWith(PEM_HEADER)) {
     return trimmed.includes("\n") ? trimmed : trimmed.replaceAll("\\n", "\n");
   }

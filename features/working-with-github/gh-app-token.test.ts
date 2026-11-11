@@ -701,6 +701,14 @@ describe("mintInstallationToken private-key forms", () => {
     ["base64-encoded", TEST_PEM_B64],
     ["raw PEM", rawPem],
     ["raw PEM with \\n escapes", rawPem.trim().replaceAll("\n", "\\n")],
+    // `docker run --env-file` and `kubectl create secret --from-env-file`
+    // keep a value's quotes, so a dotenv line `KEY="-----BEGIN…\n…"` arrives
+    // quoted. Pre-fix the quote hid the PEM header and the value was
+    // base64-decoded into bytes no signer loads (NO_START_LINE).
+    ["double-quoted raw PEM with \\n escapes", `"${rawPem.trim().replaceAll("\n", "\\n")}"`],
+    ["single-quoted raw PEM with \\n escapes", `'${rawPem.trim().replaceAll("\n", "\\n")}'`],
+    ["double-quoted raw PEM", `"${rawPem}"`],
+    ["double-quoted base64", `"${TEST_PEM_B64}"`],
   ] as const) {
     test(`a ${label} key signs a JWT the App's public key verifies`, async () => {
       const { jwts, run } = mintWithKey(key);
