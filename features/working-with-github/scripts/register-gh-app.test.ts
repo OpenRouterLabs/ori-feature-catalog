@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   listApps,
   openGhAppRegistryDb,
+  resolveApp,
 } from "@ori-monorepo/working-with-github/gh-app-registry.ts";
 
 import { runRegisterCli } from "./register-gh-app.ts";
@@ -440,5 +441,94 @@ describe("register-gh-app CLI", () => {
     }
     // Nothing was written for any of the junk spellings.
     expect(listApps(db)).toEqual([]);
+  });
+});
+
+// Pre-fix the CLI had only `register` and `list`: once a registered App's env
+// vars left the service env, every mint routed to its row failed "Missing
+// GitHub App env var(s)", and an (org, "default") row kept the default App
+// from that org, with no command to take the row back out.
+describe("register-gh-app remove", () => {
+  let db: Database;
+
+  const run = (argv: string[]) => {
+    const captured = makeWriters();
+    const code = runRegisterCli({ argv, db, env: ENV, writers: captured.writers });
+    return { code, err: captured.err.join(""), out: captured.out.join("") };
+  };
+
+  const registerRow = (purpose: string) =>
+    run([
+      "register",
+      "--org",
+      "acme-corp",
+      "--purpose",
+      purpose,
+      "--app-id-key",
+      "TEAM_GH_APP_ID",
+      "--private-key-key",
+      "TEAM_GH_APP_PRIVATE_KEY",
+    ]);
+
+  beforeEach(() => {
+    db = openGhAppRegistryDb(":memory:");
+    expect(registerRow("reviewer").code).toBe(0);
+    expect(registerRow("default").code).toBe(0);
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  test("removes only the named (org, purpose) row, matching the org as mint does", () => {
+    const result = run(["remove", "--org", "https://github.com/ACME-Corp/widgets", "--purpose", "reviewer"]);
+    expect(result).toEqual({ code: 0, err: "", out: "removed ACME-Corp (reviewer)\n" });
+    expect(listApps(db).map((row) => `${row.org}/${row.purpose}`)).toEqual(["acme-corp/default"]);
+  });
+
+  test("--purpose defaults to the org-level catch-all", () => {
+    expect(run(["remove", "--org", "acme-corp"]).code).toBe(0);
+    expect(listApps(db).map((row) => row.purpose)).toEqual(["reviewer"]);
+  });
+
+  test("a pair with no row is an error naming list, and changes nothing", () => {
+    const result = run(["remove", "--org", "acme-crop", "--purpose", "reviewer"]);
+    expect(result.code).toBe(1);
+    expect(result.out).toBe("");
+    expect(result.err).toContain("no app is registered for acme-crop (reviewer)");
+    expect(result.err).toContain("register-gh-app.ts list");
+    expect(listApps(db)).toHaveLength(2);
+  });
+
+  for (const [label, argv, expected] of [
+    ["no --org", ["remove", "--purpose", "reviewer"], "remove requires --org"],
+    ["a valueless --org", ["remove", "--org", "--purpose", "reviewer"], "remove --org needs a value"],
+    ["a blank --purpose", ["remove", "--org", "acme-corp", "--purpose", "  "], "remove --purpose needs a value"],
+    ["a repeated --org", ["remove", "--org", "acme-corp", "--org", "beta"], "--org was passed more than once"],
+    ["a typo'd flag", ["remove", "--org", "acme-corp", "--porpose", "reviewer"], 'unrecognized argument "--porpose"'],
+    ["a stray token", ["remove", "--org", "acme-corp", "reviewer"], 'unrecognized argument "reviewer"'],
+    ["a single-dash flag", ["remove", "-org", "acme-corp"], 'unrecognized argument "-org"'],
+    ["an org that names no owner", ["remove", "--org", "/.git"], "resolves to no GitHub org"],
+  ] as const) {
+    test(`${label} is refused and removes nothing`, () => {
+      const result = run([...argv]);
+      expect(result.code).toBe(1);
+      expect(result.err).toContain(expected);
+      expect(listApps(db)).toHaveLength(2);
+    });
+  }
+
+  test("a mint for the removed pair falls back as if it had never been registered", () => {
+    expect(run(["remove", "--org", "acme-corp", "--purpose", "reviewer"]).code).toBe(0);
+    expect(resolveApp(db, "acme-corp", "reviewer")).toEqual({
+      appIdKey: "TEAM_GH_APP_ID",
+      privateKeyKey: "TEAM_GH_APP_PRIVATE_KEY",
+    });
+    expect(run(["remove", "--org", "acme-corp"]).code).toBe(0);
+    expect(resolveApp(db, "acme-corp", "reviewer")).toBeNull();
+  });
+
+  test("the usage line names remove", () => {
+    expect(run(["unregister"]).err).toBe("register-gh-app: expected a subcommand: register | list | remove\n");
   });
 });

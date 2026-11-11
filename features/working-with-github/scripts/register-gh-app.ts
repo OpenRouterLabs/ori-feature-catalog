@@ -42,6 +42,7 @@ import {
   orgOf,
   redactUserinfo,
   registerApp,
+  removeApp,
 } from "../gh-app-registry.ts";
 
 /** Output seam so a test can capture stdout/stderr without touching the process. */
@@ -104,6 +105,8 @@ const KNOWN_FLAGS = [
  *  own guards close for the mirror image (a `list`-only flag there); one
  *  contract, both paths. */
 const LIST_KNOWN_FLAGS: readonly string[] = [];
+
+const REMOVE_KNOWN_FLAGS = ["--org", "--purpose"] as const;
 
 /** A conventional env var NAME: upper-case letters, digits and underscores,
  *  not starting with a digit. */
@@ -424,6 +427,70 @@ const runList = (
   return 0;
 };
 
+/**
+ * Run `remove` (ctx.argv excludes the subcommand): delete the exact
+ * (org, purpose) row, so mints for it fall back as if it had never been
+ * registered. The argv guards are register's: a typo'd flag, a stray token,
+ * a repeat or a valueless flag is refused, never read as the catch-all row.
+ * A row that is not there is an error, so a mistyped org never reads as done.
+ */
+const runRemove = (ctx: RegisterCliContext): number => {
+  const { argv, db, writers } = ctx;
+  const fail = (detail: string): number => {
+    writers.err(`register-gh-app: ${detail}\n`);
+    return 1;
+  };
+  const stray =
+    findJunkArgv(argv) ??
+    findUnknownFlag(argv, REMOVE_KNOWN_FLAGS) ??
+    findPositionalArgv(argv, REMOVE_KNOWN_FLAGS);
+  if (stray !== undefined) {
+    return fail(
+      `unrecognized argument "${displayRegisterArgv(stray)}" — remove takes "--org acme" and an optional "--purpose reviewer"`
+    );
+  }
+  const repeated = REMOVE_KNOWN_FLAGS.find(
+    (flag) => argv.filter((token) => token === flag).length > 1
+  );
+  if (repeated !== undefined) {
+    return fail(`${repeated} was passed more than once — pass exactly one value`);
+  }
+  const valueless = REMOVE_KNOWN_FLAGS.find(
+    (flag) => argv.includes(flag) && readFlag(argv, flag) === undefined
+  );
+  if (valueless !== undefined) {
+    return fail(
+      `remove ${valueless} needs a value (e.g. ${valueless === "--org" ? "--org acme-corp" : "--purpose reviewer"})`
+    );
+  }
+  const org = readFlag(argv, "--org");
+  if (org === undefined) {
+    return fail("remove requires --org");
+  }
+  const normalizedOrg = orgOf(org);
+  if (normalizedOrg === "") {
+    return fail(
+      `--org "${redactUserinfo(org)}" resolves to no GitHub org — pass an org login, an owner/repo, or a github.com URL`
+    );
+  }
+  const purpose = readFlag(argv, "--purpose") ?? DEFAULT_PURPOSE;
+  let removed: boolean;
+  try {
+    removed = removeApp(db, normalizedOrg, purpose);
+  } catch (error) {
+    return fail(
+      `failed to write registry: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  if (!removed) {
+    return fail(
+      `no app is registered for ${normalizedOrg} (${purpose}), so nothing was removed — run "register-gh-app.ts list" for the registered rows`
+    );
+  }
+  writers.out(`removed ${normalizedOrg} (${purpose})\n`);
+  return 0;
+};
+
 /** Dispatch a subcommand against an open DB. Exported for tests. */
 export const runRegisterCli = (ctx: RegisterCliContext): number => {
   const [command] = ctx.argv;
@@ -436,7 +503,15 @@ export const runRegisterCli = (ctx: RegisterCliContext): number => {
   if (command === "list") {
     return runList(ctx.db, ctx.writers, ctx.argv, ctx.env);
   }
-  ctx.writers.err("register-gh-app: expected a subcommand: register | list\n");
+  if (command === "remove") {
+    return runRemove({
+      ...ctx,
+      argv: ctx.argv.slice(1),
+    });
+  }
+  ctx.writers.err(
+    "register-gh-app: expected a subcommand: register | list | remove\n"
+  );
   return 1;
 };
 
