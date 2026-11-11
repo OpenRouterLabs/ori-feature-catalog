@@ -157,7 +157,7 @@ Never write that a check passed unless you ran it and saw it pass. Note the chec
 - If step 2 found a PR-description check, run it locally on your body and changed files, with the env vars it reads (`PR_BODY`, `PR_TITLE`, a changed-files list…). Fix the body until it passes.
 - With no template, use `## Summary`, `## Why`, `## Test plan`. The test plan lists what you ran and what you saw.
 
-Write the body to a temp file and pass it with `--raw-field` (see step 6 of the feature prompt's flow).
+Write the title and body to temp files with a quoted heredoc (`cat > "$BODY" <<'EOF'`), never a double-quoted `printf`, which runs every markdown `` `code span` `` as a command and expands every `$VAR`, and pass them with `--raw-field` (see step 6 of the feature prompt's flow).
 
 ## 7. Open the PR, ready for review by default
 
