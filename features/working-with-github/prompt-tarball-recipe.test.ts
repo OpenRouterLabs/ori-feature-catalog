@@ -123,9 +123,26 @@ describe("the prompt's whole-tree tarball recipe", () => {
 // A missing file printed GitHub's `Not Found` JSON with exit 0, as if it
 // were the file's content.
 describe("the read-a-file recipe reads bracketed paths and fails on a missing file", () => {
+  const recipeLine = /- Read a file: .*/u.exec(prompt)?.[0] ?? "";
   const recipe = /- Read a file: `([^`]+)`/u.exec(prompt)?.[1] ?? "";
 
-  const served = ["app/[lang]/page.tsx", "app/routes/notes.$noteId.tsx"];
+  const served = [
+    "app/[lang]/page.tsx",
+    "app/routes/notes.$noteId.tsx",
+    "pages/New to Logseq%3F.md",
+    "notes/What is DXF?.md",
+    "docs/a b#c's 100%.md",
+  ];
+
+  // The prompt's own "Write a `%` … as `%25` first, then a space as `%20` …"
+  // table, applied in the order it gives, the way an agent follows it.
+  const encodingTable = [
+    ...(/Write a .*?`%[0-9A-F]{2}`\./u.exec(recipeLine)?.[0] ?? "").matchAll(
+      /a (?:`(.)`|space)[^`]*? as `(%[0-9A-F]{2})`/gu
+    ),
+  ].map((match) => [match[1] ?? " ", match[2] ?? ""] as const);
+  const encodePath = (path: string): string =>
+    encodingTable.reduce((encoded, [raw, escaped]) => encoded.replaceAll(raw, escaped), path);
 
   const read = async (path: string, ref = "main") => {
     const server = Bun.serve({
@@ -176,6 +193,16 @@ describe("the read-a-file recipe reads bracketed paths and fails on a missing fi
   test("a path with a $ in it is read, never expanded by the shell", async () => {
     expect(await read("app/routes/notes.$noteId.tsx")).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
   });
+
+  // GitHub decodes the path once. Logseq graphs store a page title's `?` as a
+  // literal `%3F` (logseq/docs `pages/New to Logseq%3F.md`, ~95k such paths on
+  // GitHub), so it must go as `%253F`: with no `%` rule it read as
+  // `New to Logseq?.md` and 404'd. A raw `?` started the query string.
+  for (const path of served.slice(2)) {
+    test(`${JSON.stringify(path)}, encoded as the prompt says, is read`, async () => {
+      expect(await read(encodePath(path))).toMatchObject({ code: 0, out: "export default function Page() {}\n" });
+    });
+  }
 
   test("a missing file fails and says so instead of printing the 404 body", async () => {
     const result = await read("app/missing.tsx");
