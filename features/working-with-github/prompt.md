@@ -329,7 +329,12 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E -e 's#[?].*$##; s#[#].*$##; s#[/[:spa
 
    # Stage all worktree changes (adds / modifies / deletes / renames) into ONE signed commit.
    # --repo defaults to $GITHUB_REPO; pass --repo explicitly to target another repo.
-   MSG=$(mktemp); printf '%s\n' "feat(scope): your commit message" > "$MSG"
+   # Write prose with a QUOTED heredoc (<<'EOF'), never printf "…": inside double
+   # quotes bash runs every `backtick` span as a command and expands every $VAR,
+   # so a message naming `mint-token.ts` or $GH_APP_ID lost both words.
+   MSG=$(mktemp); cat > "$MSG" <<'EOF'
+   feat(scope): your commit message
+   EOF
    bun "$WWG"/scripts/commit-via-api.ts \
      --worktree "$WT" \
      --branch branch-name \
@@ -342,22 +347,30 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E -e 's#[?].*$##; s#[#].*$##; s#[/[:spa
 6. **Open a PR** with the REST API (not `gh pr create` — its GraphQL path hits SAML issues). For a repository other than this catalog, use its title rule and fill every section of its PR template (the `open-pr` skill, step 6), open it ready for review unless its rules ask for drafts (step 7), and follow CI by reading it when the person comes back, never by waiting inside the turn or scheduling a routine for it (step 8):
 
    ```bash
-   # A PR body is prose: it carries apostrophes ("don't", "the user's repo") that
-   # break a single-quoted --field at shell-parse time. Write it to a temp file —
+   # A PR title and body are prose: they carry apostrophes ("don't", "the user's
+   # repo") that break a single-quoted argument at shell-parse time, and markdown
+   # `code spans` and $VARS that a double-quoted printf runs and expands (a body
+   # naming `mint-token.ts` ran it as a command and posted "Fixes the  crash").
+   # Write each to a temp file with a QUOTED heredoc (<<'EOF' expands nothing) —
    # the same pattern --message-file uses — and let "$(cat …)" quote it.
    # Pass prose with --raw-field, never --field: --field is gh's TYPED form — a
    # value starting with @ is read as a FILENAME ("@reviewer please look" fails
    # with "open reviewer please look: no such file"), {owner}/{repo}/{branch}
    # anywhere in it are rewritten from the cwd's git remote, and a bare number
    # or true/false/null is sent as JSON, not a string (GitHub 422s the body).
-   BODY=$(mktemp); printf '%s\n' "Closes #N. Description of the change." > "$BODY"
+   TITLE=$(mktemp); cat > "$TITLE" <<'EOF'
+   your PR title
+   EOF
+   BODY=$(mktemp); cat > "$BODY" <<'EOF'
+   Closes #N. Description of the change.
+   EOF
    PR_URL=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls" --method POST \
-     --raw-field title='your PR title' \
+     --raw-field title="$(cat "$TITLE")" \
      --raw-field head='branch-name' \
      --raw-field base='main' \
      --raw-field body="$(cat "$BODY")" \
      --jq '.html_url')
-   rm -f "$BODY"; echo "$PR_URL"
+   rm -f "$TITLE" "$BODY"; echo "$PR_URL"
    ```
 
    Output the PR URL so a button is posted in Slack. You may **merge your own PR** once every merge-readiness condition holds (see "Merging your own PRs" below); otherwise leave it open for a human to review and merge.
@@ -461,10 +474,13 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" --method DEL
     *) echo "BRANCH_NAME could not be read ($REF): whether it was deleted is unknown, so read it again before calling it done" ;;
   esac; }
 
-# Post the brief summary comment (a temp file again: a summary is prose and
-# may carry apostrophes; --raw-field, like the PR body, so gh never reads a
-# leading @ as a filename or rewrites {owner}/{repo} placeholders in it):
-SUMMARY=$(mktemp); printf '%s\n' "Merged: <one-line summary>" > "$SUMMARY"
+# Post the brief summary comment (a temp file written with a quoted heredoc
+# again: a summary is prose and may carry apostrophes, `code spans` and $VARS;
+# --raw-field, like the PR body, so gh never reads a leading @ as a filename or
+# rewrites {owner}/{repo} placeholders in it):
+SUMMARY=$(mktemp); cat > "$SUMMARY" <<'EOF'
+Merged: <one-line summary>
+EOF
 GH_TOKEN="$TOKEN" gh api "repos/${REPO}/issues/PR_NUMBER/comments" \
   --method POST --raw-field body="$(cat "$SUMMARY")"
 rm -f "$SUMMARY"
