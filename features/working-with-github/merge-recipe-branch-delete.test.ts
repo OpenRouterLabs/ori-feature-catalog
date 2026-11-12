@@ -108,3 +108,57 @@ describe("the branch delete treats a branch the merge already deleted as done", 
     expect(prompt).toContain("delete_branch_on_merge");
   });
 });
+
+// Git allows `#`, `+` and `%` in a branch name. Pre-fix both recipes put the
+// name raw into the URL: gh reads a raw `#` as the start of a URL fragment and
+// sends only what comes before it (live, with throwaway branches
+// `wwg-probe-del` and `wwg-probe-del#fix` on OpenRouterLabs/ori-feature-catalog,
+// the merge recipe's DELETE removed `wwg-probe-del`), and GitHub reads a raw
+// `+` in `?sha=` as a space (404 on `wwg-probe+plus`).
+describe("the branch name reaches gh encoded", () => {
+  const ghArgs = (fence: string, branch: string): string[][] => {
+    const dir = mkdtempSync(join(tmpdir(), "wwg-branch-encode-"));
+    try {
+      const log = join(dir, "calls");
+      writeFileSync(
+        join(dir, "gh"),
+        `#!/bin/sh\nfor a in "$@"; do printf '%s\\037' "$a"; done >> "${log}"\necho >> "${log}"\nexit 0\n`,
+      );
+      chmodSync(join(dir, "gh"), 0o755);
+      Bun.spawnSync(
+        ["bash", "-c", fence.replaceAll("BRANCH_NAME", branch).replaceAll("branch-name", branch)],
+        { env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ""}`, REPO: "acme/widgets", TOKEN: "t" } },
+      );
+      return readFileSync(log, "utf-8")
+        .split("\n")
+        .filter((line) => line !== "")
+        .map((line) => line.split("\u001f").filter((arg) => arg !== ""));
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  };
+
+  const start = mergeFence?.indexOf("# Delete the merged branch") ?? -1;
+  const end = mergeFence?.indexOf("\n\n", start) ?? -1;
+  const deleteSnippet = start === -1 || end === -1 ? "" : (mergeFence ?? "").slice(start, end);
+
+  test("the merge recipe deletes the branch it names, not the one before a `#`", () => {
+    const [call] = ghArgs(deleteSnippet, "fix#12");
+    expect(call).toContain("repos/acme/widgets/git/refs/heads/fix%2312");
+  });
+
+  test("a slash in the branch stays a path separator, and a `%` is encoded", () => {
+    expect(ghArgs(deleteSnippet, "feat/50%off")[0]).toContain(
+      "repos/acme/widgets/git/refs/heads/feat/50%25off",
+    );
+  });
+
+  test("the step 7 signature check sends the branch as a field, never in a hand-written query", () => {
+    const verifyFence = fences.find((fence) => fence.includes("verification.verified")) ?? "";
+    const line = verifyFence.slice(0, verifyFence.indexOf("--jq"));
+    const [call = []] = ghArgs(`${line} --jq .`, "fix#12+1");
+    expect(call.filter((arg) => arg.includes("?"))).toEqual([]);
+    expect(call).toContain("sha=fix#12+1");
+    expect(call.slice(0, 3)).toEqual(["api", "-X", "GET"]);
+  });
+});
