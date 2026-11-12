@@ -42,6 +42,17 @@ describe("the repo-discovery bullet handles a multi-owner installation 401", () 
     expect(discoveryBullet).toContain("not a denial");
   });
 
+  // The Link header of an org (or user) repo listing names the account by id
+  // (`/organizations/139423088/repos?page=2`), which carries no owner, so a
+  // per-owner proxy sends it out bare and GitHub lists only public repos.
+  // Reproduced 2026-11-12 on OpenRouterTeam: page 2 through the Link URL came
+  // back empty, and 70 repositories (63 private) on the `/orgs/{org}` path.
+  test("it pages on the owner path, never through the Link header's id URL", () => {
+    expect(discoveryBullet).not.toContain("(follow `Link` headers on pagination)");
+    expect(discoveryBullet).toContain("/orgs/{org}/repos?type=all&per_page=100&page=N");
+    expect(discoveryBullet).toContain("never by opening the `Link` header");
+  });
+
   test("it turns that list into the per-owner crawl", () => {
     const after = discoveryBullet.slice(discoveryBullet.indexOf("github_owners"));
     expect(after).toContain("/orgs/{owner}/repos?type=all");
