@@ -876,8 +876,16 @@ const syncLocalBranch = (input: SyncLocalBranchInput): string | undefined => {
   ) {
     return leftAsIs;
   }
+  // The commit has landed, so a fetch that never answers must not hold the
+  // run: with no deadline a stalled connection kept commit-via-api from
+  // returning at all. Git gives up below 1 KB/s for a minute, the floor the
+  // prompt's tarball download uses, and the failure becomes the warning below.
   const fetched = input.runGit(
     [
+      "-c",
+      "http.lowSpeedLimit=1024",
+      "-c",
+      "http.lowSpeedTime=60",
       "fetch",
       "--quiet",
       "--no-tags",

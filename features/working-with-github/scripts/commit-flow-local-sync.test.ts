@@ -6,9 +6,10 @@ import { join } from "node:path";
 
 import { Effect } from "effect";
 
-import type { FetchLike } from "./commit-api-core.ts";
+import type { FetchLike, RunGit } from "./commit-api-core.ts";
 
 import { cleanupWorktrees } from "./cleanup-worktrees-core.ts";
+import { defaultRunGit } from "./commit-api-core.ts";
 import { commitViaApi } from "./commit-via-api.ts";
 
 /**
@@ -123,6 +124,7 @@ const commit = (
     readonly remoteUrl?: string;
     readonly compare?: unknown;
     readonly calls?: string[];
+    readonly runGit?: RunGit;
   } = {}
 ): Promise<{ readonly sha: string; readonly warnings: readonly string[] }> => {
   const warnings: string[] = [];
@@ -142,6 +144,7 @@ const commit = (
           options.calls
         ),
         remoteUrl: () => options.remoteUrl ?? fx.remote,
+        ...(options.runGit === undefined ? {} : { runGit: options.runGit }),
         token: "not-a-real-token",
         warn: (text) => {
           warnings.push(text);
@@ -292,6 +295,75 @@ describe("commit-via-api leaves the worktree clean after a signed commit", () =>
       rmSync(fx.root, { force: true, recursive: true });
     }
   });
+});
+
+// A fetch whose server accepts the connection and never answers held the
+// whole run: the commit had landed, but commit-via-api never returned (killed
+// by a 200s cap in the repro). Git now gives up below 1 KB/s for a minute.
+describe("the post-commit fetch cannot hang the run", () => {
+  const stalledServer = async (): Promise<{ readonly port: string; readonly kill: () => void }> => {
+    // Its own process, like the 429 server above, and one that never writes.
+    const server = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        'const s = require("node:net").createServer((c) => { c.on("data", () => {}); }); s.listen(0, "127.0.0.1", () => console.log(s.address().port));',
+      ],
+      { stdout: "pipe" }
+    );
+    const reader = server.stdout.getReader();
+    const { value } = await reader.read();
+    reader.releaseLock();
+    return { port: new TextDecoder().decode(value).trim(), kill: () => server.kill() };
+  };
+
+  test("the fetch carries git's low-speed limit", async () => {
+    const fx = fixture();
+    const fetches: string[][] = [];
+    try {
+      await commit(fx, {
+        runGit: (args, cwd) => {
+          if (args.includes("fetch")) fetches.push([...args]);
+          return defaultRunGit(args, cwd);
+        },
+      });
+      expect(fetches.length).toBe(1);
+      expect(fetches[0]?.slice(0, 5)).toEqual([
+        "-c",
+        "http.lowSpeedLimit=1024",
+        "-c",
+        "http.lowSpeedTime=60",
+        "fetch",
+      ]);
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+
+  test("a server that never answers ends in a warning, and the landed commit is returned", async () => {
+    const fx = fixture();
+    const server = await stalledServer();
+    try {
+      const started = Date.now();
+      const { sha, warnings } = await commit(fx, {
+        remoteUrl: `http://127.0.0.1:${server.port}/owner/repo.git`,
+        // The real limit with a 2s window, so the test does not wait a minute.
+        runGit: (args, cwd) =>
+          defaultRunGit(
+            args.map((arg) => (arg === "http.lowSpeedTime=60" ? "http.lowSpeedTime=2" : arg)),
+            cwd
+          ),
+      });
+      expect(Date.now() - started).toBeLessThan(20_000);
+      expect(sha).toBe(fx.newSha);
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain("git fetch failed");
+      expect(warnings[0]).toContain("too slow");
+    } finally {
+      server.kill();
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  }, 30_000);
 });
 
 /**
