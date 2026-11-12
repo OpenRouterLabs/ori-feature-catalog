@@ -381,7 +381,11 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E -e 's#[?].*$##; s#[#].*$##; s#[/[:spa
 7. **Verify the commits are signed**, then clean up the worktree and its local branch:
 
    ```bash
-   GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits?sha=branch-name&per_page=10" \
+   # -X GET with --raw-field sends the branch as an encoded query value. Git
+   # allows a `+` or `#` in a branch name, and in a hand-written `?sha=` GitHub
+   # reads a raw `+` as a space (404), while gh cuts a `#` and all after it
+   # off as a URL fragment, so it lists another branch's commits.
+   GH_TOKEN="$TOKEN" gh api -X GET "repos/${REPO}/commits" --raw-field sha='branch-name' --raw-field per_page=10 \
      --jq '[.[] | {sha: .sha[:7], verified: .commit.verification.verified}]'
    # An App-token Git-Data-API commit shows "verified": true. A commit created
    # under `x-github-as: member` (the acting-as path) comes back "unsigned" —
@@ -475,9 +479,14 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/pulls/PR_NUMBER/merge" \
 # Delete the merged branch. A repository that deletes head branches on merge
 # has already removed it, and the DELETE then fails with 422: read the ref.
 # Only a 404 there means it is gone; any other failure (a rate limit, a
-# dropped connection) leaves its state unknown, never "done":
-GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/BRANCH_NAME" --method DELETE || {
-  REF=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/BRANCH_NAME" --silent 2>&1) &&
+# dropped connection) leaves its state unknown, never "done". The branch goes
+# into the path encoded one segment at a time (a `/` stays a separator): gh
+# reads a raw `#` as the start of a URL fragment and cuts the path there, so
+# deleting `fix#12` deleted a branch named `fix`, and with no such branch the
+# 422 and 404 read as "already deleted" while `fix#12` was still there:
+REF_PATH=$(bun -e 'console.log(process.argv[1].split("/").map(encodeURIComponent).join("/"))' 'BRANCH_NAME')
+GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/refs/heads/${REF_PATH}" --method DELETE || {
+  REF=$(GH_TOKEN="$TOKEN" gh api "repos/${REPO}/git/ref/heads/${REF_PATH}" --silent 2>&1) &&
     echo "BRANCH_NAME is still there: the delete failed, so say why" ||
   case "$REF" in
     *"HTTP 404"*) echo "BRANCH_NAME was already deleted on merge: done" ;;
