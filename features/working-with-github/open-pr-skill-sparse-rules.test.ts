@@ -118,3 +118,55 @@ describe("open-pr step 2 reads the repository's Copilot instructions", () => {
     expect(out).toContain('.github/instructions/components.instructions.md: applyTo "packages/ui/**/*.tsx", "apps/web/**/*.tsx"\n');
   });
 });
+
+// Regression: step 2 read a root CLAUDE.md but not Claude Code's other project
+// instruction files. Claude Code reads `.claude/CLAUDE.md` like a root one
+// (stripe/stripe-java keeps its test and format commands and "Work is not
+// complete until `just test` passes" only there), and loads every
+// `.claude/rules/**/*.md` without a `paths` field at launch (about 98,000
+// repositories keep rules there). The agent read none of them.
+describe("open-pr step 2 reads Claude Code's .claude/ instructions and rules", () => {
+  test(".claude/CLAUDE.md and unscoped rules print in full, path-scoped rules list their paths", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-claude-"));
+    try {
+      const src = join(root, "src");
+      const files: Record<string, string> = {
+        ".claude/CLAUDE.md": "# stripe-java\n\nWork is not complete until `just test` passes\n",
+        ".claude/AGENTS.md": "agents under .claude\n",
+        ".claude/rules/git.md": "---\ndescription: Conventional commits\n---\n\n# Commit messages\n",
+        ".claude/rules/style.md": "Always run just format\n",
+        ".claude/rules/backend/api.md": '---\npaths:\n  - "src/api/**/*.ts"\n  - "lib/**/*.ts"\n---\n# API rules\n',
+        ".claude/rules/e2e.md": '---\r\npaths: "tests/e2e/**"\r\n---\r\n# E2E\r\n',
+        "src/a.ts": "export {};\n",
+      };
+      for (const [path, content] of Object.entries(files)) {
+        mkdirSync(join(src, path, ".."), { recursive: true });
+        writeFileSync(join(src, path), content);
+      }
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      expect(Bun.spawnSync(["bash", "-c", sparseSet()], { cwd: wt, stderr: "pipe" }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", bashBlock("## 2.", "## 3.").replaceAll("<dirs the change touches>", "src")], {
+        cwd: wt,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain("===== .claude/CLAUDE.md\n# stripe-java\n\nWork is not complete until `just test` passes");
+      expect(out).toContain("===== .claude/AGENTS.md\nagents under .claude");
+      expect(out).toContain("===== .claude/rules/git.md\n---\ndescription: Conventional commits");
+      expect(out).toContain("===== .claude/rules/style.md\nAlways run just format");
+      expect(out).toContain('.claude/rules/backend/api.md: paths "src/api/**/*.ts", "lib/**/*.ts"\n');
+      expect(out).toContain('.claude/rules/e2e.md: paths "tests/e2e/**"\n');
+      expect(out).not.toContain("===== .claude/rules/backend/api.md");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
