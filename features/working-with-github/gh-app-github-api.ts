@@ -865,10 +865,11 @@ const fetchInstallationsPage = (
           message: `GitHub installations list failed: ${cause instanceof Error ? cause.message : String(cause)}`,
           op: "discover",
         }),
-      try: () =>
+      try: (signal) =>
         fetchImpl(url, {
           headers: githubAppHeaders(jwt),
           method: "GET",
+          signal,
         }),
       // Bound the wait: a fetch that never settles is a mint failure, not a
       // mint — see MINT_HTTP_TIMEOUT_MS.
@@ -1046,12 +1047,13 @@ export const requestInstallationToken = (
           message: `GitHub installation-token request failed: ${cause instanceof Error ? cause.message : String(cause)}`,
           op: "request",
         }),
-      try: () =>
+      try: (signal) =>
         fetchImpl(
           `https://api.github.com/app/installations/${installationId}/access_tokens`,
           {
             headers: githubAppHeaders(jwt),
             method: "POST",
+            signal,
           }
         ),
     }).pipe(

@@ -1139,9 +1139,18 @@ export const ghJson = <S extends Schema.Top>(
   input: GhJsonInput & { readonly schema: S }
 ): Effect.Effect<S["Type"], CommitApiError, S["DecodingServices"]> =>
   Effect.gen(function* () {
+    // One controller for the request and its body read, aborted when either
+    // phase is interrupted (this deadline, or a caller's own around it). A
+    // deadline that only stops waiting leaves the connection open: 5 timed-out
+    // calls held 5 sockets for 361s.
+    const controller = new AbortController();
+    const abortOn = (signal: AbortSignal): void =>
+      signal.addEventListener("abort", () => controller.abort(), { once: true });
     const response = yield* Effect.tryPromise({
-      try: () =>
-        input.fetchImpl(input.url, {
+      try: (signal) => {
+        abortOn(signal);
+        return input.fetchImpl(input.url, {
+          signal: controller.signal,
           method: input.method,
           headers: {
             Accept: "application/vnd.github+json",
@@ -1159,7 +1168,8 @@ export const ghJson = <S extends Schema.Top>(
           ...(input.body === undefined
             ? {}
             : { body: JSON.stringify(input.body) }),
-        }),
+        });
+      },
       catch: (cause) =>
         new CommitApiError({
           stage: "http",
@@ -1192,9 +1202,10 @@ export const ghJson = <S extends Schema.Top>(
     // rather than hang the commit flow (or a sweep's PR lookup) indefinitely.
     // (`Effect.promise`, not `tryPromise`: the `.catch(() => null)` already
     // keeps the promise settling, so its only failure mode is the timeout.)
-    const parsed: unknown = yield* Effect.promise(() =>
-      response.json().catch(() => null)
-    ).pipe(
+    const parsed: unknown = yield* Effect.promise((signal) => {
+      abortOn(signal);
+      return response.json().catch(() => null);
+    }).pipe(
       Effect.timeoutOrElse({
         duration: COMMIT_HTTP_TIMEOUT_MS,
         orElse: () =>
