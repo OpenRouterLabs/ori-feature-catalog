@@ -163,3 +163,125 @@ describe("commitViaApi — blobs carry the bytes `git add` stages", () => {
     }
   });
 });
+
+// Git LFS stores a pointer in the commit and the object on GitHub's LFS
+// server, which only `git push` uploads. The Git Data API receives just the
+// pointer, so pre-fix the flow landed a pointer to an object GitHub never got
+// (a fresh clone failed "smudge filter lfs failed"). The flow now refuses an
+// added or changed LFS path before any request. A stand-in `lfs` filter keeps
+// these tests independent of the git-lfs binary; the real one runs when present.
+describe("commitViaApi — Git LFS paths are refused, never committed as dangling pointers", () => {
+  /** Run the flow and return its failure message, or "committed". */
+  const outcome = async (dir: string): Promise<{ label: string; calls: string[] }> => {
+    const calls: string[] = [];
+    const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.includes("/git/ref/heads/")) {
+        return Promise.resolve(Response.json({ object: { sha: "h" } }));
+      }
+      if (url.includes("/git/commits/h")) {
+        return Promise.resolve(Response.json({ tree: { sha: "bt" } }));
+      }
+      if (url.includes("/compare/")) {
+        return Promise.resolve(Response.json({ status: "ahead", files: [] }));
+      }
+      return Promise.resolve(Response.json({ sha: "s", object: { sha: "s" } }));
+    };
+    const label = await Effect.runPromise(
+      commitViaApi(
+        { branch: "b", message: "m", repo: "owner/repo", worktree: dir },
+        { fetchImpl, token: "t", warn: () => undefined }
+      ).pipe(Effect.match({ onFailure: (e) => `${e.stage}: ${e.message}`, onSuccess: () => "committed" }))
+    );
+    return { label, calls };
+  };
+
+  const lfsRepo = async (prefix: string, configureFilter: boolean): Promise<string> => {
+    const dir = await mkdtemp(join(tmpdir(), prefix));
+    initRepo(dir);
+    if (configureFilter) {
+      execFileSync("git", ["config", "filter.lfs.clean", "cat"], { cwd: dir });
+      execFileSync("git", ["config", "filter.lfs.smudge", "cat"], { cwd: dir });
+    }
+    await writeFile(join(dir, ".gitattributes"), "*.bin filter=lfs diff=lfs merge=lfs -text\n");
+    execFileSync("git", ["add", "-A"], { cwd: dir });
+    execFileSync("git", ["commit", "-q", "-m", "root"], { cwd: dir });
+    return dir;
+  };
+
+  test("an added LFS path is refused before any request", async () => {
+    const dir = await lfsRepo("wwg-lfs-add-", true);
+    try {
+      await writeFile(join(dir, "model.bin"), "big bytes");
+      await writeFile(join(dir, "notes.md"), "plain\n");
+
+      const { label, calls } = await outcome(dir);
+
+      expect(label).toContain("git: model.bin is tracked by Git LFS");
+      expect(label).not.toContain("notes.md");
+      expect(calls).toEqual([]);
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  test("deleting an LFS path and editing plain files still commit", async () => {
+    const dir = await lfsRepo("wwg-lfs-del-", true);
+    try {
+      await writeFile(join(dir, "model.bin"), "big bytes");
+      execFileSync("git", ["add", "-A"], { cwd: dir });
+      execFileSync("git", ["commit", "-q", "-m", "add"], { cwd: dir });
+      await rm(join(dir, "model.bin"));
+      await writeFile(join(dir, "notes.md"), "plain\n");
+
+      expect((await outcome(dir)).label).toBe("committed");
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  const hasGitLfs = (() => {
+    try {
+      execFileSync("git", ["lfs", "version"], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  // A system or global `git lfs install` configures the filter for every repo.
+  const lfsFilterOutsideRepo = (() => {
+    try {
+      return execFileSync("git", ["config", "--get-regexp", "^filter\\.lfs\\."], { cwd: tmpdir(), encoding: "utf-8" }).trim() !== "";
+    } catch {
+      return false;
+    }
+  })();
+
+  test.skipIf(lfsFilterOutsideRepo)("with no lfs filter configured, filter=lfs paths commit their bytes like git add", async () => {
+    const dir = await lfsRepo("wwg-lfs-nofilter-", false);
+    try {
+      await writeFile(join(dir, "model.bin"), "big bytes");
+
+      expect((await outcome(dir)).label).toBe("committed");
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  test.skipIf(!hasGitLfs)("a real git-lfs tracked file is refused", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "wwg-lfs-real-"));
+    try {
+      initRepo(dir);
+      execFileSync("git", ["lfs", "install", "--local"], { cwd: dir, stdio: "ignore" });
+      execFileSync("git", ["lfs", "track", "*.psd"], { cwd: dir, stdio: "ignore" });
+      execFileSync("git", ["add", "-A"], { cwd: dir });
+      execFileSync("git", ["commit", "-q", "-m", "root"], { cwd: dir });
+      await writeFile(join(dir, "art.psd"), Buffer.alloc(4096, 1));
+
+      expect((await outcome(dir)).label).toContain("art.psd is tracked by Git LFS");
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+});

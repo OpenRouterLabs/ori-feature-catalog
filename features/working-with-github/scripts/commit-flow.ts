@@ -513,6 +513,49 @@ const discoverChangedFiles = (
     return changed;
   });
 
+/** Paths per `git check-attr` call, so a huge round stays under the argv limit. */
+const LFS_CHECK_BATCH = 500;
+
+/**
+ * Refuse a round that adds or changes a Git LFS-tracked path (`filter=lfs`).
+ * `git add` stores such a file as a pointer, and `git push` uploads the
+ * object the pointer names; the Git Data API only ever receives the pointer.
+ * Pre-fix the commit landed a pointer to an object GitHub never got: a fresh
+ * clone of the branch failed "smudge filter lfs failed" and the PR showed the
+ * file as missing. Refused before any request, so nothing lands half-made.
+ * Only when an `lfs` filter is configured: without one, `git add` stores the
+ * raw bytes too, and so does this flow.
+ */
+const refuseLfsPaths = (
+  args: CommitArgs,
+  runGit: RunGit,
+  changed: readonly ChangedFile[]
+): Effect.Effect<void, CommitApiError> =>
+  Effect.gen(function* () {
+    const paths = changed.filter((file) => !file.deleted).map((file) => file.path);
+    const filter = runGit(["config", "--get-regexp", "^filter\\.lfs\\.(clean|process)$"], args.worktree);
+    if (paths.length === 0 || !filter.ok || filter.stdout.trim() === "") {
+      return;
+    }
+    const lfs: string[] = [];
+    for (let start = 0; start < paths.length; start += LFS_CHECK_BATCH) {
+      const batch = paths.slice(start, start + LFS_CHECK_BATCH);
+      const attrs = runGit(["check-attr", "-z", "filter", "--", ...batch], args.worktree);
+      const fields = attrs.ok ? attrs.stdout.split("\0") : [];
+      for (let i = 0; i + 2 < fields.length; i += 3) {
+        if (fields[i + 2] === "lfs") {
+          lfs.push(fields[i] ?? "");
+        }
+      }
+    }
+    if (lfs.length > 0) {
+      return yield* new CommitApiError({
+        stage: "git",
+        message: `${lfs.join(", ")} ${lfs.length === 1 ? "is" : "are"} tracked by Git LFS (filter=lfs), and the Git Data API stores only the pointer, never the object it names, so the commit would point at a file GitHub does not have. Push them with git instead (git push uploads the LFS objects too), or stop tracking them with LFS`,
+      });
+    }
+  });
+
 interface BaseTreeInput {
   readonly args: CommitArgs;
   readonly token: string | undefined;
@@ -937,6 +980,7 @@ export const commitViaApi = (
 
     // 2. Discover the worktree's changes.
     const changed = yield* discoverChangedFiles(args, runGit);
+    yield* refuseLfsPaths(args, runGit, changed);
 
     // 3. Read the branch head + its base tree.
     const { headSha, baseTreeSha } = yield* readBaseTree({
