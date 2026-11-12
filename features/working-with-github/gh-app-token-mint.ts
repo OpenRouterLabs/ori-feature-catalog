@@ -24,7 +24,7 @@ import {
   resolveApp,
   sqliteInstallationCache,
 } from "./gh-app-registry.ts";
-import { GhAppError } from "./gh-app-github-api.ts";
+import { GhAppError, unquoteEnvValue } from "./gh-app-github-api.ts";
 import { GhApp, GhAppConfigLayer, GhAppLive } from "./gh-app-token.ts";
 
 /**
@@ -164,10 +164,15 @@ export interface GitHubToken {
   readonly expiresAt?: string;
 }
 
+/**
+ * The rotated token, read through the same quotes as every GH_APP_* value:
+ * `docker run --env-file` keeps a dotenv line's quotes, so the token went
+ * out as `Bearer "ghs_…"`, which GitHub answers 400, and `""` read as set.
+ */
 const readRotatedToken = (
   env: Readonly<Record<string, string | undefined>>
 ): Effect.Effect<GitHubToken, GhAppError> => {
-  const token = (env.GH_TOKEN ?? "").trim();
+  const token = unquoteEnvValue(env.GH_TOKEN ?? "");
   return token === ""
     ? Effect.fail(
         new GhAppError({
