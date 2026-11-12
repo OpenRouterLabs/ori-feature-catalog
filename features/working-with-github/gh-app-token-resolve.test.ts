@@ -78,6 +78,29 @@ describe("resolveGitHubToken", () => {
     expect(urls).toEqual([]);
   });
 
+  // An env file read by `docker run --env-file` keeps a dotenv line's quotes,
+  // and the GH_APP_* values beside it are read through them. Pre-fix the
+  // rotated token kept its quotes (GitHub answers `Bearer "ghs_…"` with 400)
+  // and a quoted empty value read as a configured token.
+  test.each([
+    ["double-quoted", `"ghs_rotated"`],
+    ["single-quoted", "'ghs_rotated'"],
+    ["padded and quoted", `  "ghs_rotated"  `],
+  ])("a %s GH_TOKEN resolves to the bare token", async (_label, value) => {
+    const token = await Effect.runPromise(
+      resolveGitHubToken({ cache: null, env: { ...ENV, GH_TOKEN: value } })
+    );
+    expect(token).toEqual({ token: "ghs_rotated" });
+  });
+
+  test("a quoted empty GH_TOKEN fails as unset", async () => {
+    const error = await Effect.runPromise(
+      Effect.flip(resolveGitHubToken({ cache: null, env: { ...ENV, GH_TOKEN: `""` } }))
+    );
+    expect(error.op).toBe("config");
+    expect(error.message).toContain("GH_TOKEN is not set");
+  });
+
   test("a target routed to a registered alternate App mints that App's token", async () => {
     const urls: string[] = [];
     const token = await Effect.runPromise(
