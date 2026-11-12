@@ -204,13 +204,14 @@ Before filing a new issue, do a duplicate check:
 1. Extract 3-5 keywords from the proposed issue.
 2. Search open and closed issues: `gh issue list --repo "$REPO" --state all --search "KEYWORDS" --limit 20`
 
-   In ambient mode, search the issue list yourself. One read of `GET /repos/{owner}/{repo}/issues?state=all` is not a search: it takes no keywords, returns only the 30 newest entries, and counts pull requests as issues. On a busy repo page one can hold no issue at all, so an older duplicate never shows. `/search/issues` does not fix this. It is an unscoped route that goes out without the workspace credential, so it answers 422 for a private repo. Page through every issue and match the keywords against titles and bodies:
+   In ambient mode, search the issue list yourself. One read of `GET /repos/{owner}/{repo}/issues?state=all` is not a search: it takes no keywords, returns only the 30 newest entries, and counts pull requests as issues. On a busy repo page one can hold no issue at all, so an older duplicate never shows. `/search/issues` does not fix this. It is an unscoped route that goes out without the workspace credential, so it answers 422 for a private repo. Page through every issue and match the keywords against titles and bodies. Follow the cursor in each answer's `Link` header, never a growing `page=N`: past 100 pages (about 10,000 issues and pull requests) GitHub refuses a `page` number with 422 `Pagination with the page parameter is not supported for large datasets` (microsoft/vscode and vercel/next.js both fail at page 100), so the check died before it reached the oldest issues. The `Link` URL names the repository by id (`/repositories/41881900/issues`), which carries no owner, so a proxy that credentials owner-scoped routes sends it out bare and a private repository answers 404 there; the recipe keeps the `/repos/{owner}/{repo}` path and takes only the query (the `after` cursor) from that link:
 
    ```bash
    bun -e '
    const [repo, ...words] = process.argv.slice(1);
-   for (let page = 1; ; page += 1) {
-     const res = await fetch(`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=${page}`);
+   let query = "state=all&per_page=100";
+   for (;;) {
+     const res = await fetch(`https://api.github.com/repos/${repo}/issues?${query}`);
      if (!res.ok) { console.error(`HTTP ${res.status}`); process.exit(1); }
      const items = await res.json();
      for (const item of items) {
@@ -219,7 +220,9 @@ Before filing a new issue, do a duplicate check:
          console.log(`#${item.number} [${item.state}] ${item.title}`);
        }
      }
-     if (items.length < 100) break;
+     const next = /<([^>]+)>;\s*rel="next"/.exec(res.headers.get("link") ?? "")?.[1];
+     if (next === undefined) break;
+     query = new URL(next).search.slice(1);
    }' "{owner}/{repo}" KEYWORD1 KEYWORD2 KEYWORD3
    ```
 3. If a matching closed issue exists, check whether the fix is still in the codebase. If fixed → say so. If regressed → reopen.
