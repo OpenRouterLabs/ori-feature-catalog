@@ -385,8 +385,7 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E -e 's#[?].*$##; s#[#].*$##; s#[/[:spa
    # allows a `+` or `#` in a branch name, and in a hand-written `?sha=` GitHub
    # reads a raw `+` as a space (404), while gh cuts a `#` and all after it
    # off as a URL fragment, so it lists another branch's commits.
-   GH_TOKEN="$TOKEN" gh api -X GET "repos/${REPO}/commits" \
-     --raw-field sha='branch-name' --raw-field per_page=10 \
+   GH_TOKEN="$TOKEN" gh api -X GET "repos/${REPO}/commits" --raw-field sha='branch-name' --raw-field per_page=10 \
      --jq '[.[] | {sha: .sha[:7], verified: .commit.verification.verified}]'
    # An App-token Git-Data-API commit shows "verified": true. A commit created
    # under `x-github-as: member` (the acting-as path) comes back "unsigned" —
