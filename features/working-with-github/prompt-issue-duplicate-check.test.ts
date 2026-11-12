@@ -13,6 +13,13 @@ import { fileURLToPath } from "node:url";
 // found it. `/search/issues` is no way out in ambient mode: it is unscoped,
 // goes out without the workspace credential, and answered 422 for a private
 // repo. The guidance now pages the whole list and matches keywords locally.
+// It paged with a growing `page=N`, which GitHub refuses past page 100 with
+// 422 "Pagination with the page parameter is not supported for large
+// datasets" (reproduced 2026-11-12 on microsoft/vscode: HTTP 422 after 100
+// requests). It now follows the `after` cursor from each `Link` header, on
+// the `/repos/{owner}/{repo}` path: the link itself names
+// `/repositories/{id}`, which a per-owner proxy sends uncredentialed (a
+// private repo answered 404 there, 200 on the owner path).
 
 const prompt = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "prompt.md"),
@@ -63,8 +70,15 @@ const seen = [];
 process.on("exit", () => process.stderr.write("URLS " + JSON.stringify(seen) + "\\n"));
 globalThis.fetch = async (url) => {
   seen.push(String(url));
-  const page = Number(new URL(String(url)).searchParams.get("page"));
-  return new Response(JSON.stringify(pages[page - 1] ?? []), { status: ${status} });
+  const params = new URL(String(url)).searchParams;
+  const page = Number(params.get("page") ?? "1");
+  if (page > 100 && !params.has("after")) {
+    return new Response(JSON.stringify({ message: "Pagination with the page parameter is not supported for large datasets, please use cursor based pagination (after/before)" }), { status: 422 });
+  }
+  const headers = page < pages.length
+    ? { link: '<https://api.github.com/repositories/42/issues?state=all&per_page=100&page=' + (page + 1) + '&after=cur' + page + '>; rel="next"' }
+    : {};
+  return new Response(JSON.stringify(pages[page - 1] ?? []), { headers, status: ${status} });
 };
 `
   );
@@ -95,7 +109,9 @@ describe("the ambient duplicate check searches every issue", () => {
     expect(filingSection()).not.toContain(
       "(`GET /repos/{owner}/{repo}/issues?state=all` for the duplicate check"
     );
-    expect(recipe()).toContain("per_page=100&page=");
+    expect(recipe()).toContain("state=all&per_page=100");
+    expect(recipe()).toContain(String.raw`rel="next"`);
+    expect(recipe()).not.toContain("&page=${page}");
   });
 
   test("an older issue behind a full page of pull requests is found", () => {
@@ -113,6 +129,21 @@ describe("the ambient duplicate check searches every issue", () => {
     expect(run.stdout.trim()).toBe("#7 [open] Recipe composites diverge");
     expect(run.urls).toHaveLength(2);
     expect(run.urls[0]).toContain("/repos/acme/widgets/issues?state=all");
+  });
+
+  test("an issue past page 100 is reached through the Link cursor, on the owner path", () => {
+    const filler = Array.from({ length: 101 }, (_unused, index) => pulls(1000 + index * 100, 100));
+    const run = runRecipe(
+      [...filler, [{ number: 5, state: "closed", title: "Recipe composites diverge" }]],
+      ["composites"]
+    );
+    expect(run.stderr).not.toContain("HTTP 422");
+    expect(run.exitCode).toBe(0);
+    expect(run.stdout.trim()).toBe("#5 [closed] Recipe composites diverge");
+    expect(run.urls).toHaveLength(102);
+    expect(run.urls.at(-1)).toContain("/repos/acme/widgets/issues?");
+    expect(run.urls.at(-1)).toContain("after=cur101");
+    expect(run.urls.some((url) => url.includes("/repositories/"))).toBe(false);
   });
 
   test("keywords match the body and ignore case", () => {
