@@ -112,9 +112,15 @@ Repositories may ship their own agent skills, in `.agents/skills/`, `.claude/ski
 ```bash
 desc() { awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
     block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' | cut -c1-200; }
-for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md "$WT"/.cursor/rules/*; do
+for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md; do
   [ -f "$f" ] && printf '%s: %s\n' "$f" "$(desc < "$f")"
 done
+# Cursor rules, nested folders too: alwaysApply: true applies to every change, so it prints in full.
+(cd "$WT" && git ls-tree -r --name-only HEAD -- .cursor/rules) | grep -E '\.mdc?$' | while IFS= read -r f; do
+  r=$(git -C "$WT" show "HEAD:$f"); a=$(printf '%s\n' "$r" | awk '{ sub(/\r$/, "") } NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } /^alwaysApply:[ \t]*true[ \t]*$/ { print "yes"; exit }')
+  if [ "$a" = yes ]; then printf '\n===== %s (alwaysApply)\n%s\n' "$f" "$r"
+  else g=$(printf '%s\n' "$r" | awk '{ sub(/\r$/, "") } NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } /^globs:/ { sub(/^globs:[ \t]*/, ""); print; exit }')
+    printf '%s: %s%s\n' "$f" "$(printf '%s\n' "$r" | desc)" "${g:+ (globs $g)}"; fi; done
 # Skills a package keeps beside its own code, in each touched directory and its parents. Read from the
 # index: the sparse checkout leaves a package's .agents/ out when the change touches only its src/.
 cd "$WT"; for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
@@ -123,6 +129,8 @@ cd "$WT"; for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != 
 ```
 
 The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again.
+
+Cursor rules (`.cursor/rules/**/*.mdc`, in nested folders too) are rules, not skills you pick by description. Cursor applies one with `alwaysApply: true` to every request, and many leave its `description` empty: ClickHouse/ai-sdk-cpp keeps its C++ style rules in such a file, which a description listing showed as a blank line. So the block prints every `alwaysApply` rule in full and lists the others with their description and `globs`; read in full every rule whose globs match a file you touch. Rules sit in subfolders as often as not (growthbook/growthbook keeps them in `.cursor/rules/frontend/` and `.cursor/rules/backend/`), so the list comes from the index, which also reaches a rule the sparse checkout left out.
 
 A monorepo package can keep its own skills beside its code (`<package>/.agents/skills/<name>/SKILL.md`), which apply to changes in that package; a root AGENTS.md often points at one for every change to that package (a TUI skill under `features/chat-tui/.agents/skills/`, a desktop one under `apps/desktop/.agents/skills/`), and the root loop above never lists them. The second loop lists those for every directory the change touches and each of its parents.
 

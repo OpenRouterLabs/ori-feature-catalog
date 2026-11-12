@@ -162,3 +162,44 @@ describe("open-pr step 3 lists the skills in GitHub's own skills folder", () => 
     }
   });
 });
+
+// Regression: step 3 listed `.cursor/rules/*` by `description` only, from the
+// disk. Cursor applies a rule with `alwaysApply: true` to every request, and
+// many leave its description empty (ClickHouse/ai-sdk-cpp keeps its C++ style
+// rules in one), so the listing showed a blank line and the agent read none of
+// it. Rules in subfolders (growthbook/growthbook keeps `.cursor/rules/frontend/`
+// and `/backend/`) were never listed at all.
+describe("open-pr step 3 reads Cursor rules the way Cursor applies them", () => {
+  test("an alwaysApply rule prints in full, a nested scoped rule lists its description and globs", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-cursor-"));
+    try {
+      const src = join(root, "src");
+      write(src, ".cursor/rules/cpp.mdc", "---\ndescription: \nglobs: \nalwaysApply: true\n---\n\n1. prefer one class per file.\n");
+      write(src, ".cursor/rules/crlf.mdc", "---\r\ndescription:\r\nalwaysApply: true\r\n---\r\nUse nullptr.\r\n");
+      write(src, ".cursor/rules/frontend/react.mdc", '---\ndescription: "React conventions"\nglobs: packages/front-end/**/*.tsx\nalwaysApply: false\n---\n# React\n');
+      write(src, "src/main.ts", "export {};\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      git(["sparse-checkout", "set", "--skip-checks", "src"], wt);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor("src")], {
+        cwd: root,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain("===== .cursor/rules/cpp.mdc (alwaysApply)\n---\ndescription: \nglobs: \nalwaysApply: true\n---\n\n1. prefer one class per file.");
+      expect(out).toContain("===== .cursor/rules/crlf.mdc (alwaysApply)");
+      expect(out).toContain("Use nullptr.");
+      expect(out).toContain('.cursor/rules/frontend/react.mdc: "React conventions" (globs packages/front-end/**/*.tsx)\n');
+      expect(out).not.toContain("===== .cursor/rules/frontend/react.mdc");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
