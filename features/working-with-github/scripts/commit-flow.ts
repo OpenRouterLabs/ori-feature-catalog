@@ -484,6 +484,17 @@ const discoverChangedFiles = (
   runGit: RunGit
 ): Effect.Effect<ChangedFile[], CommitApiError> =>
   Effect.gen(function* () {
+    // `git status` lists paths from the checkout root, but every file is read
+    // relative to --worktree: from a subdirectory, `pkg/a.txt` was read as
+    // `pkg/pkg/a.txt`, and a root `package.json` was committed holding
+    // `pkg/package.json`'s bytes. Refuse before any call is made.
+    const prefix = runGit(["rev-parse", "--show-prefix"], args.worktree);
+    if (prefix.ok && /^[^\n]+\/$/u.test(prefix.stdout.trim())) {
+      return yield* new CommitApiError({
+        stage: "args",
+        message: `--worktree ${args.worktree} is the subdirectory ${prefix.stdout.trim()} of its checkout, and git lists changes from the checkout root, so every file would be read from the wrong place. Pass the checkout root instead: --worktree "$(git -C ${args.worktree} rev-parse --show-toplevel)"`,
+      });
+    }
     const status = runGit(
       ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
       args.worktree
