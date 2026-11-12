@@ -159,8 +159,9 @@ export const ambientGitHubReachable = (input: {
   const scope = repo === "" ? { unscoped: true } : {};
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () =>
+      try: (signal) =>
         fetchImpl(`https://api.github.com${route}`, {
+          signal,
           headers: {
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -351,8 +352,9 @@ const verifyRepoAccess = (input: {
 }): Effect.Effect<string, HealthCheckError> =>
   Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () =>
+      try: (signal) =>
         input.fetchImpl(`https://api.github.com/repos/${input.repo}`, {
+          signal,
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${input.token}`,
