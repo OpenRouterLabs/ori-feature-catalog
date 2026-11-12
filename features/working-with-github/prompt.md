@@ -445,14 +445,21 @@ GH_TOKEN="$TOKEN" gh api "repos/${REPO}/commits/${HEAD_SHA}/status?per_page=100"
 # OPINIONATED review (approve or request changes), not `reviewDecision`, and
 # every thread; both lists must be empty. Not `latestReviews`: a reviewer who
 # requested changes and then left a comment-only review shows COMMENTED
-# there, which hides the changes request still standing:
-GH_TOKEN="$TOKEN" gh api graphql -F number=PR_NUMBER \
+# there, which hides the changes request still standing. Threads come 100 to
+# a page, and a busy PR carries more (kubernetes/kubernetes#137133 has 119,
+# its 14 unresolved ones all past the first 100), so --paginate walks every
+# page through $endCursor and prints one line per page. Every line must
+# print two empty lists:
+GH_TOKEN="$TOKEN" gh api graphql --paginate -F number=PR_NUMBER \
   -f owner="${REPO%%/*}" -f name="${REPO#*/}" -f query='
-query($owner: String!, $name: String!, $number: Int!) {
+query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       latestOpinionatedReviews(first: 100) { nodes { author { login } state } }
-      reviewThreads(first: 100) { nodes { isResolved path } }
+      reviewThreads(first: 100, after: $endCursor) {
+        nodes { isResolved path }
+        pageInfo { hasNextPage endCursor }
+      }
     }
   }
 }' --jq '.data.repository.pullRequest | {

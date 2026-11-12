@@ -29,6 +29,11 @@ import { fileURLToPath } from "node:url";
  *
  *   latestReviews             perry-the-pr-reviewer COMMENTED
  *   latestOpinionatedReviews  perry-the-pr-reviewer CHANGES_REQUESTED
+ *
+ * The thread read took one page of 100. kubernetes/kubernetes#137133 carries
+ * 119 threads, and all 14 unresolved ones sit past the first 100, so the gate
+ * printed "unresolvedThreads":[] (real gh 2.63, 2026-11-12). It now pages
+ * with `gh api graphql --paginate` over `$endCursor` and reads 14.
  */
 const prompt = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "prompt.md"),
@@ -66,8 +71,15 @@ describe("the merge recipe reads the review conditions it lists", () => {
   });
 
   test("it lists every unresolved thread", () => {
-    expect(reviewRead).toContain("reviewThreads(first: 100)");
+    expect(reviewRead).toContain("reviewThreads(first: 100");
     expect(reviewRead).toContain("select(.isResolved | not)");
+  });
+
+  test("it reads every page of threads, not only the first 100", () => {
+    expect(reviewRead).toMatch(/^gh api graphql --paginate /u);
+    expect(reviewRead).toContain("$endCursor: String");
+    expect(reviewRead).toContain("reviewThreads(first: 100, after: $endCursor)");
+    expect(reviewRead).toContain("pageInfo { hasNextPage endCursor }");
   });
 
   test("the conditions no longer promise branch protection or a reviewDecision shortcut", () => {
