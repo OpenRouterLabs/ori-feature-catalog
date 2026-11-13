@@ -12,7 +12,7 @@ import { Effect, Schema } from "effect";
 
 import { discoverInstallationId, requestInstallationToken } from "./gh-app-github-api.ts";
 import { ambientGitHubReachable, ghAuthHealthCheck } from "./schedules/gh-auth-health/gh-auth-health.ts";
-import { ghJson } from "./scripts/commit-api-core.ts";
+import { COMMIT_HTTP_TIMEOUT_MS, commitHttpDeadlineMs, ghJson } from "./scripts/commit-api-core.ts";
 
 /** A never-settling fetch that records the signal of each request. */
 const recordingNeverFetch = () => {
@@ -50,6 +50,28 @@ const expectAborted = (signals: readonly (AbortSignal | undefined)[]) => {
 };
 
 describe("an HTTP deadline cancels the request it gave up on", () => {
+  test(
+    "ghJson gives a large body the time to upload, and a bodyless call keeps 15s",
+    async () => {
+      // A fetch settles once the whole body is up. Pre-fix a 12 MB file going
+      // up at a steady 256 KB/s was cut off at 15s as "did not answer".
+      const bytesPerSecond = 128 * 1024;
+      const fetchImpl = (_url: string, init?: RequestInit): Promise<Response> =>
+        new Promise<Response>((resolve) => {
+          const sent = Buffer.byteLength(String(init?.body ?? ""));
+          setTimeout(() => resolve(Response.json({ sha: "a".repeat(40) }, { status: 201 })), (sent / bytesPerSecond) * 1000);
+        });
+      const content = "x".repeat(2_300_000);
+      const blob = await Effect.runPromise(
+        ghJson({ body: { content, encoding: "utf-8" }, fetchImpl, method: "POST", schema: Schema.Struct({ sha: Schema.String }), url: "https://api.github.com/repos/o/r/git/blobs" })
+      );
+      expect(blob.sha).toBe("a".repeat(40));
+      expect(commitHttpDeadlineMs(0)).toBe(COMMIT_HTTP_TIMEOUT_MS);
+      expect(commitHttpDeadlineMs(60_000)).toBe(COMMIT_HTTP_TIMEOUT_MS);
+    },
+    DEADLINE_TEST_MS + 30_000
+  );
+
   test(
     "ghJson (every commit-flow and sweep call) aborts a request that never answers",
     async () => {
