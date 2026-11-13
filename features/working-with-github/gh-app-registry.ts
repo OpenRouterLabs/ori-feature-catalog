@@ -60,6 +60,16 @@ export const DEFAULT_PURPOSE = "default";
 const GITHUB_TOKEN_SHAPE = /(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/u;
 
 /**
+ * True when `segment` is one whole GitHub token. A token pasted into the
+ * wrong variable (`GITHUB_REPO=ghp_…`) has no host and one segment, so every
+ * resolver passed it through as the owner: commit-via-api then printed it in
+ * each request URL of its errors, and the registry made a directory named
+ * after it under `~/.config/`. A login never holds `_`, so no owner is lost.
+ */
+export const isGitHubTokenShaped = (segment: string): boolean =>
+  new RegExp(`^${GITHUB_TOKEN_SHAPE.source}$`, "iu").test(segment.trim());
+
+/**
  * Mask URL userinfo, and any GitHub token, before a repo or org spelling is
  * echoed in a diagnostic. Every resolver here tolerates a userinfo prefix
  * because `git remote -v` pastes carry one, and a remote that persisted its
@@ -715,6 +725,13 @@ const sanitizeSegment = (raw: string): string =>
  */
 export const resolveConfigDirName = (
   env: Readonly<Record<string, string | undefined>> = Bun.env
+): string => {
+  const name = configDirNameOf(env);
+  return isGitHubTokenShaped(name) ? "intern" : name;
+};
+
+const configDirNameOf = (
+  env: Readonly<Record<string, string | undefined>>
 ): string => {
   const fromInternName = (env.INTERN_NAME ?? "").trim();
   if (fromInternName !== "") {

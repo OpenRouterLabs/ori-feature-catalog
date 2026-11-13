@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
 
 import { discoverInstallationId } from "./gh-app-github-api.ts";
-import { orgOf, redactUserinfo } from "./gh-app-registry.ts";
+import { orgOf, redactUserinfo, resolveConfigDirName } from "./gh-app-registry.ts";
+import { resolveRepoFromEnv } from "./scripts/commit-api-core.ts";
 
 // Every resolver tolerates a userinfo prefix because `git remote -v` pastes
 // carry one, and a remote that persisted its credential reads
@@ -208,4 +209,47 @@ describe("no diagnostic echoes a GitHub token outside the userinfo", () => {
     expect(notFound.message).not.toContain(SECRET);
     expect(notFound.message).not.toContain(SECRET.toLowerCase());
   });
+});
+
+// A token pasted alone as the repo has no host and one segment, so every
+// resolver passed it through as the owner. commit-via-api then printed it
+// three times in one error (`GET …/repos/ghs_…/git/ref/heads/x: Not Found —
+// branch "x" does not exist on ghs_… POST /repos/ghs_…/git/refs`), the sweep
+// and the schedules put it in their request URLs, and the registry opened its
+// database in `~/.config/<token, lowercased>/`. A login never holds `_`, so a
+// token-shaped owner names no repo.
+describe("a token pasted as the repo names no repo", () => {
+  const FINE_GRAINED = `github_pat_11ABCDEFG0_${"x".repeat(59)}`;
+
+  test.each([SECRET, `${SECRET}/widgets`, ` ${FINE_GRAINED} `])(
+    "%p resolves to no owner/repo",
+    (spelling) => {
+      expect(resolveRepoFromEnv({ GITHUB_REPO: spelling })).toBe("");
+    }
+  );
+
+  test("a token in the userinfo or the repo segment still leaves the repo", () => {
+    expect(
+      resolveRepoFromEnv({ GITHUB_REPO: `https://x-access-token:${SECRET}@github.com/acme/widgets` })
+    ).toBe("acme/widgets");
+    expect(resolveRepoFromEnv({ GITHUB_REPO: "acme/widgets" })).toBe("acme/widgets");
+  });
+
+  test.each([SECRET, FINE_GRAINED])("the registry directory is never named after %p", (spelling) => {
+    expect(resolveConfigDirName({ GITHUB_REPO: spelling })).toBe("intern");
+  });
+
+  test("commit-via-api and the sweep say so without printing it", () => {
+    const runs = [
+      run("scripts/commit-via-api.ts", ["--worktree", ".", "--branch", "x", "--message-file", "m", "--as", "member"], { GITHUB_REPO: SECRET }),
+      run("scripts/commit-via-api.ts", ["--worktree", ".", "--branch", "x", "--message-file", "m", "--repo", SECRET], {}),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run"], { GITHUB_REPO: SECRET }),
+      run("scripts/cleanup-worktrees.ts", ["--dry-run", "--repo", SECRET], {}),
+    ];
+    for (const result of runs) {
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("resolves to no owner/repo");
+      expect(result.out).not.toContain(SECRET);
+    }
+  }, 60_000);
 });
