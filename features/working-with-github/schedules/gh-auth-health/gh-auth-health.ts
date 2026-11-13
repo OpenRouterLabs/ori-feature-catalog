@@ -98,15 +98,39 @@ const ROUND_TRIP_TIMEOUT_MS = 15_000;
 const ROUND_TRIP_BODY_TIMEOUT_MS = ROUND_TRIP_TIMEOUT_MS;
 
 /**
+ * One controller for a probe's request and its body reads, aborted when any
+ * phase is interrupted (its deadline). The fetch's own signal is never aborted
+ * once the headers are in, so a body that stalled after them kept its socket
+ * open in the daemon after the deadline had already failed the fire.
+ */
+const linkedAbort = (): {
+  readonly abortOn: (signal: AbortSignal) => void;
+  readonly signal: AbortSignal;
+} => {
+  const controller = new AbortController();
+  return {
+    abortOn: (signal) =>
+      signal.addEventListener("abort", () => controller.abort(), { once: true }),
+    signal: controller.signal,
+  };
+};
+
+/**
  * True when a 403 is GitHub's secondary rate limit rather than an auth
  * answer: a `retry-after` header, or a body message naming the limit. The
  * body read is bounded like the fetch; an unreadable or stalled body reads
  * as no message.
  */
-const isSecondaryRateLimit = (response: Response): Effect.Effect<boolean> =>
+const isSecondaryRateLimit = (
+  response: Response,
+  abortOn: (signal: AbortSignal) => void
+): Effect.Effect<boolean> =>
   response.headers.get("retry-after") !== null
     ? Effect.succeed(true)
-    : Effect.promise(() => response.text().catch(() => "")).pipe(
+    : Effect.promise((signal) => {
+        abortOn(signal);
+        return response.text().catch(() => "");
+      }).pipe(
         Effect.timeoutOption(AMBIENT_PROBE_TIMEOUT_MS),
         Effect.map((body) =>
           /secondary rate limit/iu.test(Option.getOrElse(body, () => ""))
@@ -116,8 +140,14 @@ const isSecondaryRateLimit = (response: Response): Effect.Effect<boolean> =>
 /** GitHub's error `message` from a bounded body read, or "" when the body is
  *  unreadable, stalled, or not the envelope. Capped so a long refusal cannot
  *  flood the alert. */
-const errorBodyMessage = (response: Response): Effect.Effect<string> =>
-  Effect.promise(() => response.text().catch(() => "")).pipe(
+const errorBodyMessage = (
+  response: Response,
+  abortOn: (signal: AbortSignal) => void
+): Effect.Effect<string> =>
+  Effect.promise((signal) => {
+    abortOn(signal);
+    return response.text().catch(() => "");
+  }).pipe(
     Effect.timeoutOption(AMBIENT_PROBE_TIMEOUT_MS),
     Effect.map((body) => {
       try {
@@ -158,15 +188,18 @@ export const ambientGitHubReachable = (input: {
   const route = repo === "" ? "/" : `/repos/${repo}`;
   const scope = repo === "" ? { unscoped: true } : {};
   return Effect.gen(function* () {
+    const abort = linkedAbort();
     const response = yield* Effect.tryPromise({
-      try: (signal) =>
-        fetchImpl(`https://api.github.com${route}`, {
-          signal,
+      try: (signal) => {
+        abort.abortOn(signal);
+        return fetchImpl(`https://api.github.com${route}`, {
+          signal: abort.signal,
           headers: {
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
           },
-        }),
+        });
+      },
       catch: (error) =>
         new AmbientProbeError({
           // Name the route like the timeout and 5xx details do: a bare
@@ -194,7 +227,7 @@ export const ambientGitHubReachable = (input: {
     // 200 or 404, never 401. Pre-fix it logged "ok" in exactly the state this
     // check exists to catch: the host's credential revoked or expired.
     if (response.status === 401) {
-      const message = yield* errorBodyMessage(response);
+      const message = yield* errorBodyMessage(response, abort.abortOn);
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 401${message === "" ? "" : ` (${message})`} — the credential attached to the request was refused`,
         refused: true,
@@ -235,7 +268,7 @@ export const ambientGitHubReachable = (input: {
     // Its marks are a `retry-after` header or a message naming the limit
     // (the header is not always sent). Pre-fix that 403 logged ok while
     // every call failed, though the same limit as a 429 alerted.
-    if (response.status === 403 && (yield* isSecondaryRateLimit(response))) {
+    if (response.status === 403 && (yield* isSecondaryRateLimit(response, abort.abortOn))) {
       return yield* new AmbientProbeError({
         detail: `GET ${route} answered HTTP 403 (secondary rate limit) — GitHub is refusing requests from this workspace`,
         rateLimited: true,
@@ -351,16 +384,19 @@ const verifyRepoAccess = (input: {
   readonly token: string;
 }): Effect.Effect<string, HealthCheckError> =>
   Effect.gen(function* () {
+    const abort = linkedAbort();
     const response = yield* Effect.tryPromise({
-      try: (signal) =>
-        input.fetchImpl(`https://api.github.com/repos/${input.repo}`, {
-          signal,
+      try: (signal) => {
+        abort.abortOn(signal);
+        return input.fetchImpl(`https://api.github.com/repos/${input.repo}`, {
+          signal: abort.signal,
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${input.token}`,
             "X-GitHub-Api-Version": "2022-11-28",
           },
-        }),
+        });
+      },
       catch: (error) =>
         new HealthCheckError({
           stage: "round-trip",
@@ -390,9 +426,10 @@ const verifyRepoAccess = (input: {
       // revoked). Parse the body only here, after `response.ok` is known,
       // exactly like the sibling `readBodyJson` helpers in
       // `gh-app-github-api.ts` / `commit-api-core.ts`.
-      const payload = yield* Effect.promise(() =>
-        response.json().catch(() => null)
-      ).pipe(
+      const payload = yield* Effect.promise((signal) => {
+        abort.abortOn(signal);
+        return response.json().catch(() => null);
+      }).pipe(
         Effect.timeoutOrElse({
           duration: ROUND_TRIP_BODY_TIMEOUT_MS,
           orElse: () =>
@@ -415,7 +452,10 @@ const verifyRepoAccess = (input: {
     }
 
     const payload = yield* Effect.tryPromise({
-      try: (): Promise<unknown> => response.json(),
+      try: (signal): Promise<unknown> => {
+        abort.abortOn(signal);
+        return response.json();
+      },
       catch: (error) =>
         new HealthCheckError({
           stage: "round-trip",

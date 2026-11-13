@@ -25,7 +25,7 @@ const recordingNeverFetch = () => {
 };
 
 /** A fetch whose headers arrive at once and whose JSON body never finishes. */
-const stalledBodyFetch = () => {
+const stalledBodyFetch = (status = 200) => {
   const signals: (AbortSignal | undefined)[] = [];
   const fetchImpl = (_url: string, init?: RequestInit): Promise<Response> => {
     signals.push(init?.signal ?? undefined);
@@ -35,7 +35,7 @@ const stalledBodyFetch = () => {
         init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")));
       },
     });
-    return Promise.resolve(new Response(body, { status: 200 }));
+    return Promise.resolve(new Response(body, { status }));
   };
   return { fetchImpl, signals };
 };
@@ -131,6 +131,36 @@ describe("an HTTP deadline cancels the request it gave up on", () => {
       ]);
       expectAborted(ambient.signals);
       expectAborted(app.signals);
+    },
+    DEADLINE_TEST_MS
+  );
+
+  test(
+    "the mint and both gh-auth-health probes abort a response whose body never finishes",
+    async () => {
+      // Pre-fix only ghJson linked its body read to the abort: these handed the
+      // fetch its own signal, which is never aborted once the headers are in,
+      // so each body deadline failed the call and left the socket open.
+      const mint = { badPage: stalledBodyFetch(404), page: stalledBodyFetch(), token: stalledBodyFetch(201) };
+      const probe = { ambient401: stalledBodyFetch(401), ambient403: stalledBodyFetch(403), app: stalledBodyFetch(), appBad: stalledBodyFetch(404) };
+      const mintFor = (fetchImpl: typeof probe.app.fetchImpl) =>
+        ghAuthHealthCheck({
+          fetchImpl,
+          mint: Effect.succeed({ expiresAt: "2026-01-01T00:00:00Z", token: "not-a-real-token" }),
+          repo: "acme/widgets",
+        });
+      await Promise.all([
+        Effect.runPromise(Effect.flip(discoverInstallationId(mint.page.fetchImpl, "jwt", "acme", new Set(["acme"])))),
+        Effect.runPromise(Effect.flip(discoverInstallationId(mint.badPage.fetchImpl, "jwt", "acme", new Set(["acme"])))),
+        Effect.runPromise(Effect.flip(requestInstallationToken(mint.token.fetchImpl, "jwt", "42"))),
+        Effect.runPromise(Effect.exit(ambientGitHubReachable({ fetchImpl: probe.ambient401.fetchImpl, repo: "acme/widgets" }))),
+        Effect.runPromise(Effect.exit(ambientGitHubReachable({ fetchImpl: probe.ambient403.fetchImpl, repo: "acme/widgets" }))),
+        Effect.runPromise(Effect.exit(mintFor(probe.app.fetchImpl))),
+        Effect.runPromise(Effect.exit(mintFor(probe.appBad.fetchImpl))),
+      ]);
+      for (const { signals } of [...Object.values(mint), ...Object.values(probe)]) {
+        expectAborted(signals);
+      }
     },
     DEADLINE_TEST_MS
   );

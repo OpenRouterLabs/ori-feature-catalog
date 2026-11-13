@@ -778,6 +778,26 @@ const readBodyJson = (response: Response): Promise<unknown> =>
   response.json().catch(() => null);
 
 /**
+ * One controller for a request and its body read, aborted when either phase
+ * is interrupted (its deadline). A deadline that only stops waiting leaves the
+ * connection open: a body that stalls after the headers kept its socket for
+ * as long as the server held it, one more per hourly gh-auth-health fire in
+ * the daemon, because the fetch's own signal is never aborted once the
+ * headers are in.
+ */
+export const linkedAbort = (): {
+  readonly abortOn: (signal: AbortSignal) => void;
+  readonly signal: AbortSignal;
+} => {
+  const controller = new AbortController();
+  return {
+    abortOn: (signal) =>
+      signal.addEventListener("abort", () => controller.abort(), { once: true }),
+    signal: controller.signal,
+  };
+};
+
+/**
  * `POST /app/installations/{id}/access_tokens`. Only the two fields the caller
  * reads are declared; `permissions` and `repository_selection` are ignored, as
  * anything GitHub adds later will be. An empty `token` is rejected at decode:
@@ -858,6 +878,7 @@ const fetchInstallationsPage = (
 ): Effect.Effect<InstallationRef[], GhAppError> =>
   Effect.gen(function* () {
     const url = `https://api.github.com/app/installations?per_page=${INSTALLATIONS_PAGE_SIZE}&page=${page}`;
+    const abort = linkedAbort();
     const response = yield* Effect.tryPromise({
       catch: (cause) =>
         new GhAppError({
@@ -865,12 +886,14 @@ const fetchInstallationsPage = (
           message: `GitHub installations list failed: ${cause instanceof Error ? cause.message : String(cause)}`,
           op: "discover",
         }),
-      try: (signal) =>
-        fetchImpl(url, {
+      try: (signal) => {
+        abort.abortOn(signal);
+        return fetchImpl(url, {
           headers: githubAppHeaders(jwt),
           method: "GET",
-          signal,
-        }),
+          signal: abort.signal,
+        });
+      },
       // Bound the wait: a fetch that never settles is a mint failure, not a
       // mint — see MINT_HTTP_TIMEOUT_MS.
     }).pipe(
@@ -889,9 +912,10 @@ const fetchInstallationsPage = (
       // "A JSON web token could not be decoded", and the bare status told the
       // two apart from nothing. A body that stalls or is not the envelope
       // degrades to the status alone.
-      const errorBody = yield* Effect.promise(
-        (): Promise<unknown> => readBodyJson(response)
-      ).pipe(
+      const errorBody = yield* Effect.promise((signal): Promise<unknown> => {
+        abort.abortOn(signal);
+        return readBodyJson(response);
+      }).pipe(
         Effect.timeoutOrElse({
           duration: MINT_HTTP_TIMEOUT_MS,
           orElse: () => Effect.succeed(null),
@@ -911,9 +935,10 @@ const fetchInstallationsPage = (
     // body wedges the installations walk — the exact class the fetch
     // deadline closes, reopened through the body read. A genuinely non-JSON
     // body still fails `op:"parse"` via the decode below.
-    const payload = yield* Effect.promise(
-      (): Promise<unknown> => readBodyJson(response)
-    ).pipe(
+    const payload = yield* Effect.promise((signal): Promise<unknown> => {
+      abort.abortOn(signal);
+      return readBodyJson(response);
+    }).pipe(
       Effect.timeoutOrElse({
         duration: MINT_HTTP_TIMEOUT_MS,
         orElse: () =>
@@ -1040,6 +1065,7 @@ export const requestInstallationToken = (
   installationId: string
 ): Effect.Effect<InstallationToken, GhAppError> =>
   Effect.gen(function* () {
+    const abort = linkedAbort();
     const response = yield* Effect.tryPromise({
       catch: (cause) =>
         new GhAppError({
@@ -1047,15 +1073,17 @@ export const requestInstallationToken = (
           message: `GitHub installation-token request failed: ${cause instanceof Error ? cause.message : String(cause)}`,
           op: "request",
         }),
-      try: (signal) =>
-        fetchImpl(
+      try: (signal) => {
+        abort.abortOn(signal);
+        return fetchImpl(
           `https://api.github.com/app/installations/${installationId}/access_tokens`,
           {
             headers: githubAppHeaders(jwt),
             method: "POST",
-            signal,
+            signal: abort.signal,
           }
-        ),
+        );
+      },
     }).pipe(
       // Bound the wait like the installations page walk: a token POST that
       // never settles must fail the mint, never hang it — see
@@ -1076,7 +1104,10 @@ export const requestInstallationToken = (
     // be mistaken for one. The read is bounded by the same deadline as the
     // token POST: a headers-then-stall body wedges the mint — the exact class
     // the fetch deadline closes, reopened through the body read.
-    const payload = yield* Effect.promise(() => readBodyJson(response)).pipe(
+    const payload = yield* Effect.promise((signal) => {
+      abort.abortOn(signal);
+      return readBodyJson(response);
+    }).pipe(
       Effect.timeoutOrElse({
         duration: MINT_HTTP_TIMEOUT_MS,
         orElse: () =>
