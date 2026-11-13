@@ -81,10 +81,11 @@ for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [
   for f in "$d/AGENTS.override.md" "$d/AGENTS.md" "$d/CLAUDE.md" "$d/GEMINI.md"; do [ -f "$f" ] && printf '\n===== %s\n' "$f" && cat "$f"; done; d=$(dirname "$d"); done; done
 ls .github/workflows/ .circleci/ .gitlab-ci.yml .buildkite/ 2>/dev/null; grep -ln 'draft' .github/workflows/* 2>/dev/null
 # No PR template or CONTRIBUTING of its own: GitHub uses the one in the owner's public .github repository.
+AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: read as the person asking, like the commits
 O=/tmp/owner-dot-github-$$; [ -n "${REPO%%/*}" ] && for k in 'pull_request_template(\.[^/]+)?(/[^/]+)?' 'contributing(\.[^/]+)?'; do p='^((\.github|docs)/)?'"$k"'$'
   git ls-tree -r --name-only HEAD | grep -qiE "$p" && continue
   if [ ! -d "$O" ]; then   # GitHub uses the owner's defaults only while that repository is public
-    code=$(curl -sS -o "$O.json" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/${REPO%%/*}/.github")
+    code=$(curl -sS -o "$O.json" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" "https://api.github.com/repos/${REPO%%/*}/.github")
     [ "$code" = 200 ] || { [ "$code" = 404 ] || echo "${REPO%%/*}/.github could not be read (HTTP $code): its default PR template and CONTRIBUTING are unknown"; break; }
     vis=$(bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$O.json")
     [ "$vis" = public ] || { echo "${REPO%%/*}/.github is $vis, and GitHub uses only a public one: no default PR template or CONTRIBUTING"; break; }
@@ -97,7 +98,7 @@ done; rm -rf "$O" "$O.json"
 
 A rules file is often committed as a symbolic link, and `git show` prints a link as the path it points to: goinfinite/os's `AGENTS.md` is a link to `.agents/AGENTS.md`, so the rules read printed the line `.agents/AGENTS.md` and never the file, which no list names. `show` reads a file with `git cat-file --follow-symlinks`, which prints the file a link inside the repository points to (a link out of it still prints its target).
 
-A repository with no PR template of its own, or no CONTRIBUTING file, gets the one in its owner's `.github` repository: GitHub fills the PR form from that default template and links that default CONTRIBUTING, and neither ever appears in the repository's own tree, so the first command cannot list them. The last command reads them from that repository only after the API says it is public: GitHub uses no private or internal one, though a clone through a credential that reaches it (an App installation on the org, or a proxy that signs git for that owner) reads its files just the same. It prints nothing when the owner has none or `$REPO` is unset, and says so when the visibility cannot be read or is not public, or when the clone fails after that read (an HTTP 429 or a dropped connection), so a failed clone never reads as an owner with no defaults.
+A repository with no PR template of its own, or no CONTRIBUTING file, gets the one in its owner's `.github` repository: GitHub fills the PR form from that default template and links that default CONTRIBUTING, and neither ever appears in the repository's own tree, so the first command cannot list them. The last command reads them from that repository only after the API says it is public: GitHub uses no private or internal one, though a clone through a credential that reaches it (an App installation on the org, or a proxy that signs git for that owner) reads its files just the same. In ambient mode (no `GH_TOKEN`) the visibility read goes as the person asking, with `x-github-as: member`, as the commits (`--as member`) and steps 7 and 8 do: the proxy signs only for its own owners, so for any other owner a bare read goes out anonymously on the shared limit of 60 an hour, and with that spent it answered 403 (expressjs/.github, live), so every other owner's defaults read as unknown. It prints nothing when the owner has none or `$REPO` is unset, and says so when the visibility cannot be read or is not public, or when the clone fails after that read (an HTTP 429 or a dropped connection), so a failed clone never reads as an owner with no defaults.
 
 From them, write down before you start:
 

@@ -149,3 +149,53 @@ describe("open-pr step 2 reads the owner's default PR template and CONTRIBUTING"
     expect(code).toBe(0);
   });
 });
+
+describe("open-pr step 2 reads the owner's visibility as the member in ambient mode", () => {
+  const runAs = async (token: string) => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-owner-as-"));
+    const seen: { auth: string | null; member: string | null }[] = [];
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req) => {
+        seen.push({ auth: req.headers.get("authorization"), member: req.headers.get("x-github-as") });
+        if (req.headers.get("x-github-as") !== "member" && req.headers.get("authorization") === null) {
+          return Response.json({ message: "API rate limit exceeded" }, { status: 403 });
+        }
+        return Response.json({ visibility: "public" });
+      },
+    });
+    try {
+      const wt = join(root, "wt");
+      repo(wt, { "src/a.ts": "export {};\n" });
+      repo(join(root, "owner"), { ".github/pull_request_template.md": "## Owner template\n" });
+      const gitConfig = join(root, "gitconfig");
+      writeFileSync(gitConfig, `[url "file://${join(root, "owner")}"]\n\tinsteadOf = https://github.com/acme/.github.git\n`);
+      const proc = Bun.spawn(["bash", "-c", fallback.replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)], {
+        cwd: wt,
+        env: { ...process.env, GH_TOKEN: token, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", REPO: "acme/widgets", WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 20_000,
+      });
+      const out = await new Response(proc.stdout).text();
+      return { code: await proc.exited, out, seen };
+    } finally {
+      await server.stop(true);
+      rmSync(root, { force: true, recursive: true });
+    }
+  };
+
+  test("with no GH_TOKEN the read carries x-github-as: member and the default template prints", async () => {
+    const { code, out, seen } = await runAs("");
+    expect(code).toBe(0);
+    expect(seen).toEqual([{ auth: null, member: "member" }]);
+    expect(out).toContain("## Owner template");
+    expect(out).not.toContain("could not be read");
+  });
+
+  test("with GH_TOKEN the read sends only the bearer token", async () => {
+    const { out, seen } = await runAs("ghs_test");
+    expect(seen).toEqual([{ auth: "Bearer ghs_test", member: null }]);
+    expect(out).toContain("## Owner template");
+  });
+});
