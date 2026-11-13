@@ -68,6 +68,30 @@ describe("open-pr step 2 reads the AGENTS.md of every touched directory's parent
     }
   });
 
+  test("an AGENTS.override.md or GEMINI.md in a touched directory or its parents is read too", () => {
+    // Codex reads AGENTS.override.md before AGENTS.md in each directory, and
+    // nafields/stratix keeps each package's rules only in one, so a walk for
+    // AGENTS.md and CLAUDE.md read none of them.
+    const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-walk-"));
+    try {
+      mkdirSync(join(wt, "Packages/Core/Sources"), { recursive: true });
+      writeFileSync(join(wt, "Packages/Core/AGENTS.override.md"), "core override rules\n");
+      writeFileSync(join(wt, "Packages/AGENTS.md"), "packages rules\n");
+      // Gemini CLI reads GEMINI.md the same way.
+      writeFileSync(join(wt, "Packages/GEMINI.md"), "packages gemini rules\n");
+      for (const dirs of ["Packages/Core/Sources", `"$WT/Packages/Core/Sources"`]) {
+        const proc = run(wt, dirs);
+        expect(proc.signalCode).toBeFalsy();
+        const out = proc.stdout.toString();
+        expect(out).toContain("===== Packages/Core/AGENTS.override.md\ncore override rules");
+        expect(out).toContain("===== Packages/AGENTS.md\npackages rules");
+        expect(out).toContain("===== Packages/GEMINI.md\npackages gemini rules");
+      }
+    } finally {
+      rmSync(wt, { force: true, recursive: true });
+    }
+  });
+
   test("an absolute path outside $WT still ends", () => {
     const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-walk-"));
     try {
