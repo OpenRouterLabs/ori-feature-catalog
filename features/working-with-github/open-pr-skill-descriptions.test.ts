@@ -51,6 +51,28 @@ describe("open-pr step 3 lists every skill's description", () => {
     }
   });
 
+  test("a long description keeps 200 characters, never a split one", () => {
+    // `cut -c1-200` counts bytes: a Chinese description kept 66 characters and
+    // ended in two bytes of a third, invalid UTF-8 in the listing.
+    const wt = mkdtempSync(join(tmpdir(), "wwg-open-pr-desc-"));
+    try {
+      writeSkill(wt, "cjk", `description: ${"漢".repeat(250)}\n`);
+      writeSkill(wt, "emoji", `description: >\n  ${"🚀".repeat(250)}\n`);
+      writeSkill(wt, "ascii", `description: ${"a".repeat(250)}\n`);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScript()], {
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      const out = new TextDecoder("utf-8", { fatal: true }).decode(proc.stdout);
+      expect(out).toContain(`cjk/SKILL.md: ${"漢".repeat(200)}\n`);
+      expect(out).toContain(`emoji/SKILL.md: ${"🚀".repeat(200)}\n`);
+      expect(out).toContain(`ascii/SKILL.md: ${"a".repeat(200)}\n`);
+    } finally {
+      rmSync(wt, { force: true, recursive: true });
+    }
+  });
+
   test("a Windows-line-ending block and a plain multi-line description print their text", () => {
     // A SKILL.md saved with CRLF endings left "\r" after the block marker, so
     // the marker test failed and the listing printed ">" plus a carriage return;

@@ -111,7 +111,8 @@ Repositories may ship their own agent skills, in `.agents/skills/`, `.claude/ski
 
 ```bash
 desc() { awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
-    block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' | cut -c1-200; }
+    block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' |
+    (cd /tmp && bun -e 'console.log([...(await Bun.stdin.text()).replace(/\n$/, "")].slice(0, 200).join(""))'); }   # 200 characters, not bytes
 for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md; do
   [ -f "$f" ] && printf '%s: %s\n' "$f" "$(desc < "$f")"
 done
@@ -128,7 +129,7 @@ cd "$WT"; for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != 
   grep -E '/\.(agents|claude)/skills/[^/]+/SKILL\.md$' | sort -u | while IFS= read -r f; do printf '%s: %s\n' "$f" "$(git show "HEAD:$f" | desc)"; done
 ```
 
-The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again.
+The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again. The listing keeps the first 200 characters of each description. `cut -c` counts bytes, not characters, so it kept a Chinese or Korean description to about 66 characters and often split the last one, printing invalid UTF-8 (thun-res/vlink's `pr` skill ended in a broken byte).
 
 Cursor rules (`.cursor/rules/**/*.mdc`, in nested folders too) are rules, not skills you pick by description. Cursor applies one with `alwaysApply: true` to every request, and many leave its `description` empty: ClickHouse/ai-sdk-cpp keeps its C++ style rules in such a file, which a description listing showed as a blank line. So the block prints every `alwaysApply` rule in full and lists the others with their description and `globs`; read in full every rule whose globs match a file you touch. Rules sit in subfolders as often as not (growthbook/growthbook keeps them in `.cursor/rules/frontend/` and `.cursor/rules/backend/`), so the list comes from the index, which also reaches a rule the sparse checkout left out.
 
