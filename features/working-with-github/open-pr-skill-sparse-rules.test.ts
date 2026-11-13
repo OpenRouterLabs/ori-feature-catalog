@@ -42,6 +42,11 @@ describe("open-pr step 2 reads the rules a sparse clone leaves off the disk", ()
       writeFileSync(join(src, ".cursor/rules/pr.mdc"), "cursor rule\n");
       writeFileSync(join(src, "src/a.ts"), "export {};\n");
       writeFileSync(join(src, "AGENTS.md"), "agents rules\n");
+      // Codex reads this one in place of AGENTS.md (goinfinite/os keeps its
+      // test rules only there).
+      writeFileSync(join(src, "AGENTS.override.md"), "override rules\n");
+      // Gemini CLI's file; thomaskioko/tv-maniac keeps its rules only there.
+      writeFileSync(join(src, "GEMINI.md"), "gemini rules\n");
       git(["init", "-q", "-b", "main"], src);
       git(["add", "-A"], src);
       git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
@@ -59,6 +64,8 @@ describe("open-pr step 2 reads the rules a sparse clone leaves off the disk", ()
       });
       const out = proc.stdout.toString();
       expect(out).toContain("===== AGENTS.md\nagents rules");
+      expect(out).toContain("===== AGENTS.override.md\noverride rules");
+      expect(out).toContain("===== GEMINI.md\ngemini rules");
       expect(out).toContain("===== docs/pull_request_template.md\n## Linear ticket");
       expect(out).toContain("===== docs/CONTRIBUTING.md\ndocs contributing rules");
       expect(out).toContain("===== pull_request_template.md\n## Root template");
