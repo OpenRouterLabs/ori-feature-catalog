@@ -133,7 +133,7 @@ describe("the change flow's remote branch starts at the worktree's base", () => 
         (error: unknown) => (error instanceof Error ? error.message : String(error))
       );
       expect(stale).toContain("x.txt");
-      expect(stale).toContain("git merge FETCH_HEAD");
+      expect(stale).toContain("merge --squash FETCH_HEAD");
 
       // The fixed recipe: the branch sits on the worktree's own HEAD (A), so
       // the commit is exactly the edit on the tree it was made on.
