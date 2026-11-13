@@ -144,6 +144,21 @@ export const GITLINK_MODE = "160000";
  * `CommitApiError` channel a 5xx already uses.
  */
 export const COMMIT_HTTP_TIMEOUT_MS = 15_000;
+
+/**
+ * The slowest upload a call with a request body still counts as alive: the
+ * deadline above grows by one second for every this many bytes sent. The
+ * fetch settles only once the whole body is up, and pre-fix the 15s covered
+ * the upload too: a 12 MB file going up at a steady 256 KB/s (a 2 Mbit/s
+ * uplink) was cut off after 4.4 MB and reported as "did not answer". A
+ * request under this size keeps exactly the 15s.
+ */
+export const UPLOAD_FLOOR_BYTES_PER_SECOND = 64 * 1024;
+
+/** The deadline for one call that sends `bodyBytes`: 15s, plus the upload. */
+export const commitHttpDeadlineMs = (bodyBytes: number): number =>
+  COMMIT_HTTP_TIMEOUT_MS +
+  Math.floor(bodyBytes / UPLOAD_FLOOR_BYTES_PER_SECOND) * 1000;
 /** `git status --porcelain=v1 -z` status-code column width before the path. */
 const STATUS_PATH_OFFSET = 3;
 /**
@@ -1146,6 +1161,10 @@ export const ghJson = <S extends Schema.Top>(
     const controller = new AbortController();
     const abortOn = (signal: AbortSignal): void =>
       signal.addEventListener("abort", () => controller.abort(), { once: true });
+    const body = input.body === undefined ? undefined : JSON.stringify(input.body);
+    const deadlineMs = commitHttpDeadlineMs(
+      body === undefined ? 0 : Buffer.byteLength(body)
+    );
     const response = yield* Effect.tryPromise({
       try: (signal) => {
         abortOn(signal);
@@ -1165,9 +1184,7 @@ export const ghJson = <S extends Schema.Top>(
               ? {}
               : { "Content-Type": "application/json" }),
           },
-          ...(input.body === undefined
-            ? {}
-            : { body: JSON.stringify(input.body) }),
+          ...(body === undefined ? {} : { body }),
         });
       },
       catch: (cause) =>
@@ -1181,11 +1198,11 @@ export const ghJson = <S extends Schema.Top>(
       // call of the commit flow AND the sweep's PR-lookup pages (which add
       // their own tighter deadline on top).
       Effect.timeoutOrElse({
-        duration: COMMIT_HTTP_TIMEOUT_MS,
+        duration: deadlineMs,
         orElse: () =>
           new CommitApiError({
             stage: "http",
-            message: `${input.method} ${input.url} did not answer within ${COMMIT_HTTP_TIMEOUT_MS / 1000}s`,
+            message: `${input.method} ${input.url} did not answer within ${deadlineMs / 1000}s`,
           }),
       })
     );
