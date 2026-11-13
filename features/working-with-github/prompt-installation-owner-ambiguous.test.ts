@@ -59,3 +59,26 @@ describe("the repo-discovery bullet handles a multi-owner installation 401", () 
     expect(after).toContain("/users/{owner}/repos");
   });
 });
+
+// The same rule read a rate limit as a denial. For an owner the proxy holds no
+// credential for, a read goes out anonymously on the shared 60/h limit, and
+// with that spent GitHub answers 403 "API rate limit exceeded" (expressjs/.github,
+// live 2026-11-13), while the same read under x-github-as: member answers 200.
+// Pre-fix the agent told the person the repository was out of reach.
+const denialRule =
+  prompt.split("\n").find((line) => line.startsWith("If ambient requests are denied")) ?? "";
+
+describe("the ambient denial rule never reads a rate limit as no access", () => {
+  test("it names the rate-limit answer and how to recognize it", () => {
+    expect(denialRule).toContain("A rate limit is not a denial");
+    expect(denialRule).toContain("API rate limit exceeded");
+    expect(denialRule).toContain("x-ratelimit-limit");
+  });
+
+  test("it retries as the member and otherwise reports the reset time", () => {
+    const after = denialRule.slice(denialRule.indexOf("A rate limit is not a denial"));
+    expect(after).toContain("x-github-as: member");
+    expect(after).toContain("x-ratelimit-reset");
+    expect(after).toContain("never that the repository is out of reach");
+  });
+});
