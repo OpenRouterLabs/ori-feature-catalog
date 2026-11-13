@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -198,6 +198,10 @@ describe("open-pr step 3 reads Cursor rules the way Cursor applies them", () => 
       const src = join(root, "src");
       write(src, ".cursor/rules/cpp.mdc", "---\ndescription: \nglobs: \nalwaysApply: true\n---\n\n1. prefer one class per file.\n");
       write(src, ".cursor/rules/crlf.mdc", "---\r\ndescription:\r\nalwaysApply: true\r\n---\r\nUse nullptr.\r\n");
+      // Committed as a link to a shared rule: git show printed only its target path.
+      write(src, "docs/rules/go.mdc", "---\nalwaysApply: true\n---\nWrap every error.\n");
+      mkdirSync(join(src, ".cursor/rules"), { recursive: true });
+      symlinkSync("../../docs/rules/go.mdc", join(src, ".cursor/rules/go.mdc"));
       write(src, ".cursor/rules/frontend/react.mdc", '---\ndescription: "React conventions"\nglobs: packages/front-end/**/*.tsx\nalwaysApply: false\n---\n# React\n');
       write(src, "src/main.ts", "export {};\n");
       git(["init", "-q", "-b", "main"], src);
@@ -220,6 +224,7 @@ describe("open-pr step 3 reads Cursor rules the way Cursor applies them", () => 
       expect(out).toContain("Use nullptr.");
       expect(out).toContain('.cursor/rules/frontend/react.mdc: "React conventions" (globs packages/front-end/**/*.tsx)\n');
       expect(out).not.toContain("===== .cursor/rules/frontend/react.mdc");
+      expect(out).toContain("===== .cursor/rules/go.mdc (alwaysApply)\n---\nalwaysApply: true\n---\nWrap every error.");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

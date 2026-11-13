@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -70,6 +70,44 @@ describe("open-pr step 2 reads the rules a sparse clone leaves off the disk", ()
       expect(out).toContain("===== docs/CONTRIBUTING.md\ndocs contributing rules");
       expect(out).toContain("===== pull_request_template.md\n## Root template");
       expect(readFileSync(join(wt, ".cursor/rules/pr.mdc"), "utf8")).toBe("cursor rule\n");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
+
+// Regression: step 2 printed each rules file with `git show HEAD:<file>`, which
+// prints a symbolic link as the path it points to. goinfinite/os commits its
+// root AGENTS.md as a link to .agents/AGENTS.md, so the rules read printed the
+// line ".agents/AGENTS.md" and never the file, which no list names.
+describe("open-pr step 2 prints the file a rules link points to", () => {
+  test("a root AGENTS.md linked into .agents/ and a linked copilot-instructions.md print the linked file", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-link-"));
+    try {
+      const src = join(root, "src");
+      for (const dir of [".agents", ".github", "src"]) mkdirSync(join(src, dir), { recursive: true });
+      writeFileSync(join(src, ".agents/AGENTS.md"), "Run Go tests through tests/tests.sh, never on the host\n");
+      symlinkSync(".agents/AGENTS.md", join(src, "AGENTS.md"));
+      symlinkSync("../.agents/AGENTS.md", join(src, ".github/copilot-instructions.md"));
+      writeFileSync(join(src, "src/a.go"), "package a\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      expect(Bun.spawnSync(["bash", "-c", sparseSet()], { cwd: wt, stderr: "pipe" }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", bashBlock("## 2.", "## 3.").replaceAll("<dirs the change touches>", "src")], {
+        cwd: wt,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain("===== AGENTS.md\nRun Go tests through tests/tests.sh, never on the host");
+      expect(out).toContain("===== .github/copilot-instructions.md\nRun Go tests through tests/tests.sh, never on the host");
+      expect(out).not.toContain(".agents/AGENTS.md\n");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
