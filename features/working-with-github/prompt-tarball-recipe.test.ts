@@ -260,3 +260,44 @@ describe("the tarball recipe sends the whole ref", () => {
     { timeout: 60_000 }
   );
 });
+
+// The contents API does not follow a symbolic link: goinfinite/os commits
+// `AGENTS.md` as a link to `.agents/AGENTS.md`, and the raw read printed that
+// one line as the file (live), whose JSON form says `"type": "symlink"`. The
+// prompt's check reads the JSON form and prints the path to read instead.
+describe("the read-a-file symlink check names the file a link points to", () => {
+  const check = [...prompt.matchAll(/```bash[^\n]*\n([\s\S]*?)```/g)]
+    .map((match) => (match[1] ?? "").trim())
+    .find((block) => block.includes('"symlink"'));
+
+  const answer = async (entry: unknown) => {
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => Response.json(entry) });
+    try {
+      const command = (check ?? "")
+        .replace("https://api.github.com", `http://127.0.0.1:${server.port}`)
+        .replace("{owner}/{repo}", "acme/widgets")
+        .replace("{path}", "AGENTS.md")
+        .replace("{ref}", "main");
+      const child = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
+      const out = await new Response(child.stdout).text();
+      return { code: await child.exited, out: out.trim() };
+    } finally {
+      await server.stop(true);
+    }
+  };
+
+  test("the check is in the prompt", () => {
+    expect(check).toContain("/contents/{path}");
+  });
+
+  test.each([
+    [{ type: "symlink", path: "AGENTS.md", target: ".agents/AGENTS.md" }, ".agents/AGENTS.md"],
+    [{ type: "symlink", path: "docs/AGENTS.md", target: "../.agents/AGENTS.md" }, ".agents/AGENTS.md"],
+    [{ type: "symlink", path: "pkg/a/CLAUDE.md", target: "../b/./CLAUDE.md" }, "pkg/b/CLAUDE.md"],
+    [{ type: "symlink", path: "AGENTS.md", target: "../shared/AGENTS.md" }, "AGENTS.md links out of the repository, to ../shared/AGENTS.md"],
+    [{ type: "symlink", path: "AGENTS.md", target: "/etc/agents.md" }, "AGENTS.md links out of the repository, to /etc/agents.md"],
+    [{ type: "file", path: "AGENTS.md", content: "" }, ""],
+  ])("%p prints %p", async (entry, expected) => {
+    expect(await answer(entry)).toEqual({ code: 0, out: expected });
+  });
+});
