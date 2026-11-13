@@ -182,7 +182,7 @@ Open it ready for review unless the repository's rules ask for drafts. A draft o
 
 ```bash
 AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
-NODE_ID=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+NODE_ID=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).node_id)')
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" https://api.github.com/graphql \
   -d "{\"query\":\"mutation { markPullRequestReadyForReview(input: {pullRequestId: \\\"$NODE_ID\\\"}) { pullRequest { isDraft } } }\"}" \
@@ -202,11 +202,12 @@ In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-git
 **Read CI once, then again whenever the person comes back.** At the end of the turn, read the runs (below) once. Report what you see: failed, still running, or green. When the person returns to the conversation, or asks you to check CI, read them again before anything else. If a read finds no runs at all, find out why (a workflow that skips drafts, path filters that skip every changed file) instead of calling it green:
 
 ```bash
-SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
+SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).head.sha)')
 # Every page: a head can carry hundreds of check runs, and a failure past the first 100 never shows on page one.
 for page in $(seq 1 50); do
-  runs=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+  runs=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
     "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest&page=$page" \
     | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)') \
     || { echo "check-runs page $page could not be read: the list above is incomplete"; break; }
@@ -215,13 +216,15 @@ for page in $(seq 1 50); do
 done
 # Commit statuses are a separate list (external CI posts there). GitHub answers
 # "pending" when nothing posted one at all, so that case prints as none posted:
-curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/commits/$SHA/status?per_page=100" \
   | bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
 # Log of a failed GitHub Actions job (the check-run id is the job id):
-curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" | tail -200
 ```
+
+In ambient mode (no `GH_TOKEN`) these reads go as the person asking, the same `x-github-as: member` the commits and step 7 use. The proxy attaches the workspace credential only to the owners it signs for, so for any other repository a bare read goes out anonymously on the shared limit of 60 an hour: with that spent (expressjs/cors, live), the head read answered 403 and the check-runs read 422 on an empty sha, so CI could not be read at all.
 
 For a check outside GitHub Actions, open its `details_url` or `target_url` for the log.
 

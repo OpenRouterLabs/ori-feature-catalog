@@ -83,3 +83,60 @@ describe("open-pr step 7 runs as written", () => {
     expect(result.err).toContain("Could not resolve to a node");
   });
 });
+
+// Steps 7 and 8 read the PR, its check runs, its statuses and a job log over
+// REST with no member header. The proxy credentials only the owners it signs
+// for, so in ambient mode a read of any other repository went out anonymously
+// on the shared 60-an-hour limit: with it spent (expressjs/cors PR 433, live)
+// the head read answered 403, the check-runs read 422 on an empty sha, and CI
+// could not be read at all, while the same reads as the member answered.
+describe("open-pr steps 7 and 8 read as the member in ambient mode", () => {
+  const stepEight = skill.slice(skill.indexOf("## 8."), skill.indexOf("## 9."));
+  const fence = (step: string) => /```bash\n([\s\S]*?)\n```/u.exec(step)?.[1] ?? "";
+
+  const calls = (block: string, env: Record<string, string>) => {
+    const dir = mkdtempSync(join(tmpdir(), "open-pr-reads-"));
+    writeFileSync(
+      join(dir, "curl"),
+      [
+        "#!/bin/bash",
+        'printf \'%s\\n\' "$*" >> "$LOG"',
+        'case "$*" in',
+        '  *graphql*) echo \'{"data":{"markPullRequestReadyForReview":{"pullRequest":{"isDraft":false}}}}\' ;;',
+        '  */check-runs*) echo \'{"check_runs":[]}\' ;;',
+        '  */status*) echo \'{"total_count":0,"statuses":[]}\' ;;',
+        '  */pulls/*) echo \'{"node_id":"PR_x","head":{"sha":"abc"}}\' ;;',
+        "esac",
+      ].join("\n"),
+      { mode: 0o755 }
+    );
+    const log = join(dir, "log");
+    Bun.spawnSync(["bash", "-c", block], {
+      env: { ...env, JOB_ID: "7", LOG: log, PATH: `${dir}:${process.env.PATH ?? ""}`, PR: "42", REPO: "expressjs/cors" },
+    });
+    const lines = readFileSync(log, "utf8").trim().split("\n");
+    rmSync(dir, { force: true, recursive: true });
+    return lines;
+  };
+
+  test.each([
+    ["step 7", stepSeven, 2],
+    ["step 8", stepEight, 4],
+  ] as const)("every %s call carries the member header with no GH_TOKEN", (_step, step, count) => {
+    const lines = calls(fence(step), {});
+    expect(lines).toHaveLength(count);
+    for (const line of lines) {
+      expect(line).toContain("x-github-as: member");
+    }
+  });
+
+  test.each([
+    ["step 7", stepSeven],
+    ["step 8", stepEight],
+  ] as const)("in App mode every %s call sends only the bearer token", (_step, step) => {
+    for (const line of calls(fence(step), { GH_TOKEN: "ghs_test" })) {
+      expect(line).toContain("Authorization: Bearer ghs_test");
+      expect(line).not.toContain("x-github-as");
+    }
+  });
+});
