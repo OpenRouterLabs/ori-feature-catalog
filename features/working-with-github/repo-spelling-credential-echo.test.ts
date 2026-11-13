@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -237,6 +238,21 @@ describe("a token pasted as the repo names no repo", () => {
 
   test.each([SECRET, FINE_GRAINED])("the registry directory is never named after %p", (spelling) => {
     expect(resolveConfigDirName({ GITHUB_REPO: spelling })).toBe("intern");
+  });
+
+  test("every REPO= recipe copy answers what the code resolver does", () => {
+    const recipes = [
+      ...readFileSync(join(HERE, "prompt.md"), "utf-8").matchAll(/REPO=\$\(printf '%s' "\$GITHUB_REPO" \| (sed -E -e '.*')\)/gu),
+      ...readFileSync(join(HERE, "scripts", "mint-token.ts"), "utf-8").matchAll(/REPO=\$\(printf '%s' "\$GITHUB_REPO" \| (sed -E -e '.*')\)/gu),
+    ].map((match) => (match[1] ?? "").replaceAll("\\'", "'"));
+    expect(recipes).toHaveLength(3);
+    const spellings = [SECRET, `${SECRET}/widgets`, ` ${FINE_GRAINED} `, `https://github.com/${SECRET}/widgets`, `https://x-access-token:${SECRET}@github.com/acme/widgets`, "acme/widgets", "ghp_short/widgets"];
+    for (const recipe of recipes) {
+      for (const spelling of spellings) {
+        const out = execFileSync("bash", ["-c", recipe], { encoding: "utf-8", input: spelling }).replace(/\n$/u, "");
+        expect(out).toBe(resolveRepoFromEnv({ GITHUB_REPO: spelling }));
+      }
+    }
   });
 
   test("commit-via-api and the sweep say so without printing it", () => {
