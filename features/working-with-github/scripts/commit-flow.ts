@@ -662,7 +662,14 @@ const guardMovedBranch = (
       return;
     }
     const { branch, repo } = input.args;
-    const recover = `bring the worktree up to date first (git fetch <url> refs/heads/${branch} && git merge FETCH_HEAD), then run this again`;
+    // Squash, then soft-reset onto the fetched head: HEAD lands on a commit
+    // GitHub has, and the local commits' content stays as changes to commit.
+    // A plain `git merge` of a force-pushed branch made a merge commit GitHub
+    // never saw, so the next round's compare 404ed and printed this same
+    // remedy, which then answered "Already up to date": a dead end. A squash
+    // makes no commit, but git still refuses one on a host with no identity,
+    // so the command names a placeholder that is never recorded anywhere.
+    const recover = `bring the worktree up to date first (git fetch <url> refs/heads/${branch} && git -c user.name=squash -c user.email=squash@localhost merge --squash FETCH_HEAD && git reset --soft FETCH_HEAD), then run this again`;
     const compare = yield* ghJson({
       fetchImpl: input.fetchImpl,
       token: input.token,

@@ -401,7 +401,7 @@ describe("commit-via-api never reverts a moved branch's changes (#365)", () => {
         files: [{ filename: "a.txt" }],
       });
       expect(message).toContain("a.txt");
-      expect(message).toContain("git merge FETCH_HEAD");
+      expect(message).toContain("merge --squash FETCH_HEAD");
       expect(calls.some((url) => url.endsWith("/git/blobs"))).toBe(false);
       expect(calls.some((url) => url.includes("/git/refs/heads/"))).toBe(false);
       expect(git(fx.worktree, "rev-parse", "HEAD")).toBe(fx.baseSha);
@@ -451,6 +451,58 @@ describe("commit-via-api never reverts a moved branch's changes (#365)", () => {
       const calls: string[] = [];
       await commit(fx, { calls });
       expect(calls.some((url) => url.includes("/compare/"))).toBe(false);
+    } finally {
+      rmSync(fx.root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("the moved-branch remedy, run as printed, lets the next round commit", () => {
+  // A reviewer force-pushed the branch: the worktree's HEAD (round 1) is
+  // not in the rewritten head, so the round is refused as diverged. Pre-fix
+  // the printed `git merge FETCH_HEAD` made a merge commit GitHub never saw,
+  // the next compare 404ed with the same remedy, and running it again
+  // answered "Already up to date". It runs here on a host with no git identity.
+  const forcePushed = (): Fixture & { readonly rewrittenSha: string } => {
+    const fx = fixture();
+    const seed = join(fx.root, "seed");
+    git(seed, "reset", "-q", "--hard", fx.baseSha);
+    writeFileSync(join(seed, "a.txt"), "two\n");
+    writeFileSync(join(seed, "b.txt"), "new\n");
+    writeFileSync(join(seed, "r.txt"), "reviewer\n");
+    git(seed, "add", ".");
+    git(seed, ...identity, "commit", "-qm", "rewritten by a reviewer");
+    git(seed, "push", "-q", "--force", "origin", "HEAD:refs/heads/fix-x");
+    git(fx.worktree, "reset", "-q", "--hard", fx.newSha);
+    writeFileSync(join(fx.worktree, "c.txt"), "round two\n");
+    return { ...fx, rewrittenSha: git(seed, "rev-parse", "HEAD") };
+  };
+
+  test("the diverged refusal's own command puts HEAD on the remote head and keeps every change", async () => {
+    const fx = forcePushed();
+    try {
+      const message = await commit(fx, {
+        parentSha: fx.rewrittenSha,
+        compare: { status: "diverged", files: [] },
+      }).then(
+        () => "landed",
+        (error: unknown) => (error instanceof Error ? error.message : String(error))
+      );
+      const remedy = /\((git fetch <url> [^)]*)\)/u.exec(message)?.[1];
+      expect(remedy).toBeDefined();
+      const home = join(fx.root, "home");
+      mkdirSync(home);
+      const ran = spawnSync("bash", ["-c", (remedy ?? "").replace("<url>", fx.remote)], {
+        cwd: fx.worktree,
+        encoding: "utf-8",
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", HOME: home },
+      });
+      expect(ran.stderr).not.toContain("tell me who you are");
+      expect(ran.status).toBe(0);
+      expect(git(fx.worktree, "rev-parse", "HEAD")).toBe(fx.rewrittenSha);
+      expect(git(fx.worktree, "status", "--porcelain")).toBe("?? c.txt");
+      const landed = await commit(fx, { parentSha: fx.rewrittenSha });
+      expect(landed.sha).toBe(fx.newSha);
     } finally {
       rmSync(fx.root, { force: true, recursive: true });
     }
