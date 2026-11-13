@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { Data, Effect, Option, Schema } from "effect";
 
 import { unquoteEnvValue } from "../gh-app-github-api.ts";
+import { isGitHubTokenShaped } from "../gh-app-registry.ts";
 
 // #region Error
 
@@ -286,6 +287,16 @@ export const findUnknownFlag = (
 export const resolveRepoFromEnv = (
   // oxlint-disable-next-line node/no-process-env -- default deps seam; callers pass a fake env in tests.
   env: Readonly<Record<string, string | undefined>> = process.env
+): string => {
+  // A token pasted as the repo (`ghp_…`, alone or as the owner) names no
+  // repo: passed through, it went into every request URL and so into every
+  // error commit-via-api, the sweep and the schedules print.
+  const repo = repoSpellingOf(env);
+  return isGitHubTokenShaped(repo.split("/")[0] ?? "") ? "" : repo;
+};
+
+const repoSpellingOf = (
+  env: Readonly<Record<string, string | undefined>>
 ): string => {
   // A LEADING slash — `/acme/widgets` (a shell-autocomplete paste) — is the
   // same repo as `acme/widgets`, and every `repos/{repo}` route 404s on the
