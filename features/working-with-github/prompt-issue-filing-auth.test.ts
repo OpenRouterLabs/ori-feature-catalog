@@ -61,11 +61,20 @@ describe("the issue-template read falls back to the owner's .github repository",
     tree: Record<string, Record<string, string> | number>,
     visibility: Record<string, string> = {},
     unreadable: ReadonlyArray<string> = [],
+    limits: { readonly limited?: boolean; readonly token?: string; readonly seen?: string[] } = {},
   ): Promise<string> => {
     const server = Bun.serve({
       port: 0,
       fetch: (req) => {
         const pathname = new URL(req.url).pathname;
+        const member = req.headers.get("x-github-as") === "member";
+        limits.seen?.push(`${member ? "member" : "bare"} ${pathname}`);
+        if (limits.limited === true && !member) {
+          return Response.json(
+            { message: "API rate limit exceeded for 203.0.113.7." },
+            { headers: { "x-ratelimit-limit": "60", "x-ratelimit-remaining": "0" }, status: 403 },
+          );
+        }
         const repo = /^\/repos\/([^/]+\/[^/]+)$/u.exec(pathname)?.[1];
         if (repo !== undefined) {
           const files = tree[repo];
@@ -99,7 +108,7 @@ describe("the issue-template read falls back to the owner's .github repository",
         .replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)
         .replaceAll("{owner}/{repo}", "acme/widgets")
         .replaceAll("{owner}/.github", "acme/.github");
-      const proc = Bun.spawn(["bash", "-c", script], { env: { ...process.env, GH_TOKEN: "" }, stderr: "pipe", stdout: "pipe" });
+      const proc = Bun.spawn(["bash", "-c", script], { env: { ...process.env, GH_TOKEN: limits.token ?? "" }, stderr: "pipe", stdout: "pipe" });
       await proc.exited;
       return await new Response(proc.stdout).text();
     } finally {
@@ -249,5 +258,32 @@ describe("the issue-template read falls back to the owner's .github repository",
     expect(out).not.toContain("name: Owner");
     expect(out).not.toContain("API rate limit exceeded");
     expect(out).toContain("acme/widgets: .github/ISSUE_TEMPLATE/bug.md could not be read, so its content is unknown");
+  });
+
+  // #486: in ambient mode another owner's repository is read with no
+  // credential, on the shared limit of 60 an hour. Live 2026-11-14 with that
+  // limit spent, expressjs/cors and expressjs/.github answered 403 bare and
+  // 200 as the member, and the read printed "issue templates could not be
+  // read (HTTP 403)". It now sends a read that limit refused again as the
+  // person asking, and only that one: every read still goes bare first.
+  test("a read the anonymous limit refused is read again as the person asking", async () => {
+    const seen: string[] = [];
+    const tree = { "acme/.github": { ".github/ISSUE_TEMPLATE/bug.md": "---\nname: Bug\n---\n" }, "acme/widgets": { "README.md": "x\n" } };
+    const out = await run(tree, {}, [], { limited: true, seen });
+    expect(out).toContain("===== acme/.github: .github/ISSUE_TEMPLATE/bug.md\n---\nname: Bug");
+    expect(out).not.toContain("could not be read");
+    expect(seen[0]).toBe("bare /repos/acme/widgets/contents/.github/ISSUE_TEMPLATE");
+    expect(seen.filter((line) => line.startsWith("bare"))).toHaveLength(seen.filter((line) => line.startsWith("member")).length);
+  });
+
+  test("an answer that is not the anonymous limit, or a run with a token, is never retried as the member", async () => {
+    const seen: string[] = [];
+    const denied = await run({ "acme/widgets": 403 }, {}, [], { seen });
+    expect(denied).toContain("acme/widgets: issue templates could not be read (HTTP 403)");
+    expect(seen.some((line) => line.startsWith("member"))).toBe(false);
+    const tokenSeen: string[] = [];
+    const withToken = await run({ "acme/widgets": { ".github/ISSUE_TEMPLATE/bug.yml": "name: B\n" } }, {}, [], { limited: true, seen: tokenSeen, token: "t" });
+    expect(withToken).toContain("could not be read (HTTP 403)");
+    expect(tokenSeen.some((line) => line.startsWith("member"))).toBe(false);
   });
 });

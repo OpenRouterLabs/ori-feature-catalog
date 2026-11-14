@@ -58,7 +58,8 @@ interface FakeItem {
 const runRecipe = (
   pages: readonly (readonly FakeItem[])[],
   words: readonly string[],
-  status = 200
+  status = 200,
+  limits: { readonly limited?: boolean; readonly token?: string } = {}
 ) => {
   const dir = mkdtempSync(join(tmpdir(), "wwg-dupcheck-"));
   scratch.push(dir);
@@ -68,8 +69,13 @@ const runRecipe = (
     `const pages = ${JSON.stringify(pages)};
 const seen = [];
 process.on("exit", () => process.stderr.write("URLS " + JSON.stringify(seen) + "\\n"));
-globalThis.fetch = async (url) => {
-  seen.push(String(url));
+const limited = ${limits.limited === true};
+globalThis.fetch = async (url, init) => {
+  const member = new Headers(init?.headers).get("x-github-as") === "member";
+  seen.push((member ? "member " : "") + String(url));
+  if (limited && !member) {
+    return new Response(JSON.stringify({ message: "API rate limit exceeded for 203.0.113.7." }), { headers: { "x-ratelimit-limit": "60", "x-ratelimit-remaining": "0" }, status: 403 });
+  }
   const params = new URL(String(url)).searchParams;
   const page = Number(params.get("page") ?? "1");
   if (page > 100 && !params.has("after")) {
@@ -84,7 +90,7 @@ globalThis.fetch = async (url) => {
   );
   const result = Bun.spawnSync(
     ["bun", "--preload", stub, "-e", recipe(), "acme/widgets", ...words],
-    { stderr: "pipe", stdout: "pipe" }
+    { env: { ...process.env, GH_TOKEN: limits.token ?? "" }, stderr: "pipe", stdout: "pipe" }
   );
   const stderr = result.stderr.toString();
   const urls = /URLS (\[.*\])/u.exec(stderr)?.[1];
@@ -159,5 +165,33 @@ describe("the ambient duplicate check searches every issue", () => {
     const run = runRecipe([[]], ["anything"], 401);
     expect(run.exitCode).toBe(1);
     expect(run.stderr).toContain("HTTP 401");
+  });
+
+  // #486: another owner's issues are read with no credential in ambient mode.
+  // Live 2026-11-14 with the shared 60 an hour spent, expressjs/cors answered
+  // 403 and the check exited "HTTP 403". A page that limit refused is read
+  // again as the person asking, and so is every page after it.
+  test("a page the anonymous limit refused is read again, with every later page, as the person asking", () => {
+    const run = runRecipe(
+      [pulls(200, 100), [{ number: 7, state: "open", title: "Recipe composites diverge" }]],
+      ["composites"],
+      200,
+      { limited: true }
+    );
+    expect(run.exitCode).toBe(0);
+    expect(run.stdout.trim()).toBe("#7 [open] Recipe composites diverge");
+    expect(run.urls).toHaveLength(3);
+    expect(run.urls[0]?.startsWith("member ")).toBe(false);
+    expect(run.urls.slice(1).every((url) => url.startsWith("member "))).toBe(true);
+  });
+
+  test("a real denial, or a run with a token, is not retried as the member", () => {
+    const denied = runRecipe([[]], ["anything"], 403);
+    expect(denied.exitCode).toBe(1);
+    expect(denied.urls).toHaveLength(1);
+    const withToken = runRecipe([[]], ["anything"], 200, { limited: true, token: "t" });
+    expect(withToken.exitCode).toBe(1);
+    expect(withToken.stderr).toContain("HTTP 403");
+    expect(withToken.urls).toHaveLength(1);
   });
 });
