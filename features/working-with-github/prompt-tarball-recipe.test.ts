@@ -116,6 +116,57 @@ describe("the prompt's whole-tree tarball recipe", () => {
   );
 });
 
+// curl retried every error (--retry-all-errors) inside a loop of three, so a
+// ref that does not exist was asked for 15 times over 102 seconds before the
+// recipe failed (live 2026-11-14, OpenRouterLabs/ori-feature-catalog), and a
+// rate-limited 403 burned the same. A 4xx other than 429 is final now; a 5xx
+// is still retried.
+describe("the tarball recipe stops at a final answer", () => {
+  const runAgainst = async (answers: readonly number[]) => {
+    const bytes = archive();
+    let requests = 0;
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => {
+        const status = answers[requests] ?? 200;
+        requests += 1;
+        return status === 200 ? new Response(bytes) : Response.json({ message: "x" }, { status });
+      },
+    });
+    const work = mkdtempSync(join(tmpdir(), "wwg-tarball-final-"));
+    scratch.push(work);
+    const dir = join(work, "tree");
+    const command = (tarballRecipe ?? "")
+      .replaceAll("https://api.github.com", `http://127.0.0.1:${server.port}`)
+      .replaceAll("{owner}", "acme")
+      .replaceAll("{repo}", "widgets")
+      .replaceAll("{ref}", "abc")
+      .replaceAll("{dir}", dir);
+    try {
+      const child = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
+      const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+      return { code, dir, requests, stderr };
+    } finally {
+      await server.stop(true);
+    }
+  };
+
+  test.each([404, 403, 422])("a %p is asked for once and fails", async (status) => {
+    const run = await runAgainst([status, status, status]);
+    expect(run.code).not.toBe(0);
+    expect(run.requests).toBe(1);
+    expect(run.stderr).toContain(`error: ${status}`);
+  });
+
+  test("a 503 is still retried and the tree extracted", async () => {
+    const run = await runAgainst([503]);
+    expect(run.code).toBe(0);
+    expect(run.requests).toBe(2);
+    expect(readFileSync(join(run.dir, "acme-widgets-abc", "src", "a.ts"), "utf-8")).toBe("export const a = 1;\n");
+  }, 60_000);
+});
+
 // The ambient "Read a file" recipe was `curl -sL …/contents/{path}?ref={ref}`.
 // curl reads `[` and `]` in a URL as a glob range, so a web routing path
 // (vercel/next.js `examples/i18n-routing/app/[lang]/page.tsx`) stopped with
