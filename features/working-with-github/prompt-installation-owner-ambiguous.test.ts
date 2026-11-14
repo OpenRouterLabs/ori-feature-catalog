@@ -81,4 +81,43 @@ describe("the ambient denial rule never reads a rate limit as no access", () => 
     expect(after).toContain("x-ratelimit-reset");
     expect(after).toContain("never that the repository is out of reach");
   });
+
+  // The recipes that read with curl -f print only "The requested URL returned
+  // error: 403" (live 2026-11-14: expressjs/cors README.md through the
+  // read-a-file recipe, with the anonymous limit spent), so neither the body
+  // nor the x-ratelimit-limit header this rule tells a rate limit by ever
+  // reached the agent, and the 403 read as no access. The rule now names a
+  // one-call header check, run here against a server answering like GitHub.
+  test("it names a header check that shows a rate limit a curl -f recipe hid", async () => {
+    const after = denialRule.slice(denialRule.indexOf("A rate limit is not a denial"));
+    expect(after).toContain("curl -f");
+    const check = /`(curl -sS -o \/dev\/null -D - '<url>' \| grep [^`]+)`/u.exec(after)?.[1];
+    expect(check).toBeDefined();
+    const server = Bun.serve({
+      port: 0,
+      fetch: (req) =>
+        new URL(req.url).pathname.startsWith("/repos/signed/")
+          ? Response.json({ message: "Not Found" }, { headers: { "x-ratelimit-limit": "15000", "x-ratelimit-remaining": "14998" }, status: 404 })
+          : Response.json(
+              { message: "API rate limit exceeded for 203.0.113.7." },
+              { headers: { "x-ratelimit-limit": "60", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1794615125", "x-other": "1" }, status: 403 },
+            ),
+    });
+    try {
+      const run = async (url: string): Promise<string> => {
+        const proc = Bun.spawn(["bash", "-c", (check ?? "").replace("<url>", () => url)], { stdout: "pipe" });
+        await proc.exited;
+        return await new Response(proc.stdout).text();
+      };
+      const limited = await run(`http://127.0.0.1:${server.port}/repos/acme/widgets/contents/README.md`);
+      expect(limited).toMatch(/^HTTP\/1\.1 403/mu);
+      expect(limited).toContain("x-ratelimit-limit: 60");
+      expect(limited).toContain("x-ratelimit-remaining: 0");
+      expect(limited).not.toContain("x-other");
+      const signed = await run(`http://127.0.0.1:${server.port}/repos/signed/repo/contents/x`);
+      expect(signed).toContain("x-ratelimit-limit: 15000");
+    } finally {
+      await server.stop(true);
+    }
+  });
 });
