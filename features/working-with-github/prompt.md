@@ -214,14 +214,20 @@ Before filing a new issue, do a duplicate check:
 1. Extract 3-5 keywords from the proposed issue.
 2. Search open and closed issues: `gh issue list --repo "$REPO" --state all --search "KEYWORDS" --limit 20`
 
-   In ambient mode, search the issue list yourself. One read of `GET /repos/{owner}/{repo}/issues?state=all` is not a search: it takes no keywords, returns only the 30 newest entries, and counts pull requests as issues. On a busy repo page one can hold no issue at all, so an older duplicate never shows. `/search/issues` does not fix this. It is an unscoped route that goes out without the workspace credential, so it answers 422 for a private repo. Page through every issue and match the keywords against titles and bodies. Follow the cursor in each answer's `Link` header, never a growing `page=N`: past 100 pages (about 10,000 issues and pull requests) GitHub refuses a `page` number with 422 `Pagination with the page parameter is not supported for large datasets` (microsoft/vscode and vercel/next.js both fail at page 100), so the check died before it reached the oldest issues. The `Link` URL names the repository by id (`/repositories/41881900/issues`), which carries no owner, so a proxy that credentials owner-scoped routes sends it out bare and a private repository answers 404 there; the recipe keeps the `/repos/{owner}/{repo}` path and takes only the query (the `after` cursor) from that link:
+   In ambient mode, search the issue list yourself. One read of `GET /repos/{owner}/{repo}/issues?state=all` is not a search: it takes no keywords, returns only the 30 newest entries, and counts pull requests as issues. On a busy repo page one can hold no issue at all, so an older duplicate never shows. `/search/issues` does not fix this. It is an unscoped route that goes out without the workspace credential, so it answers 422 for a private repo. Page through every issue and match the keywords against titles and bodies. Follow the cursor in each answer's `Link` header, never a growing `page=N`: past 100 pages (about 10,000 issues and pull requests) GitHub refuses a `page` number with 422 `Pagination with the page parameter is not supported for large datasets` (microsoft/vscode and vercel/next.js both fail at page 100), so the check died before it reached the oldest issues. The `Link` URL names the repository by id (`/repositories/41881900/issues`), which carries no owner, so a proxy that credentials owner-scoped routes sends it out bare and a private repository answers 404 there; the recipe keeps the `/repos/{owner}/{repo}` path and takes only the query (the `after` cursor) from that link. A page the anonymous limit refuses (another owner's repository, read with no credential once the shared 60 an hour is spent: a 403 with `x-ratelimit-remaining: 0`, or a 429) is read again, and every page after it, as the person asking with `x-github-as: member`; a 401 then means there is no one to act as, so the check is rate-limited, not done:
 
    ```bash
    bun -e '
    const [repo, ...words] = process.argv.slice(1);
    let query = "state=all&per_page=100";
+   let headers = {};
    for (;;) {
-     const res = await fetch(`https://api.github.com/repos/${repo}/issues?${query}`);
+     const url = `https://api.github.com/repos/${repo}/issues?${query}`;
+     let res = await fetch(url, { headers });
+     if (!process.env.GH_TOKEN && (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0"))) {
+       headers = { "x-github-as": "member" };   // the anonymous limit refused it: read as the person asking
+       res = await fetch(url, { headers });
+     }
      if (!res.ok) { console.error(`HTTP ${res.status}`); process.exit(1); }
      const items = await res.json();
      for (const item of items) {
@@ -239,32 +245,38 @@ Before filing a new issue, do a duplicate check:
 4. If a matching open issue exists → don't create a duplicate; comment if there's new context.
 5. Only create a new issue if nothing existing covers it.
 
-Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's `.github` repository while that repository is public (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github); GitHub never uses a private or internal one, though a credential that reaches it reads its files just the same, so the read checks its visibility first. A template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. Template file names often carry spaces (`bug report.md`: SwanHubX/SwanLab-Dashboard names all four of its templates that way), and curl refuses a URL with a raw space (`URL rejected: Malformed input`), so the read percent-encodes each path before it fetches the file. A file read that fails (a rate limit, a dropped connection) is not a file without front matter: the read keeps that file as a template, so the owner's defaults never stand in for it, and says its content is unknown instead of printing the error body as the template. So read the repository's own, and the owner's only when the repository has none:
+Before creating an issue, read its issue templates for the correct title prefix, labels, and required fields. A repository with no issue template of its own uses the one in its owner's `.github` repository while that repository is public (expressjs/cors has none, and GitHub offers it the templates in expressjs/.github); GitHub never uses a private or internal one, though a credential that reaches it reads its files just the same, so the read checks its visibility first. A template of its own replaces those defaults entirely. A template of its own is a `.github/ISSUE_TEMPLATE/` folder holding a template (an issue form or config `.yml`, or a `.md` file that opens with `---` front matter) or a single `ISSUE_TEMPLATE.md` file (any case) in `.github/`, the root or `docs/`: gomodule/redigo has only `.github/ISSUE_TEMPLATE.md`, and GitHub fills its new issues from it. A `.md` file with no front matter is not a template, and a folder holding only such files replaces nothing: expressjs/discussions keeps only a front-matter-less `meeting.md` there, and GitHub offers it the four expressjs/.github templates. Template file names often carry spaces (`bug report.md`: SwanHubX/SwanLab-Dashboard names all four of its templates that way), and curl refuses a URL with a raw space (`URL rejected: Malformed input`), so the read percent-encodes each path before it fetches the file. In ambient mode (no `GH_TOKEN`) a read of another owner goes out with no credential, on the shared limit of 60 an hour, so a read that limit refuses (a 403 with `x-ratelimit-remaining: 0`, or a 429) is sent again as the person asking with `x-github-as: member` (live: expressjs/cors and expressjs/.github answered 403 bare with that limit spent, and 200 as the member). Every read goes bare first: a run with no one to act as still reads the owners the proxy signs for, and a 401 on the retry means the read is rate-limited until `x-ratelimit-reset`, never that the repository has no templates. A file read that fails (a rate limit, a dropped connection) is not a file without front matter: the read keeps that file as a template, so the owner's defaults never stand in for it, and says its content is unknown instead of printing the error body as the template. So read the repository's own, and the owner's only when the repository has none:
 
 ```bash
 enc() { bun -e 'console.log(process.argv[1].split("/").map(encodeURIComponent).join("/"))' "$1"; }   # a file name with a space or # in it
+get() {   # one read; with no GH_TOKEN, a read the anonymous limit refused goes again as the person asking
+  local h o rc; h=$(mktemp); o=$(mktemp); curl -D "$h" ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "$@" > "$o"; rc=$?
+  if [ -z "$GH_TOKEN" ] && { grep -qE '^HTTP/[^ ]+ 429' "$h" || { grep -qE '^HTTP/[^ ]+ 403' "$h" && grep -qiE '^x-ratelimit-remaining:[[:space:]]*0[[:space:]]*$' "$h"; }; }; then
+    echo "rate-limited with no credential (the shared 60 an hour): read again as the person asking" >&2
+    curl -H "x-github-as: member" "$@" > "$o"; rc=$?; fi
+  cat "$o"; rm -f "$h" "$o"; return $rc; }
 T=$(mktemp); found=; owner=; for r in "{owner}/{repo}" "{owner}/.github"; do
   if [ -n "$owner" ]; then   # the owner's defaults count only while that repository is public
-    code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r")
+    code=$(get -sS -o "$T" -w '%{http_code}' "https://api.github.com/repos/$r")
     [ "$code" = 404 ] && break
     [ "$code" = 200 ] || { echo "$r: could not be read (HTTP $code), so the owner's defaults are unknown"; found=1; break; }
     vis=$(bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$T")
     [ "$vis" = public ] || { echo "$r is $vis, and GitHub uses only a public one: no issue templates"; found=1; break; }
   fi; owner=1
   for d in .github/ISSUE_TEMPLATE .github "" docs; do
-    code=$(curl -sS -o "$T" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "https://api.github.com/repos/$r/contents/$d")
+    code=$(get -sS -o "$T" -w '%{http_code}' "https://api.github.com/repos/$r/contents/$d")
     [ "$code" = 404 ] && continue
     [ "$code" = 200 ] || { echo "$r: issue templates could not be read (HTTP $code), so the defaults below it are unknown"; found=1; break 2; }
     files=$(D="$d" bun -e 'for (const f of await Bun.stdin.json()) if (f.type === "file" && (process.env.D === ".github/ISSUE_TEMPLATE" || /^issue_template(\.[^/]+)?$/i.test(f.name))) console.log(f.path)' < "$T")
     [ "$d" = .github/ISSUE_TEMPLATE ] && files=$(printf '%s\n' "$files" | while IFS= read -r f; do case "$f" in
       *.[yY][mM][lL] | *.[yY][aA][mM][lL]) echo "$f" ;;
-      *.[mM][dD]) if top=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")"); then
+      *.[mM][dD]) if top=$(get -fsS -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")"); then
           printf '%s\n' "$top" | sed -n 1p | grep -qE '^---[[:space:]]*$' && echo "$f"; else echo "$f"; fi ;;   # unreadable: kept, never "not a template"
     esac; done)
     [ -n "$files" ] || continue
     found=1; printf '%s\n' "$files" | while IFS= read -r f; do
       printf '\n===== %s: %s\n' "$r" "$f"
-      curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")" ||
+      get -fsS -H 'Accept: application/vnd.github.raw' "https://api.github.com/repos/$r/contents/$(enc "$f")" ||
         echo "$r: $f could not be read, so its content is unknown"
     done; break 2
   done
