@@ -55,7 +55,15 @@ const run = (worktree: string, base: string) => {
     Effect.result(
       commitViaApi(
         { worktree, branch: "main", message: "m", repo: "o/r" },
-        { token: "t", fetchImpl: fakeGitHub(base, blobs, calls), warn: () => {} }
+        // The post-commit sync fetches from `remoteUrl`; left to its default it
+        // fetched the real github.com/o/r, so the test passed or timed out on
+        // the network. A missing local repository fails that fetch at once.
+        {
+          token: "t",
+          fetchImpl: fakeGitHub(base, blobs, calls),
+          remoteUrl: () => join(worktree, "missing.git"),
+          warn: () => {},
+        }
       )
     )
   ).then((result) => ({ result, blobs, calls }));
