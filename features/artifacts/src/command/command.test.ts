@@ -75,6 +75,26 @@ describe("artifact commands", () => {
       }).pipe(Effect.scoped, Effect.provide(BunServicesLayer))
   );
 
+  it.effect(
+    "save links to the intern's page when its URL is set, and to the file when it is malformed",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* workspace;
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(`${root}/page.html`, "<html></html>");
+        const page = "https://openrouter.ai/workspaces/workspace-1/interns/intern-1";
+        const saveWith = (pageUrl: string) =>
+          runArtifactSave(
+            { ...deps(root), env: { ORI_INTERN_DASHBOARD_URL: pageUrl } },
+            { file: "page.html", name: "report", title: Option.none() }
+          );
+        const hosted = yield* saveWith(`${page}/`);
+        expect(hosted.link).toBe(`${page}?tab=artifacts&artifact=report`);
+        const malformed = yield* saveWith("not a url");
+        expect(malformed.link).toBe(malformed.file);
+      }).pipe(Effect.scoped, Effect.provide(BunServicesLayer))
+  );
+
   it.effect("save refuses a name that breaks the rule", () =>
     Effect.gen(function* () {
       const root = yield* workspace;

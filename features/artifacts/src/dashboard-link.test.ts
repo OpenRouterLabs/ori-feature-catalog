@@ -1,65 +1,33 @@
-import { Effect, Layer } from "effect";
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
-
-import { describe, expect, it } from "#src/effect-bun-test.ts";
 import { Option } from "effect";
 
-import { CliFailureError } from "#src/failures.ts";
+import { describe, expect, it } from "#src/effect-bun-test.ts";
 
-import { artifactDashboardLink, hostedInternId } from "./dashboard-link.ts";
+import { artifactDashboardLink } from "./dashboard-link.ts";
 
-const identityLayer =
-  (workspaceId: string | null): Layer.Layer<HttpClient.HttpClient> =>
-  Layer.succeed(HttpClient.HttpClient)(
-    HttpClient.make(() =>
-      Effect.succeed(
-        HttpClientResponse.fromWeb(
-          HttpClientRequest.get("https://openrouter.ai/api/v1/key"),
-          new Response(
-            JSON.stringify({
-              data: { workspace_id: workspaceId },
-            }),
-            { headers: { "content-type": "application/json" } }
-          )
-        )
-      )
-    )
-  );
+const PAGE = "https://openrouter.ai/workspaces/workspace-1/interns/intern-1";
 
-describe("dashboard link", () => {
-  it.effect("builds the dashboard link for a hosted intern", () =>
-    Effect.gen(function* () {
-      const link = yield* artifactDashboardLink(
-        "intern-1",
-        "vendor-comparison",
-        identityLayer("workspace-1")
-      );
-      expect(link).toBe(
-        "https://openrouter.ai/workspaces/workspace-1/interns/intern-1?tab=artifacts&artifact=vendor-comparison"
-      );
-    })
-  );
+const link = (pageUrl: string | undefined, name = "vendor-comparison") =>
+  artifactDashboardLink({ ORI_INTERN_DASHBOARD_URL: pageUrl }, name);
 
-  it.effect("refuses a key with no workspace", () =>
-    Effect.gen(function* () {
-      const failure = yield* Effect.flip(
-        artifactDashboardLink(
-          "intern-1",
-          "vendor-comparison",
-          identityLayer(null)
-        )
-      ).pipe(Effect.map((failure) => failure as CliFailureError));
-      expect(failure.failureCode).toBe("ORI_CLI_INTERN_API_RESPONSE_INVALID");
-    })
-  );
-});
-
-describe("hostedInternId", () => {
-  it("reads a set, nonblank ORI_INTERN_ID and refuses a blank one", () => {
-    expect(hostedInternId({ ORI_INTERN_ID: "intern-1" })).toEqual(
-      Option.some("intern-1")
+describe("artifactDashboardLink", () => {
+  it("opens the artifact on the intern's page, with or without a trailing slash", () => {
+    const expected = Option.some(
+      `${PAGE}?tab=artifacts&artifact=vendor-comparison`
     );
-    expect(hostedInternId({ ORI_INTERN_ID: "  " })).toEqual(Option.none());
-    expect(hostedInternId({})).toEqual(Option.none());
+    expect(link(`${PAGE}/`)).toEqual(expected);
+    expect(link(PAGE)).toEqual(expected);
+    expect(link(`${PAGE}/?x=1#y`)).toEqual(expected);
+  });
+
+  it("encodes the artifact name", () => {
+    expect(link(`${PAGE}/`, "q3 report&notes")).toEqual(
+      Option.some(`${PAGE}?tab=artifacts&artifact=q3%20report%26notes`)
+    );
+  });
+
+  it("gives no link when the page URL is absent, blank or not an http(s) URL", () => {
+    for (const pageUrl of [undefined, "  ", "not a url", "ftp://host/x"]) {
+      expect(link(pageUrl)).toEqual(Option.none());
+    }
   });
 });
