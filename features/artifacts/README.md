@@ -17,7 +17,7 @@ The commands are feature `command` contributions, so the agent reaches them thro
 
 ## Environment
 
-`ORI_INTERN_ID` is optional. On a hosted intern the daemon exports it, and `artifacts-o-save` returns the dashboard link; without it the command prints the saved file's path.
+`ORI_INTERN_DASHBOARD_URL` is optional. A hosted intern's environment carries its dashboard page URL there, and `artifacts-o-save` returns that page's link to the artifact; without it, or when it is not an http(s) URL, the command prints the saved file's path.
 
 ## Develop
 

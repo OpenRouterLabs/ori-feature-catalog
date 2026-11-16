@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Option, Path } from "effect";
 
 import { CliFailureError } from "#src/failures.ts";
-import { artifactDashboardLink, hostedInternId } from "#src/dashboard-link.ts";
+import { artifactDashboardLink } from "#src/dashboard-link.ts";
 import { findWorkspaceRootFromCwd } from "#src/workspace-root.ts";
 import { inlinePage } from "#src/inline-page/index.ts";
 import { isArtifactName, saveWorkspaceArtifact } from "#src/store/index.ts";
@@ -84,7 +84,6 @@ export const runArtifactSave = Effect.fn("Artifacts.save")(function* (
       }),
   });
   const page = yield* preparePage(source);
-  const internId = hostedInternId(deps.env);
   const saved = yield* saveWorkspaceArtifact(root, {
     html: page.html,
     name: config.name,
@@ -99,9 +98,10 @@ export const runArtifactSave = Effect.fn("Artifacts.save")(function* (
         })
     )
   );
-  const link = Option.isSome(internId)
-    ? yield* artifactDashboardLink(internId.value, config.name)
-    : saved.file;
+  const link = Option.getOrElse(
+    artifactDashboardLink(deps.env, config.name),
+    () => saved.file
+  );
   yield* Effect.sync(() =>
     deps.stderr(
       `Saved ${config.name} as version ${saved.entry.version} in ${saved.file} (${page.bytes} bytes, ${page.inlinedCount} CDN ${page.inlinedCount === 1 ? "file" : "files"} put inside the page).\n`
