@@ -16,6 +16,7 @@ describe("artifactDashboardLink", () => {
     );
     expect(link(`${PAGE}/`)).toEqual(expected);
     expect(link(PAGE)).toEqual(expected);
+    expect(link(`${PAGE}/?x=1#y`)).toEqual(expected);
   });
 
   it("encodes the artifact name", () => {
