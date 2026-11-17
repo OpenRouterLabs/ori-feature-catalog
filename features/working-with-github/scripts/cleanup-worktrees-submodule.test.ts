@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -140,6 +140,25 @@ describe("the sweep retires a clean worktree with an initialized submodule", () 
     const summary = await sweep({ checkout, headSha: head, root });
     const outcome = summary.outcomes.find((entry) => entry.path === wt);
     expect(outcome?.decision).toBe("error");
+    expect(git(["worktree", "list", "--porcelain"], checkout)).toContain(wt);
+  });
+
+  // Git reads a submodule's untracked files with a status run inside it,
+  // under the submodule's own config (a user's ~/.gitconfig included), so
+  // `status.showUntrackedFiles=no` there hides them from every status the
+  // superproject runs, `--untracked-files=normal` or not. Pre-fix the sweep
+  // read such a tree as clean and forced the removal, deleting the file.
+  test("an untracked file in a submodule that hides untracked files keeps the worktree", async () => {
+    const { checkout, head, root, wt } = fixture();
+    const sub = join(wt, "sub");
+    git(["config", "status.showUntrackedFiles", "no"], sub);
+    writeFileSync(join(sub, "new.txt"), "never committed\n");
+    expect(git(["status", "--porcelain", "--untracked-files=normal"], wt)).toBe("");
+    const summary = await sweep({ checkout, headSha: head, root });
+    const outcome = summary.outcomes.find((entry) => entry.path === wt);
+    expect(outcome?.decision).toBe("error");
+    expect(outcome?.detail).toContain("uncommitted changes in a submodule");
+    expect(existsSync(join(sub, "new.txt"))).toBe(true);
     expect(git(["worktree", "list", "--porcelain"], checkout)).toContain(wt);
   });
 });

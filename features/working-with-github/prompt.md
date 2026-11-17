@@ -428,8 +428,13 @@ REPO=$(printf '%s' "$GITHUB_REPO" | sed -E -e 's#[?].*$##; s#[#].*$##; s#[/[:spa
    # A worktree with an initialized submodule is refused even when clean
    # ("working trees containing submodules cannot be moved or removed"). Its
    # submodule repos live under the worktree's git dir, so rerun the remove with
-   # --force only once `git -C "$WT" status --porcelain --ignore-submodules=none`
-   # prints nothing and every submodule commit is pushed.
+   # --force only once `git -C "$WT" status --porcelain --untracked-files=normal
+   # --ignore-submodules=none` and `git -C "$WT" submodule foreach --quiet
+   # --recursive 'git status --porcelain --untracked-files=normal'` both print
+   # nothing and every submodule commit is pushed. A status.showUntrackedFiles=no
+   # in ~/.gitconfig hides untracked files from a bare status, and git reads a
+   # submodule's untracked files under the submodule's own config, so only the
+   # second sees those: --force deletes whatever either check missed.
    cd "$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)"
    git worktree remove "$WT" && git branch -D branch-name
    ```
