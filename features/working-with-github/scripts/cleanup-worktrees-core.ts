@@ -504,7 +504,11 @@ const SUBMODULE_REFUSAL = "working trees containing submodules";
  * dir, so the force deletes them. It is safe only when the tree is clean
  * with submodule changes counted (`--ignore-submodules=none` overrides a
  * `submodule.<name>.ignore=all` that hides them from the sweep's own
- * status read) and every submodule's HEAD is on one of its remotes.
+ * status read), with each submodule's untracked files read inside it (git
+ * reads them under the submodule's own config, so a
+ * `status.showUntrackedFiles=no` there or in ~/.gitconfig hid them from
+ * every superproject status, and the force deleted them), and every
+ * submodule's HEAD is on one of its remotes.
  */
 const submoduleLoss = (worktreePath: string, runGit: RunGit): string => {
   const status = runGit(
@@ -512,6 +516,19 @@ const submoduleLoss = (worktreePath: string, runGit: RunGit): string => {
     worktreePath
   );
   if (!status.ok || status.stdout.trim() !== "") {
+    return "the tree has uncommitted changes in a submodule";
+  }
+  const inside = runGit(
+    [
+      "submodule",
+      "foreach",
+      "--quiet",
+      "--recursive",
+      "git status --porcelain --untracked-files=normal --ignore-submodules=none",
+    ],
+    worktreePath
+  );
+  if (!inside.ok || inside.stdout.trim() !== "") {
     return "the tree has uncommitted changes in a submodule";
   }
   const unpushed = runGit(
