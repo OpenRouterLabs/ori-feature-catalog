@@ -998,9 +998,16 @@ export const commitViaApi = (
 
   return Effect.gen(function* () {
     // 1. Resolve a token (injected wins; else mint for the target repo).
-    // Acting as the member sends none: the proxy attaches their identity.
+    // Acting as the member or the workspace sends none: the proxy attaches
+    // that identity (the member's with `x-github-as`, the workspace's bare).
+    if (deps.asMember === true && deps.asWorkspace === true) {
+      return yield* new CommitApiError({
+        stage: "args",
+        message: "asMember and asWorkspace are exclusive — pick one identity",
+      });
+    }
     const token =
-      deps.asMember === true
+      deps.asMember === true || deps.asWorkspace === true
         ? undefined
         : (deps.token ?? (yield* mintToken(args.repo)));
 

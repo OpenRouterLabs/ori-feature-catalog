@@ -11,15 +11,17 @@ const prompt = read("prompt.md");
 const skill = read("skills/open-pr/SKILL.md");
 const ambientIntro = prompt.slice(prompt.indexOf("In ambient mode"), prompt.indexOf("## Access mode 1"));
 
-describe("ambient mode commits with commit-via-api --as member", () => {
-  test("the prompt's ambient note names --as member, not 'the scripts are not needed'", () => {
+describe("ambient mode commits with commit-via-api --as workspace or --as member", () => {
+  test("the prompt's ambient note names both identities, workspace first", () => {
     expect(ambientIntro).not.toContain("the scripts are not needed");
-    expect(ambientIntro).toContain("`commit-via-api.ts` still works with `--as member`");
+    expect(ambientIntro).toContain("**`--as workspace`: the default for every commit, branch and PR.**");
+    expect(ambientIntro).toContain("**`--as member`: only when the change must carry the person's own name**");
+    expect(ambientIntro).toContain("Never switch identities to get past a failure");
   });
 
   test("the open-pr skill never sends an ambient commit to hand-written REST calls", () => {
     expect(skill).not.toContain("or the REST API in ambient mode");
-    expect(skill).toContain("adding `--as member` in ambient mode");
-    expect(skill).toContain("(`commit-via-api.ts`, with `--as member` in ambient mode)");
+    expect(skill).toContain("adding `--as workspace` in ambient mode");
+    expect(skill).toContain("(`commit-via-api.ts`, with `--as workspace` in ambient mode)");
   });
 });

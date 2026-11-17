@@ -51,7 +51,7 @@ git grep -n '<symbol>' -- <dir>                                    # search only
   ```
 
   For an alternate App's token (`mint-token.ts --repo`), export it as `GH_TOKEN` in that shell first.
-- Commit from `$WT` with `commit-via-api.ts --worktree "$WT" --branch <branch> --message-file <file> --repo "$REPO"`, adding `--as member` in ambient mode; never hand-write the Git Data API calls. Always pass `--repo "$REPO"`: without it the script commits to `$GITHUB_REPO`, this workspace's own repository, not the one you cloned. In ambient mode that variable is usually unset and the script stops with `missing required flag(s): --repo`; when it names a different repository, every call goes there and fails on a branch that does not exist.
+- Commit from `$WT` with `commit-via-api.ts --worktree "$WT" --branch <branch> --message-file <file> --repo "$REPO"`, adding `--as workspace` in ambient mode (`--as member` only when the commit must carry the person's name); never hand-write the Git Data API calls. Always pass `--repo "$REPO"`: without it the script commits to `$GITHUB_REPO`, this workspace's own repository, not the one you cloned. In ambient mode that variable is usually unset and the script stops with `missing required flag(s): --repo`; when it names a different repository, every call goes there and fails on a branch that does not exist.
 - Delete `$WT` when the PR is up and you no longer need it. Nothing is kept between tasks.
 - Run your own helper scripts (a `bun -e` one-liner, a commit script) from outside `$WT` (`cd /tmp`, then pass paths in). A repository's runtime config, such as a `bunfig.toml` preload, `.npmrc` or `.nvmrc`, applies to anything started inside it and can break a script that has nothing to do with the repository.
 
@@ -144,7 +144,7 @@ When the list is long, grep it for words from your diff (package names, director
 
 ## 4. Run what the hooks would have run
 
-Your commits go through the Git Data API (`commit-via-api.ts`, with `--as member` in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2, including the scripts it calls, and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them. When the repository has a `commit-msg` rule (a commitlint config, a `commit-msg` hook), check your commit message and PR title against it too.
+Your commits go through the Git Data API (`commit-via-api.ts`, with `--as workspace` in ambient mode), and that path never runs lefthook, husky, pre-commit or any other git hook. Formatting, lint, commit-message rules and generated files are your job now. Read the hook config from step 2, including the scripts it calls, and run each `pre-commit` and `pre-push` command yourself, on the changed files where the hook passes them. When the repository has a `commit-msg` rule (a commitlint config, a `commit-msg` hook), check your commit message and PR title against it too.
 
 When a hook regenerates files (docs indexes, lockfiles, codegen), run the generator and commit what it changed. If you skip that, CI's "generated files are stale" check fails.
 

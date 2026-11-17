@@ -113,7 +113,7 @@ export const withAmbientMintHint = (
   error.op === "config" &&
   error.registered !== true &&
   isAmbientMode(env)
-    ? `${error.message} — no GH_APP_ID is set (ambient mode), so there is no App to mint from and nothing is broken: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as member`
+    ? `${error.message} — no GH_APP_ID is set (ambient mode), so there is no App to mint from and nothing is broken: call api.github.com with plain curl (the host attaches the credential) and commit with commit-via-api.ts --as workspace (or --as member to commit as the person asking)`
     : error.message;
 
 /** The token-routing args parsed from argv. Empty = the bare default app. */

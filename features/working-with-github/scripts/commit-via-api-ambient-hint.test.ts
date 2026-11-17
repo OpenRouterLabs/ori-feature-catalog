@@ -10,16 +10,18 @@ import { withAmbientHint } from "./commit-via-api.ts";
 // `--as member` died on the App-mode diagnostic
 //   commit-via-api: [mint] GH_TOKEN is not set — the default App's token is
 //   rotated by the host and injected as GH_TOKEN; it is never minted here
-// which names no remedy that works there. `--as member` is the one way to
-// commit in ambient mode, so the diagnostic now names it.
+// which names no remedy that works there. The diagnostic now names both
+// ambient identities, `--as workspace` first: naming only `--as member` sent
+// every intern onto the asking person's identity, which SSO orgs refuse.
 
-const HINT = "pass --as member to commit as the person asking";
+const HINT = "pass --as workspace to commit as this workspace's own App";
 
 describe("withAmbientHint", () => {
   const mint = new CommitApiError({ stage: "mint", message: "GH_TOKEN is not set" });
 
-  test("a mint failure with no GH_APP_ID names --as member", () => {
+  test("a mint failure with no GH_APP_ID names --as workspace and --as member", () => {
     expect(withAmbientHint(mint, {})).toContain(HINT);
+    expect(withAmbientHint(mint, {})).toContain("--as member to commit as the person asking");
     expect(withAmbientHint(mint, { GH_APP_ID: "  " })).toContain(HINT);
     expect(withAmbientHint(mint, {})).toStartWith("GH_TOKEN is not set");
   });

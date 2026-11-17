@@ -56,7 +56,7 @@ describe("the empty-registry list note names the route nothing-registered really
       expect(note).toContain("ambient mode");
       expect(note).not.toContain("the default App serves every org");
       expect(note).not.toContain("host-rotated GH_TOKEN");
-      expect(note).toContain("--as member");
+      expect(note).toContain("--as workspace");
     }
   });
 
