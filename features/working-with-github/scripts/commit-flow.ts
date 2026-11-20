@@ -710,6 +710,32 @@ const guardMovedBranch = (
     }
   });
 
+/**
+ * GitHub refuses any tree that writes under `.github/workflows/` to a GitHub
+ * App token without the `workflows` permission: an installation token from an
+ * App never granted it, and the member's own token under `--as member` (an
+ * App user token). The answer is a bare 403 "Resource not accessible by
+ * integration" (live on OpenRouterLabs/ori-feature-catalog, while the same
+ * credential committed a plain file on the same branch), which reads as "this
+ * credential does not reach the repository". Name the paths and the cause.
+ */
+const explainWorkflowRefusal = (
+  error: CommitApiError,
+  entries: readonly TreeEntry[]
+): CommitApiError => {
+  const workflows = entries
+    .map((entry) => entry.path)
+    .filter((path) => path.startsWith(".github/workflows/"));
+  if (error.status !== 403 || workflows.length === 0) {
+    return error;
+  }
+  return new CommitApiError({
+    stage: error.stage,
+    status: 403,
+    message: `${error.message} — this round writes ${workflows.join(", ")}, and GitHub refuses any change under .github/workflows/ to a GitHub App token without the \`workflows\` permission (the member's token under --as member is one). The repository is still reachable: commit the other files without them, and leave the workflow change to someone who can push it, or have the App granted that permission.`,
+  });
+};
+
 /** Build every changed file's tree entry, then create the new tree on top of `baseTreeSha`. */
 const buildNewTree = (
   input: BuildTreeInput
@@ -743,7 +769,9 @@ const buildNewTree = (
         base_tree: input.baseTreeSha,
         tree: treeEntries,
       },
-    });
+    }).pipe(
+      Effect.mapError((error) => explainWorkflowRefusal(error, treeEntries))
+    );
     return newTree.sha;
   });
 
