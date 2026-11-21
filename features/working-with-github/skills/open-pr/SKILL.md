@@ -87,7 +87,7 @@ O=/tmp/owner-dot-github-$$; [ -n "${REPO%%/*}" ] && for k in 'pull_request_templ
   if [ ! -d "$O" ]; then   # GitHub uses the owner's defaults only while that repository is public
     code=$(curl -sS -o "$O.json" -w '%{http_code}' ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" "https://api.github.com/repos/${REPO%%/*}/.github")
     [ "$code" = 200 ] || { [ "$code" = 404 ] || echo "${REPO%%/*}/.github could not be read (HTTP $code): its default PR template and CONTRIBUTING are unknown"; break; }
-    vis=$(bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$O.json")
+    vis=$(cd /tmp && bun -e 'console.log((await Bun.stdin.json()).visibility)' < "$O.json")   # outside the clone: its bunfig.toml preload applies to bun -e there
     [ "$vis" = public ] || { echo "${REPO%%/*}/.github is $vis, and GitHub uses only a public one: no default PR template or CONTRIBUTING"; break; }
     GIT_TERMINAL_PROMPT=0 git clone -q --depth 1 --filter=blob:none --no-checkout "https://github.com/${REPO%%/*}/.github.git" "$O" 2>/dev/null ||
       { echo "${REPO%%/*}/.github could not be cloned: its default PR template and CONTRIBUTING are unknown"; break; }

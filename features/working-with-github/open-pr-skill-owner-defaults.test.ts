@@ -199,3 +199,31 @@ describe("open-pr step 2 reads the owner's visibility as the member in ambient m
     expect(out).toContain("## Owner template");
   });
 });
+
+// The block runs inside the clone (it starts with `cd "$WT"`), and bun reads
+// the clone's bunfig.toml for every `bun -e` started there. A top-level
+// `preload` (khromov/gpuix-svelte `./src/plugin.ts`, wavyrai/tmux-ide a package
+// preload, about 1 in 20 bunfig.toml files on GitHub) names a file the sparse
+// checkout or the missing install leaves out, so the visibility read died with
+// `preload not found`, printed ".github is , and GitHub uses only a public
+// one" and skipped the owner's defaults. A preload that does load printed its
+// own output into the visibility. Step 1 already says to run helper scripts
+// from outside the clone.
+describe("open-pr step 2 reads the owner's visibility outside the clone's bun config", () => {
+  test("a clone whose bunfig.toml preloads a file not checked out still prints the owner's template", async () => {
+    const { code, out } = await run({ "bunfig.toml": 'preload = ["./src/plugin.ts"]\n' }, {
+      ".github/pull_request_template.md": "## Owner form\n",
+    });
+    expect(out).toContain("===== acme/.github: .github/pull_request_template.md\n## Owner form");
+    expect(out).not.toContain("GitHub uses only a public one");
+    expect(code).toBe(0);
+  });
+
+  test("a preload that prints never lands in the visibility", async () => {
+    const { out } = await run({ "bunfig.toml": 'preload = ["./setup.ts"]\n', "setup.ts": 'console.log("setup ran");\n' }, {
+      "CONTRIBUTING.md": "owner contributing\n",
+    });
+    expect(out).toContain("===== acme/.github: CONTRIBUTING.md\nowner contributing");
+    expect(out).not.toContain("setup ran");
+  });
+});
