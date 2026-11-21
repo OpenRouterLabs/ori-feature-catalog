@@ -184,13 +184,13 @@ Open it ready for review unless the repository's rules ask for drafts. A draft o
 ```bash
 AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
 NODE_ID=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
-  "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).node_id)')
+  "https://api.github.com/repos/$REPO/pulls/$PR" | (cd /tmp && bun -e 'console.log((await Bun.stdin.json()).node_id)'))   # bun -e outside the clone (step 1)
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" https://api.github.com/graphql \
   -d "{\"query\":\"mutation { markPullRequestReadyForReview(input: {pullRequestId: \\\"$NODE_ID\\\"}) { pullRequest { isDraft } } }\"}" \
-  | bun -e 'const r = await Bun.stdin.json(); if (r.errors?.length) { console.error(r.errors.map((e) => e.message).join("; ")); process.exit(1); } console.log("isDraft:", r.data.markPullRequestReadyForReview.pullRequest.isDraft)'
+  | (cd /tmp && bun -e 'const r = await Bun.stdin.json(); if (r.errors?.length) { console.error(r.errors.map((e) => e.message).join("; ")); process.exit(1); } console.log("isDraft:", r.data.markPullRequestReadyForReview.pullRequest.isDraft)')
 ```
 
-`$PR` is the PR's number. The mutation takes the PR's GraphQL node id, which the first call reads from the PR itself. GraphQL reports a refused mutation as `errors` in an HTTP 200 answer, which `curl -f` lets through, so the last line prints those errors and exits 1 instead of letting a draft that stayed a draft read as done.
+`$PR` is the PR's number. The mutation takes the PR's GraphQL node id, which the first call reads from the PR itself. Each `bun -e` runs from `/tmp`, like every helper (step 1): this step usually runs in the shell that just ran the checks inside `$WT`, and a clone whose `bunfig.toml` preloads a file the sparse checkout left out (`preload = ["./src/plugin.ts"]`) failed every `bun -e` there with `preload not found`, so the node id came back empty. GraphQL reports a refused mutation as `errors` in an HTTP 200 answer, which `curl -f` lets through, so the last line prints those errors and exits 1 instead of letting a draft that stayed a draft read as done.
 
 In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-github-as: member`. A host's proxy attaches the workspace credential per repository owner, and a GraphQL call that names the PR only by its node id has no owner in its URL, so without the header it goes out unauthenticated and GitHub refuses it (403, rate limited). GitHub has no REST route that marks a draft ready, so this header is the only way to do it in ambient mode. A 401 on it means the person's linked identity could not make the call: say so and leave the draft for them to mark ready.
 
@@ -205,12 +205,12 @@ In ambient mode (no `GH_TOKEN`), send this call as the person asking with `x-git
 ```bash
 AS=(); [ -n "$GH_TOKEN" ] || AS=(-H "x-github-as: member")   # ambient mode: see below
 SHA=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
-  "https://api.github.com/repos/$REPO/pulls/$PR" | bun -e 'console.log((await Bun.stdin.json()).head.sha)')
+  "https://api.github.com/repos/$REPO/pulls/$PR" | (cd /tmp && bun -e 'console.log((await Bun.stdin.json()).head.sha)'))   # bun -e outside the clone (step 1)
 # Every page: a head can carry hundreds of check runs, and a failure past the first 100 never shows on page one.
 for page in $(seq 1 50); do
   runs=$(curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
     "https://api.github.com/repos/$REPO/commits/$SHA/check-runs?per_page=100&filter=latest&page=$page" \
-    | bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)') \
+    | (cd /tmp && bun -e 'for (const c of (await Bun.stdin.json()).check_runs) console.log(c.conclusion ?? c.status, c.id, c.name, c.details_url)')) \
     || { echo "check-runs page $page could not be read: the list above is incomplete"; break; }
   [ -n "$runs" ] && printf '%s\n' "$runs"
   [ "$(printf '%s\n' "$runs" | grep -c .)" -lt 100 ] && break
@@ -219,7 +219,7 @@ done
 # "pending" when nothing posted one at all, so that case prints as none posted:
 curl -fsS ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/commits/$SHA/status?per_page=100" \
-  | bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)'
+  | (cd /tmp && bun -e 'const s = await Bun.stdin.json(); console.log(s.total_count === 0 ? "no commit status posted" : s.state); for (const x of s.statuses) console.log(x.state, x.context, x.target_url)')
 # Log of a failed GitHub Actions job (the check-run id is the job id):
 curl -fsSL ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} "${AS[@]}" \
   "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" | tail -200

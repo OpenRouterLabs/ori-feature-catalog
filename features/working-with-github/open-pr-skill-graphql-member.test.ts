@@ -140,3 +140,62 @@ describe("open-pr steps 7 and 8 read as the member in ambient mode", () => {
     }
   });
 });
+
+// Steps 7 and 8 usually run in the shell that just ran the checks inside the
+// clone, and bun reads the clone's bunfig.toml for every `bun -e` started
+// there. A top-level preload the sparse checkout leaves out (khromov/
+// gpuix-svelte `./src/plugin.ts`) failed each parser with `preload not found`:
+// the node id came back empty, so the mutation sent `pullRequestId: ""`, and
+// step 8 asked for the check runs of an empty sha and printed no status. Step
+// 1 says to run every helper from outside the clone; steps 2 and 3 already do.
+describe("open-pr steps 7 and 8 parse outside the clone's bun config", () => {
+  const stepEight = skill.slice(skill.indexOf("## 8."), skill.indexOf("## 9."));
+  const fence = (step: string) => /```bash\n([\s\S]*?)\n```/u.exec(step)?.[1] ?? "";
+
+  const inClone = (block: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "open-pr-bunfig-"));
+    const clone = join(dir, "clone");
+    Bun.spawnSync(["mkdir", "-p", join(dir, "bin"), clone]);
+    writeFileSync(join(clone, "bunfig.toml"), 'preload = ["./src/plugin.ts"]\n');
+    writeFileSync(
+      join(dir, "bin", "curl"),
+      [
+        "#!/bin/bash",
+        'printf \'%s\\n\' "$*" >> "$LOG"',
+        'case "$*" in',
+        '  *graphql*) echo \'{"data":{"markPullRequestReadyForReview":{"pullRequest":{"isDraft":false}}}}\' ;;',
+        '  */check-runs*) echo \'{"check_runs":[{"conclusion":"failure","id":9,"name":"test","details_url":"u"}]}\' ;;',
+        '  */status*) echo \'{"total_count":1,"state":"success","statuses":[{"state":"success","context":"ci","target_url":"t"}]}\' ;;',
+        '  */pulls/*) echo \'{"node_id":"PR_x","head":{"sha":"abc"}}\' ;;',
+        "esac",
+      ].join("\n"),
+      { mode: 0o755 }
+    );
+    const log = join(dir, "log");
+    const child = Bun.spawnSync(["bash", "-c", block], {
+      cwd: clone,
+      env: { HOME: process.env.HOME ?? "/tmp", JOB_ID: "7", LOG: log, PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`, PR: "42", REPO: "acme/widgets" },
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    const result = { calls: readFileSync(log, "utf8"), code: child.exitCode, err: child.stderr.toString(), out: child.stdout.toString() };
+    rmSync(dir, { force: true, recursive: true });
+    return result;
+  };
+
+  test("step 7 marks the PR's own node id ready", () => {
+    const { calls, code, err, out } = inClone(fence(stepSeven));
+    expect(err).not.toContain("preload not found");
+    expect(calls).toContain('pullRequestId: \\"PR_x\\"');
+    expect(out).toContain("isDraft: false");
+    expect(code).toBe(0);
+  });
+
+  test("step 8 reads the head's check runs and statuses", () => {
+    const { calls, err, out } = inClone(fence(stepEight));
+    expect(err).not.toContain("preload not found");
+    expect(calls).toContain("/commits/abc/check-runs");
+    expect(out).toContain("failure 9 test u");
+    expect(out).toContain("success ci t");
+  });
+});
