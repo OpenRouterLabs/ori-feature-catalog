@@ -27,7 +27,7 @@ cd "$WT"
 git config core.quotePath false   # list non-ASCII paths as they are, not as quoted octal escapes
 git switch -q -c <branch>   # a new PR; for an open one, clone with --branch <branch> instead
 git ls-tree -r --name-only HEAD | grep -i '<words from the task>'   # every path, without downloading files
-git sparse-checkout set --skip-checks .github .agents .claude .cursor .circleci .buildkite .lefthook .config/lefthook .config/lefthook-local .husky .githooks <dirs the change touches>
+git sparse-checkout set --skip-checks .github .agents .claude .codex .gemini .opencode .cursor .circleci .buildkite .lefthook .config/lefthook .config/lefthook-local .husky .githooks <dirs the change touches>
 git grep -n '<symbol>' -- <dir>                                    # search only what is checked out
 ```
 
@@ -111,14 +111,14 @@ From them, write down before you start:
 
 ## 3. Find the repo's own skills that apply
 
-Repositories may ship their own agent skills, in `.agents/skills/`, `.claude/skills/` or `.github/skills/` (GitHub's agents read project skills from all three; BabylonJS/Babylon.js keeps its `create-pr` and `monitor-pr` skills in `.github/skills/`). List every name and description in one call, then open the ones that fit the change: the area or paths you touched, and anything about commits, PR text, security, privacy, tests or screenshots.
+Repositories may ship their own agent skills, in `.agents/skills/`, `.claude/skills/` or `.github/skills/` (GitHub's agents read project skills from all three; BabylonJS/Babylon.js keeps its `create-pr` and `monitor-pr` skills in `.github/skills/`), and other agents load their own folders too, which many repositories use alone: Codex reads `.codex/skills/` in every directory from the root down to the one it works in (any `.codex/` folder, `config.toml` or not; riaf/relqis keeps its `pr-checker` only there), Gemini CLI reads `.gemini/skills/` at the root, and OpenCode reads `.opencode/skills/` or `.opencode/skill/` in every directory up to the root. List every name and description in one call, then open the ones that fit the change: the area or paths you touched, and anything about commits, PR text, security, privacy, tests or screenshots.
 
 ```bash
 show() { printf 'HEAD:%s\n' "$1" | git -C "$WT" cat-file --batch --follow-symlinks | sed 1d; }   # a file from the index; a link prints the file it points to
 desc() { awk '{ sub(/\r$/, "") } /^description:/ { sub(/^description:[ \t]*/, ""); if ($0 !~ /^([>|][-+0-9]*)?$/) { print; exit } block = 1; next }
     block && /^[ \t]/ { sub(/^[ \t]+/, ""); text = text (text == "" ? "" : " ") $0; next } block { exit } END { if (block) print text }' |
     (cd /tmp && bun -e 'console.log([...(await Bun.stdin.text()).replace(/\n$/, "")].slice(0, 200).join(""))'); }   # 200 characters, not bytes
-for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md; do
+for f in "$WT"/.agents/skills/*/SKILL.md "$WT"/.claude/skills/*/SKILL.md "$WT"/.github/skills/*/SKILL.md "$WT"/.codex/skills/*/SKILL.md "$WT"/.gemini/skills/*/SKILL.md "$WT"/.opencode/skill/*/SKILL.md "$WT"/.opencode/skills/*/SKILL.md; do
   [ -f "$f" ] && printf '%s: %s\n' "$f" "$(desc < "$f")"
 done
 # Cursor rules, nested folders too: alwaysApply: true applies to every change, so it prints in full.
@@ -130,15 +130,15 @@ done
 # Skills a package keeps beside its own code, in each touched directory and its parents. Read from the
 # index: the sparse checkout leaves a package's .agents/ out when the change touches only its src/.
 cd "$WT"; for d in <dirs the change touches>; do d=${d#"$WT"/}; while [ "$d" != "." ] && [ "$d" != "/" ] && [ -n "$d" ]; do
-  git ls-tree -r --name-only HEAD -- "$d/.agents/skills" "$d/.claude/skills" 2>/dev/null; d=$(dirname "$d"); done; done |
-  grep -E '/\.(agents|claude)/skills/[^/]+/SKILL\.md$' | sort -u | while IFS= read -r f; do printf '%s: %s\n' "$f" "$(show "$f" | desc)"; done
+  git ls-tree -r --name-only HEAD -- "$d/.agents/skills" "$d/.claude/skills" "$d/.codex/skills" "$d/.opencode/skill" "$d/.opencode/skills" 2>/dev/null; d=$(dirname "$d"); done; done |
+  grep -E '/(\.(agents|claude|codex)/skills|\.opencode/skills?)/[^/]+/SKILL\.md$' | sort -u | while IFS= read -r f; do printf '%s: %s\n' "$f" "$(show "$f" | desc)"; done
 ```
 
 The `awk` reads a description written as a YAML block (`description: >` or `|`, with the text on the indented lines below), or as plain text that starts on the line under a bare `description:`, as well as a one-line one. Many skills, this one included, use the block form, and a plain `grep '^description:'` prints only its `>`. It drops the carriage return of a file saved with Windows line endings first: otherwise `>` plus that return no longer reads as a block marker, and the listing prints `>` again. The listing keeps the first 200 characters of each description. `cut -c` counts bytes, not characters, so it kept a Chinese or Korean description to about 66 characters and often split the last one, printing invalid UTF-8 (thun-res/vlink's `pr` skill ended in a broken byte).
 
 Cursor rules (`.cursor/rules/**/*.mdc`, in nested folders too) are rules, not skills you pick by description. Cursor applies one with `alwaysApply: true` to every request, and many leave its `description` empty: ClickHouse/ai-sdk-cpp keeps its C++ style rules in such a file, which a description listing showed as a blank line. So the block prints every `alwaysApply` rule in full and lists the others with their description and `globs`; read in full every rule whose globs match a file you touch. Rules sit in subfolders as often as not (growthbook/growthbook keeps them in `.cursor/rules/frontend/` and `.cursor/rules/backend/`), so the list comes from the index, which also reaches a rule the sparse checkout left out.
 
-A monorepo package can keep its own skills beside its code (`<package>/.agents/skills/<name>/SKILL.md`), which apply to changes in that package; a root AGENTS.md often points at one for every change to that package (a TUI skill under `features/chat-tui/.agents/skills/`, a desktop one under `apps/desktop/.agents/skills/`), and the root loop above never lists them. The second loop lists those for every directory the change touches and each of its parents.
+A monorepo package can keep its own skills beside its code (`<package>/.agents/skills/<name>/SKILL.md`, or the `.claude`, `.codex` or `.opencode` form there), which apply to changes in that package; a root AGENTS.md often points at one for every change to that package (a TUI skill under `features/chat-tui/.agents/skills/`, a desktop one under `apps/desktop/.agents/skills/`), and the root loop above never lists them. The second loop lists those for every directory the change touches and each of its parents.
 
 When the list is long, grep it for words from your diff (package names, directories, `security`, `pr`, `commit`, `test`) instead of skimming. Do what a matching skill says.
 

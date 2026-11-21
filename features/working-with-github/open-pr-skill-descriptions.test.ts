@@ -230,3 +230,59 @@ describe("open-pr step 3 reads Cursor rules the way Cursor applies them", () => 
     }
   });
 });
+
+// Regression: step 3 listed only `.agents/skills`, `.claude/skills` and
+// `.github/skills`, but other agents load their own folders, read from their
+// loader source. Codex makes every `.codex/` folder between the project root
+// and its working directory a config layer, config.toml or not, and loads its
+// `skills/` (openai/codex config/src/loader/mod.rs, ext/skills/src/
+// host_roots.rs). Gemini CLI loads `<root>/.gemini/skills` (core/src/config/
+// storage.ts getProjectSkillsDir). OpenCode scans `{skill,skills}/**/SKILL.md`
+// under each `.opencode` directory up to the worktree (opencode v1.19.6
+// src/skill/index.ts). Many repositories keep skills only there: in samples,
+// 59 of 130 `.codex/skills` repos (riaf/relqis `pr-checker`), 34 of 55
+// `.opencode/skills`, 18 of 30 `.opencode/skill`, 8 of 32 `.gemini/skills`.
+// Step 1's sparse set left those folders out, and step 3 listed none of them.
+describe("open-pr step 3 lists the skills Codex, Gemini CLI and OpenCode load", () => {
+  test("root and package skills in their folders are listed from a sparse clone", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-codex-"));
+    try {
+      const src = join(root, "src");
+      write(src, ".codex/skills/pr-checker/SKILL.md", "---\nname: pr-checker\ndescription: Check a PR before it opens.\n---\n");
+      write(src, ".gemini/skills/zig/SKILL.md", "---\nname: zig\ndescription: Zig style.\n---\n");
+      write(src, ".opencode/skill/code-reviewer/SKILL.md", "---\nname: code-reviewer\ndescription: Review code.\n---\n");
+      write(src, ".opencode/skills/tdd/SKILL.md", "---\nname: tdd\ndescription: Test first.\n---\n");
+      write(src, "pkg/.codex/skills/commit/SKILL.md", "---\nname: commit\ndescription: Commit in this package's format.\n---\n");
+      write(src, "pkg/.opencode/skills/release/SKILL.md", "---\nname: release\ndescription: Release the package.\n---\n");
+      write(src, "pkg/src/main.ts", "export {};\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      const stepOne = skill.slice(skill.indexOf("## 1."), skill.indexOf("## 2."));
+      const set = /```bash\n([\s\S]*?)\n```/u.exec(stepOne)?.[1]?.split("\n").find((l) => l.startsWith("git sparse-checkout set"));
+      if (set === undefined) throw new Error("step 1 has no sparse-checkout set");
+      expect(Bun.spawnSync(["bash", "-c", set.replace("<dirs the change touches>", "pkg/src")], { cwd: wt }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor("pkg/src")], {
+        cwd: root,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      for (const line of [
+        ".codex/skills/pr-checker/SKILL.md: Check a PR before it opens.\n",
+        ".gemini/skills/zig/SKILL.md: Zig style.\n",
+        ".opencode/skill/code-reviewer/SKILL.md: Review code.\n",
+        ".opencode/skills/tdd/SKILL.md: Test first.\n",
+        "pkg/.codex/skills/commit/SKILL.md: Commit in this package's format.\n",
+        "pkg/.opencode/skills/release/SKILL.md: Release the package.\n",
+      ]) expect(out).toContain(line);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
