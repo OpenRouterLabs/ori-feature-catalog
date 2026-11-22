@@ -274,3 +274,37 @@ describe("open-pr step 2 reads .claude/rules through linked folders", () => {
     }
   });
 });
+
+// Regression: step 2 never read `.cursorrules`, which Cursor's own agent loads
+// at the root beside AGENTS.md (cursor-agent 2026.11.22 loadFresh globs
+// ".cursorrules", "AGENTS.md", "**/.cursor/rules/**/*.mdc"). About 32,000
+// repositories commit one, and some keep their rules only there:
+// ludoguenet/laravel-zap has no AGENTS.md, CLAUDE.md or .cursor/rules.
+describe("open-pr step 2 reads Cursor's .cursorrules", () => {
+  test("a root .cursorrules prints in full from a sparse clone", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-cursorrules-"));
+    try {
+      const src = join(root, "src");
+      mkdirSync(join(src, "src"), { recursive: true });
+      writeFileSync(join(src, ".cursorrules"), "- Always use curly braces for control structures\n- Run composer test before committing\n");
+      writeFileSync(join(src, "src/a.php"), "<?php\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      expect(Bun.spawnSync(["bash", "-c", sparseSet()], { cwd: wt, stderr: "pipe" }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", bashBlock("## 2.", "## 3.").replaceAll("<dirs the change touches>", "src")], {
+        cwd: wt,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      expect(proc.stdout.toString()).toContain("===== .cursorrules\n- Always use curly braces for control structures\n- Run composer test before committing");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});

@@ -352,3 +352,52 @@ describe("open-pr step 3 lists skills through linked folders", () => {
     }
   });
 });
+
+// Regression: step 3 read Cursor's rules only from the root `.cursor/rules`,
+// with `ls-tree`, and never Cursor's skills. Cursor's own agent (cursor-agent
+// 2026.11.22, loadFresh) globs "**/.cursor/rules/**/*.mdc" and
+// "**/.cursor/skills/**/SKILL.md" in every directory and walks with
+// followSymlinks: true. gambitph/Stackable keeps its 38 skills (to-quality-pr,
+// code-review, ensure-quality, tdd) only in `.cursor/skills`; tabler/tabler,
+// qiniu/go-sdk and dozens more link `.cursor/rules` to `../.agents/rules`, one
+// index entry `ls-tree` listed no rule under; and packages keep their own
+// rules (about 200 files under `apps/web/.cursor/rules`, 680 under
+// `frontend/.cursor/rules`).
+describe("open-pr step 3 reads Cursor's rules and skills the way Cursor loads them", () => {
+  test("root and package .cursor/skills, a linked .cursor/rules and a package's .cursor/rules are read", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-cursor-loader-"));
+    try {
+      const src = join(root, "src");
+      write(src, ".cursor/skills/to-quality-pr/SKILL.md", "---\nname: to-quality-pr\ndescription: Turn a branch into a quality PR.\n---\n");
+      write(src, "apps/web/.cursor/skills/storybook/SKILL.md", "---\nname: storybook\ndescription: Add a story per component.\n---\n");
+      write(src, ".agents/rules/typescript.mdc", "---\nalwaysApply: true\n---\nNo any, ever.\n");
+      symlinkSync("../.agents/rules", join(src, ".cursor/rules"));
+      write(src, "apps/web/.cursor/rules/web.mdc", "---\ndescription: Web app rules\nglobs: apps/web/**/*.tsx\n---\n# Web\n");
+      write(src, "apps/web/src/main.tsx", "export {};\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      const stepOne = skill.slice(skill.indexOf("## 1."), skill.indexOf("## 2."));
+      const set = /```bash\n([\s\S]*?)\n```/u.exec(stepOne)?.[1]?.split("\n").find((l) => l.startsWith("git sparse-checkout set"));
+      if (set === undefined) throw new Error("step 1 has no sparse-checkout set");
+      expect(Bun.spawnSync(["bash", "-c", set.replace("<dirs the change touches>", "apps/web/src")], { cwd: wt }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor("apps/web/src")], {
+        cwd: root,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain(".cursor/skills/to-quality-pr/SKILL.md: Turn a branch into a quality PR.\n");
+      expect(out).toContain("apps/web/.cursor/skills/storybook/SKILL.md: Add a story per component.\n");
+      expect(out).toContain("===== .cursor/rules/typescript.mdc (alwaysApply)\n---\nalwaysApply: true\n---\nNo any, ever.");
+      expect(out).toContain("apps/web/.cursor/rules/web.mdc: Web app rules (globs apps/web/**/*.tsx)\n");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
