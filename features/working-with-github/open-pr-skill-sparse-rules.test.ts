@@ -215,3 +215,62 @@ describe("open-pr step 2 reads Claude Code's .claude/ instructions and rules", (
     }
   });
 });
+
+// Regression: Claude Code follows links in `.claude/rules/` ("The
+// `.claude/rules/` directory supports symlinks", its memory docs), and many
+// repositories link the whole folder: blockscout/frontend's `.claude/rules`
+// links to `../.agents/rules` (9 path-scoped rules, the TypeScript and
+// code-quality ones for every `.ts`/`.tsx`), adobe/spectrum-web-components'
+// to `../.ai/rules` (9 rules). The index lists the link as one `120000`
+// entry, so step 2's `ls-tree -- .claude/rules | grep '\.md$'` printed
+// nothing and every one of those rules went unread (live, on a sparse clone
+// of blockscout/frontend).
+describe("open-pr step 2 reads .claude/rules through linked folders", () => {
+  test("rules behind a linked .claude/rules, and behind links inside it, print or list", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-claude-link-"));
+    try {
+      const src = join(root, "src");
+      const files: Record<string, string> = {
+        ".ai/rules/style.md": "Always run just format\n",
+        ".ai/rules/typescript.md": '---\npaths:\n  - "**/*.{ts,tsx}"\n---\n# TypeScript\n',
+        "shared/rules/security.md": "Never log a token\n",
+        "docs/commits.md": "Conventional commits only\n",
+        "src/a.ts": "export {};\n",
+      };
+      for (const [path, content] of Object.entries(files)) {
+        mkdirSync(join(src, path, ".."), { recursive: true });
+        writeFileSync(join(src, path), content);
+      }
+      mkdirSync(join(src, ".claude"), { recursive: true });
+      symlinkSync("../.ai/rules", join(src, ".claude/rules"));
+      symlinkSync("../../shared/rules", join(src, ".ai/rules/shared"));
+      symlinkSync("../../docs/commits.md", join(src, ".ai/rules/commits.md"));
+      symlinkSync("/etc/outside-rules", join(src, ".ai/rules/outside"));
+      symlinkSync(".", join(src, ".ai/rules/loop"));
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      expect(Bun.spawnSync(["bash", "-c", sparseSet()], { cwd: wt, stderr: "pipe" }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", bashBlock("## 2.", "## 3.").replaceAll("<dirs the change touches>", "src")], {
+        cwd: wt,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 20_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain("===== .claude/rules/style.md\nAlways run just format");
+      expect(out).toContain('.claude/rules/typescript.md: paths "**/*.{ts,tsx}"\n');
+      expect(out).toContain("===== .claude/rules/shared/security.md\nNever log a token");
+      expect(out).toContain("===== .claude/rules/commits.md\nConventional commits only");
+      expect(out).not.toContain("outside");
+      expect(out).not.toContain("loop/");
+      expect(out.split("===== .claude/rules/style.md").length - 1).toBe(1);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
