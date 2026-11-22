@@ -338,7 +338,8 @@ describe("the read-a-file symlink check names the file a link points to", () => 
   };
 
   test("the check is in the prompt", () => {
-    expect(check).toContain("/contents/{path}");
+    expect(check).toContain("p='{path}'");
+    expect(check).toContain("/contents/$p");
   });
 
   test.each([
@@ -350,5 +351,73 @@ describe("the read-a-file symlink check names the file a link points to", () => 
     [{ type: "file", path: "AGENTS.md", content: "" }, ""],
   ])("%p prints %p", async (entry, expected) => {
     expect(await answer(entry)).toEqual({ code: 0, out: expected });
+  });
+});
+
+// The contents API does not resolve a link on the WAY to a file either: in
+// OpenRouterIncubator/ori-agent-rust each `.claude/skills/<name>` is a link to
+// `../../.agents/skills/<name>`, and in OpenRouterIncubator/ori `.claude/skills`
+// itself links to `../.agents/skills`. A read of
+// `.claude/skills/rust-review/SKILL.md` answered 404 (live), and the check
+// that took only the full path died on that 404, so the file read as
+// missing. The check walks up the path on a 404 and resolves the first link.
+describe("the read-a-file link check resolves a linked directory on the path", () => {
+  const check = [...prompt.matchAll(/```bash[^\n]*\n([\s\S]*?)```/g)]
+    .map((match) => (match[1] ?? "").trim())
+    .find((block) => block.includes('"symlink"'));
+
+  const tree: Record<string, unknown> = {
+    ".claude/skills/rust-review": { type: "symlink", path: ".claude/skills/rust-review", target: "../../.agents/skills/rust-review" },
+    ".claude": [{ type: "dir", path: ".claude/skills" }],
+    "pkg/.claude/skills": { type: "symlink", path: "pkg/.claude/skills", target: "../.agents/skills" },
+    "vendor/lib": { type: "submodule", path: "vendor/lib", submodule_git_url: "https://github.com/acme/lib.git" },
+    docs: [{ type: "file", path: "docs/a.md" }],
+    "docs/a.md": { type: "file", path: "docs/a.md", content: "" },
+  };
+
+  const walk = async (path: string, limited: string[] = []) => {
+    const asked: string[] = [];
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: (req) => {
+        const url = new URL(req.url);
+        const key = decodeURIComponent(url.pathname.replace("/repos/acme/widgets/contents/", ""));
+        asked.push(key);
+        if (limited.includes(key)) {
+          return Response.json({ message: "API rate limit exceeded" }, { status: 403 });
+        }
+        return key in tree ? Response.json(tree[key]) : Response.json({ message: "Not Found" }, { status: 404 });
+      },
+    });
+    try {
+      const command = (check ?? "")
+        .replace("https://api.github.com", `http://127.0.0.1:${server.port}`)
+        .replace("{owner}/{repo}", "acme/widgets")
+        .replace("{path}", () => path)
+        .replace("{ref}", "main");
+      const child = Bun.spawn(["bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
+      const out = await new Response(child.stdout).text();
+      return { code: await child.exited, out: out.trim(), asked };
+    } finally {
+      await server.stop(true);
+    }
+  };
+
+  test.each([
+    [".claude/skills/rust-review/SKILL.md", ".agents/skills/rust-review/SKILL.md"],
+    ["pkg/.claude/skills/review/references/a%20b.md", "pkg/.agents/skills/review/references/a b.md"],
+    ["vendor/lib/src/x.ts", "vendor/lib is a submodule: read src/x.ts from https://github.com/acme/lib.git"],
+    ["docs/missing.md", "not found: docs/missing.md, and no directory on its path is a link"],
+    ["nowhere.md", "not found: nowhere.md, and no directory on its path is a link"],
+    ["docs/a.md", ""],
+  ])("%p prints %p", async (path, expected) => {
+    expect(await walk(path)).toMatchObject({ code: 0, out: expected });
+  });
+
+  test("a refused read on the way up is reported, never read as missing", async () => {
+    const run = await walk(".claude/skills/other/SKILL.md", [".claude/skills"]);
+    expect(run.out).toBe("contents/.claude/skills answered HTTP 403, so whether .claude/skills/other/SKILL.md exists is unknown");
+    expect(run.asked).toEqual([".claude/skills/other/SKILL.md", ".claude/skills/other", ".claude/skills"]);
   });
 });
