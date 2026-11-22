@@ -19,6 +19,14 @@ const stepThreeScript = (): string => {
   return match[1];
 };
 
+// Step 3 reads skills from the index, so a fixture is committed first.
+const commitAll = (wt: string) => {
+  for (const args of [["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]]) {
+    const proc = Bun.spawnSync(["git", ...args], { cwd: wt, stderr: "pipe", stdout: "pipe" });
+    if (proc.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${proc.stderr.toString()}`);
+  }
+};
+
 const writeSkill = (root: string, name: string, frontmatter: string) => {
   mkdirSync(join(root, ".agents/skills", name), { recursive: true });
   writeFileSync(join(root, ".agents/skills", name, "SKILL.md"), `---\nname: ${name}\n${frontmatter}---\n\n# ${name}\n`);
@@ -34,6 +42,7 @@ describe("open-pr step 3 lists every skill's description", () => {
       writeSkill(wt, "inline", "description: Review a diff.\n");
       mkdirSync(join(wt, ".agents/skills/self"));
       writeFileSync(join(wt, ".agents/skills/self/SKILL.md"), skill);
+      commitAll(wt);
       const proc = Bun.spawnSync(["bash", "-c", stepThreeScript()], {
         env: { ...process.env, WT: wt },
         stderr: "pipe",
@@ -59,6 +68,7 @@ describe("open-pr step 3 lists every skill's description", () => {
       writeSkill(wt, "cjk", `description: ${"漢".repeat(250)}\n`);
       writeSkill(wt, "emoji", `description: >\n  ${"🚀".repeat(250)}\n`);
       writeSkill(wt, "ascii", `description: ${"a".repeat(250)}\n`);
+      commitAll(wt);
       const proc = Bun.spawnSync(["bash", "-c", stepThreeScript()], {
         env: { ...process.env, WT: wt },
         stderr: "pipe",
@@ -83,6 +93,7 @@ describe("open-pr step 3 lists every skill's description", () => {
       writeSkill(wt, "crlf", "description: >\r\n  Ship it\r\n  from Windows.\r\nlicense: x\r\n");
       writeSkill(wt, "crlfinline", "description: Review a diff.\r\n");
       writeSkill(wt, "plain", "description:\n  Plain text\n  on two lines.\nlicense: x\n");
+      commitAll(wt);
       const proc = Bun.spawnSync(["bash", "-c", stepThreeScript()], {
         env: { ...process.env, WT: wt },
         stderr: "pipe",
@@ -173,6 +184,7 @@ describe("open-pr step 3 lists the skills in GitHub's own skills folder", () => 
         join(wt, ".github/skills/create-pr/SKILL.md"),
         "---\nname: create-pr\ndescription: |\n    Orchestrates the full PR lifecycle.\n---\n\n# create-pr\n",
       );
+      commitAll(wt);
       const proc = Bun.spawnSync(["bash", "-c", stepThreeScript().replaceAll("<dirs the change touches>", "src")], {
         env: { ...process.env, WT: wt },
         stderr: "pipe",
@@ -280,6 +292,60 @@ describe("open-pr step 3 lists the skills Codex, Gemini CLI and OpenCode load", 
         ".opencode/skills/tdd/SKILL.md: Test first.\n",
         "pkg/.codex/skills/commit/SKILL.md: Commit in this package's format.\n",
         "pkg/.opencode/skills/release/SKILL.md: Release the package.\n",
+      ]) expect(out).toContain(line);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
+
+// Regression: step 3 listed the root skill folders from the disk and a
+// package's from `ls-tree`, and neither reads through a link. Claude Code
+// follows a linked skills folder and a linked skill ("A session loading this
+// project does follow it", its own `plugin validate` on keybase/client), and
+// repositories link both to folders step 1's sparse set leaves out:
+// keybase/client's `.claude/skills` links to `../skill` (16 skills, one of
+// them address-pr-feedback), VirtusLab/scala-cli's to `../agentskills` (11),
+// pelikan-io/pelikan's `.claude/skills/run` to `../../.agent/skills/run`. On
+// the disk each link dangled, and in the index it is one entry, so the
+// listing named none of those skills.
+describe("open-pr step 3 lists skills through linked folders", () => {
+  test("a linked skills folder and a linked skill, at the root and in a package, are listed from a sparse clone", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-linked-skills-"));
+    try {
+      const src = join(root, "src");
+      write(src, "skill/address-pr-feedback/SKILL.md", "---\nname: address-pr-feedback\ndescription: Answer every review thread.\n---\n");
+      write(src, ".agent/skills/run/SKILL.md", "---\nname: run\ndescription: Run the server locally.\n---\n");
+      write(src, "pkg/shared/release/SKILL.md", "---\nname: release\ndescription: Release the package.\n---\n");
+      write(src, "pkg/src/main.ts", "export {};\n");
+      mkdirSync(join(src, ".claude"), { recursive: true });
+      symlinkSync("../skill/", join(src, ".claude/skills"));
+      mkdirSync(join(src, ".agents/skills"), { recursive: true });
+      symlinkSync("../../.agent/skills/run", join(src, ".agents/skills/run"));
+      mkdirSync(join(src, "pkg/.claude"), { recursive: true });
+      symlinkSync("../shared", join(src, "pkg/.claude/skills"));
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--depth", "1", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      const stepOne = skill.slice(skill.indexOf("## 1."), skill.indexOf("## 2."));
+      const set = /```bash\n([\s\S]*?)\n```/u.exec(stepOne)?.[1]?.split("\n").find((l) => l.startsWith("git sparse-checkout set"));
+      if (set === undefined) throw new Error("step 1 has no sparse-checkout set");
+      expect(Bun.spawnSync(["bash", "-c", set.replace("<dirs the change touches>", "pkg/src")], { cwd: wt }).exitCode).toBe(0);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor("pkg/src")], {
+        cwd: root,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      for (const line of [
+        ".claude/skills/address-pr-feedback/SKILL.md: Answer every review thread.\n",
+        ".agents/skills/run/SKILL.md: Run the server locally.\n",
+        "pkg/.claude/skills/release/SKILL.md: Release the package.\n",
       ]) expect(out).toContain(line);
     } finally {
       rmSync(root, { force: true, recursive: true });
