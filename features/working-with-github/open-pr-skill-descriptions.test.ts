@@ -401,3 +401,48 @@ describe("open-pr step 3 reads Cursor's rules and skills the way Cursor loads th
     }
   });
 });
+
+// Regression: step 3 read a Cursor rule's front matter with two one-line awk
+// matches, unlike Cursor's own .mdc parser (cursor-agent 2026.11.22,
+// connect-pool-worker.js: a bare `globs:` followed by `  - item` lines is a
+// list, and a value loses a trailing ` # comment` unless it is quoted). So a
+// rule with list-form globs listed with no globs at all (tableau/tableau-mcp's
+// four rules, stackrox/stackrox's security rules, triggerdotdev/trigger.dev's
+// otel-metrics.mdc), and `alwaysApply: true # comment` (fr4iser90/aboutME's
+// nix-shell.mdc, akamalov/curseor-rules) printed as a description line
+// although Cursor applies it to every request. A quoted "true" is a string
+// there, so Cursor does not always apply that one.
+describe("open-pr step 3 reads Cursor front matter the way Cursor parses it", () => {
+  test("list-form globs, a commented alwaysApply, and a quoted true", () => {
+    const root = mkdtempSync(join(tmpdir(), "wwg-open-pr-cursor-fm-"));
+    try {
+      const src = join(root, "src");
+      write(src, ".cursor/rules/testing.mdc", '---\ndescription: Testing standards\nglobs:\n  - "**/*.test.ts"\n  # vitest config too\n  - vitest.config*.ts # root only\nalwaysApply: false\n---\n# Testing\n');
+      write(src, ".cursor/rules/nix.mdc", "---\r\ndescription: Nix shell rules\r\nglobs: \r\nalwaysApply: true # always, for Nix\r\n---\r\nUse nix develop.\r\n");
+      write(src, ".cursor/rules/quoted.mdc", '---\ndescription: Quoted flag\nglobs: "src/**/*.ts"\nalwaysApply: "true"\n---\n# Quoted\n');
+      write(src, "src/main.ts", "export {};\n");
+      git(["init", "-q", "-b", "main"], src);
+      git(["add", "-A"], src);
+      git(["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], src);
+      git(["config", "uploadpack.allowFilter", "true"], src);
+      const wt = join(root, "wt");
+      git(["clone", "-q", "--filter=blob:none", "--sparse", `file://${src}`, wt], root);
+      git(["sparse-checkout", "set", "--skip-checks", "src"], wt);
+      const proc = Bun.spawnSync(["bash", "-c", stepThreeScriptFor("src")], {
+        cwd: root,
+        env: { ...process.env, WT: wt },
+        stderr: "pipe",
+        stdout: "pipe",
+        timeout: 10_000,
+      });
+      const out = proc.stdout.toString();
+      expect(out).toContain(".cursor/rules/testing.mdc: Testing standards (globs **/*.test.ts, vitest.config*.ts)\n");
+      expect(out).toContain("===== .cursor/rules/nix.mdc (alwaysApply)");
+      expect(out).toContain("Use nix develop.");
+      expect(out).toContain(".cursor/rules/quoted.mdc: Quoted flag (globs src/**/*.ts)\n");
+      expect(out).not.toContain("===== .cursor/rules/quoted.mdc");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+});
