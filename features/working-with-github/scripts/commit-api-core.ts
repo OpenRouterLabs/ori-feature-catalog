@@ -101,6 +101,13 @@ export interface CommitDeps {
    */
   readonly asMember?: boolean;
   /**
+   * Act as this workspace, in ambient mode: no token is resolved, and no
+   * Authorization or `x-github-as` header is sent, so the host's proxy signs
+   * every call with the workspace's own credential (the intern's App). Leave
+   * it off in App mode, where that identity is the minted token.
+   */
+  readonly asWorkspace?: boolean;
+  /**
    * The fetch URL the post-commit local sync reads the new commit from.
    * Defaults to the authenticated github.com URL; tests point it at a local
    * bare repo.

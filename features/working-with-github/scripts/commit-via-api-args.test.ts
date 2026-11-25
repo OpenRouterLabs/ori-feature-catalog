@@ -196,6 +196,7 @@ describe("parseCliArgs", () => {
         messageFile: "/tmp/m",
         repo: "owner/repo",
         asMember: false,
+        asWorkspace: false,
       },
     });
   });
@@ -406,6 +407,7 @@ describe("parseCliArgs", () => {
         repo: "owner/repo",
         worktree: "/tmp/wt",
         asMember: false,
+        asWorkspace: false,
       });
     }
   });

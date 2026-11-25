@@ -58,7 +58,12 @@ running `bun "$WWG"/scripts/commit-via-api.ts` — a relative path then names
 a file under the worktree (missing for a vendored or remote-features layout,
 the worktree's own half-edited copy for a local `features/` one).
 
-In ambient mode `mint-token.ts` does not apply — the minting path requires an App. `commit-via-api.ts` still works with `--as member`: it resolves no token and makes the commit as the person asking (`x-github-as: member` on every call), so never hand-write the blob, tree, commit and ref calls. The REST recipes below still apply; use them through plain `curl`.
+In ambient mode `mint-token.ts` does not apply — the minting path requires an App. `commit-via-api.ts` still works there, and `--as` names whose identity the commit carries, so never hand-write the blob, tree, commit and ref calls:
+
+- **`--as workspace`: the default for every commit, branch and PR.** It resolves no token and sends every call bare, so the proxy signs it with this workspace's own GitHub App. The commit is the intern's, Verified, and the person asking can review and approve it (GitHub never lets anyone approve a PR they authored).
+- **`--as member`: only when the change must carry the person's own name**, or the workspace's credential cannot reach the repository. Every call carries `x-github-as: member`, so the proxy makes it as the person asking. An organization that enforces SAML SSO refuses that identity with a 403 until the person authorizes it for the organization.
+
+Never switch identities to get past a failure: when the chosen one is refused, say so and stop, and let the person decide. The REST recipes below still apply; use them through plain `curl`.
 
 ## Access mode 1 — ambient credential (no `GH_APP_ID`)
 
@@ -180,7 +185,7 @@ git fetch "https://x-access-token:${TOKEN}@github.com/${REPO}.git" main
 - **Always inject as `GH_TOKEN`** (or a per-command remote URL). Do not mint your own token for the default App: the host rotates it, and per-run minting gets rate-limited.
 - **NEVER run `gh auth login` / `gh auth switch`, and NEVER write to `~/.config/gh/hosts.yml`.** That store is a process-global mutable singleton; persisting a token there races every concurrent `gh` call and has historically caused identity/attribution bugs across the fleet. Ephemeral injection is the _only_ sanctioned path.
 - **Treat the token as a secret.** Assign it to a shell var — never echo it, never write it to a file, never persist it in a git remote (`git remote set-url`), never paste it into Slack or a PR.
-- **`commit-via-api.ts` resolves its own token** — you do not pass it one. In ambient mode, pass `--as member` to commit as the person asking instead (no token, `x-github-as: member` on every call). Same for any future feature script that needs auth: use `resolveGitHubToken()` from `gh-app-token-mint.ts`, never `mintInstallationToken()` directly.
+- **`commit-via-api.ts` resolves its own token** — you do not pass it one. In ambient mode, pass `--as workspace` to commit as this workspace's own App (no token, a bare call the proxy signs), or `--as member` only when the commit must carry the person's name (see the ambient note above). Same for any future feature script that needs auth: use `resolveGitHubToken()` from `gh-app-token-mint.ts`, never `mintInstallationToken()` directly.
 
 A token is only ever minted against an installation whose owner is allowlisted: the logins in `GH_APP_ALLOWED_ORGS` (comma or space separated), or else only the owner of `GITHUB_REPO`. A public App can be installed by anyone, so a foreign installation is never used. To act in another org, the operator adds it to `GH_APP_ALLOWED_ORGS`.
 

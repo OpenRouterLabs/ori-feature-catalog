@@ -23,8 +23,12 @@
  *
  *   1. Resolve the token: the host-rotated `GH_TOKEN` for the default App, or
  *      a minted token when `--repo` routes to a registered alternate App.
- *      `--as member` (ambient mode) resolves none and sends every call with
+ *      In ambient mode (no `GH_APP_ID`) pick the identity with `--as`:
+ *      `--as workspace` resolves no token and sends every call bare, so the
+ *      host's proxy signs it with this workspace's own App (the intern's
+ *      identity); `--as member` resolves none and sends every call with
  *      `x-github-as: member`, so the commit is made as the member asking.
+ *      Neither ever falls back to the other.
  *   2. Read the branch's current head commit + its tree (the base tree).
  *   3. For every changed file in the worktree (`git status --porcelain`):
  *        - added / modified → create a blob, stage it in the new tree;
@@ -45,7 +49,8 @@
  *     --branch my-branch \
  *     --message-file /tmp/msg.txt \
  *     [--repo owner/repo] \ # default: $GITHUB_REPO
- *     [--as member]         # ambient mode (no GH_APP_ID): commit as the person asking
+ *     [--as workspace|member] # ambient mode (no GH_APP_ID): commit as this
+ *                             # workspace's own App, or as the person asking
  *
  * `--repo` defaults to the `owner/repo` derived from the `GITHUB_REPO` env var
  * (a full https URL or a bare `owner/repo` both work). The branch must already
@@ -80,6 +85,8 @@ interface ParsedCli {
   readonly messageFile: string;
   readonly repo: string;
   readonly asMember: boolean;
+  /** `--as workspace`: commit as this workspace's own identity. */
+  readonly asWorkspace: boolean;
 }
 
 /** Parse one `--flag value` pair off `argv` at `index`, or fail with an `args` error. */
@@ -220,10 +227,10 @@ export const parseCliArgs = (
     const branch = flags.get("branch");
     const messageFile = flags.get("message-file");
     const actAs = flags.get("as");
-    if (actAs !== undefined && actAs !== "member") {
+    if (actAs !== undefined && actAs !== "member" && actAs !== "workspace") {
       return yield* new CommitApiError({
         stage: "args",
-        message: `--as "${displayArgvToken(actAs)}" is not supported — the only value is member`,
+        message: `--as "${displayArgvToken(actAs)}" is not supported — use workspace (this workspace's own App) or member (the person asking)`,
       });
     }
     // `--repo` tolerates the same spellings `GITHUB_REPO` does (a full https
@@ -281,20 +288,23 @@ export const parseCliArgs = (
       messageFile,
       repo,
       asMember: actAs === "member",
+      asWorkspace: actAs === "workspace",
     };
   });
 
 /**
- * The CLI's diagnostic for `error`, naming `--as member` when a token could
- * not be resolved in ambient mode (`GH_APP_ID` unset). There the token path
- * cannot work at all, and `--as member` is the one way to commit; pre-fix the
- * run died on "GH_TOKEN is not set — the default App's token is rotated by
- * the host…", an App-mode message that sent the caller hunting for a token
- * the workspace never holds and never named the flag that commits.
+ * The CLI's diagnostic for `error`, naming both `--as` choices when a token
+ * could not be resolved in ambient mode (`GH_APP_ID` unset). There the token
+ * path cannot work at all; pre-fix the run died on "GH_TOKEN is not set — the
+ * default App's token is rotated by the host…", an App-mode message that sent
+ * the caller hunting for a token the workspace never holds. Naming only
+ * `--as member` was worse: it pushed every intern onto the asking person's
+ * identity, which an SSO-enforcing org refuses, even though the proxy signs a
+ * bare call with the workspace's own App (`--as workspace`).
  *
  * A registered alternate App's mint failure keeps its message as-is: that
- * token can be resolved once its config is fixed, and `--as member` would
- * commit as the person instead of the App the operator registered.
+ * token can be resolved once its config is fixed, and either `--as` choice
+ * would commit as someone other than the App the operator registered.
  */
 export const withAmbientHint = (
   error: CommitApiError,
@@ -304,7 +314,7 @@ export const withAmbientHint = (
   error.stage === "mint" &&
   error.registered !== true &&
   isAmbientMode(env)
-    ? `${error.message} — no GH_APP_ID is set (ambient mode), so no token can be resolved here: pass --as member to commit as the person asking`
+    ? `${error.message} — no GH_APP_ID is set (ambient mode), so no token can be resolved here: pass --as workspace to commit as this workspace's own App (the default for your own changes), or --as member to commit as the person asking`
     : error.message;
 
 const runCli = (): Promise<number> =>
@@ -341,7 +351,12 @@ const runCli = (): Promise<number> =>
           message: message.trim(),
           repo: parsed.repo,
         },
-        { asMember: parsed.asMember }
+        {
+          asMember: parsed.asMember,
+          // In App mode the workspace's identity IS the minted token, so
+          // `--as workspace` only changes the request in ambient mode.
+          asWorkspace: parsed.asWorkspace && isAmbientMode(),
+        }
       );
       process.stdout.write(`${sha}\n`);
       return 0;

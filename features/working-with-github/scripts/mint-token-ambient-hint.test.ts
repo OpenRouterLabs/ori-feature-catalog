@@ -15,7 +15,7 @@ import { runMint, withAmbientMintHint } from "./mint-token.ts";
 //   mint-token: GH_TOKEN is not set — the default App's token is rotated by
 //   the host and injected as GH_TOKEN; it is never minted here
 // which the prompt reads as broken host rotation, never naming the ambient
-// path (plain curl, commit-via-api.ts --as member) that works there.
+// path (plain curl, commit-via-api.ts --as workspace) that works there.
 
 const unset = new GhAppError({
   op: "config",
@@ -32,13 +32,13 @@ const run = async (error: GhAppError, env: Record<string, string | undefined>) =
 };
 
 describe("mint-token names the ambient path when no GH_APP_ID is set", () => {
-  test("a config failure in ambient mode says nothing is broken and names curl and --as member", async () => {
+  test("a config failure in ambient mode says nothing is broken and names curl and --as workspace", async () => {
     const { code, err } = await run(unset, {});
     expect(code).toBe(1);
     expect(err).toStartWith("mint-token: GH_TOKEN is not set");
     expect(err).toContain("no GH_APP_ID is set (ambient mode)");
     expect(err).toContain("plain curl");
-    expect(err).toContain("commit-via-api.ts --as member");
+    expect(err).toContain("commit-via-api.ts --as workspace");
   });
 
   test("the missing-App-vars failure of a cross-org target gets the hint too", () => {
